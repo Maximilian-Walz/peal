@@ -1,0 +1,11 @@
+# Peal runs under Belfry from its GitHub issues until it can run on itself.
+tasks:
+  backend: github-issues
+policy:
+  max_concurrent: 1
+  permission_mode: auto
+  merge: human
+  merge_method: squash
+docs:
+  - title: Readme
+    path: README.md
