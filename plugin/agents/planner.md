@@ -26,7 +26,13 @@ Produce, in this order:
    leaves a piece of it for a new task, name the tasks that depend on this one (their
    `depends` lists hold its id), so the pieces can be pointed at what they really need.
 3. **Files.** What you expect to create or modify. Anything outside the task's `## Scope`
-   is a flag, not a detail.
+   is a flag, not a detail. End it with a `Touches:` line, the task's `touches` as a
+   YAML list: the paths, directories or globs (`*`, `?` and `[...]` within a directory,
+   `**` across) the work will likely change, relative to the repository's root, no
+   commas, each short enough for a label (41 characters) when the task is an issue;
+   a directory or glob where many files under one place change. You do not write it;
+   the main session records it once the human agrees. It is a hint for starting tasks
+   in parallel: a wrong one costs a missed parallel slot, nothing more.
 4. **Verification.** The tests and scenarios that will prove the task's `## Done when`.
    If you cannot name them, the task is not ready: say so.
 5. **Model.** The implementer's model: `default` unless the implementation is genuinely

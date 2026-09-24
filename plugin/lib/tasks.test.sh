@@ -8,7 +8,7 @@
 # Every state, from refs and the remote's main only; the depends expansion of milestone,
 # human and split origins; depends cycles in list, board and check; the board as JSON
 # lines in the shapes of Belfry's contract, pull requests from gh included; the
-# overview's groups; a task's priority in all three.
+# overview's groups; a task's priority in all three; its touches on the board.
 set -uo pipefail
 # shellcheck source=test-lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/test-lib.sh"
@@ -454,6 +454,22 @@ No milestone — 4 open, 1 done
   0006  free           after-done" "$(at "$work" "$PEAL" overview 2>/dev/null | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}')"
 }
 
+# touches: a list (a single path read as one), in the board only.
+touches() {
+  local work
+  work=$(repo)
+  put "$work" backlog 0001 two-paths "touches: [docs/api.md, 'ui/**/*.tscn']"
+  put "$work" backlog 0002 one-path "touches: scripts/rank"
+  put "$work" backlog 0003 no-paths "touches: []"
+  check "touches: board" '{"id":"0001","state":"free","slug":"two-paths","title":"Title of 0001","touches":["docs/api.md","ui/**/*.tscn"],"path":"tasks/backlog/0001-two-paths.md"}
+{"id":"0002","state":"free","slug":"one-path","title":"Title of 0002","touches":["scripts/rank"],"path":"tasks/backlog/0002-one-path.md"}
+{"id":"0003","state":"free","slug":"no-paths","title":"Title of 0003","path":"tasks/backlog/0003-no-paths.md"}' \
+    "$(at "$work" "$PEAL" board --no-pr 2>&1 | grep -v '^{"milestone"')"
+  check "touches: not in the list" "0001 free two-paths -
+0002 free one-path -
+0003 free no-paths -" "$(list 2>&1)"
+}
+
 cases() {
   states
   expansion
@@ -462,6 +478,7 @@ cases() {
   overview
   priority
   owner
+  touches
 }
 
 for_each_awk cases

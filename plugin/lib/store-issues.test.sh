@@ -6,7 +6,7 @@
 #   bash plugin/lib/store-issues.test.sh
 #
 # What the task-file harnesses cover, on issues: every state (the label, the refs, the
-# pull requests), the depends expansion, the board and the overview, priority labels,
+# pull requests), the depends expansion, the board and the overview, priority and touches labels,
 # and the same
 # records as task files for the same tasks; read, create, revise, set-milestone,
 # comment, retire and finish; offer, claim and release, with a claim made by Belfry's
@@ -656,6 +656,37 @@ owner() {
   check "owner: a human task done frees what waits on it" "7 free after -" "$(peal list 7 2>&1)"
 }
 
+# touches as labels, one per path: read into a list, written by create and revise, a label
+# over GitHub's 50 characters refused before anything is filed.
+touches() {
+  local work out long
+  issues_repo
+  issue 1 "Two" --label "touches: docs/api.md" --label "touches: ui/**/*.tscn" --label "size: S"
+  issue 2 "One" --label "touches: scripts/rank"
+  check "touches: board" '{"id":"1","state":"free","slug":"two","title":"Two","size":"S","touches":["docs/api.md","ui/**/*.tscn"]}
+{"id":"2","state":"free","slug":"one","title":"One","touches":["scripts/rank"]}' "$(peal board 2>&1 | grep -v '^{"milestone"' | normal)"
+  check "touches: read, a list" "touches: [docs/api.md, ui/**/*.tscn]" "$(peal read 1 | grep '^touches')"
+  check "touches: read, one is a list too" "touches: [scripts/rank]" "$(peal read 2 | grep '^touches')"
+
+  out=$(peal create touching-thing < <(TITLE="Touching" text "touches: [plugin/lib/board.awk, '**/*.md']") 2>&1)
+  check "touches: create" "0:filed 3" "$?:${out%% https*}"
+  check "touches: the labels" "touches: plugin/lib/board.awk,touches: **/*.md" "$(labels 3)"
+  check "touches: read back" "touches: [plugin/lib/board.awk, '**/*.md']" "$(peal read 3 | grep '^touches')"
+  peal read 3 | sed 's|^touches: .*|touches: [docs/design.md]|' | peal revise 3 --reason "narrower" >/dev/null 2>&1
+  check "touches: revise replaces the labels" "touches: docs/design.md" "$(labels 3)"
+  peal read 3 | sed '/^touches:/d' | peal revise 3 --reason "unknown" >/dev/null 2>&1
+  check "touches: revise drops them" "" "$(labels 3)"
+
+  # "touches: " and 41 characters make 50, the most a label holds.
+  long=plugin/lib/aaaaaaaaaaaaaaaaaaaaaaaaaa.awk
+  out=$(peal create fits-thing < <(TITLE="Fits" text "touches: [$long]") 2>&1)
+  check "touches: a label of 50 characters" "0:filed 4|touches: $long" "$?:${out%% https*}|$(labels 4)"
+  check_refused "touches: a label over 50 characters" \
+    "touches: ${long}x is too long for a label (\"touches: ${long}x\" is over 50 characters)" \
+    peal create long-thing < <(text "touches: [${long}x]")
+  check "touches: nothing filed" "4" "$(gh_get 'length')"
+}
+
 cases() {
   states
   expansion
@@ -664,6 +695,7 @@ cases() {
   parity
   priority
   owner
+  touches
   writes
   claims
   session

@@ -85,9 +85,10 @@ actions:
   worktree, so a re-run Belfry job continues where the last one stopped. The last line is
   the worktree path.
 - `board` prints one JSON object per task (`id`, `state`, `slug`, `title`, `milestone`,
-  `depends`, `part_of`, `size`, `plan`, `needs`, `priority`, `owner`, `pr`, `path`, `ref`, and
-  `cycle`, the list detail's cycle, which the contract lets a board add; each but `id`
-  and `state` only when set, so a normal priority and an AI's task are no field), and one
+  `depends`, `part_of`, `size`, `plan`, `needs`, `priority`, `owner`, `touches`, `pr`,
+  `path`, `ref`, and `cycle`, the list detail's cycle, which the contract lets a board
+  add; each but `id` and `state` only when set, so a normal priority and an AI's task
+  are no field), and one
   `{"milestone":{...}}` line per milestone, exactly the shapes of Belfry's contract.
 - `/peal:work NNNN` notices it is already inside NNNN's worktree (the branch is the task's
   branch and `tasks/doing/` holds its file) and skips its own claim. It does not read any
@@ -145,8 +146,8 @@ one it claims an id, or offers a pool for the human to pick from through
 `AskUserQuestion`. After a claim the session enters the worktree (`EnterWorktree`); the
 planner runs when the plan is required, and the session stops for the human, asking
 through `AskUserQuestion` so the same step works interactive and headless. The agreed
-plan goes into the task's `Plan` section, the size and a non-default `model:` into its
-frontmatter, and `peal record ID plan` puts that text on the claim (the storage's
+plan goes into the task's `Plan` section, the size, a non-default `model:` and the
+planner's `touches` into its frontmatter, and `peal record ID plan` puts that text on the claim (the storage's
 `record`). The implementer builds; its `QUESTION`s
 go to the human and back to it through `SendMessage`. The main session never writes the
 task's code.
@@ -266,6 +267,7 @@ Peal's fields, all optional:
 | `release-note` | `none` leaves the task out of the release notes. |
 | `priority` | `urgent`, `high`, `normal` or `low`; absent means normal. Orders the offer within a milestone, never across milestones; `/peal:idea` sets it only when the idea says so plainly, `/peal:revise` changes it. The board carries it, `peal overview` marks urgent `!` and high `↑`. |
 | `owner` | `ai` or `human`; absent means ai. A human task is work only the human can deliver: the offer never offers it and `/peal:work` refuses it, while `peal claim` still makes its worktree for the human (or Belfry's Start). A `depends` on it waits until it is done, like any other; the `human` keyword, by contrast, never resolves by itself. The board, the list and `peal overview` carry it. |
+| `touches` | a list of paths, directories or globs (`*`, `?`, `[...]` within a directory, `**` across) the task will likely change, relative to the repository's root; no entry absolute or holding a comma, and on issues none making a label over GitHub's 50 characters. The planner writes it when the human agrees the plan; `/peal:idea` only when the idea names the files plainly. The board carries it, so a scheduler like Belfry does not start two tasks on the same files side by side. A hint: a wrong one costs a missed parallel slot, nothing more. |
 
 **A depends cycle is refused,** since every task on it would stay blocked for ever. Where
 a task text is filed, revised or deferred, the depends graph is built as the read model
@@ -603,6 +605,7 @@ in both:
 | `size`, `plan`, `model`, `breaking`, `release-note`, the project's own fields | labels `<field>: <value>` |
 | `priority` | labels `priority: urgent`, `priority: high`, `priority: low`, Belfry's; of two the higher counts, none is normal |
 | `owner` | the label `owner: human`, Belfry's; none is ai |
+| `touches` | labels `touches: <path>`, one per entry, Belfry's |
 
 Labels rather than a frontmatter block in the body: they show and filter on GitHub, and
 Belfry reads `needs:` labels already. The sections (Intent, Scope, Raw, ...) are the

@@ -58,6 +58,10 @@ Frontmatter, triaged now:
   blocks something now ("urgent", "blocks …", "cannot wait"), `high` when it says it
   should come first or soon, `low` when it says it can wait. Otherwise leave it out: no
   priority is `normal`. Priority orders the offer within a milestone, never across them.
+- `touches`: only when the idea names the files or directories it will change plainly
+  ("the board's awk", "`docs/api.md`"): those paths, relative to the repository's root.
+  Otherwise leave it out; the planner writes it when the plan is agreed. It is a hint
+  for starting tasks in parallel, never a guess worth making.
 - `size`: left out; the planner sizes a task when it is claimed.
 
 Write `NNNN` wherever the task's number belongs, the heading first; the storage puts in
@@ -69,6 +73,7 @@ milestone: <id, or leave the line out>
 plan: <required | skipped>
 depends: [<ids, human>]
 priority: <urgent | high | low, or leave the line out>
+touches: [<paths the idea names plainly, or leave the line out>]
 ---
 
 # NNNN — <Title>

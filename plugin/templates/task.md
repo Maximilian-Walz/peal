@@ -23,6 +23,9 @@ depends: []
              milestone, never across milestones.
   breaking   true when the task breaks something users rely on: the next release is major.
   release-note  none to leave the task out of the release notes.
+  touches    paths, directories or globs the task will likely change, e.g. [docs/api.md,
+             'ui/**']; a hint so that tasks on the same files are not started side by
+             side. The planner writes it once the plan is agreed.
   A project's own fields are declared under task.fields in .peal/config.yml. -->
 
 ## Intent
