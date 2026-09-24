@@ -9,7 +9,8 @@ tasks along the way. Milestones group the backlog.
 A peal is a full, ordered ringing of changes on a set of bells: a backlog worked through
 in order.
 
-**Status:** being built; the plugin installs, but its commands do not exist yet. See
+**Status:** being built; the plugin installs and its CLI lists, files, revises and
+retires tasks, but its Claude Code commands do not exist yet. See
 [docs/design.md](docs/design.md) and the issues.
 
 ## Peal and Belfry
@@ -28,10 +29,13 @@ This repository is a Claude Code plugin marketplace (`.claude-plugin/marketplace
 with one plugin, `peal`, in `plugin/`:
 
 - `plugin/bin/peal`, the CLI every command, hook and outside caller runs;
-- `plugin/lib/`, its libraries: the frontmatter reader and writer for Peal's YAML
-  subset, the configuration and the milestones, in bash and awk only;
+- `plugin/lib/`, its libraries, in bash and awk only: the frontmatter reader and writer
+  for Peal's YAML subset, the configuration, the milestones, and the task storage
+  (`store.sh`, the interface; `store-files.sh`, the task files; `task-state.awk`, the
+  read model's rules);
 - `plugin/hooks/`, the plugin's Claude Code hooks;
-- `plugin/templates/launcher`, the `.peal/peal` a project commits.
+- `plugin/templates/`: `launcher`, the `.peal/peal` a project commits, and `task.md`,
+  the task template.
 
 Every script has a harness next to it, `<script>.test.sh`, runnable on its own with
 `bash`. `tools/test-all.sh` runs them all and `tools/lint.sh` runs `shellcheck`; CI runs

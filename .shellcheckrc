@@ -1,2 +1,4 @@
 source-path=SCRIPTDIR
 external-sources=true
+# A function's optional arguments are left out by most callers (peal_ms_load [ROOT]).
+disable=SC2119

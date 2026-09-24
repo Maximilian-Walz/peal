@@ -17,6 +17,14 @@ export PEAL_ROOT
 . "$PEAL_ROOT/lib/milestones.sh"
 # shellcheck source=../lib/session.sh
 . "$PEAL_ROOT/lib/session.sh"
+# shellcheck source=../lib/task-text.sh
+. "$PEAL_ROOT/lib/task-text.sh"
+# shellcheck source=../lib/store.sh
+. "$PEAL_ROOT/lib/store.sh"
+# shellcheck source=../lib/tasks.sh
+. "$PEAL_ROOT/lib/tasks.sh"
+# shellcheck source=../lib/ideas.sh
+. "$PEAL_ROOT/lib/ideas.sh"
 
 usage() {
   cat <<'EOF'
@@ -34,6 +42,29 @@ usage: peal <command> [args]
   milestones [--json]           one line per milestone: id state order due title, or
                                 the board's {"milestone":{...}} lines
   hook session-start            the SessionStart hook: record where Peal is installed
+
+Tasks, read from the remote's main branch and the refs (--fetch: fetch first; --no-pr:
+do not ask gh for pull requests):
+  list [--fetch] [--no-pr] [--state S[,S...]] [ID...]
+                                NNNN state slug detail, per task
+  board [--fetch] [--no-pr]     a JSON line per task, then one per milestone
+  overview [--fetch]            the open tasks, grouped by milestone
+  read ID                       a task's text, from its branch or the main one
+
+Tasks, written straight onto the main branch (task texts on stdin; NNNN stands for the
+number to come, several texts are separated by lines -----NEXT TASK-----):
+  create SLUG                   file a task
+  create --part-of ID SLUG...   file the pieces of a split of ID (part-of: ORIGIN,
+                                PART1..n for each other)
+  create --batch ID SLUG...     file ideas found in task ID
+  idea SLUG [--now]             queue an idea on a task branch, else (or --now) file it
+  ideas [--flush]               the queued ideas; --flush files them
+  revise ID --reason R [--dry-run]
+                                rewrite an unclaimed task's text
+  retire ID --reason R          move an unclaimed task to done, R as its Outcome
+  set-milestone ID [M]          set an unclaimed task's milestone, or remove it
+  comment ID TEXT               add a dated line to an unclaimed task's Notes
+  finish ID                     on the task's branch: its file from doing/ to done/, staged
 EOF
 }
 
@@ -96,6 +127,43 @@ cmd_hook() {
   esac
 }
 
+# with_store COMMAND ARGS... -> COMMAND run with the configured storage loaded.
+with_store() {
+  peal_store_load || exit 2
+  "$@"
+}
+
+# reason_args VERB ARGS... -> PEAL_ID, PEAL_REASON and PEAL_DRY from "ID --reason R
+# [--dry-run]"; exits 2 on anything else.
+reason_args() {
+  local verb=$1
+  shift
+  PEAL_ID=${1-} PEAL_REASON="" PEAL_DRY=""
+  [ $# -ge 1 ] && shift
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --reason) [ $# -ge 2 ] || { peal_err "$verb: --reason needs a reason"; exit 2; }; PEAL_REASON=$2; shift ;;
+      --dry-run) [ "$verb" = revise ] || { usage >&2; exit 2; }; PEAL_DRY=--dry-run ;;
+      *) peal_err "$verb: unknown argument $1"; exit 2 ;;
+    esac
+    shift
+  done
+  if [ -z "$PEAL_ID" ] || [ -z "$PEAL_REASON" ]; then
+    peal_err "$verb: ID --reason R"
+    exit 2
+  fi
+}
+
+cmd_create() {
+  need 1 "$@"
+  case $1 in
+    --part-of) need 3 "$@"; peal_store_create split "$2" "${@:3}" ;;
+    --batch) need 3 "$@"; peal_store_create batch "$2" "${@:3}" ;;
+    -*) usage >&2; exit 2 ;;
+    *) [ $# -eq 1 ] || { usage >&2; exit 2; }; peal_store_create plain "" "$1" ;;
+  esac
+}
+
 main() {
   if [ $# -eq 0 ]; then
     usage >&2
@@ -111,6 +179,18 @@ main() {
     frontmatter) cmd_frontmatter "$@" ;;
     hook) cmd_hook "$@" ;;
     milestones) cmd_milestones "$@" ;;
+    list) with_store peal_list "$@" ;;
+    board) with_store peal_board "$@" ;;
+    overview) with_store peal_overview "$@" ;;
+    read) need 1 "$@"; with_store peal_store_read "$1" ;;
+    create) with_store cmd_create "$@" ;;
+    idea) need 1 "$@"; with_store peal_idea "$@" ;;
+    ideas) with_store peal_ideas "$@" ;;
+    revise) reason_args revise "$@"; with_store peal_store_edit "$PEAL_ID" "$PEAL_REASON" "$PEAL_DRY" ;;
+    retire) reason_args retire "$@"; with_store peal_store_finish "$PEAL_ID" retired "$PEAL_REASON" ;;
+    finish) [ $# -eq 1 ] || { usage >&2; exit 2; }; with_store peal_store_finish "$1" "done" ;;
+    set-milestone) need 1 "$@"; with_store peal_store_set_milestone "$@" ;;
+    comment) [ $# -eq 2 ] || { usage >&2; exit 2; }; with_store peal_store_comment "$1" "$2" ;;
     *)
       peal_err "unknown command '$cmd'"
       usage >&2
