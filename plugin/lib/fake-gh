@@ -2,16 +2,22 @@
 # shellcheck disable=SC2016 # jq's $variables, not the shell's
 # A fake gh for the harnesses of the issues storage and the close: `gh api` over a
 # repository held as JSON files in $FAKE_GH (issues.json, milestones.json, pulls.json,
-# comments.json, checks.json, statuses.json), each an array of objects shaped like
-# GitHub's REST responses (the fields Peal reads; a check or status also names its
-# commit, sha), and $FAKE_GH/workflows, how many Actions workflows there are (1). --jq
+# comments.json, checks.json, statuses.json, runs.json, jobs.json, releases.json), each
+# an array of objects shaped like GitHub's REST responses (the fields Peal reads; a check
+# or status also names its commit, sha; a job its run, run_id; a release is {tag, title,
+# notes, url}), $FAKE_GH/logs/<job id>, a job's log, and $FAKE_GH/workflows, how many
+# Actions workflows there are (1). --jq
 # is applied with jq, as gh applies its own. Every call is appended to $FAKE_GH/log as
 # "METHOD PATH"; $FAKE_GH/fail, when it exists, holds a pattern: a call whose
 # "METHOD PATH" matches it fails, but for the first N such calls when $FAKE_GH/fail-after
 # holds N.
 #
 #   gh api [-X|--method M] [--paginate] [--input FILE] [--jq|-q EXPR] [-H H] PATH
+#   gh release view TAG -R REPO [--json FIELDS] [--jq EXPR]
+#   gh release create TAG -R REPO [--verify-tag] [--title T] --notes-file FILE
+#   gh release edit TAG -R REPO [--title T] --notes-file FILE
 #
+# A release call is logged as "RELEASE <verb> <tag>".
 # Only the endpoints Peal calls; anything else fails loudly, so a new call cannot pass
 # the harness unseen.
 set -uo pipefail
@@ -22,7 +28,57 @@ die() {
 }
 
 [ -n "${FAKE_GH:-}" ] || die "FAKE_GH is not set"
-[ "${1-}" = api ] || die "only gh api is faked, not: gh $*"
+for f in issues milestones pulls comments checks statuses runs jobs releases; do
+  [ -f "$FAKE_GH/$f.json" ] || printf '[]\n' >"$FAKE_GH/$f.json"
+done
+
+if [ "${1-}" = release ]; then
+  verb=${2-} tag=${3-} repo="" title="" notes="" jq_expr=""
+  shift 3 || die "gh release $verb: no tag"
+  while [ $# -gt 0 ]; do
+    case $1 in
+      -R | --repo) repo=$2; shift ;;
+      --title) title=$2; shift ;;
+      --notes-file) notes=$(cat "$2") || die "no notes file $2"; shift ;;
+      --json) shift ;;
+      -q | --jq) jq_expr=$2; shift ;;
+      --verify-tag) ;;
+      *) die "gh release: unknown option $1" ;;
+    esac
+    shift
+  done
+  [ -n "$repo" ] || die "gh release: no -R"
+  printf 'RELEASE %s %s\n' "$verb" "$tag" >>"$FAKE_GH/log"
+  if [ -s "$FAKE_GH/fail" ] && [[ "RELEASE $verb $tag" == $(cat "$FAKE_GH/fail") ]]; then
+    printf 'HTTP 502: failing on purpose (release %s %s)\n' "$verb" "$tag" >&2
+    exit 1
+  fi
+  url="https://github.com/$repo/releases/tag/$tag"
+  exists=$(jq --arg t "$tag" 'any(.[]; .tag == $t)' "$FAKE_GH/releases.json")
+  file=$FAKE_GH/releases.json
+  case $verb in
+    view)
+      [ "$exists" = true ] || { echo "release not found" >&2; exit 1; }
+      jq -c --arg t "$tag" '.[] | select(.tag == $t) | {url}' "$file" | if [ -n "$jq_expr" ]; then jq -r "$jq_expr"; else cat; fi
+      ;;
+    create)
+      [ "$exists" = false ] || { echo "a release with the same tag name already exists: $tag" >&2; exit 1; }
+      jq --arg t "$tag" --arg ti "$title" --arg n "$notes" --arg u "$url" '. + [{tag: $t, title: $ti, notes: $n, url: $u}]' \
+        "$file" >"$file.new" && mv "$file.new" "$file"
+      echo "$url"
+      ;;
+    edit)
+      [ "$exists" = true ] || { echo "release not found" >&2; exit 1; }
+      jq --arg t "$tag" --arg ti "$title" --arg n "$notes" 'map(if .tag == $t then . + {title: $ti, notes: $n} else . end)' \
+        "$file" >"$file.new" && mv "$file.new" "$file"
+      echo "$url"
+      ;;
+    *) die "gh release $verb is not faked" ;;
+  esac
+  exit 0
+fi
+
+[ "${1-}" = api ] || die "only gh api and gh release are faked, not: gh $*"
 shift
 
 method=GET jq_expr="" input="" path=""
@@ -49,10 +105,6 @@ if [ -s "$FAKE_GH/fail" ] && [[ "$method $path" == $(cat "$FAKE_GH/fail") ]]; th
     exit 1
   fi
 fi
-
-for f in issues milestones pulls comments checks statuses; do
-  [ -f "$FAKE_GH/$f.json" ] || printf '[]\n' >"$FAKE_GH/$f.json"
-done
 
 body='{}'
 if [ -n "$input" ]; then
@@ -155,6 +207,19 @@ case "$method $rest" in
   "GET commits/"*/status)
     sha=${rest#commits/} sha=${sha%/status}
     out "$(jq -c --arg sha "$sha" 'map(select(.sha == $sha)) | {statuses: .}' "$FAKE_GH/statuses.json")"
+    ;;
+  "GET actions/runs")
+    sha=$(query head_sha)
+    out "$(jq -c --arg sha "$sha" '{workflow_runs: map(select($sha == "" or .head_sha == $sha))}' "$FAKE_GH/runs.json")"
+    ;;
+  "GET actions/runs/"*/jobs)
+    n=${rest#actions/runs/} n=${n%/jobs}
+    out "$(jq -c --argjson n "$n" '{jobs: map(select(.run_id == $n))}' "$FAKE_GH/jobs.json")"
+    ;;
+  "GET actions/jobs/"*/logs)
+    n=${rest#actions/jobs/} n=${n%/logs}
+    [ -f "$FAKE_GH/logs/$n" ] || { printf 'gh: Not Found (HTTP 404)\n' >&2; exit 1; }
+    cat "$FAKE_GH/logs/$n"
     ;;
   "GET actions/workflows") out "{\"total_count\": $(cat "$FAKE_GH/workflows" 2>/dev/null || echo 1)}" ;;
   *)

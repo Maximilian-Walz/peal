@@ -11,8 +11,8 @@
 #             items are read up to the first word that is none of those
 #   part-of   a line "Part of #3"
 #   needs     labels "needs: <capability>"
-#   fields    labels "<field>: <value>": size, plan, model and the project's own; a
-#             field with several such labels is a list
+#   fields    labels "<field>: <value>": size, plan, model, breaking, release-note and
+#             the project's own; a field with several such labels is a list
 #   claimed   the label "in progress"
 
 # tsv_unescape(s) -> s with @tsv's escapes undone.

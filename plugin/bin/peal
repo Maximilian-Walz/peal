@@ -47,6 +47,8 @@ export PEAL_ROOT
 . "$PEAL_ROOT/lib/decisions.sh"
 # shellcheck source=../lib/review.sh
 . "$PEAL_ROOT/lib/review.sh"
+# shellcheck source=../lib/ship.sh
+. "$PEAL_ROOT/lib/ship.sh"
 
 usage() {
   cat <<'EOF'
@@ -181,6 +183,23 @@ A milestone's end (lib/review.sh):
                                 ("until #12, other/repo#43"), FILE's text (-: stdin)
                                 its review;
                                 with none current, the first open one becomes current
+
+Releases, /peal:release's steps (lib/ship.sh; VERSION is 1.2.0 or v1.2.0, the tag
+release.tag-prefix and the version):
+  ship propose                  LAST <tag>|none, ITEM kind id prs title per task and
+                                feat or fix commit since, then PROPOSE <tag> <bump>, or
+                                NOTHING since <tag>
+  ship notes VERSION            the release notes: Breaking, Features, Fixes, a line per
+                                task (release-note: none left out)
+  ship tag VERSION              the annotated tag on the remote's main branch, pushed;
+                                refused for a tag that exists or a version not above the
+                                last release
+  ship publish VERSION          the GitHub release of the tag, created or updated with
+                                the notes (nothing for a remote not on GitHub)
+  ship wait VERSION             wait for the tag's workflow runs: READY (0), FAILED:<run>
+                                (1), NONE:<why> (1), WAIT:<why> (3), with RUN lines and
+                                the release.report lines found in their logs
+                                (PEAL_SHIP_WAIT_BUDGET, 540 s; PEAL_SHIP_WAIT_INTERVAL, 20)
 EOF
 }
 
@@ -352,6 +371,7 @@ main() {
     decision) peal_config_load || exit 2; peal_decision "$@" ;;
     milestone-review) with_store peal_milestone_review "$@" ;;
     milestone-state) with_store peal_milestone_state "$@" ;;
+    ship) peal_config_load || exit 2; peal_ship "$@" ;;
     comment) [ $# -eq 2 ] || { usage >&2; exit 2; }; with_store peal_store_comment "$1" "$2" ;;
     *)
       peal_err "unknown command '$cmd'"
