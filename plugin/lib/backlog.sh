@@ -84,6 +84,7 @@ peal_revise() {
   _peal_backlog_context >"$tmp/context" || status=2
   PEAL_CHECK_ID=$id PEAL_CHECK_OLDMS=$(peal_fm_get "$tmp/old" milestone 2>/dev/null) \
     peal_task_check "$tmp/new" revise "task $id" "$tmp/context" >/dev/null || status=2
+  [ $status != 0 ] || peal_cycle_check_text revise "$id" "$tmp/new" "$PEAL_RECORDS" || status=$?
   if [ $status = 0 ]; then
     peal_text_add_note "Revised $(date -u +%Y-%m-%d): $reason" <"$tmp/new" >"$tmp/revised"
     if [ "$dry" = --dry-run ]; then
@@ -98,12 +99,12 @@ peal_revise() {
 }
 
 # _peal_backlog_context -> task-check.awk's CONTEXT from the storage: the settings', every
-# milestone and every task.
+# milestone and every task. Sets PEAL_RECORDS (the list records).
 _peal_backlog_context() {
-  local milestones records
+  local milestones
   milestones=$(peal_store_milestones) || return 2
-  records=$(peal_store_list --no-pr) || return 2
+  PEAL_RECORDS=$(peal_store_list --no-pr) || return 2
   peal_check_context
   [ -z "$milestones" ] || printf '%s\n' "$milestones" | awk -F '\t' '{ print "ms\t" $1 "\t" $3 }'
-  [ -z "$records" ] || printf '%s\n' "$records" | cut -f1 | sed 's/^/id\t/'
+  [ -z "$PEAL_RECORDS" ] || printf '%s\n' "$PEAL_RECORDS" | cut -f1 | sed 's/^/id\t/'
 }

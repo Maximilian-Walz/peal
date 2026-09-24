@@ -6,8 +6,9 @@
 #   bash plugin/lib/tasks.test.sh
 #
 # Every state, from refs and the remote's main only; the depends expansion of milestone,
-# human and split origins; the board as JSON lines in the shapes of Belfry's contract,
-# pull requests from gh included; the overview's groups.
+# human and split origins; depends cycles in list, board and check; the board as JSON
+# lines in the shapes of Belfry's contract, pull requests from gh included; the
+# overview's groups.
 set -uo pipefail
 # shellcheck source=test-lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/test-lib.sh"
@@ -237,6 +238,61 @@ peal: warning: task 0019's part-of 0999 names no task; ignored" "$err"
 peal: warning: task 0002 has more than one file: tasks/backlog/0002-twice-filed.md and tasks/done/0002-twice-done.md; reading tasks/done/0002-twice-done.md" "$err"
 }
 
+# Depends cycles made by hand: blocked with the cycle in list and board, and each cycle
+# once in check.
+cycles() {
+  local work out
+  work=$(repo)
+  put "$work" backlog 0001 cycle-a "depends: [0002]"
+  put "$work" backlog 0002 cycle-b "depends: [0001]"
+  put "$work" backlog 0003 waits-on-cycle "depends: [0001]"
+  put "$work" backlog 0004 ring-a "depends: [0005, human]"
+  put "$work" backlog 0005 ring-b "depends: [0006]"
+  put "$work" backlog 0006 ring-c "depends: [0004]"
+  put "$work" backlog 0007 review-a "milestone: m2" "depends: [milestone]"
+  put "$work" backlog 0008 review-b "milestone: m2" "depends: [milestone]"
+  put "$work" backlog 0009 own-milestone "milestone: m1" "depends: [milestone]"
+  OUTCOME=Done. put "$work" "done" 0010 done-first "depends: [0011]"
+  put "$work" backlog 0011 after-done "depends: [0010]"
+  put "$work" backlog 0012 origin-task "depends: [0013]"
+  put "$work" backlog 0013 piece-task "part-of: 0012" "depends: [0012]"
+  check "cycles: list" "0001 blocked cycle-a needs:0002 cycle: 0001 → 0002 → 0001
+0002 blocked cycle-b needs:0001 cycle: 0002 → 0001 → 0002
+0003 blocked waits-on-cycle needs:0001
+0004 blocked ring-a needs:0005,human cycle: 0004 → 0005 → 0006 → 0004
+0005 blocked ring-b needs:0006 cycle: 0005 → 0006 → 0004 → 0005
+0006 blocked ring-c needs:0004 cycle: 0006 → 0004 → 0005 → 0006
+0007 blocked review-a needs:0008 cycle: 0007 → 0008 → 0007
+0008 blocked review-b needs:0007 cycle: 0008 → 0007 → 0008
+0009 free own-milestone m1
+0010 done done-first
+0011 free after-done -
+0012 blocked origin-task needs:0013 cycle: 0012 → 0013 → 0012
+0013 blocked piece-task needs:0012 cycle: 0013 → 0012 → 0013" "$(list 2>/dev/null)"
+  out=$(at "$work" "$PEAL" board --no-pr 2>/dev/null)
+  check "cycles: board" '{"id":"0004","state":"blocked","slug":"ring-a","title":"Title of 0004","depends":["0005","human"],"cycle":"0004 → 0005 → 0006 → 0004","path":"tasks/backlog/0004-ring-a.md"}
+{"id":"0009","state":"free","slug":"own-milestone","title":"Title of 0009","milestone":"m1","depends":["milestone"],"path":"tasks/backlog/0009-own-milestone.md"}' \
+    "$(printf '%s\n' "$out" | grep -E '"id":"000[49]"')"
+  check "cycles: board is JSON" "ok" "$(json_ok "$out")"
+  check_refused "cycles: check" "peal: depends cycle 0001 → 0002 → 0001
+peal: depends cycle 0004 → 0005 → 0006 → 0004
+peal: depends cycle 0007 → 0008 → 0007
+peal: depends cycle 0012 → 0013 → 0012" at "$work" "$PEAL" check
+
+  # A claimed task on a cycle keeps its claim's state; the others still show the cycle.
+  git -C "$work" worktree add -q -b task/0002-cycle-b "$work-0002" origin/main 2>/dev/null
+  scratch+=("$work-0002")
+  check "cycles: a claim on one" "0001 blocked cycle-a needs:0002 cycle: 0001 → 0002 → 0001
+0002 claimed-live cycle-b wt:$work-0002" "$(list 0001 0002 2>/dev/null)"
+
+  # Broken, the cycle is gone from every view.
+  git -C "$work" rm -q tasks/backlog/0002-cycle-b.md tasks/backlog/0005-ring-b.md \
+    tasks/backlog/0008-review-b.md tasks/backlog/0013-piece-task.md
+  publish "$work"
+  check "cycles: broken" "0001 blocked cycle-a needs:0002" "$(list 0001 2>/dev/null)"
+  check "cycles: check, none" ":0" "$(at "$work" "$PEAL" check 2>&1):$?"
+}
+
 board() {
   local work out bin
   work=$(repo)
@@ -329,6 +385,7 @@ m9 (no such milestone) — 1 open, 0 done
 cases() {
   states
   expansion
+  cycles
   board
   overview
 }

@@ -28,6 +28,7 @@ files() {
   put "$work" backlog 0001 deferred-task "milestone: m1"
   put "$work" backlog 0002 blocking-task
   put "$work" backlog 0003 kept-task
+  put "$work" backlog 0004 piece-of-deferred "part-of: 0001" "depends: [0001]"
   at "$work" "$PEAL" hooks install >/dev/null
   peal claim 0001 >/dev/null 2>&1
   wt=$(dirname "$work")/work-wt/0001-deferred-task
@@ -63,6 +64,8 @@ files() {
   check_refused "defer: unknown depends" "depends: 0099 is no task" in_wt defer --reason x < <(ID=0001 text "depends: [0099]")
   check_refused "defer: part-of" "part-of changed" in_wt defer --reason x < <(ID=0001 text "part-of: 0002")
   check_refused "defer: no Notes" "no '## Notes' section" in_wt defer --reason x < <(ID=0001 text "milestone: m1" | sed '/^## Notes/d')
+  check_fails "defer: a depends cycle through its piece" 1 "defer: refused: depends cycle 0001 → 0004 → 0001" \
+    in_wt defer --reason x < <(ID=0001 text "milestone: m1" "depends: [0004]")
   check "defer: refusals push nothing" "$before" "$(git -C "$work" fetch -q; git -C "$work" rev-parse origin/main)"
 
   # A wip commit of the task's own file is no work; nor is an uncommitted edit of it.
@@ -138,6 +141,8 @@ files_own() {
   check_refused "revise own claim: depends unknown" "depends: 0099 is no task" in_wt revise 0001 --reason x < <(ID=0001 text "depends: [0099]")
   check_refused "revise own claim: parked" "milestone m3 is parked" in_wt revise 0001 --reason x < <(ID=0001 text "milestone: m3")
   check_refused "revise own claim: part-of" "part-of changed" in_wt revise 0001 --reason x < <(ID=0001 text "milestone: m1" "part-of: 0002")
+  check_fails "revise own claim: a depends cycle" 1 "revise: refused: depends cycle 0001 → 0003 → 0001" \
+    in_wt revise 0001 --reason x < <(ID=0001 text "milestone: m1" "depends: [0003]")
   check_refused "revise: another claim from here" "task 0001 is claimed" \
     at "$work" "$PEAL" revise 0001 --reason x < <(ID=0001 TITLE=y text)
   # A revision of the claim's own file is no work: planning found the block.
@@ -153,6 +158,7 @@ issues() {
   issue 1 "Deferred one" --milestone m1 --body "$body"
   issue 2 "Blocking one" --body "$body"
   issue 3 "Origin one" --body "$body"
+  issue 4 "Waits for the deferred one" --body "$(printf 'Depends on #1\n\n%s' "$body")"
   peal claim 1 >/dev/null 2>&1
   wt=$(dirname "$work")/work-wt/issue-1
 
@@ -166,6 +172,8 @@ issues() {
   check_refused "issues defer: Raw" "the Raw section changed" in_wt defer --reason x < <(in_wt read 1 | sed 's/^## Raw$/## Raw\n\nmore/')
   check_refused "issues defer: parked" "milestone m3 is parked" in_wt defer --reason x < <(in_wt read 1 | sed 's/^milestone: m1$/milestone: m3/')
 
+  check_fails "issues defer: a depends cycle" 1 "defer: refused: depends cycle #1 → #4 → #1" \
+    in_wt defer --reason x < <(in_wt read 1 | sed 's/^milestone: m1$/milestone: m1\ndepends: [4]/')
   new=$(in_wt read 1 | sed 's/^milestone: m1$/milestone: m1\ndepends: [2]/')
   out=$(in_wt defer --reason "needs 2" --dry-run <<<"$new" 2>&1)
   check "issues defer --dry-run" "0:defer: a dry run; nothing changed" "$?:$(printf '%s\n' "$out" | tail -n 1)"

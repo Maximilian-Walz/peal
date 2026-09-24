@@ -95,7 +95,9 @@ peal create --part-of <origin id> <slug-1> <slug-2> <<'PIECES'
 PIECES
 ```
 
-Nothing is filed unless every piece passes; a refusal names what to fix. Report every
+Nothing is filed unless every piece passes; a refusal names what to fix. A piece's
+`depends` that closes a cycle (`refused: depends cycle PART1 → 0042 → PART1`), often a
+piece waiting for a task that itself waits for the origin, is one to drop. Report every
 `filed ...` line as printed.
 
 ## 4. Narrow the origin, or close it as split

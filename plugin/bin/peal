@@ -54,8 +54,9 @@ usage: peal <command> [args]
 
   --version, version            print Peal's version
   check                         report what is not valid: the milestone files, a task
-                                file under done/ without an Outcome, and with the
-                                decisions module on, what peal decision check reports
+                                file under done/ without an Outcome, a depends cycle
+                                among the tasks not done, and with the decisions
+                                module on, what peal decision check reports
   config [KEY]                  print the effective settings, or one of them
   frontmatter check FILE        refuse a frontmatter outside Peal's YAML subset
   frontmatter keys FILE         print its keys
@@ -226,6 +227,7 @@ cmd_check() {
   [ $# -eq 0 ] || { usage >&2; exit 2; }
   peal_ms_load || status=2
   peal_check_outcomes || status=2
+  peal_check_cycles || status=2
   peal_decisions_check || status=2
   exit $status
 }

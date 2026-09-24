@@ -27,6 +27,8 @@ refuses:
 - an Outcome filled in, or its heading added or dropped;
 - a milestone moved into or out of a `parked` one (a milestone review's call), or a
   `depends` naming no task;
+- a `depends` that closes a cycle (exit 1, `refused: depends cycle 0042 → 0043 → 0042`):
+  every task on it would wait for itself; drop the entry that closes it;
 - for task files, no `## Notes` section: the reason is recorded there;
 - the text unchanged.
 

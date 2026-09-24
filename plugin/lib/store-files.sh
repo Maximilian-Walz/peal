@@ -319,6 +319,9 @@ peal_store_create() {
     fi
   done
   if [ $status = 0 ]; then
+    peal_cycle_check_create "$mode" "$origin" "$count" "$PEAL_CREATE_DIR" || status=$?
+  fi
+  if [ $status = 0 ]; then
     peal_push_main _peal_files_build_create || status=$?
   fi
   if [ $status = 0 ]; then
@@ -416,7 +419,8 @@ _peal_files_build_edit() {
 
 # _peal_files_text_checks VERB OLD NEW LABEL BASE ID -> the checks on a rewritten task
 # text NEW (OLD the one before) against BASE: peal_edit_check's, a Notes section to record
-# the reason in, and task-check.awk's in revise mode. Status 2 with every problem reported.
+# the reason in, and task-check.awk's in revise mode; then that it closes no depends cycle
+# (peal_cycle_check). Status 2 with every problem reported, 1 for a cycle.
 _peal_files_text_checks() {
   local verb=$1 old=$2 new=$3 label=$4 base=$5 id=$6 status=0 context
   peal_edit_check "$verb" "$old" "$new" "$label" || status=2
@@ -429,6 +433,7 @@ _peal_files_text_checks() {
   PEAL_CHECK_ID=$id PEAL_CHECK_OLDMS=$(peal_fm_get "$old" milestone 2>/dev/null) \
     peal_task_check "$new" revise "$label" "$context" >/dev/null || status=2
   rm -f "$context"
+  [ $status != 0 ] || peal_cycle_check_text "$verb" "$id" "$new" || status=$?
   return $status
 }
 
@@ -452,7 +457,7 @@ peal_store_edit() {
     status=2
   fi
   if [ $status = 0 ]; then
-    _peal_files_text_checks revise "$old" "$new" "$PEAL_PATH" "$PEAL_BASE" "$id" || status=2
+    _peal_files_text_checks revise "$old" "$new" "$PEAL_PATH" "$PEAL_BASE" "$id" || status=$?
   fi
   if [ $status = 0 ]; then
     peal_text_add_note "Revised $(date -u +%Y-%m-%d): $reason" <"$new" >"$tmp/edited"
@@ -573,7 +578,7 @@ peal_store_defer() {
   tmp=$(mktemp -d) || return 2
   git show "$base:$PEAL_PATH" >"$tmp/old"
   cp "$text" "$tmp/new"
-  _peal_files_text_checks defer "$tmp/old" "$tmp/new" "$PEAL_PATH" "$base" "$id" || status=2
+  _peal_files_text_checks defer "$tmp/old" "$tmp/new" "$PEAL_PATH" "$base" "$id" || status=$?
   if [ $status = 0 ]; then
     peal_text_add_note "Deferred $(date -u +%Y-%m-%d) after a claim: $reason" <"$tmp/new" >"$tmp/deferred"
     PEAL_EDIT_FILE=$tmp/deferred
