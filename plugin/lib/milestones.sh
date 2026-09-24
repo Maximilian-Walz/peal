@@ -4,7 +4,7 @@
 # the offer and the claim follow for a task's milestone state.
 
 # peal_ms_load [ROOT] -> fills PEAL_MILESTONES with one "id<TAB>title<TAB>state<TAB>order<TAB>
-# due<TAB>file" line per milestone, by order (those without one last), then id. Every
+# due<TAB>file<TAB>reason" line per milestone, by order (those without one last), then id. Every
 # problem found is reported, not only the first: status 2 then. A missing directory
 # holds no milestones. ROOT is where the milestones directory is looked for, by default
 # the work tree's top; the storage passes a copy of the main branch's.

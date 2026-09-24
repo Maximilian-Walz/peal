@@ -46,7 +46,7 @@ following:
 | | Peal provides | Belfry expects |
 |---|---|---|
 | tasks | list, offer, claim (printing the worktree), board and idea commands | the `commands` backend of its contract |
-| milestones | milestones as data | a milestone list in the board output |
+| milestones | milestones as data; `peal milestone-state`; `/peal:milestone-review {milestone}` | a milestone list in the board output; `tasks.commands.milestone` for its Close, Park and Un-park; actions with the `milestone` trigger |
 | a session | `/peal:work` and `/peal:close` in the claimed worktree | claim before the session; finished means a PR open and green |
 | the human | questions through `AskUserQuestion` | routes them to its inbox |
 
@@ -63,6 +63,12 @@ tasks:
     start: /peal:work {task}
     idea: /peal:idea {idea}
     board: .peal/peal board
+    milestone: .peal/peal milestone-state {id} {state}
+actions:
+  milestone-review:
+    title: Milestone review
+    prompt: /peal:milestone-review {milestone}
+    triggers: [milestone]
 ```
 
 - `list` prints `NNNN state slug detail...`, states `free`, `claimed-live`, `parked`,
@@ -84,6 +90,10 @@ tasks:
   hand. The reference used a Belfry environment variable here; Peal does without.
 - `/peal:close` waits for the PR's checks in the foreground with a budget, re-running
   while the verdict is `WAIT`. That works headless and interactive alike.
+- `milestone` changes a milestone's state (`done`, `parked`, `open`) in the storage, the
+  same change Belfry makes itself on GitHub for its `github-issues` backend; see
+  [Milestones](#milestones). The review, an action Belfry offers when a milestone is
+  closed, ends with one question, "Close <milestone>?", and makes that change on yes.
 
 ## Scope: what moves, what stays
 
@@ -386,6 +396,11 @@ due: 2026-11-01
 ---
 ```
 
+A parked milestone may say why in `reason`, free text: `reason: 'until #12, other/repo#43'`
+names the issues it waits for, a form Belfry reads to suggest un-parking once they are
+closed. On GitHub the reason is the rest of the description's first line after "Parked:".
+The board's milestone line carries it as `reason`.
+
 `id` defaults to the file name without `.md`, `title` to the first heading. Peal refuses
 a milestones directory with more than one `current` milestone. The state is written, not
 inferred: the reference took "the newest milestone doc" as current, which cannot
@@ -406,9 +421,29 @@ The reference's pools map onto this: its current milestone is the `current` one,
 claimed only by name, is an `open` milestone. Its "any" pool held only the recurring drift
 check, which becomes `/peal:drift`.
 
-Every milestone has a review task, `depends: [milestone]`, which `/peal:milestone-review`
-walks and which marks the milestone `done` and the next one `current`. Milestone files are
-read-only during an ordinary task; `/peal:close` warns when a branch touches one.
+Every milestone has a review task, `depends: [milestone]`, whose session runs
+`/peal:milestone-review`. The same command runs without a task, as a Belfry action with
+the `milestone` trigger, given the milestone's id. `peal milestone-review [ID]` prints what
+a script can know: the milestone's tasks not done (its review task aside), the milestone
+that becomes current next, the parked milestones and their reasons, the milestone's
+text, and the project's steps from `.peal/review.md`, then `READY` or `OPEN <count>`. The
+command walks the acceptance criteria (each met, with its evidence, or carried forward
+as an idea), runs the project's steps, files the loose ends through `/peal:idea`, and
+triages the backlog (tasks without a milestone, parked milestones whose reason has gone,
+open tasks moved on). It ends with one `AskUserQuestion`, "Close <milestone>?", with its
+summary, and on yes runs `peal milestone-state ID done --review FILE`.
+
+`peal milestone-state ID done|parked|open [--reason R] [--review FILE]` is the one way a
+milestone's state changes, for the review, for Belfry's lane actions, and for a human in
+a shell. For task files it rewrites the milestone's file straight onto the main branch
+(`docs(tasks): milestone ID STATE`, which the pre-push gate lets through when it only
+modifies milestone files). When no milestone is current afterwards, it also makes the
+first open milestone by order current, in the same commit. For issues it closes or
+opens the GitHub milestone and writes or removes the "Parked" line of its description;
+which milestone is current follows from the due dates. The review goes under `## Review,
+<date>` in the file or the description. A milestone in that state already is left as it
+is. Milestone files are read-only during an ordinary task; `/peal:close` warns when a
+branch touches one.
 
 ## Configuration
 
@@ -522,6 +557,8 @@ The interface:
 | `record id text` | the claimed task's file rewritten on its branch, committed | title, body and managed labels rewritten |
 | `defer id reason text` | the claim's text, the reason in `## Notes`, onto the backlog file on main; refused for any commit beyond the claim but those of its own file | title, body, milestone and managed labels rewritten, reason as a comment; refused for any commit on `issue/N` |
 | `milestones` | the milestone files | the repository's milestones |
+| `milestone-text id` | the milestone's file on main | the milestone's description |
+| `milestone-state id state reason review` | the milestone's file (and the next current one's) rewritten on main | the milestone closed or opened, its "Parked" line and review in the description |
 
 **Ids.** A task file's id is four digits (`0042`), an issue's its number (`42`). The
 commands and the read model take either; the commit subject's `[NNNN]` is the id, so

@@ -825,3 +825,60 @@ peal_store_record() {
   rm -rf "$tmp"
   return $status
 }
+
+# _peal_issues_ms_number ID -> PEAL_MS_NUM, the number of the milestone titled ID, and
+# PEAL_MS_ROWS; status 2 and a message if there is none.
+_peal_issues_ms_number() {
+  PEAL_MS_ROWS=$(_peal_issues_milestone_rows) || return 2
+  PEAL_MS_NUM=$(_peal_issues_milestone_number "$1") || { peal_err "no milestone $1"; return 2; }
+}
+
+# peal_store_milestone_text ID -> the milestone's description.
+peal_store_milestone_text() {
+  local num
+  _peal_issues_settings || return 2
+  _peal_issues_ms_number "$1" || return 2
+  num=$PEAL_MS_NUM
+  peal_gh "repos/$PEAL_REPO/milestones/$num" --jq '.description // ""'
+}
+
+# The milestone closed (done) or opened, its description's first line "Parked" or
+# "Parked: REASON" for parked, taken out again for any other state, and REVIEW's text
+# appended under "## Review, <date>". Which open milestone is current follows from the
+# due dates, as ever (lib/issues-milestones.awk).
+peal_store_milestone_state() {
+  local id=$1 state=$2 reason=$3 review=$4 num old tmp gh_state=open status=0
+  _peal_issues_settings || return 2
+  _peal_issues_ms_number "$id" || return 2
+  num=$PEAL_MS_NUM
+  old=$(printf '%s\n' "$PEAL_MS_ROWS" | awk -F '\t' -f "$PEAL_ROOT/lib/issues-lib.awk" \
+    -f "$PEAL_ROOT/lib/issues-milestones.awk" | awk -F '\t' -v id="$id" '$1 == id { print $3; exit }')
+  if [ "$old" = "$state" ] || { [ "$old" = current ] && [ "$state" = open ]; }; then
+    echo "milestone $id: $old already, nothing changed"
+    return 0
+  fi
+  tmp=$(mktemp -d) || return 2
+  peal_gh "repos/$PEAL_REPO/milestones/$num" --jq '.description // ""' >"$tmp/old" || { rm -rf "$tmp"; return 2; }
+  # The parked line goes, and the blank lines around what is left.
+  awk 'NR == 1 && tolower($0) ~ /^[ \t]*parked/ { next }
+    /^[ \t\r]*$/ { if (n) blank++; next }
+    { for (; blank > 0; blank--) print ""; print; n++ }' "$tmp/old" >"$tmp/rest"
+  {
+    if [ "$state" = parked ]; then
+      printf 'Parked%s\n' "${reason:+: $reason}"
+      [ ! -s "$tmp/rest" ] || echo
+    fi
+    cat "$tmp/rest"
+    if [ -n "$review" ]; then
+      if [ -s "$tmp/rest" ] || [ "$state" = parked ]; then echo; fi
+      printf '## Review, %s\n\n' "$(date -u +%Y-%m-%d)"
+      cat "$review"
+    fi
+  } >"$tmp/desc"
+  [ "$state" != "done" ] || gh_state=closed
+  peal_json s:state "$gh_state" f:description "$tmp/desc" \
+    | peal_gh --method PATCH "repos/$PEAL_REPO/milestones/$num" --input - --jq '.number' >/dev/null || status=2
+  rm -rf "$tmp"
+  [ $status = 0 ] && echo "milestone $id: $state"
+  return $status
+}

@@ -116,6 +116,14 @@ case "$method $rest" in
     out "$(jq -c --argjson n "$n" '.[] | select(.number == $n)' "$FAKE_GH/issues.json")"
     ;;
   "GET milestones") out "$(cat "$FAKE_GH/milestones.json")" ;;
+  "GET milestones/"* | "PATCH milestones/"*)
+    n=${rest#milestones/}
+    [[ "$n" =~ ^[0-9]+$ ]] || die "unknown path $path"
+    jq -e --argjson n "$n" 'any(.[]; .number == $n)' "$FAKE_GH/milestones.json" >/dev/null \
+      || { printf 'gh: Not Found (HTTP 404)\n' >&2; exit 1; }
+    [ "$method" = GET ] || save milestones 'map(if .number == $n then . + $in else . end)' --argjson in "$body" --argjson n "$n"
+    out "$(jq -c --argjson n "$n" '.[] | select(.number == $n)' "$FAKE_GH/milestones.json")"
+    ;;
   "GET pulls")
     state=$(query state) head=$(query head)
     out "$(jq -c --arg s "${state:-open}" --arg h "${head#*:}" '

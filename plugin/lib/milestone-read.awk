@@ -1,13 +1,15 @@
-# One milestone file -> one line "id<TAB>title<TAB>state<TAB>order<TAB>due<TAB>name", or
-# every problem with it on stderr and exit 2.
+# One milestone file -> one line "id<TAB>title<TAB>state<TAB>order<TAB>due<TAB>name<TAB>reason",
+# or every problem with it on stderr and exit 2.
 #
 #   awk -F '\t' -v name=<file for messages> -v base=<file name without .md> \
 #     -f milestone-read.awk RECORDS FILE
 #
 # RECORDS is yaml-parse.awk's output for FILE's frontmatter. id defaults to base, title
 # to FILE's first "# " heading after the frontmatter. state is required and one of open,
-# current, done, parked; order is an integer; due a date, YYYY-MM-DD. Other keys are
-# refused, so a misspelt one fails instead of being ignored.
+# current, done, parked; order is an integer; due a date, YYYY-MM-DD; reason, free text,
+# says why a parked milestone waits ("until #12, other/repo#43" names the issues it waits
+# for) and is refused on any other. Other keys are refused, so a misspelt one fails
+# instead of being ignored.
 
 function problem(msg) {
   printf "peal: %s: %s\n", name, msg > "/dev/stderr"
@@ -30,8 +32,8 @@ function date(s,    y, m, d, days) {
 
 FILENAME == ARGV[1] {
   if ($1 == "") next
-  if ($1 != "id" && $1 != "title" && $1 != "state" && $1 != "order" && $1 != "due") {
-    problem("line " $3 ": unknown key " $1 " (milestones have id, title, state, order, due)")
+  if ($1 != "id" && $1 != "title" && $1 != "state" && $1 != "order" && $1 != "due" && $1 != "reason") {
+    problem("line " $3 ": unknown key " $1 " (milestones have id, title, state, order, due, reason)")
     next
   }
   if ($2 != "s") { problem("line " $3 ": " $1 " must be a single value, not a list"); next }
@@ -66,6 +68,9 @@ END {
   if (order == "-0") order = "0"
   due = value["due"]
   if (due != "" && !date(due)) problem("due '" due "' is not a date, YYYY-MM-DD")
+  reason = value["reason"]
+  gsub(/[\t\r\n]/, " ", reason)
+  if (reason != "" && state != "parked") problem("reason '" reason "' is for a parked milestone, and this one is " state)
   if (bad) exit 2
-  printf "%s\t%s\t%s\t%s\t%s\t%s\n", id, title, state, order, due, name
+  printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", id, title, state, order, due, name, reason
 }
