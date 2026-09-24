@@ -19,6 +19,11 @@
 #   peal_store_set_milestone ID [M]        its milestone set, or removed without M
 #   peal_store_finish ID done              the task's own branch marks it done
 #   peal_store_finish ID retired REASON    an unclaimed task retired
+#   peal_store_defer ID REASON TEXT [--dry-run]
+#                                          the claim checked out here given back: the
+#                                          task's text from the file TEXT, REASON noted,
+#                                          written back under the same id; refused while
+#                                          the branch holds work
 #   peal_store_close_text ID               the file holding the Outcome of task ID, whose
 #                                          branch is checked out here (relative to the
 #                                          top, or absolute); status 1 if there is none
@@ -41,8 +46,9 @@
 #                                          if there is none
 #   peal_store_record ID WHAT FILE         the text of the task this worktree holds, as
 #                                          its claim keeps it, replaced by FILE: what the
-#                                          human agreed (WHAT: plan, notes), checked
-#                                          already (peal_record)
+#                                          human agreed (WHAT: plan, notes) or a
+#                                          revision, checked already (peal_record,
+#                                          peal_revise)
 #
 # Everything above the storage (the read model's rules in task-state.awk, the board, the
 # overview, the checks on a new task in task-check.awk, what a pool offers and which

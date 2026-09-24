@@ -136,6 +136,25 @@ frontmatter, and `peal record ID plan` puts that text on the claim (the storage'
 go to the human and back to it through `SendMessage`. The main session never writes the
 task's code.
 
+The backlog commands call the storage only, through the `peal` CLI:
+
+- `/peal:idea TEXT` composes a task from the human's words in one pass, never asking:
+  `milestone` the current one only with direct evidence (else none, never a parked one),
+  `plan` from `plan.required-paths`, `size` left to the planner. `peal idea` queues it in
+  a task's worktree, for the close to file, and files it at once anywhere else.
+- `/peal:split` files the pieces of this worktree's task in one `peal create --part-of`,
+  then narrows the task to its first piece (`peal revise` on one's own claim records the
+  text there, as `record` does) or closes it as split.
+- `/peal:defer REASON` gives a claim back that nothing was built on: `peal defer` writes
+  the task's text, with what the session learned, back into the storage under the same
+  number (for task files, onto the backlog file on main) and marks the claim deferred;
+  `peal release ID`, run from outside the worktree, then deletes it although the task is
+  not done, as the SessionStart reaping does once the claim is idle. Work on the branch
+  refuses it: that ends through a close.
+- `/peal:retire ID REASON` and `/peal:revise ID ...` write straight into the storage, so
+  the human confirms first (`revise` shows its `--dry-run` diff); both refuse a claimed
+  task.
+
 ### Scripts
 
 | Reference piece | Verdict | Notes |
@@ -281,9 +300,11 @@ Derived from refs and the main branch on the remote, never from the calling work
   with the reason, while it is the calling worktree, a session touched it in the last 30
   minutes, the task is not done on main, the worktree holds uncommitted changes, or the
   branch holds commits not pushed. Landed means done on main, so a squash merge counts.
+  A claim `peal defer` gave back goes although its task is not done, and although a
+  session touched it lately.
 - **SessionStart**: on a new session (`startup`, `clear`) the turn budget restarts, the
   remote is fetched and every claim under the worktrees directory that `release` would
-  let go is reaped; a landed one kept for uncommitted or unpushed work says so. Then the
+  let go is reaped (a deferred one only once idle); a landed one kept for uncommitted or unpushed work says so. Then the
   orientation: the current milestone, this worktree's task, the other claims, the open
   splits.
 - **PostToolUse**: the heartbeat that keeps a worktree from being reaped, and the turn
@@ -497,6 +518,7 @@ The interface:
 | `finish id retired reason` | file moved to `done/` with the reason, on main | closed as not planned, the reason a comment |
 | `comment id text` | appended under `## Notes` | a comment |
 | `record id text` | the claimed task's file rewritten on its branch, committed | title, body and managed labels rewritten |
+| `defer id reason text` | the claim's text, the reason in `## Notes`, onto the backlog file on main; refused for any commit beyond the claim but those of its own file | title, body, milestone and managed labels rewritten, reason as a comment; refused for any commit on `issue/N` |
 | `milestones` | the milestone files | the repository's milestones |
 
 **Ids.** A task file's id is four digits (`0042`), an issue's its number (`42`). The

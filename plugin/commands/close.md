@@ -1,9 +1,13 @@
 ---
 description: Close this worktree's task. Review the diff, route every finding, write the Outcome, then finish (the queued ideas filed, the task moved to done, the pull request opened) and wait until its checks are green.
+argument-hint: "[what the human says about this close]"
 ---
 
+Arguments: `$ARGUMENTS`. Anything given is the human's word on this close (most often
+that the task is decided against, see the end); take it into the Outcome.
+
 Run in the task's worktree once every `## Done when` line of the task is true, or once
-the task is decided against (see the end). `peal` is Peal's CLI, on the Bash tool's path.
+the task is decided against. `peal` is Peal's CLI, on the Bash tool's path.
 Every step a script can check, `peal close` checks; this command holds the judgement.
 
 ## 1. Begin

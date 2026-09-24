@@ -366,7 +366,7 @@ read_finish() {
   out=$(peal finish 0001 2>&1)
   check "finish" "0:finished 0001 tasks/done/0001-read-task.md" "$?:$out"
   check "finish: staged" "R  tasks/doing/0001-read-task.md -> tasks/done/0001-read-task.md" "$(git -C "$wt" status --porcelain)"
-  check_refused "finish: twice" "no tasks/doing/0001-*.md here" peal finish 0001
+  check "finish: twice, left as it is" "finished 0001 already: tasks/done/0001-read-task.md|0" "$(peal finish 0001 2>&1)|$?"
 }
 
 cases() {

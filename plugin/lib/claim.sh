@@ -314,6 +314,9 @@ _peal_admin_dir() {
 # peal_release_verdict ID BRANCH PATH STATE -> why the claim of task ID (its local BRANCH,
 # its worktree at PATH or none, the task's STATE) must stay, or "ok" if it may go:
 #   own         PATH is the worktree asking
+#   deferred    PATH holds a claim given back (lib/backlog.sh): it goes although its task is
+#               not done; deferred-live if a session worked there in the last
+#               PEAL_IDLE_MINUTES, which only an explicit release lets go
 #   live        a session worked there in the last PEAL_IDLE_MINUTES
 #   not-landed  the task is not done on the main branch
 #   dirty       PATH holds uncommitted changes
@@ -326,9 +329,10 @@ peal_release_verdict() {
   fi
   if [ -n "$path" ] && admin=$(_peal_admin_dir "$path") && [ -f "$admin/peal-heartbeat" ] \
       && [ -n "$(find "$admin/peal-heartbeat" -mmin -"$PEAL_IDLE_MINUTES" 2>/dev/null)" ]; then
-    echo live
+    if peal_deferred "$path"; then echo deferred-live; else echo live; fi
     return
   fi
+  if peal_deferred "$path"; then echo deferred; return; fi
   if [ "$state" != "done" ]; then echo not-landed; return; fi
   if [ -n "$path" ] && [ -d "$path" ] && [ -n "$(git -C "$path" status --porcelain 2>/dev/null)" ]; then
     echo dirty
@@ -356,8 +360,8 @@ _peal_verdict_words() {
 }
 
 # peal_release ID -> the claim of task ID on this machine released, its worktree and branch
-# removed with the tip kept, once it has landed and nothing would be lost: refused with the
-# reason otherwise (peal_release_verdict).
+# removed with the tip kept, once it has landed and nothing would be lost, or once it was
+# deferred: refused with the reason otherwise (peal_release_verdict).
 peal_release() {
   local id=${1-} records state branch path verdict
   if ! [[ "$id" =~ ^[0-9]+$ ]] || [ $# -ne 1 ]; then
@@ -372,15 +376,17 @@ peal_release() {
   fi
   path=$(peal_store_claim_worktrees | awk -F '\t' -v b="$branch" '!f && $2 == b { print $3; f = 1 }')
   verdict=$(peal_release_verdict "$id" "$branch" "$path" "$state")
-  if [ "$verdict" != ok ]; then
-    peal_err "release: task $id stays: $(_peal_verdict_words "$verdict" "$id")"
-    return 2
-  fi
+  case $verdict in
+    ok | deferred | deferred-live) ;;
+    *)
+      peal_err "release: task $id stays: $(_peal_verdict_words "$verdict" "$id")"
+      return 2 ;;
+  esac
   peal_store_release "$id"
 }
 
 # peal_reap -> every claim worktree under the worktrees directory that may go
-# (peal_release_verdict) released, a line "reaped ID BRANCH, tip kept as REF" each; a
+# (peal_release_verdict: landed, or deferred and idle) released, a line "reaped ID BRANCH, tip kept as REF" each; a
 # landed one that must stay gets "kept ID PATH: why". The others, still at work, pass
 # silently. Kept tips past their time expire.
 peal_reap() {
@@ -393,7 +399,7 @@ peal_reap() {
     state=$(printf '%s\n' "$records" | awk -F '\t' -v id="$id" '!f && $1 == id { print $2; f = 1 }')
     verdict=$(peal_release_verdict "$id" "$branch" "$path" "$state")
     case $verdict in
-      ok)
+      ok | deferred)
         if out=$(peal_store_release "$id" 2>&1); then
           printf '%s\n' "$out" | sed 's/^released /reaped /'
         else
