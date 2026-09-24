@@ -14,12 +14,14 @@ review:
   skip-paths: [docs/, tasks/]   # a diff only here skips the reviewer
 context: []                     # documents the planner, reviewer and /peal:idea read
 checks:
-  commit: []                    # commands the commit-msg gate runs
+  commit: []                    # commands the commit-msg gate runs; "PATH...: COMMAND" only
+                                # when the commit touches one of those paths
   close: []                     # commands close runs before opening the PR
 pr:
   sections: []                  # extra prose sections close asks the session for
 commit:
-  areas: []                     # allowed <area> values in commit subjects; empty allows any
+  areas: []                     # allowed <area> values in commit subjects, then required;
+                                # empty allows any or none. tasks is always one
 models: {planner: opus, reviewer: opus, implementer: sonnet}
 task:
   fields: {}                    # the project's own frontmatter fields: name, allowed values
