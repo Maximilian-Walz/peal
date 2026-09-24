@@ -37,10 +37,10 @@ peal_ms_load() {
       if ($3 == "current") { currents = currents (n++ ? ", " : "") $6 } }
     END {
       if (n > 1) printf "peal: more than one current milestone: %s\n", currents > "/dev/stderr"
-      exit (bad || n > 1) ? 2 : 0 }' || bad=1
+      exit ((bad || n > 1) ? 2 : 0) }' || bad=1
   [ $bad -eq 0 ] || return 2
   PEAL_MILESTONES=$(printf '%s' "$lines" \
-    | awk -F '\t' '{ printf "%d\t%s\t%s\n", $4 == "", ($4 == "" ? 0 : $4), $0 }' \
+    | awk -F '\t' '{ printf "%d\t%s\t%s\n", ($4 == "" ? 1 : 0), ($4 == "" ? 0 : $4), $0 }' \
     | LC_ALL=C sort -t "$(printf '\t')" -k1,1n -k2,2n -k3,3 | cut -f3-)
 }
 

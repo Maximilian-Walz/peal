@@ -150,7 +150,7 @@ cases() {
 # The rules the offer and the claim follow, as library functions.
 rules() {
   local state out status dir
-  for state in current "" open parked done; do
+  for state in current "" open parked "done"; do
     out=$(peal_ms_offer_rank "$state")
     status=$?
     check "offer rank of '$state'" "$(case $state in current) echo 0:1 ;; "") echo 0:2 ;; *) echo 1: ;; esac)" "$status:$out"
