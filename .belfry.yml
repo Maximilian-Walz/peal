@@ -1,6 +1,9 @@
 # Peal runs under Belfry from its GitHub issues until it can run on itself.
 tasks:
   backend: github-issues
+  github-issues:
+    # Only issues a maintainer labels become tasks: anyone may open an issue here.
+    label: belfry
 policy:
   max_concurrent: 1
   permission_mode: auto
