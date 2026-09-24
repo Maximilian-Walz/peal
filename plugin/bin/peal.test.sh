@@ -27,7 +27,7 @@ check "hook: silent" "" "$out"
 check "hook: nothing recorded without .peal/" "0" "$([ -e "$project/.git/peal-root" ] && echo 1 || echo 0)"
 
 mkdir "$project/.peal"
-(cd "$project" && "$PEAL" hook session-start </dev/null)
+(cd "$project" && "$PEAL" hook session-start </dev/null >/dev/null)
 check "hook: recorded" "$PEAL_ROOT" "$(cat "$project/.git/peal-root")"
 
 rm "$project/.git/peal-root"
@@ -36,7 +36,7 @@ scratch+=("$project-wt")
 mkdir -p "$project-wt/.peal"
 out=$(cd / && CLAUDE_PROJECT_DIR="$project-wt" "$PEAL" hook session-start </dev/null 2>&1)
 check "hook: from a worktree, into the common git directory" "$PEAL_ROOT" "$(cat "$project/.git/peal-root")"
-check "hook: silent in a worktree" "" "$out"
+check "hook: in a Peal worktree, the orientation" "Peal:" "$(printf '%s\n' "$out" | head -n 1)"
 
 outside=$(scratch_dir)
 out=$(cd "$outside" && GIT_CEILING_DIRECTORIES=$outside "$PEAL" hook session-start </dev/null 2>&1)

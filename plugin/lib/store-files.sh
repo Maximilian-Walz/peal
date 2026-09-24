@@ -735,3 +735,157 @@ peal_store_comment() {
   _peal_files_rewrite "$id" comment "note on $id" _peal_files_rewrite_comment || return
   echo "task $id: noted"
 }
+
+# _peal_files_local_branch ID -> the local task branch of ID; status 1 if there is none.
+_peal_files_local_branch() {
+  _peal_files_branches | awk -F '\t' -v id="$1" '!found && $1 == id && $2 == "local" { print $3; found = 1 }
+    END { exit !found }'
+}
+
+# _peal_files_rollback WT BRANCH -> a claim that failed half-way taken back: its worktree
+# and its branch gone, or a message saying what is left.
+_peal_files_rollback() {
+  local ok=1
+  git worktree remove --force "$1" >/dev/null 2>&1 || ok=0
+  git branch -D "$2" >/dev/null 2>&1 || ok=0
+  [ $ok = 1 ] || peal_err "could not take the claim back fully; remove it by hand: git worktree remove --force $1; git branch -D $2"
+}
+
+# peal_store_claim ID -> the free task ID claimed, or its parked claim resumed; one line
+# "claimed ID BRANCH PATH" or "resumed ID BRANCH PATH", PEAL_CLAIM_PATH the worktree.
+# A claim is the task's branch from the remote's main, in its own worktree under the
+# worktrees setting, the task's file moved to doing/ in one commit, and the branch pushed:
+# the push is the lock. Status 3 for a push that lost the race to another claim, with
+# nothing left behind; 2 for anything else refused or failed, taken back as well.
+peal_store_claim() {
+  local id=$1 base path slug branch wt dir err nonce status=0
+  _peal_files_settings || return 2
+  dir=$(peal_worktrees_dir) || return 2
+  if branch=$(_peal_files_local_branch "$id"); then
+    _peal_files_resume "$id" "$branch" "$dir"
+    return
+  fi
+  _peal_files_fetch || return 2
+  base=$(git rev-parse "refs/remotes/$PEAL_REMOTE/$PEAL_MAIN") || return 2
+  if ! path=$(_peal_files_find "$base" "$id"); then
+    peal_err "claim: no task $id on $PEAL_REMOTE/$PEAL_MAIN"
+    return 2
+  fi
+  case $path in
+    "$PEAL_TASKS"/backlog/*) ;;
+    *) peal_err "claim: task $id is not in the backlog on $PEAL_REMOTE/$PEAL_MAIN ($path)"; return 2 ;;
+  esac
+  slug=${path##*/}
+  slug=${slug%.md}
+  branch=$PEAL_PREFIX$slug
+  wt=$dir/$slug
+  if [ -e "$wt" ]; then
+    peal_err "claim: $wt is in the way; move it, or remove it with git worktree remove"
+    return 2
+  fi
+  mkdir -p "$dir" || return 2
+  err=$(mktemp) || return 2
+  # LC_ALL=C: git's own words are read below; translated, they would never match.
+  if ! LC_ALL=C git worktree add -q -b "$branch" "$wt" "$base" 2>"$err"; then
+    peal_err "claim: could not add the worktree $wt:"
+    cat "$err" >&2
+    rm -f "$err"
+    return 2
+  fi
+  mkdir -p "$wt/$PEAL_TASKS/doing"
+  # The nonce: two claims of the same task in the same second would otherwise make the
+  # same commit, and the second push would pass as a no-op instead of losing.
+  nonce=$(od -An -N8 -tx1 /dev/urandom 2>/dev/null | tr -d ' \n') || nonce=""
+  [ -n "$nonce" ] || nonce=$$-$RANDOM-$(date +%s)
+  if ! git -C "$wt" mv "$path" "$PEAL_TASKS/doing/" \
+      || ! git -C "$wt" commit -q -m "docs(tasks): claim $id ${slug#"$id"-} [$id]" \
+        -m "Claimed-by: $(hostname 2>/dev/null || echo unknown)/$nonce"; then
+    peal_err "claim: could not commit the claim of $id; taken back"
+    _peal_files_rollback "$wt" "$branch"
+    rm -f "$err"
+    return 2
+  fi
+  if ! LC_ALL=C git -C "$wt" push -q -u "$PEAL_REMOTE" "$branch" 2>"$err"; then
+    if [ -n "$(git ls-remote "$PEAL_REMOTE" "refs/heads/$PEAL_PREFIX$id-*" 2>/dev/null)" ]; then
+      peal_err "claim: task $id was claimed elsewhere first: the push of $branch lost the race; taken back"
+      status=3
+    else
+      peal_err "claim: the push of $branch failed; taken back, a claim not pushed is none:"
+      cat "$err" >&2
+      status=2
+    fi
+    _peal_files_rollback "$wt" "$branch"
+    git fetch -q "$PEAL_REMOTE" 2>/dev/null
+  fi
+  rm -f "$err"
+  [ $status = 0 ] || return $status
+  PEAL_CLAIM_PATH=$(cd "$wt" && pwd -P)
+  echo "claimed $id $branch $PEAL_CLAIM_PATH"
+}
+
+# _peal_files_resume ID BRANCH DIR -> the parked claim on the local BRANCH given its
+# worktree back, and pushed when the remote lacks some of it.
+_peal_files_resume() {
+  local id=$1 branch=$2 dir=$3 wt ahead
+  if [ -n "$(_peal_files_worktrees | awk -F '\t' -v b="$branch" '$1 == b')" ]; then
+    peal_err "claim: $branch already has a worktree"
+    return 2
+  fi
+  if [ "$(git rev-list --count "refs/remotes/$PEAL_REMOTE/$PEAL_MAIN..refs/heads/$branch" 2>/dev/null)" = 0 ]; then
+    peal_err "claim: the local $branch holds nothing beyond $PEAL_MAIN, so it claims nothing; delete it (git branch -D $branch) and claim again"
+    return 2
+  fi
+  wt=$dir/${branch#"$PEAL_PREFIX"}
+  if [ -e "$wt" ]; then
+    peal_err "claim: $wt is in the way; move it, or remove it with git worktree remove"
+    return 2
+  fi
+  mkdir -p "$dir" || return 2
+  git worktree add -q "$wt" "$branch" || { peal_err "claim: could not add the worktree $wt"; return 2; }
+  if git rev-parse -q --verify "refs/remotes/$PEAL_REMOTE/$branch" >/dev/null; then
+    ahead=$(git rev-list --count "refs/remotes/$PEAL_REMOTE/$branch..refs/heads/$branch")
+  else
+    ahead=1
+  fi
+  if [ "$ahead" -gt 0 ] && ! git -C "$wt" push -q -u "$PEAL_REMOTE" "$branch" 2>/dev/null; then
+    peal_err "warning: resumed $branch, but could not push it; until it is pushed, the claim holds on this machine only"
+  fi
+  PEAL_CLAIM_PATH=$(cd "$wt" && pwd -P)
+  echo "resumed $id $branch $PEAL_CLAIM_PATH"
+}
+
+# peal_store_release ID -> task ID's claim on this machine ended: the local branch's tip
+# kept as refs/reaped/<branch without its prefix>, its worktree removed (refused if
+# anything in it is uncommitted), the local branch deleted, and the remote's too when it
+# holds nothing the local one does not. One line "released ID BRANCH, tip kept as REF".
+# Whether a claim may end is not the storage's to judge; the caller has (lib/claim.sh).
+peal_store_release() {
+  local id=$1 branch wt name tip
+  _peal_files_settings || return 2
+  if ! branch=$(_peal_files_local_branch "$id"); then
+    peal_err "release: no local branch of task $id"
+    return 2
+  fi
+  name=${branch#"$PEAL_PREFIX"}
+  tip=$(git rev-parse "refs/heads/$branch") || return 2
+  if ! peal_reaped_keep "$name" "$tip"; then
+    peal_err "release: could not keep the tip as refs/reaped/$name; nothing removed"
+    return 2
+  fi
+  wt=$(git worktree list --porcelain | awk -v b="branch refs/heads/$branch" '
+    /^worktree / { path = substr($0, 10) }
+    !f && $0 == b { print path; f = 1 }')
+  if [ -n "$wt" ] && ! git worktree remove "$wt"; then
+    peal_err "release: git worktree remove refused $wt; the tip is kept, nothing else removed"
+    return 2
+  fi
+  git branch -q -D "$branch" || return 2
+  if git rev-parse -q --verify "refs/remotes/$PEAL_REMOTE/$branch" >/dev/null; then
+    if ! git merge-base --is-ancestor "refs/remotes/$PEAL_REMOTE/$branch" "$tip"; then
+      peal_err "warning: $PEAL_REMOTE/$branch holds commits this machine never had; left in place"
+    elif ! git push -q "$PEAL_REMOTE" --delete "$branch" 2>/dev/null; then
+      peal_err "warning: could not delete $PEAL_REMOTE/$branch"
+    fi
+  fi
+  echo "released $id $branch, tip kept as refs/reaped/$name"
+}

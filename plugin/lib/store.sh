@@ -19,10 +19,15 @@
 #   peal_store_finish ID retired REASON    an unclaimed task retired
 #   peal_store_comment ID TEXT             a dated line in the task's notes
 #   peal_store_milestones                  peal_ms_load's lines, as the storage holds them
+#   peal_store_claim ID                    the task claimed into a worktree of its own
+#                                          (PEAL_CLAIM_PATH), or its parked claim resumed;
+#                                          status 3 for a claim that lost the race
+#   peal_store_release ID                  the claim's worktree and branch removed, the tip
+#                                          kept under refs/reaped/
 #
-# The claim issue adds peal_store_claim and peal_store_release. Everything above the
-# storage (the read model's rules in task-state.awk, the board, the overview, the checks
-# on a new task in task-check.awk) is the same for every implementation.
+# Everything above the storage (the read model's rules in task-state.awk, the board, the
+# overview, the checks on a new task in task-check.awk, what a pool offers and which
+# claims may be made or released in claim.sh) is the same for every implementation.
 
 # peal_store_load -> the storage the settings name, its functions defined; status 2 for
 # one there is not.
