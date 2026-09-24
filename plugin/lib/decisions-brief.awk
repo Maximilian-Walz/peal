@@ -88,5 +88,5 @@ END {
     shown++
   }
   if (!shown) print "no entry names one of them"
-  if (superseded) printf "(%d superseded %s matched too, left out)\n", superseded, superseded == 1 ? "entry" : "entries"
+  if (superseded) printf "(%d superseded %s matched too, left out)\n", superseded, (superseded == 1 ? "entry" : "entries")
 }

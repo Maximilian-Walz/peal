@@ -164,14 +164,14 @@ esac
 exec "$real" "\$@"
 EOF
   chmod +x "$shims/git"
-  out=$(PATH="$shims:$PATH" at "$wt" "$PEAL" decision reserve raced-call 2>&1)
+  out=$(at "$wt" env PATH="$shims:$PATH" "$PEAL" decision reserve raced-call 2>&1)
   check "race: lost, then the next number" "0|peal: decision reserve: 0010 was reserved meanwhile (1 of 5); again with the next number
 reserved decision 0011 for $branch (refs/decisions/0011 on origin)" "$?|$(printf '%s\n' "$out" | head -n 2)"
   check "race: the rival keeps its number" "reserve decision 0010: rival (branch rival, $today)" "$(on_remote 0010)"
   check "race: ours holds the next" "reserve decision 0011: raced-call (branch $branch, $today)" "$(on_remote 0011)"
   check "race: the scaffold has the next number" "0011-raced-call.md" "$(cd "$wt/$DEC" && echo *raced*)"
   rm "$shims/raced"
-  out=$(PATH="$shims:$PATH" PEAL_PUSH_ATTEMPTS=1 at "$wt" "$PEAL" decision reserve lost-call 2>&1)
+  out=$(at "$wt" env PATH="$shims:$PATH" PEAL_PUSH_ATTEMPTS=1 "$PEAL" decision reserve lost-call 2>&1)
   check "race: gives up" "1|peal: decision reserve: gave up after 1 pushes, each losing a race; nothing reserved|" \
     "$?|$(printf '%s\n' "$out" | tail -n 1)|$(cd "$wt/$DEC" && find . -name "*lost*")"
 
@@ -230,7 +230,7 @@ check_cases() {
   rival 0004 someone/else
   check_refused "reservation: another branch's" "0004 is reserved by the branch someone/else, not by $branch" dcheck
   check "reservation: in a pull request's workflow, the head branch" "0" \
-    "$(GITHUB_HEAD_REF=someone/else at "$wt" "$PEAL" decision check >/dev/null 2>&1; echo $?)"
+    "$(at "$wt" env GITHUB_HEAD_REF=someone/else "$PEAL" decision check >/dev/null 2>&1; echo $?)"
   git -C "$work" push -q origin :refs/decisions/0004 2>/dev/null
   sha=$(git -C "$work" commit-tree "$(git -C "$work" hash-object -w -t tree /dev/null)" -m "made by hand")
   git -C "$work" push -q origin "$sha:refs/decisions/0004" 2>/dev/null
