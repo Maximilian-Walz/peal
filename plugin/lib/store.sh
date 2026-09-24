@@ -29,6 +29,14 @@
 #                                          top, or absolute); status 1 if there is none
 #   peal_store_comment ID TEXT             a dated line in the task's notes
 #   peal_store_milestones                  peal_ms_load's lines, as the storage holds them
+#   peal_store_milestone_text ID           the milestone's text: its file, its description
+#   peal_store_milestone_state ID STATE REASON REVIEW
+#                                          the milestone made STATE (done, parked, open),
+#                                          REASON why a parked one waits, the text of the
+#                                          file REVIEW (or "") added as its review; for
+#                                          files, with none current afterwards, the first
+#                                          open one by order made current. A milestone in
+#                                          that state already is left as it is.
 #   peal_store_claim ID                    the task claimed into a worktree of its own
 #                                          (PEAL_CLAIM_PATH), or its parked claim resumed;
 #                                          status 3 for a claim that lost the race

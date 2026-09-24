@@ -2,12 +2,14 @@
 # title; a closed milestone is done, an open one whose description starts with "parked"
 # (any case) is parked, of the others the one due soonest is current (no due date counts
 # as last, then the oldest), the rest open. The order follows the due date (none last),
-# then the milestone's number.
+# then the milestone's number. A parked milestone's reason is the rest of the
+# description's first line after "parked" and a colon: "Parked: until #12" waits "until
+# #12".
 #
 #   awk -F '\t' -f issues-lib.awk -f issues-milestones.awk MILESTONES
 #
 # MILESTONES holds "number<TAB>title<TAB>state<TAB>due_on<TAB>description<TAB>url" per
-# milestone, texts with @tsv's escapes. Out: "id<TAB>title<TAB>state<TAB>order<TAB>due<TAB>url";
+# milestone, texts with @tsv's escapes. Out: "id<TAB>title<TAB>state<TAB>order<TAB>due<TAB>url<TAB>reason";
 # with PEAL_MS_FIND in the environment, only the number of the milestone of that title
 # (status 1 if there is none).
 
@@ -20,7 +22,7 @@ function after(a, b) {
 $0 != "" {
   n++
   num[n] = $1; title[n] = tsv_unescape($2); st[n] = $3; due[n] = substr($4, 1, 10)
-  desc[n] = tolower(trim(tsv_unescape($5))); url[n] = $6
+  desc[n] = trim(tsv_unescape($5)); url[n] = $6
   gsub(/[\t\r\n]/, " ", title[n])
 }
 
@@ -37,10 +39,15 @@ END {
   }
   for (k = 1; k <= n; k++) {
     i = idx[k]
-    s = "open"
+    s = "open"; reason = ""
     if (st[i] == "closed") s = "done"
-    else if (index(desc[i], "parked") == 1) s = "parked"
+    else if (index(tolower(desc[i]), "parked") == 1) {
+      s = "parked"
+      reason = substr(desc[i], 7)
+      sub(/\n.*/, "", reason); sub(/^[ \t]*:/, "", reason)
+      reason = trim(reason); gsub(/[\t\r]/, " ", reason)
+    }
     else if (!current) { s = "current"; current = 1 }
-    printf "%s\t%s\t%s\t%d\t%s\t%s\n", title[i], title[i], s, k, due[i], url[i]
+    printf "%s\t%s\t%s\t%d\t%s\t%s\t%s\n", title[i], title[i], s, k, due[i], url[i], reason
   }
 }

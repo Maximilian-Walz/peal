@@ -41,6 +41,8 @@ export PEAL_ROOT
 . "$PEAL_ROOT/lib/backlog.sh"
 # shellcheck source=../lib/close.sh
 . "$PEAL_ROOT/lib/close.sh"
+# shellcheck source=../lib/review.sh
+. "$PEAL_ROOT/lib/review.sh"
 
 usage() {
   cat <<'EOF'
@@ -147,6 +149,18 @@ issue-N on branch issue/N, labelled "in progress", as Belfry claims one):
   close verify                  one verdict: READY (0), WAIT:<why> (3), BLOCKED:<why> (1)
   close wait                    verify until not WAIT, or the budget is spent
                                 (PEAL_CLOSE_WAIT_BUDGET, 540 s; PEAL_CLOSE_WAIT_INTERVAL, 20)
+
+A milestone's end (lib/review.sh):
+  milestone-review [ID]         what /peal:milestone-review needs of milestone ID (this
+                                worktree's task's, else the current one): its tasks not
+                                done, the next current one, its text, .peal/review.md;
+                                last line READY or OPEN <count>
+  milestone-state ID done|parked|open [--reason R] [--review FILE]
+                                change the milestone's state in the storage (for files,
+                                straight onto the main branch): R why a parked one waits
+                                ("until #12, other/repo#43"), FILE's text (-: stdin)
+                                its review;
+                                with none current, the first open one becomes current
 EOF
 }
 
@@ -312,6 +326,8 @@ main() {
         *) with_store peal_close "$@" ;;
       esac
       ;;
+    milestone-review) with_store peal_milestone_review "$@" ;;
+    milestone-state) with_store peal_milestone_state "$@" ;;
     comment) [ $# -eq 2 ] || { usage >&2; exit 2; }; with_store peal_store_comment "$1" "$2" ;;
     *)
       peal_err "unknown command '$cmd'"
