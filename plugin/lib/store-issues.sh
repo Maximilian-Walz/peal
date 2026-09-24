@@ -3,8 +3,8 @@
 # GitHub issues, its id the issue's number, read and written with `gh api`. What an
 # issue says as a task (lib/issues-lib.awk): its milestone; "Depends on #3, #7" and
 # "Part of #3" lines in its body; labels "needs: <capability>", "size: M", "plan:
-# required", "model: opus", "priority: high" and "<field>: <value>" for the project's own
-# fields.
+# required", "model: opus", "priority: high", "breaking: true", "release-note: none" and
+# "<field>: <value>" for the project's own fields.
 #
 # A claim is Belfry's, so that either recognises the other's: the label "in progress",
 # the branch issue/N in the worktree {worktrees}/issue-N (continuing the remote's
@@ -199,12 +199,13 @@ peal_store_read() {
 }
 
 # _peal_issues_managed LABEL -> status 0 for a label the task text's frontmatter owns:
-# needs, size, plan, model, priority and the project's fields, as "<key>: <value>".
+# needs, size, plan, model, priority, breaking, release-note and the project's fields,
+# as "<key>: <value>".
 _peal_issues_managed() {
   local key
   case $1 in *:*) ;; *) return 1 ;; esac
   key=$(printf '%s' "${1%%:*}" | tr '[:upper:]' '[:lower:]' | sed 's/^ *//; s/ *$//')
-  case ",needs,size,plan,model,priority,$PEAL_FIELDS," in *",$key,"*) return 0 ;; esac
+  case ",needs,size,plan,model,priority,breaking,release-note,$PEAL_FIELDS," in *",$key,"*) return 0 ;; esac
   return 1
 }
 
@@ -215,7 +216,7 @@ _peal_issues_from_text() {
   local file=$1 id=$2 dir=$3 key item deps="" part
   peal_text_title "$id" <"$file" >"$dir/title" || return 2
   : >"$dir/labels"
-  for key in plan size model $(printf '%s' "$PEAL_FIELDS" | tr ',' ' '); do
+  for key in plan size model breaking release-note $(printf '%s' "$PEAL_FIELDS" | tr ',' ' '); do
     peal_fm_get "$file" "$key" 2>/dev/null | while IFS= read -r item; do
       [ -z "$item" ] || printf '%s: %s\n' "$key" "$item"
     done >>"$dir/labels"

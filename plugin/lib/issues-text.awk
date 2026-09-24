@@ -6,8 +6,8 @@
 #
 # ISSUE holds one issue as issues-lib.awk describes it; fields names the project's own
 # frontmatter fields (task.fields), which labels "<field>: <value>" carry like Peal's
-# size, plan and model; the labels "priority: urgent|high|low" make its priority (the
-# higher of two).
+# size, plan, model, breaking and release-note; the labels "priority: urgent|high|low"
+# make its priority (the higher of two).
 
 function put(key, list,    n, it) {
   if (list == "") return
@@ -18,7 +18,7 @@ function put(key, list,    n, it) {
 
 {
   n = split(tsv_unescape($5), ls, ",")
-  nf = split("plan,size,model," fields, fl, ",")
+  nf = split("plan,size,model,breaking,release-note," fields, fl, ",")
   for (j = 1; j <= nf; j++) if (fl[j] != "") want[fl[j]] = 1
   for (j = 1; j <= n; j++) {
     l = trim(ls[j])
@@ -39,8 +39,10 @@ function put(key, list,    n, it) {
   put("part-of", PARTOF)
   put("needs", v["needs"])
   put("model", v["model"])
+  put("breaking", v["breaking"])
+  put("release-note", v["release-note"])
   if (v["priority"] != "normal") put("priority", v["priority"])
-  for (j = 4; j <= nf; j++) if (fl[j] != "") put(fl[j], v[fl[j]])
+  for (j = 6; j <= nf; j++) if (fl[j] != "") put(fl[j], v[fl[j]])
   print "---"
   print ""
   print "# " $1 " — " title

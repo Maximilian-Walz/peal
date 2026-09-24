@@ -32,4 +32,9 @@ storage:
     repo: ""                    # owner/name; empty: the remote's GitHub repository
     label: ""                   # only issues with this label are tasks; empty: the issues
                                 # opened by someone with write access
+release:
+  tag-prefix: v                 # release tags are <prefix>MAJOR.MINOR.PATCH
+  wait-ci: false                # /peal:release waits for the workflow runs of the tag
+  report: []                    # texts whose lines in those runs' logs the release reports,
+                                # e.g. "digest: sha256:"
 decisions: false                # the decisions module, or its directory to turn it on

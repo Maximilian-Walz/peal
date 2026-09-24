@@ -48,11 +48,11 @@ $1 == "" { next }
 
 END {
   peal["milestone"] = peal["plan"] = peal["size"] = peal["depends"] = 1
-  peal["part-of"] = peal["needs"] = peal["model"] = peal["priority"] = 1
+  peal["part-of"] = peal["needs"] = peal["model"] = peal["priority"] = peal["breaking"] = peal["release-note"] = 1
   for (k = 1; k <= nkeys; k++) {
     key = keys[k]
     if (!(key in peal) && !(key in custom))
-      problem("unknown field " key " (Peal's: milestone, plan, size, depends, part-of, needs, model, priority; a project adds its own under task.fields in .peal/config.yml)")
+      problem("unknown field " key " (Peal's: milestone, plan, size, depends, part-of, needs, model, priority, breaking, release-note; a project adds its own under task.fields in .peal/config.yml)")
   }
 
   m = value["milestone"]
@@ -73,6 +73,10 @@ END {
   if ("model" in kind) single("model")
   if (("priority" in kind) && single("priority") && value["priority"] !~ /^(urgent|high|normal|low)?$/)
     problem("priority " value["priority"] " is not urgent, high, normal or low")
+  if (("breaking" in kind) && single("breaking") && value["breaking"] !~ /^(true|false)?$/)
+    problem("breaking " value["breaking"] " is not true or false")
+  if (("release-note" in kind) && single("release-note") && value["release-note"] !~ /^(none)?$/)
+    problem("release-note " value["release-note"] " is not none (the only value: leave the task out of the release notes)")
 
   if ("part-of" in kind) {
     if (mode == "split") {
