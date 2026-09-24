@@ -18,7 +18,8 @@ checks:
                                 # when the commit touches one of those paths
   close: []                     # commands close runs before opening the PR
 pr:
-  sections: []                  # extra prose sections close asks the session for
+  sections: []                  # extra prose sections close asks the session for, each
+                                # "Title: what to write"
 commit:
   areas: []                     # allowed <area> values in commit subjects, then required;
                                 # empty allows any or none. tasks is always one

@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2016 # jq's $variables, not the shell's
-# A fake gh for the harnesses of the issues storage: `gh api` over a repository held as
-# JSON files in $FAKE_GH (issues.json, milestones.json, pulls.json, comments.json), each
-# an array of objects shaped like GitHub's REST responses (the fields Peal reads). --jq
+# A fake gh for the harnesses of the issues storage and the close: `gh api` over a
+# repository held as JSON files in $FAKE_GH (issues.json, milestones.json, pulls.json,
+# comments.json, checks.json, statuses.json), each an array of objects shaped like
+# GitHub's REST responses (the fields Peal reads; a check or status also names its
+# commit, sha), and $FAKE_GH/workflows, how many Actions workflows there are (1). --jq
 # is applied with jq, as gh applies its own. Every call is appended to $FAKE_GH/log as
 # "METHOD PATH"; $FAKE_GH/fail, when it exists, holds a pattern: a call whose
-# "METHOD PATH" matches it fails.
+# "METHOD PATH" matches it fails, but for the first N such calls when $FAKE_GH/fail-after
+# holds N.
 #
 #   gh api [-X|--method M] [--paginate] [--input FILE] [--jq|-q EXPR] [-H H] PATH
 #
@@ -38,11 +41,16 @@ done
 [ -n "$path" ] || die "no path"
 printf '%s %s\n' "$method" "$path" >>"$FAKE_GH/log"
 if [ -s "$FAKE_GH/fail" ] && [[ "$method $path" == $(cat "$FAKE_GH/fail") ]]; then
-  printf 'gh: HTTP 502: failing on purpose (%s %s)\n' "$method" "$path" >&2
-  exit 1
+  after=$(cat "$FAKE_GH/fail-after" 2>/dev/null || echo 0)
+  if [ "${after:-0}" -gt 0 ]; then
+    echo $((after - 1)) >"$FAKE_GH/fail-after"
+  else
+    printf 'gh: HTTP 502: failing on purpose (%s %s)\n' "$method" "$path" >&2
+    exit 1
+  fi
 fi
 
-for f in issues milestones pulls comments; do
+for f in issues milestones pulls comments checks statuses; do
   [ -f "$FAKE_GH/$f.json" ] || printf '[]\n' >"$FAKE_GH/$f.json"
 done
 
@@ -108,7 +116,39 @@ case "$method $rest" in
     out "$(jq -c --argjson n "$n" '.[] | select(.number == $n)' "$FAKE_GH/issues.json")"
     ;;
   "GET milestones") out "$(cat "$FAKE_GH/milestones.json")" ;;
-  "GET pulls") out "$(jq -c 'map(select(.state == "open"))' "$FAKE_GH/pulls.json")" ;;
+  "GET pulls")
+    state=$(query state) head=$(query head)
+    out "$(jq -c --arg s "${state:-open}" --arg h "${head#*:}" '
+      map(select(($s == "all" or .state == $s) and ($h == "" or .head.ref == $h))) | sort_by(-.number)' "$FAKE_GH/pulls.json")"
+    ;;
+  "POST pulls")
+    n=$(jq -s '[.[0][].number, .[1][].number] | max // 0 | . + 1' "$FAKE_GH/issues.json" "$FAKE_GH/pulls.json")
+    jq -e --arg h "$(jq -r .head <<<"$body")" 'any(.[]; .state == "open" and .head.ref == $h) | not' \
+      "$FAKE_GH/pulls.json" >/dev/null || { printf 'gh: A pull request already exists (HTTP 422)\n' >&2; exit 1; }
+    save pulls '. + [{number: $n, title: $in.title, body: $in.body, state: "open", draft: false,
+        merged: false, mergeable: true, author_association: "OWNER",
+        html_url: ($url + "/pull/" + ($n | tostring)),
+        head: {ref: $in.head, repo: {full_name: $repo}}, base: {ref: $in.base, repo: {full_name: $repo}}}]' \
+      --argjson in "$body" --argjson n "$n" --arg url "$url" --arg repo "$repo"
+    out "$(jq -c --argjson n "$n" '.[] | select(.number == $n)' "$FAKE_GH/pulls.json")"
+    ;;
+  "GET pulls/"* | "PATCH pulls/"*)
+    n=${rest#pulls/}
+    [[ "$n" =~ ^[0-9]+$ ]] || die "unknown path $path"
+    jq -e --argjson n "$n" 'any(.[]; .number == $n)' "$FAKE_GH/pulls.json" >/dev/null \
+      || { printf 'gh: Not Found (HTTP 404)\n' >&2; exit 1; }
+    [ "$method" = GET ] || save pulls 'map(if .number == $n then . + $in else . end)' --argjson in "$body" --argjson n "$n"
+    out "$(jq -c --argjson n "$n" '.[] | select(.number == $n) | {merged: false, mergeable: null} + .' "$FAKE_GH/pulls.json")"
+    ;;
+  "GET commits/"*/check-runs)
+    sha=${rest#commits/} sha=${sha%/check-runs}
+    out "$(jq -c --arg sha "$sha" 'map(select(.sha == $sha)) | {total_count: length, check_runs: .}' "$FAKE_GH/checks.json")"
+    ;;
+  "GET commits/"*/status)
+    sha=${rest#commits/} sha=${sha%/status}
+    out "$(jq -c --arg sha "$sha" 'map(select(.sha == $sha)) | {statuses: .}' "$FAKE_GH/statuses.json")"
+    ;;
+  "GET actions/workflows") out "{\"total_count\": $(cat "$FAKE_GH/workflows" 2>/dev/null || echo 1)}" ;;
   *)
     issue_re='^issues/([0-9]+)(/.*)?$'
     [[ "$rest" =~ $issue_re ]] || die "unknown path $path"

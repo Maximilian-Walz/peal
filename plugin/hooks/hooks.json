@@ -32,6 +32,16 @@
         ]
       }
     ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/peal\" hook stop"
+          }
+        ]
+      }
+    ],
     "SessionEnd": [
       {
         "hooks": [

@@ -596,8 +596,9 @@ _peal_files_retire() {
 }
 
 # _peal_files_finish_done ID -> the task's file moved from doing/ to done/ in this
-# worktree, staged with its Outcome for the close's commit. Only on the task's own branch, and only with an
-# Outcome written and no placeholder left in it.
+# worktree, staged with its Outcome for the close's commit. Only on the task's own branch,
+# and only with an Outcome written and no placeholder left in it. A file moved already
+# (a close run again) is left as it is.
 _peal_files_finish_done() {
   local id=$1 branch top file dest
   _peal_files_settings || return 2
@@ -609,6 +610,11 @@ _peal_files_finish_done() {
   esac
   for file in "$top/$PEAL_TASKS/doing/$id"-*.md; do break; done
   if [ ! -f "$file" ]; then
+    for file in "$top/$PEAL_TASKS/done/$id"-*.md; do break; done
+    if [ -f "$file" ] && git -C "$top" ls-files --error-unmatch -- "${file#"$top"/}" >/dev/null 2>&1; then
+      echo "finished $id already: ${file#"$top"/}"
+      return 0
+    fi
     peal_err "finish: no $PEAL_TASKS/doing/$id-*.md here"
     return 2
   fi
@@ -624,6 +630,16 @@ _peal_files_finish_done() {
   mkdir -p "$top/$PEAL_TASKS/done"
   git -C "$top" mv "${file#"$top"/}" "$dest" && git -C "$top" add -- "$dest" || return 2
   echo "finished $id $dest"
+}
+
+# The task's file on its branch: under doing/, or under done/ once the close moved it.
+peal_store_close_text() {
+  local file
+  _peal_files_settings || return 2
+  for file in "$PEAL_TASKS/doing/$1"-*.md "$PEAL_TASKS/done/$1"-*.md; do
+    [ ! -f "$file" ] || { printf '%s\n' "$file"; return 0; }
+  done
+  return 1
 }
 
 peal_store_finish() {

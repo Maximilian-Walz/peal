@@ -492,7 +492,7 @@ $(dirname "$work")/work-wt/issue-4" "$?:$out"
   git -C "$wt" push -q -u origin issue/1 2>/dev/null
   gh_save issues 'map(if .number == 1 then .state = "open" else . end)'
   # shellcheck disable=SC2016 # expanded by the inner shell
-  out=$(at "$work" bash -c 'PEAL_ROOT=$1; for f in common config claim tasks store; do . "$1/lib/$f.sh"; done
+  out=$(at "$work" bash -c 'PEAL_ROOT=$1; for f in common config claim tasks store github; do . "$1/lib/$f.sh"; done
     peal_store_load && peal_store_release 1' _ "$PEAL_ROOT" 2>&1)
   check "release: an open issue's label comes off" "released 1 issue/1, tip kept as refs/reaped/issue-1|" "$out|$(labels 1)"
   check "release: the pushed branch deleted" "" "$(git -C "$work" ls-remote origin refs/heads/issue/1)"
@@ -551,9 +551,9 @@ repo_of() {
   local url
   for url in https://github.com/acme/widgets https://github.com/acme/widgets.git git@github.com:acme/widgets.git \
       ssh://git@github.com/acme/widgets https://token@github.com/acme/widgets.git/; do
-    check "repo of $url" "acme/widgets" "$(bash -c '. "$1/lib/store-issues.sh"; _peal_issues_repo_of "$2"' _ "$PEAL_ROOT" "$url")"
+    check "repo of $url" "acme/widgets" "$(bash -c '. "$1/lib/github.sh"; peal_github_repo_of "$2"' _ "$PEAL_ROOT" "$url")"
   done
-  check "repo of another host" "1:" "$(bash -c '. "$1/lib/store-issues.sh"; _peal_issues_repo_of "$2"; echo "$?:"' _ "$PEAL_ROOT" https://gitlab.com/acme/widgets)"
+  check "repo of another host" "1:" "$(bash -c '. "$1/lib/github.sh"; peal_github_repo_of "$2"; echo "$?:"' _ "$PEAL_ROOT" https://gitlab.com/acme/widgets)"
 }
 
 cases() {

@@ -19,6 +19,9 @@
 #   peal_store_set_milestone ID [M]        its milestone set, or removed without M
 #   peal_store_finish ID done              the task's own branch marks it done
 #   peal_store_finish ID retired REASON    an unclaimed task retired
+#   peal_store_close_text ID               the file holding the Outcome of task ID, whose
+#                                          branch is checked out here (relative to the
+#                                          top, or absolute); status 1 if there is none
 #   peal_store_comment ID TEXT             a dated line in the task's notes
 #   peal_store_milestones                  peal_ms_load's lines, as the storage holds them
 #   peal_store_claim ID                    the task claimed into a worktree of its own
