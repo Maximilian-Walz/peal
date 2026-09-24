@@ -212,7 +212,7 @@ board() {
 {"milestone":{"id":"m1","title":"m1","state":"current","order":1,"due":"2026-10-01"}}
 {"milestone":{"id":"m2","title":"m2","state":"open","order":2,"due":"2026-12-01"}}
 {"milestone":{"id":"m0","title":"m0","state":"done","order":3}}
-{"milestone":{"id":"m3","title":"m3","state":"parked","order":4}}' "$out"
+{"milestone":{"id":"m3","title":"m3","state":"parked","order":4,"reason":"until later"}}' "$out"
   check "milestones" "m1 current 1 2026-10-01 m1
 m2 open 2 2026-12-01 m2
 m0 done 3 - m0

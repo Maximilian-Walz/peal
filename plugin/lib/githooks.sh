@@ -95,15 +95,20 @@ peal_githook() {
 #       docs(tasks): set milestone of ID ...
 #       docs(tasks): note on ID ...
 #       docs(tasks): retire ID ...             ID's backlog file moved to done/, unrenamed
+#       docs(tasks): milestone ID STATE ...    one or two modified milestone files (the
+#                                              milestone's, and the one made current)
 # Rewriting main (not a fast-forward) and deleting it are refused. Git runs no pre-push
 # for a merge made on the server (a pull request's), so this never stands in its way.
-# Known limit: the main branch and the tasks directory are this worktree's settings.
+# Known limit: the main branch and the tasks and milestones directories are this
+# worktree's settings.
 
 _peal_pre_push() {
-  local main tasks lsha rref rsha range sha parents
+  local main tasks milestones lsha rref rsha range sha parents
   main=$(peal_config_get main) || return 1
   tasks=$(peal_config_get tasks) || return 1
   tasks=${tasks%/}
+  milestones=$(peal_config_get milestones) || return 1
+  milestones=${milestones%/}
   while IFS=' ' read -r _ lsha rref rsha; do
     [ "$rref" = "refs/heads/$main" ] || continue
     if [[ "$lsha" =~ ^0+$ ]]; then
@@ -124,7 +129,7 @@ _peal_pre_push() {
       if [ "$parents" -gt 1 ]; then
         _peal_pre_push_merge "$sha" "$main"
       else
-        _peal_pre_push_direct "$sha" "$main" "$tasks"
+        _peal_pre_push_direct "$sha" "$main" "$tasks" "$milestones"
       fi
     done
   done
@@ -152,16 +157,17 @@ _peal_pre_push_merge() {
   done
 }
 
-# _peal_pre_push_direct SHA MAIN TASKS -> refused unless SHA is one of the storage's
-# writes, by subject and by the shape of its diff.
+# _peal_pre_push_direct SHA MAIN TASKS MILESTONES -> refused unless SHA is one of the
+# storage's writes, by subject and by the shape of its diff.
 _peal_pre_push_direct() {
-  local sha=$1 main=$2 tasks=$3 subject shape id diff short why
+  local sha=$1 main=$2 tasks=$3 milestones=$4 subject shape id diff short why
   subject=$(git show -s --format=%s "$sha")
   short=$(git rev-parse --short "$sha")
   case $subject in
     'docs(tasks): file '*) shape=add ;;
     'docs(tasks): revise '* | 'docs(tasks): defer '* | 'docs(tasks): set milestone of '* | 'docs(tasks): note on '*) shape=modify ;;
     'docs(tasks): retire '*) shape=retire ;;
+    'docs(tasks): milestone '*) shape=milestone ;;
     *)
       _peal_gate_refuse pre-push "$short reaches $main directly and is no merge: \"$subject\""
       return
@@ -170,7 +176,7 @@ _peal_pre_push_direct() {
   id=""
   [[ "$subject" =~ \[([0-9][0-9][0-9][0-9])\]$ ]] && id=${BASH_REMATCH[1]}
   diff=$(git diff-tree -r --raw --no-commit-id --no-renames --root "$sha")
-  if ! why=$(printf '%s\n' "$diff" | awk -v shape="$shape" -v tasks="$tasks" -v id="$id" '
+  if ! why=$(printf '%s\n' "$diff" | awk -v shape="$shape" -v tasks="$tasks" -v ms="$milestones" -v id="$id" '
       function bad(why) { print why; failed = 1; exit 1 }
       function task(p, dir,    f) {
         if (index(p, tasks "/" dir "/") != 1) return ""
@@ -182,7 +188,11 @@ _peal_pre_push_direct() {
         split($0, f, "\t"); path = f[2]
         split(f[1], m, " "); omode = substr(m[1], 2); nmode = m[2]; st = m[5]
         n++
-        if (shape == "add") {
+        if (shape == "milestone") {
+          if (st != "M" || omode != "100644" || nmode != "100644" || index(path, ms "/") != 1 \
+              || substr(path, length(ms) + 2) !~ /^[^\/]+\.md$/)
+            bad("not a modified milestone file: " st " " nmode " " path)
+        } else if (shape == "add") {
           if (st != "A" || nmode != "100644" || task(path, "backlog") == "")
             bad("not an added backlog task file: " st " " nmode " " path)
         } else if (shape == "modify") {
@@ -199,6 +209,7 @@ _peal_pre_push_direct() {
         if (failed) exit 1
         if (n == 0) { print "the diff is empty"; exit 1 }
         if (shape == "modify" && n != 1) { print n " files changed, not one"; exit 1 }
+        if (shape == "milestone" && n > 2) { print n " milestone files changed, not one or two"; exit 1 }
         if (shape == "retire" && (n != 2 || gone == "" || gone != came)) { print "not one backlog task file moved to done/ as it is named"; exit 1 }
         if (shape == "retire" && substr(gone, 1, 4) != id) { print "not the file of task " id ": " gone; exit 1 }
       }'); then

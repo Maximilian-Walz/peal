@@ -71,6 +71,16 @@ cases() {
   milestone "$dir" m1 "state: open" "order: -02"
   check "json: negative order" '{"milestone":{"id":"m1","title":"Heading of m1","state":"open","order":-2}}' "$(ms --json)"
 
+  # A parked milestone's reason: free text, "until #12, ..." included, in the JSON line
+  # only; refused on any other state.
+  dir=$(project)
+  milestone "$dir" m1 "state: parked" "reason: 'until #12, other/repo#43'"
+  check "reason: line" "m1 parked - - Heading of m1" "$(ms)"
+  check "reason: json" '{"milestone":{"id":"m1","title":"Heading of m1","state":"parked","reason":"until #12, other/repo#43"}}' \
+    "$(ms --json)"
+  milestone "$dir" m1 "state: open" "reason: later"
+  check_refused "reason: not parked" "reason 'later' is for a parked milestone, and this one is open" pcheck
+
   # The order: by order, those without one last, then by id.
   dir=$(project)
   milestone "$dir" a "state: parked"
@@ -117,7 +127,7 @@ cases() {
   milestone "$dir" m1 "state: open" "due: 1900-02-29"
   check_refused "due: not a leap century" "due '1900-02-29' is not a date" pcheck
   milestone "$dir" m1 "state: open" "owner: me"
-  check_refused "unknown key" "docs/milestones/m1.md: line 3: unknown key owner" pcheck
+  check_refused "unknown key" "docs/milestones/m1.md: line 3: unknown key owner (milestones have id, title, state, order, due, reason)" pcheck
   milestone "$dir" m1 "state: [open]"
   check_refused "state as a list" "line 2: state must be a single value, not a list" pcheck
   milestone "$dir" m1 "state: open" "id: 'm 1'"

@@ -1040,3 +1040,80 @@ peal_store_record() {
   cp "$text" "$file" || return 2
   peal_commit "docs(tasks): record the $what of $id [$id]" "$file"
 }
+
+# peal_store_milestone_text ID -> milestone ID's file as the main branch holds it.
+peal_store_milestone_text() {
+  local base file
+  _peal_files_settings || return 2
+  base=$(_peal_files_base) || return 2
+  file=$(_peal_files_milestones_at "$base" | awk -F '\t' -v id="$1" '$1 == id { print $6 }') || return 2
+  [ -n "$file" ] || { peal_err "no milestone $1"; return 2; }
+  git show "$base:$file"
+}
+
+# _peal_files_build_ms_state BASE -> the milestone files of BASE rewritten: PEAL_MS_ID's
+# state PEAL_MS_STATE, its reason PEAL_MS_REASON (parked only), PEAL_MS_REVIEW's text
+# appended as its review; then, when no milestone is current, the first open one by
+# order made current. PEAL_MS_REPORT says what changed; status 4 when nothing would.
+_peal_files_build_ms_state() {
+  local base=$1 root=$PEAL_MS_TMP/tree line file old next="" final args=()
+  rm -rf "$root" && mkdir -p "$root" || return 2
+  _peal_files_extract "$base" "$(peal_config_get milestones)" "$root" || return 2
+  peal_ms_load "$root" || return 2
+  line=$(printf '%s\n' "$PEAL_MILESTONES" | awk -F '\t' -v id="$PEAL_MS_ID" '$1 == id')
+  [ -n "$line" ] || { peal_err "milestone-state: no milestone $PEAL_MS_ID on $PEAL_REMOTE/$PEAL_MAIN"; return 2; }
+  file=$(_peal_field "$line" 6)
+  old=$(_peal_field "$line" 3)
+  if [ "$old" = "$PEAL_MS_STATE" ] || { [ "$old" = current ] && [ "$PEAL_MS_STATE" = open ]; }; then
+    PEAL_MS_REPORT="milestone $PEAL_MS_ID: $old already, nothing changed"$'\n'
+    return 4
+  fi
+  # The milestone that is current afterwards: the one there is, else the first open one.
+  next=$(printf '%s\n' "$PEAL_MILESTONES" | awk -F '\t' -v id="$PEAL_MS_ID" -v st="$PEAL_MS_STATE" '
+    { s = ($1 == id ? st : $3) }
+    s == "current" { cur = $1 }
+    s == "open" && first == "" { first = $1 }
+    END { if (cur == "") print first }')
+  final=$PEAL_MS_STATE
+  [ "$next" != "$PEAL_MS_ID" ] || { final=current next=""; }
+  cp "$root/$file" "$PEAL_MS_TMP/ms" || return 2
+  peal_fm_set "$PEAL_MS_TMP/ms" state "$final" || return 2
+  if [ "$final" = parked ] && [ -n "$PEAL_MS_REASON" ]; then
+    peal_fm_set "$PEAL_MS_TMP/ms" reason "$PEAL_MS_REASON" || return 2
+  else
+    peal_fm_unset "$PEAL_MS_TMP/ms" reason || return 2
+  fi
+  if [ -n "$PEAL_MS_REVIEW" ]; then
+    [ -z "$(tail -c 1 "$PEAL_MS_TMP/ms")" ] || echo >>"$PEAL_MS_TMP/ms"
+    { printf '\n## Review, %s\n\n' "$(date -u +%Y-%m-%d)"
+      cat "$PEAL_MS_REVIEW"
+      [ -z "$(tail -c 1 "$PEAL_MS_REVIEW")" ] || echo
+    } >>"$PEAL_MS_TMP/ms"
+  fi
+  args=(add "$file" "$PEAL_MS_TMP/ms")
+  PEAL_SUBJECT="docs(tasks): milestone $PEAL_MS_ID $final"
+  PEAL_MS_REPORT="milestone $PEAL_MS_ID: $final"$'\n'
+  if [ -n "$next" ]; then
+    file=$(printf '%s\n' "$PEAL_MILESTONES" | awk -F '\t' -v id="$next" '$1 == id { print $6 }')
+    cp "$root/$file" "$PEAL_MS_TMP/next" && peal_fm_set "$PEAL_MS_TMP/next" state current || return 2
+    args+=(add "$file" "$PEAL_MS_TMP/next")
+    PEAL_SUBJECT="$PEAL_SUBJECT, $next current"
+    PEAL_MS_REPORT="${PEAL_MS_REPORT}milestone $next: current"$'\n'
+  fi
+  _peal_files_tree "$base" "${args[@]}"
+}
+
+# The milestone files rewritten on the main branch, in one commit
+# "docs(tasks): milestone ID STATE[, NEXT current]".
+peal_store_milestone_state() {
+  local tmp status=0
+  _peal_files_settings || return 2
+  _peal_files_fetch || return 2
+  tmp=$(mktemp -d) || return 2
+  PEAL_MS_ID=$1 PEAL_MS_STATE=$2 PEAL_MS_REASON=$3 PEAL_MS_REVIEW=$4 PEAL_MS_TMP=$tmp PEAL_MS_REPORT=""
+  _peal_files_push _peal_files_build_ms_state || status=$?
+  [ $status = 4 ] && status=0
+  [ $status != 0 ] || printf '%s' "$PEAL_MS_REPORT"
+  rm -rf "$tmp"
+  return $status
+}

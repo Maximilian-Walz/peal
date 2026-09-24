@@ -167,6 +167,33 @@ docs(tasks): file 0004 new-task [0004]" "$(git -C "$work" log --format=%s -6 ori
   commit_ungated "docs(tasks): retire 0002 second-task [0002]"
   check_fails "refused: retire, another task" 1 "not the file of task 0002" push_main
 
+  # A milestone's state: its file, and the one made current; nothing else.
+  fresh
+  printf 'more\n' >>"$work/docs/milestones/m1.md"
+  printf 'more\n' >>"$work/docs/milestones/m2.md"
+  git -C "$work" add -A
+  commit_ungated "docs(tasks): milestone m1 done, m2 current"
+  check "allowed: milestone" "0" "$(push_main 2>/dev/null; echo $?)"
+
+  fresh
+  printf 'more\n' >>"$work/docs/milestones/m1.md"
+  printf 'more\n' >>"$work/tasks/backlog/0001-first-task.md"
+  git -C "$work" add -A
+  commit_ungated "docs(tasks): milestone m1 done"
+  check_fails "refused: milestone, a task file too" 1 "not a modified milestone file: M 100644 tasks/backlog/0001" push_main
+
+  fresh
+  printf 'x\n' >"$work/docs/milestones/m9.md"
+  git -C "$work" add -A
+  commit_ungated "docs(tasks): milestone m9 open"
+  check_fails "refused: milestone, an added file" 1 "not a modified milestone file: A" push_main
+
+  fresh
+  for m in m0 m1 m2; do printf 'more\n' >>"$work/docs/milestones/$m.md"; done
+  git -C "$work" add -A
+  commit_ungated "docs(tasks): milestone m1 done"
+  check_fails "refused: milestone, three files" 1 "3 milestone files changed, not one or two" push_main
+
   # One good write does not carry a bad one along.
   fresh
   echo x >"$work/README"
