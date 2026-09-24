@@ -794,3 +794,24 @@ peal_store_local_branch() {
   git rev-parse -q --verify "refs/heads/issue/$1" >/dev/null || return 1
   printf 'issue/%s\n' "$1"
 }
+
+# The issue itself: its title, body and the labels its frontmatter owns, and the copy the
+# claim keeps fetched again.
+peal_store_record() {
+  local id=$1 what=$2 text=$3 tmp status=0
+  _peal_issues_settings || return 2
+  PEAL_FIELDS=$(_peal_issues_fields)
+  PEAL_MS_ROWS=$(_peal_issues_milestone_rows) || return 2
+  tmp=$(mktemp -d) || return 2
+  if ! _peal_issues_from_text "$text" "$id" "$tmp"; then
+    status=2
+  elif ! _peal_issues_post "$tmp" "$id" \
+      || ! _peal_issues_labels "$id" "$(_peal_issues_current_labels "$id")" "$(cat "$tmp/labels")"; then
+    status=1
+  else
+    _peal_issues_cache "$id" "$(git rev-parse --absolute-git-dir)/peal-task.md"
+    echo "recorded the $what of $id on issue $id"
+  fi
+  rm -rf "$tmp"
+  return $status
+}

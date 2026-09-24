@@ -36,6 +36,10 @@
 #                                          branch, its directory there or not
 #   peal_store_local_branch ID             the local branch of task ID's claim; status 1
 #                                          if there is none
+#   peal_store_record ID WHAT FILE         the text of the task this worktree holds, as
+#                                          its claim keeps it, replaced by FILE: what the
+#                                          human agreed (WHAT: plan, notes), checked
+#                                          already (peal_record)
 #
 # Everything above the storage (the read model's rules in task-state.awk, the board, the
 # overview, the checks on a new task in task-check.awk, what a pool offers and which
