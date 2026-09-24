@@ -1,14 +1,16 @@
 # shellcheck shell=bash
 # The storage interface (docs/design.md, "Storage"): where tasks live, kept apart from how
-# a session works them. The `storage` setting names the implementation, one file
+# a session works them. The `storage.kind` setting names the implementation, one file
 # lib/store-<name>.sh defining these functions; the commands and the peal CLI call only
-# them. `files`, task files in the repository, is the one there is.
+# them. `files` keeps tasks as files in the repository (their ids four digits, 0042),
+# `issues` as the repository's GitHub issues (their ids the issue numbers, 42).
 #
 #   peal_store_list [--fetch] [--no-pr]
 #       one list record per task, by id, tab-separated (lists joined with commas):
-#         id state detail slug title milestone depends part-of size plan needs path ref pr
-#       state and detail as lib/task-state.awk derives them; ref is the task's branch,
-#       pr its pull request ("#21") when one is known.
+#         id state detail slug title milestone depends part-of size plan needs path ref pr url
+#       state and detail as lib/task-state.awk derives them; path is the task's file,
+#       url its page on a host (one of the two), ref the task's branch, pr its pull
+#       request ("#21") when one is known.
 #   peal_store_read ID                     the task's text, from its branch or the main one
 #   peal_store_create MODE ORIGIN SLUG...  new tasks from bodies on stdin; MODE plain,
 #                                          split (ORIGIN the task split) or batch (ORIGIN
@@ -24,6 +26,16 @@
 #                                          status 3 for a claim that lost the race
 #   peal_store_release ID                  the claim's worktree and branch removed, the tip
 #                                          kept under refs/reaped/
+#   peal_store_branch_task                 the id of the task whose branch is checked out
+#                                          here; status 1 on any other branch
+#   peal_store_session_task                "id<TAB>file" when this worktree holds its
+#                                          task's claim, file a copy of the task's text
+#                                          (relative to the top, or absolute); status 1
+#                                          otherwise
+#   peal_store_claim_worktrees             "id<TAB>branch<TAB>path" per worktree on a task
+#                                          branch, its directory there or not
+#   peal_store_local_branch ID             the local branch of task ID's claim; status 1
+#                                          if there is none
 #
 # Everything above the storage (the read model's rules in task-state.awk, the board, the
 # overview, the checks on a new task in task-check.awk, what a pool offers and which
@@ -34,14 +46,18 @@
 peal_store_load() {
   local storage
   peal_config_load || return 2
-  storage=$(peal_config_get storage) || return 2
+  storage=$(peal_config_get storage.kind) || return 2
   case $storage in
     files)
       # shellcheck source=store-files.sh
       . "$PEAL_ROOT/lib/store-files.sh"
       ;;
+    issues)
+      # shellcheck source=store-issues.sh
+      . "$PEAL_ROOT/lib/store-issues.sh"
+      ;;
     *)
-      peal_err "storage '$storage' is not one Peal has (files)"
+      peal_err "storage '$storage' is not one Peal has (files, issues)"
       return 2
       ;;
   esac

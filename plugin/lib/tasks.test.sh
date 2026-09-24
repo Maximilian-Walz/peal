@@ -180,7 +180,7 @@ expansion() {
   err=$(list 2>&1 >/dev/null)
   check "warnings" "peal: warning: tasks/backlog/0008-bad-depends.md: depends: 'soon' is no task id, milestone or human; ignored
 peal: warning: task 0005 depends on its milestone but has none; ignored
-peal: warning: task 0007 depends on 9999, which has no task file" "$err"
+peal: warning: task 0007 depends on 9999, which is no task" "$err"
 
   # Splits: 0010 split into 0011 and 0012, 0012 split again into 0013 and 0014.
   work=$(repo)

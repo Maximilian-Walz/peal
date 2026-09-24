@@ -14,7 +14,8 @@ needs. Issue #2 settled the decisions below; the build is split into the issues 
 - **Tasks and their state live in git.** A task is a file; who holds it is derived from
   refs (a task branch, its worktree, the file's directory on the main branch), never from
   a status field someone must remember to update. Any worktree, on any branch, gets the
-  same answer.
+  same answer. (A project whose tasks are GitHub issues keeps them there instead; see
+  [Storage](#storage).)
 - **The pushed branch is the lock.** A claim pushes the task's branch; a second claim of
   the same task fails on git's own rejection. Numbering new tasks works the same way: a
   push that loses the race retries with the next number.
@@ -354,7 +355,12 @@ commit:
 models: {planner: opus, reviewer: opus, implementer: sonnet}
 task:
   fields: {}                    # the project's own frontmatter fields
-storage: files                  # where tasks live; files, the task files, is the one there is
+storage:
+  kind: files                   # where tasks live: files (task files) or issues (GitHub issues)
+  issues:
+    repo: ""                    # owner/name; empty: the remote's GitHub repository
+    label: ""                   # only issues with this label are tasks; empty: the issues
+                                # opened by someone with write access
 decisions: false                # the decisions module, or its directory to turn it on
 ```
 
@@ -399,43 +405,77 @@ directory's `hooks/`. A gate that cannot find Peal refuses rather than waves thr
 
 Two things are kept apart: *where tasks live*, and *how a session works a task*. The
 workflow (plan, implement, close, the PR conventions, milestone review) is Peal's value
-and would serve a project whose tasks are GitHub issues too. So the commands talk to a
-small storage interface, and task files are its first and, for now, only implementation.
-An issues implementation comes when a project wants Peal's workflow on its issues.
-Belfry already *reads* tasks from either place; Peal does not duplicate that.
+and serves a project whose tasks are GitHub issues as well as one with task files. So
+the commands talk to a small storage interface with two implementations, selected by
+the `storage.kind` setting: `files` (the default) and `issues`. Belfry already *reads*
+tasks from either place; Peal does not duplicate that, and an issues project's claims
+are Belfry's, so either recognises the other's.
 
 The interface:
 
-| Operation | Task files | Issues (not built) |
+| Operation | Task files | Issues |
 |---|---|---|
-| `list` → id, state, fields | the read model over refs and main | issues, labels, linked PRs |
-| `read id` → fields, body | the file on main or its branch | the issue body |
-| `create fields body [part-of]` → id | a new backlog file pushed to main, numbered by push-as-lock | a new issue (with "Part of #N") |
-| `edit id fields body reason` | the backlog file rewritten on main, reason in `## Notes` | the body edited, reason as a comment |
+| `list` → id, state, fields | the read model over refs and main | the open issues and the 100 closed most recently, their labels, milestones and the open PRs that fix them, and the refs |
+| `read id` → fields, body | the file on main or its branch | the issue as a task text: frontmatter from its milestone, labels and reference lines, `# N — Title`, the body |
+| `create fields body [part-of]` → id | a new backlog file pushed to main, numbered by push-as-lock | a new issue; the frontmatter becomes its milestone, labels and "Part of #N" / "Depends on #N" lines; a text naming a number not known yet is edited once it is |
+| `edit id fields body reason` | the backlog file rewritten on main, reason in `## Notes` | title, body, milestone and managed labels rewritten, reason as a comment; refused when the issue changed meanwhile |
 | `set-milestone id m` | the frontmatter field | the issue's milestone |
-| `claim id` → worktree | the branch pushed, worktree added, file moved to `doing/` | label `in progress`, worktree, branch |
-| `release id notes` | notes back to the backlog file, branch deleted | label removed, notes as a comment |
-| `finish id done` | file moved to `done/` with its Outcome, in the PR | PR with `Fixes #N` |
-| `finish id retired reason` | file moved to `done/` with the reason, on main | closed as not planned, with the reason |
-| `comment id text` (optional) | appended under `## Notes` | a comment |
+| `claim id` → worktree | the branch pushed, worktree added, file moved to `doing/` | label `in progress`, worktree `{worktrees}/issue-N` on branch `issue/N` (continuing the remote's `issue/N` if there is one) |
+| `release id` | the branch and worktree removed, the tip kept | the same, and the label taken off an open issue |
+| `finish id done` | file moved to `done/` with its Outcome, in the PR | says what closes it: the PR's body says `Fixes #N` |
+| `finish id retired reason` | file moved to `done/` with the reason, on main | closed as not planned, the reason a comment |
+| `comment id text` | appended under `## Notes` | a comment |
 | `milestones` | the milestone files | the repository's milestones |
 
-What each lifecycle command does in both kinds:
+**Ids.** A task file's id is four digits (`0042`), an issue's its number (`42`). The
+commands and the read model take either; the commit subject's `[NNNN]` is the id, so
+`[42]` in an issues project.
 
-| Command | Task file | Issue |
-|---|---|---|
-| `/peal:idea` | new file in the backlog | new issue |
-| `/peal:revise` | edit the file | edit the body, reason as a comment |
-| `/peal:split` | new files with `part-of` | new issues with "Part of #N" (or GitHub sub-issues) |
-| `/peal:defer` | release the claim, notes kept | release the claim, notes as a comment |
-| `/peal:retire` | retired, with the reason | closed as not planned, with the reason |
-| `/peal:work`, `/peal:close` | claim, worktree, PR | label, worktree, PR with `Fixes #N` |
+**An issue as a task.** Belfry's conventions where it has one, so a board reads the same
+in both:
+
+| Task field | On the issue |
+|---|---|
+| title | the issue's title; the slug is its first five words |
+| `milestone` | the issue's milestone, by title |
+| `depends` | lines `Depends on #3, #7` (with `human` and `milestone` too), read up to the first word that is none of those |
+| `part-of` | a line `Part of #3` |
+| `needs` | labels `needs: <capability>` |
+| `size`, `plan`, `model`, the project's own fields | labels `<field>: <value>` |
+
+Labels rather than a frontmatter block in the body: they show and filter on GitHub, and
+Belfry reads `needs:` labels already. The sections (Intent, Scope, Raw, ...) are the
+body's own headings, as in a file. A filter label (`storage.issues.label`, like Belfry's
+`tasks.github-issues.label`) limits which issues are tasks; without one, only issues
+opened by someone with write access are (anyone may open one on a public repository),
+and only pull requests from the repository itself or by such a person mark an issue
+awaiting merge.
+
+**States of an issue:** `done` when closed; `awaiting-merge` while such an open PR says
+`Fixes #N` (closes, resolves, ...); `claimed-live` when `issue/N` has a worktree here or
+the issue carries the label; `parked` for a local `issue/N` ahead of main without a
+worktree; then `blocked` and `free` by the same rules as for files.
+
+**Claims.** Belfry's `github-issues` backend claims before the session starts: the worker
+makes `<clone>-wt/issue-N` on `issue/N`, the server adds the label. `peal claim` makes
+exactly that, so Belfry's worker reuses Peal's worktree and its board shows the claim, and
+`peal claim N` on a task Belfry claimed prints the worktree Belfry made. A worktree alone
+is a claim already: Belfry labels only when the session starts. The label is no lock (two
+claims at the same moment can both add it); for a project run by one Belfry, or by hand,
+that is enough. The session hooks find the task from the branch, and read its size from a
+copy of its text the claim keeps in the worktree's git directory, so a tool call costs no
+request to GitHub.
+
+**What stays open.** GitHub's own sub-issues are not read as `part-of`, and `read` gives
+the body without the comments; the commands that need either (#8 to #10) read them with
+`gh` directly or extend the interface.
 
 In the scripts the interface is a set of shell functions (`peal_store_list`,
-`peal_store_create`, ...) in one file per implementation, selected by a `storage` setting
-that has one value today. The commands and the `peal` CLI call only these functions.
-Everything above them (offer ordering, dependency and split expansion, milestone rules,
-close) is storage-independent.
+`peal_store_create`, ...) in one file per implementation (`lib/store-files.sh`,
+`lib/store-issues.sh`), selected by `storage.kind`. The commands and the `peal` CLI call
+only these functions. Everything above them (offer ordering, dependency and split
+expansion, milestone rules, close) is storage-independent. The issues storage needs `gh`,
+logged in; its harness runs against a fake `gh` over recorded API shapes.
 
 ## Decision records
 
@@ -510,7 +550,8 @@ All of it lands as one task, one PR, in the project itself.
 
 ## Building Peal
 
-Issue #2 filed one issue per buildable piece, with `Depends on #N` where order matters:
+Issue #2 filed one issue per buildable piece, with `Depends on #N` where order matters;
+#22 came later, before #8 to #13, so that those are built against both storages:
 
 | Issue | Piece | Depends on |
 |---|---|---|
@@ -527,6 +568,7 @@ Issue #2 filed one issue per buildable piece, with `Depends on #N` where order m
 | #13 | `/peal:init` and the Belfry integration | #6, #7 |
 | #14 | migration from an existing task-file process | #4, #5, #13 |
 | #15 | Peal runs on itself | #9, #10, #11, #13 |
+| #22 | issues storage: Peal's workflow on GitHub issues | #5, #7 |
 
 Until Peal can run on itself, Belfry runs this repository from those issues
 (`.belfry.yml`); #15 switches it over.

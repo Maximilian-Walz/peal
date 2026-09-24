@@ -29,6 +29,8 @@ jobs:
       - name: Run every harness
         env:
           PEAL_REQUIRE_CLAUDE: ${{ runner.os == 'Linux' && '1' || '' }}
+          # The issues storage's harness runs its fake gh on jq, which both runners have.
+          PEAL_REQUIRE_JQ: '1'
         run: tools/test-all.sh
 
   shellcheck:

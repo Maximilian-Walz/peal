@@ -32,7 +32,9 @@ models.planner: opus
 models.reviewer: opus
 models.implementer: sonnet
 task.fields: {}
-storage: files
+storage.kind: files
+storage.issues.repo:
+storage.issues.label:
 decisions: false
 EOF
 }

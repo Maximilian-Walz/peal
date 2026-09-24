@@ -3,13 +3,14 @@
 #
 #   awk -F '\t' -f task-state.awk CLAIMS TASKS
 #
-# TASKS holds task-scan.awk's records in the order to print (by id). Its second field is
-# where the task's file is on the main branch: backlog, doing or done. CLAIMS holds what
+# TASKS holds task-scan.awk's records (or a storage's records of that shape) in the order
+# to print (by id). Its second field is where the task is: done, or backlog or doing for
+# a task not done. CLAIMS holds what
 # the refs say about a task that has a branch, "id<TAB>state<TAB>detail<TAB>ref<TAB>pr",
 # state one of awaiting-merge, claimed-live, parked. Out comes the store's list record
 # (lib/store.sh):
 #
-#   id  state  detail  slug  title  milestone  depends  part-of  size  plan  needs  path  ref  pr
+#   id  state  detail  slug  title  milestone  depends  part-of  size  plan  needs  path  ref  pr  url
 #
 # The state, first match wins: done (the file is under done/), the claim's state, blocked
 # (a depends entry is not done yet), free. The detail: for a free task its milestone ("-"
@@ -53,10 +54,10 @@ function subtree(id,    queue, head, tail, c, n, kids, j, seen2, outl, sorted) {
   return sortids(outl)
 }
 
-# sortids(list) -> the comma list's ids in ascending order (ids are four digits).
+# sortids(list) -> the comma list's ids in ascending order, as numbers.
 function sortids(list,    n, a, i, j, t, s) {
   n = split(list, a, ",")
-  for (i = 2; i <= n; i++) { t = a[i]; for (j = i - 1; j >= 1 && a[j] > t; j--) a[j + 1] = a[j]; a[j + 1] = t }
+  for (i = 2; i <= n; i++) { t = a[i]; for (j = i - 1; j >= 1 && a[j] + 0 > t + 0; j--) a[j + 1] = a[j]; a[j + 1] = t }
   s = ""
   for (i = 1; i <= n; i++) s = s (i > 1 ? "," : "") a[i]
   return s
@@ -80,7 +81,7 @@ FILENAME == ARGV[1] {
     warn("task " id " has more than one file: " path[id] " and " $12 "; reading " $12)
   } else order[++n] = id
   dir[id] = $2; slug[id] = $4; title[id] = $5; ms[id] = $6; deps[id] = $7
-  partof[id] = $8; size[id] = $9; plan[id] = $10; needs[id] = $11; path[id] = $12
+  partof[id] = $8; size[id] = $9; plan[id] = $10; needs[id] = $11; path[id] = $12; url[id] = $13
 }
 
 END {
@@ -121,7 +122,7 @@ END {
           continue
         }
         if (dep == id) { warn("task " id " depends on itself; ignored"); continue }
-        if (!(dep in dir)) { warn("task " id " depends on " dep ", which has no task file"); add(dep); continue }
+        if (!(dep in dir)) { warn("task " id " depends on " dep ", which is no task"); add(dep); continue }
         if ((dep in pieces) && !member(pieces[dep], id)) {
           if (!done(dep)) add(dep)
           np = split(pieces[dep], pc, ",")
@@ -144,8 +145,8 @@ END {
         }
       }
     }
-    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", id, state, detail,
+    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", id, state, detail,
       slug[id], title[id], ms[id], deps[id], partof[id], size[id], plan[id], needs[id],
-      path[id], cref[id], cpr[id]
+      path[id], cref[id], cpr[id], url[id]
   }
 }

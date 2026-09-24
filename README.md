@@ -33,8 +33,9 @@ with one plugin, `peal`, in `plugin/`:
 - `plugin/bin/peal`, the CLI every command, hook and outside caller runs;
 - `plugin/lib/`, its libraries, in bash and awk only: the frontmatter reader and writer
   for Peal's YAML subset, the configuration, the milestones, and the task storage
-  (`store.sh`, the interface; `store-files.sh`, the task files; `task-state.awk`, the
-  read model's rules), claims (`claim.sh`), the session hooks (`session.sh`), and the
+  (`store.sh`, the interface; `store-files.sh`, the task files; `store-issues.sh`, GitHub
+  issues through `gh`, with `fake-gh` for its harness; `task-state.awk`, the read model's
+  rules), claims (`claim.sh`), the session hooks (`session.sh`), and the
   git gates (`githooks.sh`, pre-push and commit-msg; `commit.sh`, `peal commit`;
   `git-guard.sh`, the Claude Code guard);
 - `plugin/hooks/`, the plugin's Claude Code hooks;

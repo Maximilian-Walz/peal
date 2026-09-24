@@ -39,7 +39,7 @@ usage() {
 usage: peal <command> [args]
 
   --version, version            print Peal's version
-  check                         report what is not valid: the milestones
+  check                         report what is not valid: the milestone files
   config [KEY]                  print the effective settings, or one of them
   frontmatter check FILE        refuse a frontmatter outside Peal's YAML subset
   frontmatter keys FILE         print its keys
@@ -48,7 +48,8 @@ usage: peal <command> [args]
   frontmatter set-list FILE KEY [ITEM...]
   frontmatter unset FILE KEY
   milestones [--json]           one line per milestone: id state order due title, or
-                                the board's {"milestone":{...}} lines
+                                the board's {"milestone":{...}} lines; the milestone
+                                files here, or the storage's milestones
   hook session-start            the SessionStart hook: record where Peal is installed;
                                 in a Peal project reap the claims done with (on a new
                                 session) and print the orientation
@@ -66,15 +67,18 @@ Git gates (lib/githooks.sh):
                                 stage PATHs (or everything), commit, report; refused on
                                 the main branch
 
-Tasks, read from the remote's main branch and the refs (--fetch: fetch first; --no-pr:
-do not ask gh for pull requests):
+Tasks live in the storage the setting storage.kind names: files, task files on the main
+branch (ids 0042), or issues, the repository's GitHub issues (ids 42).
+
+Tasks, read from the storage and the refs (--fetch: fetch first; --no-pr: do not ask gh
+for pull requests, which issues cannot do without):
   list [--fetch] [--no-pr] [--state S[,S...]] [ID...]
-                                NNNN state slug detail, per task
+                                ID state slug detail, per task
   board [--fetch] [--no-pr]     a JSON line per task, then one per milestone
   overview [--fetch]            the open tasks, grouped by milestone
   read ID                       a task's text, from its branch or the main one
 
-Tasks, written straight onto the main branch (task texts on stdin; NNNN stands for the
+Tasks, written straight into the storage (task texts on stdin; NNNN stands for the
 number to come, several texts are separated by lines -----NEXT TASK-----):
   create SLUG                   file a task
   create --part-of ID SLUG...   file the pieces of a split of ID (part-of: ORIGIN,
@@ -84,12 +88,16 @@ number to come, several texts are separated by lines -----NEXT TASK-----):
   ideas [--flush]               the queued ideas; --flush files them
   revise ID --reason R [--dry-run]
                                 rewrite an unclaimed task's text
-  retire ID --reason R          move an unclaimed task to done, R as its Outcome
+  retire ID --reason R          move an unclaimed task to done, R as its Outcome (an
+                                issue: closed as not planned, R as a comment)
   set-milestone ID [M]          set an unclaimed task's milestone, or remove it
-  comment ID TEXT               add a dated line to an unclaimed task's Notes
-  finish ID                     on the task's branch: its file from doing/ to done/, staged
+  comment ID TEXT               add a dated line to an unclaimed task's Notes (an
+                                issue's comment, claimed or not)
+  finish ID                     on the task's branch: its file from doing/ to done/,
+                                staged; for an issue, what its pull request must say
 
-Claims, each task in a worktree of its own under the worktrees setting:
+Claims, each task in a worktree of its own under the worktrees setting (an issue's is
+issue-N on branch issue/N, labelled "in progress", as Belfry claims one):
   offer POOL [--top N]          CANDIDATE <id> <bucket> <title> for the best N (3) free
                                 tasks, MORE <bucket> <count> for those left; POOL is a
                                 comma list of milestone ids, current and unassigned
@@ -145,10 +153,22 @@ cmd_check() {
   peal_ms_load || exit 2
 }
 
+# ms_load -> PEAL_MILESTONES: the milestone files of this work tree, or for another
+# storage the milestones it holds.
+ms_load() {
+  peal_config_load || exit 2
+  if [ "$(peal_config_get storage.kind)" = files ]; then
+    peal_ms_load || exit 2
+  else
+    peal_store_load || exit 2
+    PEAL_MILESTONES=$(peal_store_milestones) || exit 2
+  fi
+}
+
 cmd_milestones() {
   case ${1-} in
-    "") peal_ms_load || exit 2; peal_ms_print ;;
-    --json) peal_ms_load || exit 2; peal_ms_json ;;
+    "") ms_load; peal_ms_print ;;
+    --json) ms_load; peal_ms_json ;;
     *) usage >&2; exit 2 ;;
   esac
 }

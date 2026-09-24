@@ -44,21 +44,12 @@ peal_hook_project() {
   peal_config_load 2>/dev/null
 }
 
-# peal_session_task -> the task this worktree holds, "id<TAB>file" (file relative to the
-# top): the branch is a task branch and the tasks directory's doing/ has its file. The
-# same check /peal:work makes; status 1 if there is none.
+# peal_session_task -> the task this worktree holds, "id<TAB>file", file a copy of its
+# text (the storage's peal_store_session_task; PEAL_TASK_REFRESH=1 asks for a fresh copy
+# where the storage keeps one). The same check /peal:work makes; status 1 if there is
+# none.
 peal_session_task() {
-  local branch prefix id file
-  branch=$(git symbolic-ref -q --short HEAD) || return 1
-  prefix=$(peal_config_get branch-prefix) || return 1
-  [ "${branch#"$prefix"}" != "$branch" ] || [ -z "$prefix" ] || return 1
-  [[ "${branch#"$prefix"}" =~ ^([0-9][0-9][0-9][0-9])- ]] || return 1
-  id=${BASH_REMATCH[1]}
-  for file in "$(peal_config_get tasks)/doing/$id"-*.md; do
-    [ -f "$file" ] || return 1
-    printf '%s\t%s\n' "$id" "$file"
-    return 0
-  done
+  peal_store_session_task
 }
 
 # peal_heartbeat -> this worktree marked live (lib/claim.sh).
@@ -80,13 +71,14 @@ peal_turns_reset() {
 # claims that are done with (peal_reap); then the orientation: the current milestone,
 # this worktree's task, the other claims and the open splits.
 peal_session_start() {
-  local source records milestones task
+  local source records milestones task refresh=""
   peal_hook_project || return 0
   peal_store_load 2>/dev/null || return 0
   peal_heartbeat
   source=$(peal_hook_field source)
   case $source in
     startup | clear)
+      refresh=1
       peal_turns_reset
       if command -v timeout >/dev/null 2>&1; then
         timeout 15 git fetch -q "$(peal_config_get remote)" 2>/dev/null
@@ -98,7 +90,7 @@ peal_session_start() {
   esac
   records=$(peal_store_list --no-pr 2>/dev/null)
   milestones=$(peal_store_milestones 2>/dev/null)
-  task=$(peal_session_task)
+  task=$(PEAL_TASK_REFRESH=$refresh peal_session_task)
   echo "Peal:"
   printf '%s\n' "$milestones" | awk -F '\t' '
     !found && $3 == "current" { printf "Current milestone: %s, %s (%s)\n", $1, $2, $6; found = 1 }
@@ -156,6 +148,7 @@ peal_turn_budget() {
   peal_hook_project || return 0
   peal_heartbeat
   [ -z "$(peal_hook_field agent_id)" ] || return 0
+  peal_store_load 2>/dev/null || return 0
   task=$(peal_session_task) || return 0
   gitdir=$(git rev-parse --absolute-git-dir) || return 0
   count=$(cat "$gitdir/peal-turns" 2>/dev/null)
@@ -187,6 +180,7 @@ peal_session_end() {
   [ -z "$(peal_hook_field agent_id)" ] || return 0
   case $reason in logout | prompt_input_exit | other) ;; *) return 0 ;; esac
   peal_hook_project || return 0
+  peal_store_load 2>/dev/null || return 0
   task=$(peal_session_task) || return 0
   id=$(_peal_field "$task" 1)
   gitdir=$(git rev-parse --absolute-git-dir) || return 0

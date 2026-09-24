@@ -76,9 +76,11 @@ peal_reaped_expire() {
 # milestone ids, current and unassigned; MILESTONES peal_ms_load's lines. A milestone
 # that does not exist, is parked or is done is refused: it has nothing to offer.
 peal_pool_buckets() {
-  local token state out="" current
+  local token state out="" current tokens
   current=$(printf '%s\n' "$2" | awk -F '\t' '!f && $3 == "current" { print $1; f = 1 }')
-  for token in ${1//,/ }; do
+  # Commas only: a milestone's id may hold spaces (an issue milestone's title).
+  IFS=, read -r -a tokens <<<"$1"
+  for token in ${tokens[@]+"${tokens[@]}"}; do
     case $token in
       unassigned) ;;
       current) token=$current ;;
@@ -160,7 +162,10 @@ peal_claim() {
       --next)
         next=1
         if [ $# -ge 2 ] && [ "${2#-}" = "$2" ]; then pool=$2; shift; fi ;;
-      [0-9][0-9][0-9][0-9]) [ -z "$id" ] || { peal_err "claim: one task"; return 2; }; id=$1 ;;
+      [0-9]*)
+        [[ "$1" =~ ^[0-9]+$ ]] || { peal_err "claim: '$1' is no task id"; return 2; }
+        [ -z "$id" ] || { peal_err "claim: one task"; return 2; }
+        id=$1 ;;
       *) peal_err "claim: unknown argument $1"; return 2 ;;
     esac
     shift
@@ -241,7 +246,7 @@ _peal_claim_one() {
   status=$?
   [ $status = 0 ] || return $status
   _peal_claim_started "$PEAL_CLAIM_PATH"
-  _peal_claim_overlap "$id" "$PEAL_CLAIM_PATH" "$records"
+  _peal_claim_overlap "$id" "$records"
   [ "$print" = 0 ] || printf '%s\n' "$PEAL_CLAIM_PATH"
 }
 
@@ -260,17 +265,18 @@ _peal_scope_paths() {
   peal_text_section Scope <"$1" | grep -o '`[^`]*`' | tr -d '`' | grep -E '/|\.[A-Za-z0-9]{1,6}$' | sort -u
 }
 
-# _peal_claim_overlap ID WT RECORDS -> a warning for each path the new claim's Scope names
+# _peal_claim_overlap ID RECORDS -> a warning for each path the new claim's Scope names
 # that another claim's branch changes already. Scope is prose: best effort, never refused.
 _peal_claim_overlap() {
   local id=$1 file scope remote main oid ostate oref ref files p hit
-  file=$(find "$2/$(peal_config_get tasks)/doing" -name "$id-*.md" 2>/dev/null | head -n 1)
-  [ -n "$file" ] || return 0
+  file=$(mktemp) || return 0
+  peal_store_read "$id" >"$file" 2>/dev/null
   scope=$(_peal_scope_paths "$file")
+  rm -f "$file"
   [ -n "$scope" ] || return 0
   remote=$(peal_config_get remote)
   main=refs/remotes/$remote/$(peal_config_get main)
-  printf '%s\n' "$3" | awk -F '\t' -v id="$id" -v OFS='\t' \
+  printf '%s\n' "$2" | awk -F '\t' -v id="$id" -v OFS='\t' \
     '$1 != id && $13 != "" && ($2 == "claimed-live" || $2 == "parked" || $2 == "awaiting-merge") { print $1, $2, $13 }' \
     | while IFS="$(printf '\t')" read -r oid ostate oref; do
         ref=refs/heads/$oref
@@ -286,6 +292,7 @@ _peal_claim_overlap() {
           [ -z "$hit" ] || peal_err "warning: Scope names $p, which task $oid ($ostate) changes already: $hit"
         done <<<"$scope"
       done
+  return 0
 }
 
 # _peal_admin_dir PATH -> the git directory of the worktree at PATH, even when PATH itself
@@ -348,40 +355,22 @@ _peal_verdict_words() {
   esac
 }
 
-# _peal_task_worktrees -> "id<TAB>branch<TAB>path" for every worktree on a task branch,
-# its directory there or not.
-_peal_task_worktrees() {
-  local prefix
-  prefix=$(peal_config_get branch-prefix) || return 2
-  git worktree list --porcelain | awk -v p="refs/heads/$prefix" -v OFS='\t' '
-    /^worktree / { path = substr($0, 10) }
-    /^branch / {
-      b = substr($0, 8)
-      if (index(b, p) != 1) next
-      rest = substr(b, length(p) + 1)
-      if (rest ~ /^[0-9][0-9][0-9][0-9]-/) print substr(rest, 1, 4), substr(b, 12), path
-    }'
-}
-
 # peal_release ID -> the claim of task ID on this machine released, its worktree and branch
 # removed with the tip kept, once it has landed and nothing would be lost: refused with the
 # reason otherwise (peal_release_verdict).
 peal_release() {
-  local id=${1-} records state prefix branch path verdict
-  if ! [[ "$id" =~ ^[0-9][0-9][0-9][0-9]$ ]] || [ $# -ne 1 ]; then
+  local id=${1-} records state branch path verdict
+  if ! [[ "$id" =~ ^[0-9]+$ ]] || [ $# -ne 1 ]; then
     peal_err "release: ID"
     return 2
   fi
   records=$(peal_store_list --fetch --no-pr) || return 2
   state=$(printf '%s\n' "$records" | awk -F '\t' -v id="$id" '!f && $1 == id { print $2; f = 1 }')
-  prefix=$(peal_config_get branch-prefix) || return 2
-  branch=$(git for-each-ref --format='%(refname)' "refs/heads/$prefix$id-*" | head -n 1)
-  if [ -z "$branch" ]; then
+  if ! branch=$(peal_store_local_branch "$id"); then
     peal_err "release: task $id has no branch here; nothing to release"
     return 2
   fi
-  branch=${branch#refs/heads/}
-  path=$(_peal_task_worktrees | awk -F '\t' -v b="$branch" '!f && $2 == b { print $3; f = 1 }')
+  path=$(peal_store_claim_worktrees | awk -F '\t' -v b="$branch" '!f && $2 == b { print $3; f = 1 }')
   verdict=$(peal_release_verdict "$id" "$branch" "$path" "$state")
   if [ "$verdict" != ok ]; then
     peal_err "release: task $id stays: $(_peal_verdict_words "$verdict" "$id")"
@@ -412,6 +401,6 @@ peal_reap() {
         fi ;;
       dirty | unpushed) printf 'kept %s %s: landed, but %s\n' "$id" "$path" "$(_peal_verdict_words "$verdict" "$id")" ;;
     esac
-  done < <(_peal_task_worktrees)
+  done < <(peal_store_claim_worktrees)
   peal_reaped_expire
 }
