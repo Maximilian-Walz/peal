@@ -149,15 +149,21 @@ cases() {
 
 # The rules the offer and the claim follow, as library functions.
 rules() {
-  local state out status dir
-  for state in current "" open parked "done"; do
+  local state rank claimable out status dir
+  # state|bare offer rank (status:output)|claimable status
+  while IFS='|' read -r state rank claimable; do
     out=$(peal_ms_offer_rank "$state")
     status=$?
-    check "offer rank of '$state'" "$(case $state in current) echo 0:1 ;; "") echo 0:2 ;; *) echo 1: ;; esac)" "$status:$out"
+    check "offer rank of '$state'" "$rank" "$status:$out"
     peal_ms_claimable "$state"
-    status=$?
-    check "claimable '$state'" "$(case $state in parked | done) echo 1 ;; *) echo 0 ;; esac)" "$status"
-  done
+    check "claimable '$state'" "$claimable" "$?"
+  done <<'EOF'
+current|0:1|0
+|0:2|0
+open|1:|0
+parked|1:|1
+done|1:|1
+EOF
 
   dir=$(project)
   milestone "$dir" m1 "state: parked"
