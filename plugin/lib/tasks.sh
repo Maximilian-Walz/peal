@@ -2,6 +2,42 @@
 # What is the same for every storage: the checks on a task's text before it is filed,
 # and the views on the store's list, `peal list`, `peal board` and `peal overview`.
 
+PEAL_TASK_DELIMITER='-----NEXT TASK-----'
+
+# peal_create_texts SLUG... -> the task texts on stdin, one per SLUG, separated by lines
+# "-----NEXT TASK-----", as the files PEAL_CREATE_DIR/1..n (the caller removes the
+# directory), PEAL_CREATE_SLUGS the slugs made of the SLUGs. Status 2, with every
+# problem reported: a SLUG that makes no slug, a count that differs, an empty text, two
+# identical texts.
+peal_create_texts() {
+  local count=$# i j slug status=0
+  PEAL_CREATE_DIR=$(mktemp -d) || return 2
+  PEAL_CREATE_SLUGS=()
+  for i in "$@"; do
+    slug=$(peal_slugify "$i") || status=2
+    PEAL_CREATE_SLUGS+=("$slug")
+  done
+  awk -v dir="$PEAL_CREATE_DIR" -v delim="$PEAL_TASK_DELIMITER" '
+    BEGIN { n = 1 }
+    $0 == delim { close(dir "/" n); n++; next }
+    { print > (dir "/" n) }
+    END { print n > (dir "/count") }'
+  if [ "$(cat "$PEAL_CREATE_DIR/count")" != "$count" ]; then
+    peal_err "create: $count slug(s) but $(cat "$PEAL_CREATE_DIR/count") text(s) on stdin, separated by '$PEAL_TASK_DELIMITER'"
+    status=2
+  fi
+  for ((i = 1; i <= count && status == 0; i++)); do
+    [ -s "$PEAL_CREATE_DIR/$i" ] || { peal_err "create: the text for ${PEAL_CREATE_SLUGS[i - 1]} is empty"; status=2; }
+    for ((j = 1; j < i; j++)); do
+      if cmp -s "$PEAL_CREATE_DIR/$i" "$PEAL_CREATE_DIR/$j"; then
+        peal_err "create: the texts for ${PEAL_CREATE_SLUGS[j - 1]} and ${PEAL_CREATE_SLUGS[i - 1]} are the same"
+        status=2
+      fi
+    done
+  done
+  return $status
+}
+
 # peal_check_context -> task-check.awk's CONTEXT from the settings: the project's fields
 # and the size tiers. The storage adds its milestones and task ids.
 peal_check_context() {
@@ -47,7 +83,7 @@ peal_task_check() {
 }
 
 
-# peal_list [--fetch] [--no-pr] [--state STATE[,STATE...]] [ID...] -> "NNNN state slug
+# peal_list [--fetch] [--no-pr] [--state STATE[,STATE...]] [ID...] -> "ID state slug
 # detail" per task, by id; only those in one of the STATEs, and only the IDs, if given.
 peal_list() {
   local states="" ids="" args=() records
@@ -58,7 +94,7 @@ peal_list() {
         [ $# -ge 2 ] || { peal_err "list: --state needs states"; return 2; }
         states=$2
         shift ;;
-      [0-9][0-9][0-9][0-9]) ids="$ids,$1" ;;
+      [0-9]*) [[ "$1" =~ ^[0-9]+$ ]] || { peal_err "list: '$1' is no task id"; return 2; }; ids="$ids,$1" ;;
       *) peal_err "list: unknown argument $1"; return 2 ;;
     esac
     shift

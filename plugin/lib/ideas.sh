@@ -14,12 +14,7 @@ peal_idea_queue() {
 
 # peal_idea_task -> the task id of the branch checked out here; status 1 on no task branch.
 peal_idea_task() {
-  local branch prefix
-  branch=$(git symbolic-ref -q --short HEAD) || return 1
-  prefix=$(peal_config_get branch-prefix) || return 1
-  [[ "${branch#"$prefix"}" =~ ^([0-9][0-9][0-9][0-9])- ]] || return 1
-  [ "${branch#"$prefix"}" != "$branch" ] || [ -z "$prefix" ] || return 1
-  printf '%s\n' "${BASH_REMATCH[1]}"
+  peal_store_branch_task
 }
 
 # peal_idea SLUG [--now] -> the task text on stdin queued on a task branch, else (or with

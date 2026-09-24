@@ -1,4 +1,4 @@
-# JSON helpers for the board's lines; included with -f.
+# JSON helpers for the board's lines and the issues storage's requests; included with -f.
 
 # json_str(s) -> s as a JSON string. By character: gsub escapes differ between awks.
 function json_str(s,    i, c, out) {
@@ -6,6 +6,9 @@ function json_str(s,    i, c, out) {
   for (i = 1; i <= length(s); i++) {
     c = substr(s, i, 1)
     if (c == "\\" || c == "\"") out = out "\\"
+    else if (c == "\n") c = "\\n"
+    else if (c == "\t") c = "\\t"
+    else if (c == "\r") c = "\\r"
     out = out c
   }
   return "\"" out "\""

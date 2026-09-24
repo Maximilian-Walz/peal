@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2016 # jq's $variables, not the shell's
+# A fake gh for the harnesses of the issues storage: `gh api` over a repository held as
+# JSON files in $FAKE_GH (issues.json, milestones.json, pulls.json, comments.json), each
+# an array of objects shaped like GitHub's REST responses (the fields Peal reads). --jq
+# is applied with jq, as gh applies its own. Every call is appended to $FAKE_GH/log as
+# "METHOD PATH"; $FAKE_GH/fail, when it exists, holds a pattern: a call whose
+# "METHOD PATH" matches it fails.
+#
+#   gh api [-X|--method M] [--paginate] [--input FILE] [--jq|-q EXPR] [-H H] PATH
+#
+# Only the endpoints Peal calls; anything else fails loudly, so a new call cannot pass
+# the harness unseen.
+set -uo pipefail
+
+die() {
+  printf 'fake gh: %s\n' "$*" >&2
+  exit 1
+}
+
+[ -n "${FAKE_GH:-}" ] || die "FAKE_GH is not set"
+[ "${1-}" = api ] || die "only gh api is faked, not: gh $*"
+shift
+
+method=GET jq_expr="" input="" path=""
+while [ $# -gt 0 ]; do
+  case $1 in
+    -X | --method) method=$2; shift ;;
+    --paginate) ;;
+    --input) input=$2; shift ;;
+    -q | --jq) jq_expr=$2; shift ;;
+    -H | --header) shift ;;
+    -*) die "unknown option $1" ;;
+    *) path=$1 ;;
+  esac
+  shift
+done
+[ -n "$path" ] || die "no path"
+printf '%s %s\n' "$method" "$path" >>"$FAKE_GH/log"
+if [ -s "$FAKE_GH/fail" ] && [[ "$method $path" == $(cat "$FAKE_GH/fail") ]]; then
+  printf 'gh: HTTP 502: failing on purpose (%s %s)\n' "$method" "$path" >&2
+  exit 1
+fi
+
+for f in issues milestones pulls comments; do
+  [ -f "$FAKE_GH/$f.json" ] || printf '[]\n' >"$FAKE_GH/$f.json"
+done
+
+body='{}'
+if [ -n "$input" ]; then
+  if [ "$input" = - ]; then body=$(cat); else body=$(cat "$input"); fi
+fi
+
+# query NAME -> the query parameter NAME of the path, %-decoded; empty if absent.
+query() {
+  local q=${path#*\?} pair v
+  [ "$q" != "$path" ] || return 0
+  local IFS='&'
+  for pair in $q; do
+    if [ "${pair%%=*}" = "$1" ]; then
+      v=${pair#*=}
+      v=${v//+/ }
+      printf '%b' "${v//%/\\x}"
+      return 0
+    fi
+  done
+}
+
+# save FILE FILTER [ARGS...] -> FILE rewritten by the jq FILTER.
+save() {
+  local file=$FAKE_GH/$1.json filter=$2
+  shift 2
+  jq "$@" "$filter" "$file" >"$file.new" && mv "$file.new" "$file"
+}
+
+# out JSON -> the response, through --jq when given.
+out() {
+  if [ -n "$jq_expr" ]; then
+    printf '%s\n' "$1" | jq -r "$jq_expr"
+  else
+    printf '%s\n' "$1"
+  fi
+}
+
+route=${path%%\?*}
+repo_re='^repos/([^/]+/[^/]+)/(.*)$'
+[[ "$route" =~ $repo_re ]] || die "unknown path $path"
+repo=${BASH_REMATCH[1]}
+rest=${BASH_REMATCH[2]}
+url="https://github.com/$repo"
+
+case "$method $rest" in
+  "GET issues")
+    state=$(query state) labels=$(query labels) per=$(query per_page)
+    out "$(jq -c --arg s "${state:-open}" --arg l "$labels" --arg per "$per" '
+      map(select(($s == "all" or .state == $s)
+        and ($l == "" or ([.labels[].name] | index([$l]) != null))))
+      | sort_by(-.number)
+      | if $per == "" then . else .[0:($per | tonumber)] end' "$FAKE_GH/issues.json")"
+    ;;
+  "POST issues")
+    n=$(jq -s '[.[0][].number, .[1][].number] | max // 0 | . + 1' "$FAKE_GH/issues.json" "$FAKE_GH/pulls.json")
+    save issues '. + [$in + {number: $n, state: "open", state_reason: null,
+        html_url: ($url + "/issues/" + ($n | tostring)), author_association: "OWNER",
+        labels: [($in.labels // [])[] | {name: .}],
+        milestone: (if $in.milestone then ($ms[0][] | select(.number == $in.milestone) | {number, title}) else null end)}]' \
+      --argjson in "$body" --argjson n "$n" --arg url "$url" --slurpfile ms "$FAKE_GH/milestones.json"
+    out "$(jq -c --argjson n "$n" '.[] | select(.number == $n)' "$FAKE_GH/issues.json")"
+    ;;
+  "GET milestones") out "$(cat "$FAKE_GH/milestones.json")" ;;
+  "GET pulls") out "$(jq -c 'map(select(.state == "open"))' "$FAKE_GH/pulls.json")" ;;
+  *)
+    issue_re='^issues/([0-9]+)(/.*)?$'
+    [[ "$rest" =~ $issue_re ]] || die "unknown path $path"
+    n=${BASH_REMATCH[1]} sub=${BASH_REMATCH[2]}
+    jq -e --argjson n "$n" 'any(.[]; .number == $n)' "$FAKE_GH/issues.json" >/dev/null \
+      || { printf 'gh: Not Found (HTTP 404)\n' >&2; exit 1; }
+    case "$method $sub" in
+      "GET ")
+        out "$(jq -c --argjson n "$n" '.[] | select(.number == $n)' "$FAKE_GH/issues.json")"
+        ;;
+      "PATCH ")
+        save issues 'map(if .number == $n then
+            . + ($in | del(.milestone)) + (if $in | has("milestone") then
+              {milestone: (if $in.milestone then ($ms[0][] | select(.number == $in.milestone) | {number, title}) else null end)}
+              else {} end)
+          else . end)' --argjson in "$body" --argjson n "$n" --slurpfile ms "$FAKE_GH/milestones.json"
+        out "$(jq -c --argjson n "$n" '.[] | select(.number == $n)' "$FAKE_GH/issues.json")"
+        ;;
+      "POST /labels")
+        save issues 'map(if .number == $n then .labels += [$in.labels[] as $l | select([.labels[].name] | index([$l]) | not) | {name: $l}] else . end)' \
+          --argjson in "$body" --argjson n "$n"
+        out "$(jq -c --argjson n "$n" '.[] | select(.number == $n) | .labels' "$FAKE_GH/issues.json")"
+        ;;
+      "DELETE /labels/"*)
+        name=${sub#/labels/}
+        name=$(printf '%b' "${name//%/\\x}")
+        jq -e --argjson n "$n" --arg l "$name" 'any(.[]; .number == $n and any(.labels[]; .name == $l))' \
+          "$FAKE_GH/issues.json" >/dev/null || { printf 'gh: Label does not exist (HTTP 404)\n' >&2; exit 1; }
+        save issues 'map(if .number == $n then .labels |= map(select(.name != $l)) else . end)' --argjson n "$n" --arg l "$name"
+        out "[]"
+        ;;
+      "POST /comments")
+        save comments '. + [{issue: $n, body: $in.body, user: {login: "peal"}, author_association: "OWNER"}]' \
+          --argjson in "$body" --argjson n "$n"
+        out '{}'
+        ;;
+      "GET /comments")
+        out "$(jq -c --argjson n "$n" 'map(select(.issue == $n))' "$FAKE_GH/comments.json")"
+        ;;
+      *) die "unknown path $method $path" ;;
+    esac
+    ;;
+esac

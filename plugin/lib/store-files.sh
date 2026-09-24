@@ -8,8 +8,6 @@
 # index from the fetched main and pushed. The push is the lock: one that loses a race is
 # retried on the new main, a new task renumbered.
 
-PEAL_TASK_DELIMITER='-----NEXT TASK-----'
-
 # _peal_files_settings -> PEAL_REMOTE, PEAL_MAIN, PEAL_TASKS, PEAL_PREFIX from the settings.
 _peal_files_settings() {
   PEAL_REMOTE=$(peal_config_get remote) || return 2
@@ -353,7 +351,7 @@ _peal_files_next_id() {
 # (ORIGIN the task whose close files them). Refused before anything is pushed: a text
 # task-check.awk refuses, two identical texts, an ORIGIN that is no task.
 peal_store_create() {
-  local mode=$1 origin=$2 count i j status=0 context summary
+  local mode=$1 origin=$2 count i status=0 context summary
   shift 2
   case $mode in
     plain) [ $# -eq 1 ] || { peal_err "create: one slug"; return 2; } ;;
@@ -363,32 +361,9 @@ peal_store_create() {
   esac
   [ $# -ge 1 ] || { peal_err "create: no slug"; return 2; }
   _peal_files_settings || return 2
-  PEAL_CREATE_DIR=$(mktemp -d) || return 2
   PEAL_CREATE_MODE=$mode PEAL_CREATE_ORIGIN=$origin
   count=$#
-  PEAL_CREATE_SLUGS=()
-  for i in "$@"; do
-    summary=$(peal_slugify "$i") || status=2
-    PEAL_CREATE_SLUGS+=("$summary")
-  done
-  awk -v dir="$PEAL_CREATE_DIR" -v delim="$PEAL_TASK_DELIMITER" '
-    BEGIN { n = 1 }
-    $0 == delim { close(dir "/" n); n++; next }
-    { print > (dir "/" n) }
-    END { print n > (dir "/count") }'
-  if [ "$(cat "$PEAL_CREATE_DIR/count")" != "$count" ]; then
-    peal_err "create: $count slug(s) but $(cat "$PEAL_CREATE_DIR/count") text(s) on stdin, separated by '$PEAL_TASK_DELIMITER'"
-    status=2
-  fi
-  for ((i = 1; i <= count && status == 0; i++)); do
-    [ -s "$PEAL_CREATE_DIR/$i" ] || { peal_err "create: the text for ${PEAL_CREATE_SLUGS[i - 1]} is empty"; status=2; }
-    for ((j = 1; j < i; j++)); do
-      if cmp -s "$PEAL_CREATE_DIR/$i" "$PEAL_CREATE_DIR/$j"; then
-        peal_err "create: the texts for ${PEAL_CREATE_SLUGS[j - 1]} and ${PEAL_CREATE_SLUGS[i - 1]} are the same"
-        status=2
-      fi
-    done
-  done
+  peal_create_texts "$@" || status=2
   if [ $status = 0 ]; then
     _peal_files_fetch || status=2
   fi
@@ -419,10 +394,10 @@ peal_store_create() {
         { printf "filed %s %s — milestone: %s, plan: %s, size: %s — \"%s\"\n", id, path, f($1), f($2), f($3), ENVIRON["PEAL_TITLE"] }' \
         <<<"${PEAL_CREATE_SUMMARY[i]}"
     done
-  elif [ -s "$PEAL_CREATE_DIR/1" ]; then
+  elif [ -s "${PEAL_CREATE_DIR-}/1" ]; then
     peal_err "nothing was filed"
   fi
-  rm -rf "$PEAL_CREATE_DIR"
+  [ -z "${PEAL_CREATE_DIR-}" ] || rm -rf "$PEAL_CREATE_DIR"
   return $status
 }
 
@@ -888,4 +863,43 @@ peal_store_release() {
     fi
   fi
   echo "released $id $branch, tip kept as refs/reaped/$name"
+}
+
+peal_store_branch_task() {
+  local branch
+  _peal_files_settings || return 1
+  branch=$(git symbolic-ref -q --short HEAD) || return 1
+  [ "${branch#"$PEAL_PREFIX"}" != "$branch" ] || [ -z "$PEAL_PREFIX" ] || return 1
+  [[ "${branch#"$PEAL_PREFIX"}" =~ ^([0-9][0-9][0-9][0-9])- ]] || return 1
+  printf '%s\n' "${BASH_REMATCH[1]}"
+}
+
+# The task file under doing/ is what makes a worktree the task's: a branch alone may be
+# a claim taken back, or one never made.
+peal_store_session_task() {
+  local id file
+  _peal_files_settings || return 1
+  id=$(peal_store_branch_task) || return 1
+  for file in "$PEAL_TASKS/doing/$id"-*.md; do
+    [ -f "$file" ] || return 1
+    printf '%s\t%s\n' "$id" "$file"
+    return 0
+  done
+}
+
+peal_store_claim_worktrees() {
+  _peal_files_settings || return 2
+  git worktree list --porcelain | awk -v p="refs/heads/$PEAL_PREFIX" -v OFS='\t' '
+    /^worktree / { path = substr($0, 10) }
+    /^branch / {
+      b = substr($0, 8)
+      if (index(b, p) != 1) next
+      rest = substr(b, length(p) + 1)
+      if (rest ~ /^[0-9][0-9][0-9][0-9]-/) print substr(rest, 1, 4), substr(b, 12), path
+    }'
+}
+
+peal_store_local_branch() {
+  _peal_files_settings || return 2
+  _peal_files_local_branch "$1"
 }

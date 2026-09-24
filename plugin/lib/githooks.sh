@@ -208,7 +208,8 @@ _peal_pre_push_direct() {
 
 # --- commit-msg --------------------------------------------------------------------------
 # The subject: <type>(<area>): <what> [NNNN], type one of PEAL_COMMIT_TYPES, the area one
-# of commit.areas (required when there are any; `tasks` is always one), NNNN the task.
+# of commit.areas (required when there are any; `tasks` is always one), NNNN the task's
+# id (a task file's four digits, an issue's number).
 # Git's own subjects pass as they are (Revert, fixup!, squash!, amend!); a merge's is not
 # checked, but its diff pays the checks. Two fast paths skip the checks:
 #   wip: ... / wip(<area>): ...   honest work in progress, no task id needed;
@@ -257,7 +258,7 @@ _peal_commit_msg() {
         "areas: $(printf '%s\n' "$areas" tasks | tr '\n' ' ')"
       return 1
     fi
-    if ! [[ "$what" =~ ^(.*[^ ])\ \[[0-9][0-9][0-9][0-9]\]$ ]]; then
+    if ! [[ "$what" =~ ^(.*[^ ])\ \[[0-9]+\]$ ]]; then
       _peal_gate_refuse commit-msg "the subject does not end with its task id, as in \"feat(x): what [0042]\"" \
         "subject: $subject"
       return 1

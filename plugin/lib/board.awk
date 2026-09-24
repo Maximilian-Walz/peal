@@ -1,7 +1,7 @@
 # The store's list records -> the board's task lines, one JSON object per task in the
-# shape of Belfry's contract: id and state always, every other field when it has a value.
-# No ref: the contract's ref locates a file not on the main branch yet, and every task's
-# file is there from its filing on.
+# shape of Belfry's contract: id and state always, every other field when it has a value
+# (url for an issue, path for a file). No ref: the contract's ref locates a file not on
+# the main branch yet, and every task's file is there from its filing on.
 #
 #   awk -F '\t' -f json.awk -f board.awk
 
@@ -16,6 +16,7 @@
   if ($10 != "") line = line ",\"plan\":" json_str($10)
   if ($11 != "") line = line ",\"needs\":" json_list($11)
   if ($14 != "") line = line ",\"pr\":" json_str($14)
+  if ($15 != "") line = line ",\"url\":" json_str($15)
   if ($12 != "") line = line ",\"path\":" json_str($12)
   print line "}"
 }

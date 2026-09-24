@@ -25,5 +25,10 @@ commit:
 models: {planner: opus, reviewer: opus, implementer: sonnet}
 task:
   fields: {}                    # the project's own frontmatter fields: name, allowed values
-storage: files                  # where tasks live; files, the task files, is the one there is
+storage:
+  kind: files                   # where tasks live: files (task files) or issues (GitHub issues)
+  issues:
+    repo: ""                    # owner/name; empty: the remote's GitHub repository
+    label: ""                   # only issues with this label are tasks; empty: the issues
+                                # opened by someone with write access
 decisions: false                # the decisions module, or its directory to turn it on

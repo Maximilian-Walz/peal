@@ -9,7 +9,7 @@
 #   field<TAB>name<TAB>values   a project field (task.fields), values comma-joined or empty
 #   size<TAB>S                  a size tier
 #   ms<TAB>id<TAB>state         a milestone
-#   id<TAB>NNNN                 a task that exists
+#   id<TAB>ID                   a task that exists
 # Milestones are checked only with check_ms, task ids only with check_ids: a queued idea
 # is checked offline, and checked again when it is filed.
 #
@@ -85,7 +85,7 @@ END {
     if (d == "milestone") {
       if (m == "") problem("depends: milestone needs a milestone to wait for")
     } else if (d == "human") {
-    } else if (d ~ /^[0-9][0-9][0-9][0-9]$/) {
+    } else if (d ~ /^[0-9]+$/) {
       if (check_ids && !(d in ids)) problem("depends: " d " is no task")
     } else if (mode == "split" && d == "ORIGIN") {
     } else if (mode == "split" && d ~ /^PART[0-9]+$/) {

@@ -233,7 +233,7 @@ commit_msg() {
   check_fails "subject: no space" 1 "the subject is not" commit "feat:a thing [0001]"
   check_fails "subject: nothing said" 1 "does not end with its task id" commit "feat: [0001]"
   check_fails "subject: no id" 1 "does not end with its task id" commit "feat: a thing"
-  check_fails "subject: a short id" 1 "does not end with its task id" commit "feat: a thing [001]"
+  check_fails "subject: not a number" 1 "does not end with its task id" commit "feat: a thing [12a]"
   check_fails "subject: the id not last" 1 "does not end with its task id" commit "feat: [0001] a thing"
   check "subject: wip" "0" "$(commit "wip: half a thing" 2>/dev/null; echo $?)"
   check "subject: wip with an area" "0" "$(commit "wip(sim): half a thing" 2>/dev/null; echo $?)"

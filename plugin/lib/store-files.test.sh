@@ -123,8 +123,8 @@ refusals() {
 
   # An unknown storage.
   mkdir -p "$work/.peal"
-  printf 'storage: issues\n' >"$work/.peal/config.yml"
-  check_refused "unknown storage" "storage 'issues' is not one Peal has (files)" peal list
+  printf 'storage:\n  kind: tickets\n' >"$work/.peal/config.yml"
+  check_refused "unknown storage" "storage 'tickets' is not one Peal has (files, issues)" peal list
 }
 
 race() {
