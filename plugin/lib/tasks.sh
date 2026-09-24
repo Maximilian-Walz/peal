@@ -130,3 +130,33 @@ peal_overview() {
   fi
   awk -F '\t' -f "$PEAL_ROOT/lib/overview.awk" <(printf '%s\n' "$milestones") <(printf '%s\n' "$records")
 }
+
+# peal_edit_check VERB OLD NEW LABEL -> the checks every rewrite of a task's text makes,
+# OLD the text before and NEW the one after (files): the Raw section unchanged, and not
+# added or dropped (the human's own words, never rewritten); the Outcome heading neither
+# added nor dropped, and empty on both sides (a filled one means work happened); part-of
+# unchanged (only a split writes it). Status 2 with every problem reported.
+peal_edit_check() {
+  local verb=$1 old=$2 new=$3 label=$4 status=0
+  if [ "$(peal_text_has_section Raw <"$old"; echo $?)" != "$(peal_text_has_section Raw <"$new"; echo $?)" ] \
+      || [ "$(peal_text_section Raw <"$old")" != "$(peal_text_section Raw <"$new")" ]; then
+    peal_err "$verb: the Raw section changed: it holds the human's own words, never rewritten"
+    status=2
+  fi
+  if [ "$(peal_text_has_section Outcome <"$old"; echo $?)" != "$(peal_text_has_section Outcome <"$new"; echo $?)" ]; then
+    peal_err "$verb: the Outcome heading was added or dropped"
+    status=2
+  fi
+  if peal_text_outcome_filled <"$old"; then
+    peal_err "$verb: $label's Outcome is filled in: work happened, this is no plain backlog task"
+    status=2
+  elif peal_text_outcome_filled <"$new"; then
+    peal_err "$verb: the new text fills in the Outcome: a task with an Outcome ends through its close"
+    status=2
+  fi
+  if [ "$(peal_fm_get "$old" part-of 2>/dev/null)" != "$(peal_fm_get "$new" part-of 2>/dev/null)" ]; then
+    peal_err "$verb: part-of changed: only a split writes it"
+    status=2
+  fi
+  return $status
+}

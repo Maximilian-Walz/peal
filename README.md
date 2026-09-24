@@ -11,8 +11,10 @@ in order.
 
 **Status:** being built; the plugin installs, its CLI lists, offers, claims, files,
 revises and retires tasks and gates commits and pushes, its session hooks orient a
-session, keep its budget and autosave its work, and `/peal:work` claims, plans and builds
-a task with the planner and implementer subagents; closing a task is not built yet. See
+session, keep its budget and autosave its work, `/peal:work` claims, plans and builds
+a task with the planner and implementer subagents, and `/peal:idea`, `/peal:split`,
+`/peal:defer`, `/peal:revise` and `/peal:retire` keep the backlog; closing a task is not
+built yet. See
 [docs/design.md](docs/design.md) and the issues.
 
 ## Peal and Belfry
@@ -37,9 +39,11 @@ with one plugin, `peal`, in `plugin/`:
   issues through `gh`, with `fake-gh` for its harness; `task-state.awk`, the read model's
   rules), claims (`claim.sh`), the session hooks (`session.sh`), and the
   git gates (`githooks.sh`, pre-push and commit-msg; `commit.sh`, `peal commit`;
-  `git-guard.sh`, the Claude Code guard), and `/peal:work`'s checks and the subagents'
-  briefs (`work.sh`);
-- `plugin/commands/`, the plugin's Claude Code commands (`/peal:work`), and
+  `git-guard.sh`, the Claude Code guard), `/peal:work`'s checks and the subagents'
+  briefs (`work.sh`), and the backlog commands' steps above the storage, defer and the
+  revise of one's own claim (`backlog.sh`);
+- `plugin/commands/`, the plugin's Claude Code commands (`/peal:work`, `/peal:idea`,
+  `/peal:split`, `/peal:defer`, `/peal:revise`, `/peal:retire`), and
   `plugin/agents/`, its subagents (`planner`, `implementer`, `reviewer`);
 - `plugin/hooks/`, the plugin's Claude Code hooks;
 - `plugin/templates/`: `launcher`, the `.peal/peal` a project commits; `githook`, the

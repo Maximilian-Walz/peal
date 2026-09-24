@@ -478,6 +478,24 @@ _peal_files_build_edit() {
   PEAL_SUBJECT=$PEAL_EDIT_SUBJECT
 }
 
+# _peal_files_text_checks VERB OLD NEW LABEL BASE ID -> the checks on a rewritten task
+# text NEW (OLD the one before) against BASE: peal_edit_check's, a Notes section to record
+# the reason in, and task-check.awk's in revise mode. Status 2 with every problem reported.
+_peal_files_text_checks() {
+  local verb=$1 old=$2 new=$3 label=$4 base=$5 id=$6 status=0 context
+  peal_edit_check "$verb" "$old" "$new" "$label" || status=2
+  if ! peal_text_has_section Notes <"$new"; then
+    peal_err "$verb: no '## Notes' section to record the reason in"
+    status=2
+  fi
+  context=$(mktemp) || return 2
+  _peal_files_check_context "$base" >"$context" || status=2
+  PEAL_CHECK_ID=$id PEAL_CHECK_OLDMS=$(peal_fm_get "$old" milestone 2>/dev/null) \
+    peal_task_check "$new" revise "$label" "$context" >/dev/null || status=2
+  rm -f "$context"
+  return $status
+}
+
 # peal_store_edit ID REASON [--dry-run] -> the unclaimed backlog task ID's text replaced by
 # the one on stdin, with "Revised <date>: REASON" under its Notes, pushed onto the main
 # branch; --dry-run prints the change instead. Refused: a claimed task, a changed heading
@@ -485,7 +503,7 @@ _peal_files_build_edit() {
 # (either side), an added or dropped Outcome heading, no Notes section, no change at all,
 # and whatever task-check.awk refuses.
 peal_store_edit() {
-  local id=$1 reason=$2 dry=${3-} tmp old new status=0 oldms oldpart newpart context
+  local id=$1 reason=$2 dry=${3-} tmp old new status=0
   [ -n "$reason" ] || { peal_err "revise: give a reason"; return 2; }
   _peal_files_unclaimed "$id" revise || return 2
   tmp=$(mktemp -d) || return 2
@@ -498,37 +516,7 @@ peal_store_edit() {
     status=2
   fi
   if [ $status = 0 ]; then
-    if [ "$(peal_text_has_section Raw <"$old"; echo $?)" != "$(peal_text_has_section Raw <"$new"; echo $?)" ] \
-        || [ "$(peal_text_section Raw <"$old")" != "$(peal_text_section Raw <"$new")" ]; then
-      peal_err "revise: the Raw section changed: it holds the human's own words, never rewritten"
-      status=2
-    fi
-    if [ "$(peal_text_has_section Outcome <"$old"; echo $?)" != "$(peal_text_has_section Outcome <"$new"; echo $?)" ]; then
-      peal_err "revise: the Outcome heading was added or dropped"
-      status=2
-    fi
-    if peal_text_outcome_filled <"$old"; then
-      peal_err "revise: $PEAL_PATH's Outcome is filled in: work happened, this is no plain backlog task"
-      status=2
-    elif peal_text_outcome_filled <"$new"; then
-      peal_err "revise: the new text fills in the Outcome: a task with an Outcome is closed, not revised"
-      status=2
-    fi
-    if ! peal_text_has_section Notes <"$new"; then
-      peal_err "revise: no '## Notes' section to record the reason in"
-      status=2
-    fi
-    oldms=$(peal_fm_get "$old" milestone 2>/dev/null)
-    oldpart=$(peal_fm_get "$old" part-of 2>/dev/null)
-    newpart=$(peal_fm_get "$new" part-of 2>/dev/null)
-    if [ "$oldpart" != "$newpart" ]; then
-      peal_err "revise: part-of changed: only a split writes it"
-      status=2
-    fi
-    context=$tmp/context
-    _peal_files_check_context "$PEAL_BASE" >"$context" || status=2
-    PEAL_CHECK_ID=$id PEAL_CHECK_OLDMS=$oldms \
-      peal_task_check "$new" revise "$PEAL_PATH" "$context" >/dev/null || status=2
+    _peal_files_text_checks revise "$old" "$new" "$PEAL_PATH" "$PEAL_BASE" "$id" || status=2
   fi
   if [ $status = 0 ]; then
     peal_text_add_note "Revised $(date -u +%Y-%m-%d): $reason" <"$new" >"$tmp/edited"
@@ -539,6 +527,130 @@ peal_store_edit() {
       echo "revise: a dry run; nothing pushed"
     elif _peal_files_push _peal_files_build_edit; then
       echo "revised $id $PEAL_PATH"
+    else
+      status=$?
+    fi
+  fi
+  rm -rf "$tmp"
+  return $status
+}
+
+# _peal_files_only SHA PATH... -> status 0 if commit SHA changes something, and nothing
+# but the PATHs.
+_peal_files_only() {
+  local sha=$1 changed p a ok
+  shift
+  changed=$(git diff-tree -r --no-commit-id --name-only --no-renames "$sha") || return 1
+  [ -n "$changed" ] || return 1
+  while IFS= read -r p; do
+    ok=0
+    for a in "$@"; do [ "$p" = "$a" ] && ok=1; done
+    [ $ok = 1 ] || return 1
+  done <<<"$changed"
+}
+
+# _peal_files_no_work ID BRANCH BASE BACKLOG DOING -> status 0 if the claim on BRANCH, here
+# checked out, holds nothing but the claim itself: its oldest commit beyond BASE the claim
+# (BACKLOG moved to DOING), every other a wip or docs(tasks) commit of DOING alone (an
+# autosave, a plan or notes recorded, a revision), no merge, its remote branch nothing
+# more, and nothing uncommitted but DOING. Status 2 and what is there else.
+_peal_files_no_work() {
+  local id=$1 branch=$2 base=$3 backlog=$4 doing=$5 sha subject first=1 dirty
+  if [ -n "$(git rev-list --merges "$base..HEAD")" ]; then
+    peal_err "defer: $branch holds a merge; that is work, which ends through its close"
+    return 2
+  fi
+  if git rev-parse -q --verify "refs/remotes/$PEAL_REMOTE/$branch" >/dev/null \
+      && ! git merge-base --is-ancestor "refs/remotes/$PEAL_REMOTE/$branch" HEAD; then
+    peal_err "defer: $PEAL_REMOTE/$branch holds commits this worktree does not have"
+    return 2
+  fi
+  for sha in $(git rev-list --reverse "$base..HEAD"); do
+    subject=$(git show -s --format=%s "$sha")
+    if [ $first = 1 ]; then
+      first=0
+      case $subject in "docs(tasks): claim $id "*) _peal_files_only "$sha" "$backlog" "$doing" && continue ;; esac
+      peal_err "defer: the oldest commit on $branch is no claim of $id: $(git rev-parse --short "$sha") $subject"
+      return 2
+    fi
+    case $subject in wip:* | "wip("* | "docs(tasks): "*) _peal_files_only "$sha" "$doing" && continue ;; esac
+    peal_err "defer: $branch holds work beyond the claim: $(git rev-parse --short "$sha") $subject"
+    peal_err "work ends through its close, with an Outcome; defer only gives back a claim nothing was built on"
+    return 2
+  done
+  if [ $first = 1 ]; then
+    peal_err "defer: $branch holds no claim commit beyond $PEAL_REMOTE/$PEAL_MAIN"
+    return 2
+  fi
+  dirty=$(git status --porcelain --untracked-files=all | cut -c4- | grep -v -x -F -- "$doing")
+  if [ -n "$dirty" ]; then
+    peal_err "defer: uncommitted changes besides $doing, which would go with the claim:"
+    printf '%s\n' "$dirty" | sed 's/^/  /' >&2
+    return 2
+  fi
+}
+
+# _peal_files_build_defer BASE -> PEAL_PATH on BASE replaced by the deferred text: the
+# claim owns the task's text, so it goes on whatever main holds now.
+_peal_files_build_defer() {
+  if ! git cat-file -e "$1:$PEAL_PATH" 2>/dev/null; then
+    peal_err "defer: $PEAL_PATH is gone from $PEAL_REMOTE/$PEAL_MAIN meanwhile"
+    return 2
+  fi
+  _peal_files_tree "$1" add "$PEAL_PATH" "$PEAL_EDIT_FILE" || return 2
+  PEAL_SUBJECT=$PEAL_EDIT_SUBJECT
+}
+
+# peal_store_defer ID REASON TEXT [--dry-run] -> the claim of task ID, checked out here,
+# given back: the task text in the file TEXT, "Deferred <date> after a claim: REASON" under
+# its Notes, pushed onto the task's backlog file on the main branch, under its number.
+# Then an uncommitted change to the claim's own file is committed as wip, so the worktree
+# can go clean. Refused: another branch, work on the branch (_peal_files_no_work), and the
+# checks of a revise but "no change".
+peal_store_defer() {
+  local id=$1 reason=$2 text=$3 dry=${4-} top branch base doing tmp status=0
+  [ -n "$reason" ] || { peal_err "defer: give a reason"; return 2; }
+  _peal_files_settings || return 2
+  top=$(peal_project_root) || return 2
+  branch=$(git symbolic-ref -q --short HEAD)
+  case $branch in
+    "$PEAL_PREFIX$id"-*) ;;
+    *) peal_err "defer: not on task $id's branch ($PEAL_PREFIX$id-...), but on ${branch:-a detached HEAD}"; return 2 ;;
+  esac
+  _peal_files_fetch || return 2
+  base=$(git rev-parse "refs/remotes/$PEAL_REMOTE/$PEAL_MAIN") || return 2
+  if ! PEAL_PATH=$(_peal_files_find "$base" "$id"); then
+    peal_err "defer: no task $id on $PEAL_REMOTE/$PEAL_MAIN"
+    return 2
+  fi
+  case $PEAL_PATH in
+    "$PEAL_TASKS"/backlog/*) ;;
+    *) peal_err "defer: task $id is not in the backlog on $PEAL_REMOTE/$PEAL_MAIN ($PEAL_PATH)"; return 2 ;;
+  esac
+  doing=$PEAL_TASKS/doing/${PEAL_PATH##*/}
+  if [ ! -f "$top/$doing" ]; then
+    peal_err "defer: no $doing here: a claim's file keeps the name it had in the backlog"
+    return 2
+  fi
+  (cd "$top" && _peal_files_no_work "$id" "$branch" "$base" "$PEAL_PATH" "$doing") || return 2
+  tmp=$(mktemp -d) || return 2
+  git show "$base:$PEAL_PATH" >"$tmp/old"
+  cp "$text" "$tmp/new"
+  _peal_files_text_checks defer "$tmp/old" "$tmp/new" "$PEAL_PATH" "$base" "$id" || status=2
+  if [ $status = 0 ]; then
+    peal_text_add_note "Deferred $(date -u +%Y-%m-%d) after a claim: $reason" <"$tmp/new" >"$tmp/deferred"
+    PEAL_EDIT_FILE=$tmp/deferred
+    PEAL_EDIT_SUBJECT="docs(tasks): defer $id ${branch#"$PEAL_PREFIX$id"-} [$id]"
+    if [ "$dry" = --dry-run ]; then
+      (cd "$tmp" && diff -u old deferred)
+      echo "defer: a dry run; nothing pushed"
+    elif _peal_files_push _peal_files_build_defer; then
+      echo "deferred $id $PEAL_PATH"
+      if [ -n "$(git -C "$top" status --porcelain -- "$doing")" ] \
+          && ! git -C "$top" commit -q -m "wip: defer capture [$id]" -- "$doing" >/dev/null 2>&1; then
+        peal_err "defer: the text is on $PEAL_REMOTE/$PEAL_MAIN, but $doing could not be committed; commit it before the release"
+        status=1
+      fi
     else
       status=$?
     fi
