@@ -95,6 +95,8 @@ refusals() {
   check_refused "milestone as a list" "bad-one: milestone takes a single value" peal create bad-one < <(text "milestone: [m1]")
   check_refused "plan" "bad-one: plan maybe is not required or skipped" peal create bad-one < <(text "plan: maybe")
   check_refused "size" "bad-one: size XL is not one of" peal create bad-one < <(text "size: XL")
+  check_refused "priority" "bad-one: priority soon is not urgent, high, normal or low" peal create bad-one < <(text "priority: soon")
+  check_refused "priority as a list" "bad-one: priority takes a single value" peal create bad-one < <(text "priority: [high]")
   check_refused "part-of outside a split" "bad-one: part-of is written by a split only" peal create bad-one < <(text "part-of: 0001")
   check_refused "PARTn outside a split" "bad-one: depends: PART1 is no task id" peal create bad-one < <(text "depends: [PART1]")
   check_refused "no NNNN heading" "bad-one: the first heading must be '# NNNN — Title'" peal create bad-one < <(ID=0005 text)

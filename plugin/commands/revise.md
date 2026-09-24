@@ -1,5 +1,5 @@
 ---
-description: Correct an unclaimed task's text (scope narrowed, depends fixed, milestone retriaged) straight into the storage, once the human confirms the change.
+description: Correct an unclaimed task's text (scope narrowed, depends fixed, milestone retriaged, priority changed) straight into the storage, once the human confirms the change.
 argument-hint: "<task id> <what changes and why>"
 ---
 
@@ -10,7 +10,8 @@ flag: 0276 removed the script`).
 has claimed, because something else changed its ground: a sibling shipped part of its
 scope, a `depends` went stale, its milestone needs retriaging. It writes straight into
 the storage, with no pull request: the human's confirmation below is the only review it
-gets. A task whose whole premise died is retired (`/peal:retire`), not revised; a
+gets. Its priority changes the same way: `priority: urgent`, `high` or `low` in the
+frontmatter, or the line dropped for `normal`. A task whose whole premise died is retired (`/peal:retire`), not revised; a
 claimed one is changed in its own session. It never touches this worktree.
 
 If the id or the change is missing, ask the human for it with `AskUserQuestion`.

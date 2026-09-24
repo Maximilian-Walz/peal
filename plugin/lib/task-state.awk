@@ -10,7 +10,7 @@
 # state one of awaiting-merge, claimed-live, parked. Out comes the store's list record
 # (lib/store.sh):
 #
-#   id  state  detail  slug  title  milestone  depends  part-of  size  plan  needs  path  ref  pr  url
+#   id  state  detail  slug  title  milestone  depends  part-of  size  plan  needs  path  ref  pr  url  priority
 #
 # The state, first match wins: done (the file is under done/), the claim's state, blocked
 # (a depends entry is not done yet), free. The detail: for a free task its milestone ("-"
@@ -156,6 +156,7 @@ FILENAME == ARGV[1] {
   } else order[++n] = id
   dir[id] = $2; slug[id] = $4; title[id] = $5; ms[id] = $6; deps[id] = $7
   partof[id] = $8; size[id] = $9; plan[id] = $10; needs[id] = $11; path[id] = $12; url[id] = $13
+  prio[id] = $14
 }
 
 END {
@@ -212,8 +213,8 @@ END {
         }
       }
     }
-    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", id, state, detail,
+    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", id, state, detail,
       slug[id], title[id], ms[id], deps[id], partof[id], size[id], plan[id], needs[id],
-      path[id], cref[id], cpr[id], url[id]
+      path[id], cref[id], cpr[id], url[id], prio[id]
   }
 }

@@ -4,7 +4,7 @@
 #
 #   bash plugin/lib/claim.test.sh
 #
-# The offer's order and buckets; a claim, its refusals, the idempotent re-claim, a double
+# The offer's order and buckets, priority within a bucket; a claim, its refusals, the idempotent re-claim, a double
 # claim losing the race (by number and with --next), resuming a parked claim, the scope
 # overlap warning; release and reaping, with every condition that keeps a claim.
 set -uo pipefail
@@ -71,6 +71,36 @@ MORE m1 3" "$?:$out"
   git -C "$work" push -q origin origin/main:refs/heads/task/0003-open-one 2>/dev/null
   out=$(peal offer m2 2>&1)
   check "offer: empty" "0:" "$?:$out"
+}
+
+# Priority orders within a bucket, before the split's members, and never across buckets.
+offer_priority() {
+  local work out
+  work=$(repo)
+  put "$work" backlog 0001 current-normal "milestone: m1"
+  put "$work" backlog 0002 current-low "milestone: m1" "priority: low"
+  put "$work" backlog 0003 current-high "milestone: m1" "priority: high"
+  put "$work" backlog 0004 split-piece "milestone: m1" "part-of: 0005"
+  put "$work" backlog 0005 split-origin "milestone: m1"
+  put "$work" backlog 0006 current-urgent "milestone: m1" "priority: urgent"
+  put "$work" backlog 0007 current-high-two "milestone: m1" "priority: high"
+  put "$work" backlog 0008 unassigned-normal
+  put "$work" backlog 0009 unassigned-urgent "priority: urgent"
+  put "$work" backlog 0010 open-urgent "milestone: m2" "priority: urgent"
+  put "$work" backlog 0011 parked-urgent "milestone: m3" "priority: urgent"
+
+  out=$(peal offer current,unassigned --top 20 2>&1)
+  check "offer: priority within a milestone, never across" "0:CANDIDATE 0006 m1 Title of 0006
+CANDIDATE 0003 m1 Title of 0003
+CANDIDATE 0007 m1 Title of 0007
+CANDIDATE 0004 m1 Title of 0004 (part of 0005, 0/2 done)
+CANDIDATE 0005 m1 Title of 0005 (part of 0005, 0/2 done)
+CANDIDATE 0001 m1 Title of 0001
+CANDIDATE 0002 m1 Title of 0002
+CANDIDATE 0009 unassigned Title of 0009
+CANDIDATE 0008 unassigned Title of 0008" "$?:$out"
+  out=$(peal claim --next --print-path 2>/dev/null | tail -1)
+  check "claim --next: the most urgent first" "$(dirname "$work")/work-wt/0006-current-urgent" "$out"
 }
 
 claim() {
@@ -317,6 +347,7 @@ refs/reaped/0101-timeless" "$(git -C "$work" for-each-ref --format='%(refname)' 
 
 cases() {
   offer
+  offer_priority
   claim
   race
   resume

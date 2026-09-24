@@ -8,7 +8,7 @@
 # Every state, from refs and the remote's main only; the depends expansion of milestone,
 # human and split origins; depends cycles in list, board and check; the board as JSON
 # lines in the shapes of Belfry's contract, pull requests from gh included; the
-# overview's groups.
+# overview's groups; a task's priority in all three.
 set -uo pipefail
 # shellcheck source=test-lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/test-lib.sh"
@@ -382,12 +382,48 @@ m9 (no such milestone) — 1 open, 0 done
   0007  free           typo-task" "$(at "$work" "$PEAL" overview 2>&1 | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}')"
 }
 
+priority() {
+  local work err
+  work=$(repo)
+  put "$work" backlog 0001 urgent-task "milestone: m1" "priority: urgent"
+  put "$work" backlog 0002 high-task "priority: high"
+  put "$work" backlog 0003 normal-task "priority: normal"
+  put "$work" backlog 0004 low-task "priority: low"
+  put "$work" backlog 0005 odd-task "priority: soon"
+  put "$work" "done" 0006 done-task "priority: urgent"
+  check "priority: board" '{"id":"0001","state":"free","slug":"urgent-task","title":"Title of 0001","milestone":"m1","priority":"urgent","path":"tasks/backlog/0001-urgent-task.md"}
+{"id":"0002","state":"free","slug":"high-task","title":"Title of 0002","priority":"high","path":"tasks/backlog/0002-high-task.md"}
+{"id":"0003","state":"free","slug":"normal-task","title":"Title of 0003","path":"tasks/backlog/0003-normal-task.md"}
+{"id":"0004","state":"free","slug":"low-task","title":"Title of 0004","priority":"low","path":"tasks/backlog/0004-low-task.md"}
+{"id":"0005","state":"free","slug":"odd-task","title":"Title of 0005","path":"tasks/backlog/0005-odd-task.md"}
+{"id":"0006","state":"done","slug":"done-task","title":"Title of 0006","priority":"urgent","path":"tasks/done/0006-done-task.md"}' \
+    "$(at "$work" "$PEAL" board --no-pr 2>/dev/null | grep -v '^{"milestone"')"
+  err=$(list 2>&1 >/dev/null)
+  check "priority: an unknown word is normal, with a warning" \
+    "peal: warning: tasks/backlog/0005-odd-task.md: priority: 'soon' is not urgent, high, normal or low; read as normal" "$err"
+  check "priority: list" "0001 free urgent-task m1 priority:urgent
+0002 free high-task - priority:high
+0003 free normal-task -
+0004 free low-task - priority:low
+0005 free odd-task -
+0006 done done-task" "$(list 2>/dev/null)"
+  check "priority: overview" "m1 Milestone m1 (current) — 1 open, 0 done
+  0001! free           urgent-task
+
+No milestone — 4 open, 1 done
+  0002↑ free           high-task
+  0003  free           normal-task
+  0004  free           low-task
+  0005  free           odd-task" "$(at "$work" "$PEAL" overview 2>/dev/null | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}')"
+}
+
 cases() {
   states
   expansion
   cycles
   board
   overview
+  priority
 }
 
 for_each_awk cases

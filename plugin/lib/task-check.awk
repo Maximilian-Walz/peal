@@ -48,11 +48,11 @@ $1 == "" { next }
 
 END {
   peal["milestone"] = peal["plan"] = peal["size"] = peal["depends"] = 1
-  peal["part-of"] = peal["needs"] = peal["model"] = 1
+  peal["part-of"] = peal["needs"] = peal["model"] = peal["priority"] = 1
   for (k = 1; k <= nkeys; k++) {
     key = keys[k]
     if (!(key in peal) && !(key in custom))
-      problem("unknown field " key " (Peal's: milestone, plan, size, depends, part-of, needs, model; a project adds its own under task.fields in .peal/config.yml)")
+      problem("unknown field " key " (Peal's: milestone, plan, size, depends, part-of, needs, model, priority; a project adds its own under task.fields in .peal/config.yml)")
   }
 
   m = value["milestone"]
@@ -71,6 +71,8 @@ END {
   if (("size" in kind) && single("size") && value["size"] != "" && !(value["size"] in sizes))
     problem("size " value["size"] " is not one of the sizes setting's tiers")
   if ("model" in kind) single("model")
+  if (("priority" in kind) && single("priority") && value["priority"] !~ /^(urgent|high|normal|low)?$/)
+    problem("priority " value["priority"] " is not urgent, high, normal or low")
 
   if ("part-of" in kind) {
     if (mode == "split") {
