@@ -4,7 +4,7 @@ Peal turns a repository's tasks into a process Claude Code sessions can follow: 
 files with YAML frontmatter, and commands that claim, plan, implement, close, file,
 split, defer, revise and retire them, grouped by milestones.
 
-This document is being written (see issue #1). Its principles so far:
+This document is being written (see issue #2). Its principles so far:
 
 ## Peal and Belfry
 
