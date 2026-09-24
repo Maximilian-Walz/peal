@@ -36,3 +36,7 @@ with one plugin, `peal`, in `plugin/`:
 Every script has a harness next to it, `<script>.test.sh`, runnable on its own with
 `bash`. `tools/test-all.sh` runs them all and `tools/lint.sh` runs `shellcheck`; CI runs
 both on every pull request.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
