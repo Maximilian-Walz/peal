@@ -95,6 +95,8 @@ peal_githook() {
 #       docs(tasks): set milestone of ID ...
 #       docs(tasks): note on ID ...
 #       docs(tasks): retire ID ...             ID's backlog file moved to done/, unrenamed
+#       docs(decisions): regenerate the index  only the decisions index added or changed
+#                                              (peal decision publish)
 #       docs(tasks): milestone ID STATE ...    one or two modified milestone files (the
 #                                              milestone's, and the one made current)
 # Rewriting main (not a fast-forward) and deleting it are refused. Git runs no pre-push
@@ -167,6 +169,10 @@ _peal_pre_push_direct() {
     'docs(tasks): file '*) shape=add ;;
     'docs(tasks): revise '* | 'docs(tasks): defer '* | 'docs(tasks): set milestone of '* | 'docs(tasks): note on '*) shape=modify ;;
     'docs(tasks): retire '*) shape=retire ;;
+    'docs(decisions): regenerate the index')
+      _peal_pre_push_index "$sha" "$main" "$short" "$subject"
+      return
+      ;;
     'docs(tasks): milestone '*) shape=milestone ;;
     *)
       _peal_gate_refuse pre-push "$short reaches $main directly and is no merge: \"$subject\""
@@ -217,15 +223,35 @@ _peal_pre_push_direct() {
   fi
 }
 
+# _peal_pre_push_index SHA MAIN SHORT SUBJECT -> refused unless SHA adds or changes the
+# decisions index and nothing else, the decisions module on.
+_peal_pre_push_index() {
+  local dir diff
+  if ! dir=$(peal_decisions_dir 2>/dev/null); then
+    _peal_gate_refuse pre-push "$3 reaches $2 directly as \"$4\", but the decisions module is off"
+    return
+  fi
+  diff=$(git diff-tree -r --raw --no-commit-id --no-renames --root "$1")
+  if ! printf '%s\n' "$diff" | awk -v path="$dir/index.md" '
+      $0 == "" { next }
+      { split($0, f, "\t"); split(f[1], m, " "); n++
+        if (f[2] != path || m[2] != "100644" || (m[5] != "A" && m[5] != "M")) bad = 1 }
+      END { exit bad || n != 1 }'; then
+    _peal_gate_refuse pre-push "$3 reaches $2 directly as \"$4\", but its diff is not the index alone:" "$diff"
+  fi
+}
+
 # --- commit-msg --------------------------------------------------------------------------
 # The subject: <type>(<area>): <what> [NNNN], type one of PEAL_COMMIT_TYPES, the area one
-# of commit.areas (required when there are any; `tasks` is always one), NNNN the task's
-# id (a task file's four digits, an issue's number).
+# of commit.areas (required when there are any; `tasks` is always one, and `decisions`
+# with the decisions module on), NNNN the task's id (a task file's four digits, an
+# issue's number).
 # Git's own subjects pass as they are (Revert, fixup!, squash!, amend!); a merge's is not
 # checked, but its diff pays the checks. Two fast paths skip the checks:
 #   wip: ... / wip(<area>): ...   honest work in progress, no task id needed;
 #   <type>(tasks): ... [NNNN]     a task file's move or edit: the staged diff must lie in
-#                                 the tasks directory and nowhere else.
+#                                 the tasks directory and nowhere else;
+#   <type>(decisions): ... [NNNN] decision entries, the same in the decisions directory.
 # Otherwise each of checks.commit runs whose paths the staged diff touches: an item
 # "PATH...: COMMAND" runs COMMAND when a staged path is PATH or under it (PATH may be a
 # glob), an item without paths always runs.
@@ -241,7 +267,7 @@ _peal_staged() {
 }
 
 _peal_commit_msg() {
-  local subject merge=0 area what areas tasks outside
+  local subject merge=0 area what areas tasks outside decisions
   subject=$(_peal_subject "$1")
   case $subject in
     "Revert "* | "fixup! "* | "squash! "* | "amend! "*) return 0 ;;
@@ -259,14 +285,16 @@ _peal_commit_msg() {
       return 0
     fi
     areas=$(peal_config_get commit.areas) || return 1
+    decisions=$(peal_decisions_dir 2>/dev/null) || decisions=""
     if [ -n "$areas" ] && [ -z "$area" ]; then
       _peal_gate_refuse commit-msg "the subject names no area: <type>(<area>): ..." \
-        "areas: $(printf '%s\n' "$areas" tasks | tr '\n' ' ')"
+        "areas: $(printf '%s\n' "$areas" tasks ${decisions:+decisions} | tr '\n' ' ')"
       return 1
     fi
-    if [ -n "$areas" ] && [ "$area" != tasks ] && ! printf '%s\n' "$areas" | grep -qxF -- "$area"; then
+    if [ -n "$areas" ] && [ "$area" != tasks ] && { [ -z "$decisions" ] || [ "$area" != decisions ]; } \
+        && ! printf '%s\n' "$areas" | grep -qxF -- "$area"; then
       _peal_gate_refuse commit-msg "the area $area is not one of commit.areas" \
-        "areas: $(printf '%s\n' "$areas" tasks | tr '\n' ' ')"
+        "areas: $(printf '%s\n' "$areas" tasks ${decisions:+decisions} | tr '\n' ' ')"
       return 1
     fi
     if ! [[ "$what" =~ ^(.*[^ ])\ \[[0-9]+\]$ ]]; then
@@ -283,6 +311,15 @@ _peal_commit_msg() {
         return 1
       fi
       echo "commit-msg: only task files; the checks are skipped."
+      return 0
+    fi
+    if [ "$area" = decisions ] && [ -n "$decisions" ]; then
+      outside=$(_peal_staged | awk -v d="$decisions/" 'index($0, d) != 1')
+      if [ -n "$outside" ]; then
+        _peal_gate_refuse commit-msg "a ($area) commit touches only $decisions/; this one also:" "$outside"
+        return 1
+      fi
+      echo "commit-msg: only decision entries; the checks are skipped."
       return 0
     fi
   fi

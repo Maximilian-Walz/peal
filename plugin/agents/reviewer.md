@@ -27,7 +27,10 @@ Check, in order of severity:
    and work the task did not ask for.
 3. **Decisions.** Does anything contradict a decision or rule the project has recorded
    (its context documents, its decision records, the project's rules in the brief)
-   without the task recording the human's call to change it?
+   without the task recording the human's call to change it? When the brief lists
+   decisions naming paths of the diff, open each that bears on it: they stand in for the
+   whole decisions index. A diff departing from a recorded decision needs an entry of its
+   own that supersedes it, on this branch.
 4. **Repeat rot.** Find the most recently done milestone (`peal milestones`: its state
    and order) and its review task (`peal board`: the task of that milestone whose
    `depends` holds `milestone`), and read that task's Outcome (`peal read ID`). Does

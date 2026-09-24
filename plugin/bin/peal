@@ -19,6 +19,8 @@ export PEAL_ROOT
 . "$PEAL_ROOT/lib/session.sh"
 # shellcheck source=../lib/task-text.sh
 . "$PEAL_ROOT/lib/task-text.sh"
+# shellcheck source=../lib/main-write.sh
+. "$PEAL_ROOT/lib/main-write.sh"
 # shellcheck source=../lib/store.sh
 . "$PEAL_ROOT/lib/store.sh"
 # shellcheck source=../lib/github.sh
@@ -41,6 +43,8 @@ export PEAL_ROOT
 . "$PEAL_ROOT/lib/backlog.sh"
 # shellcheck source=../lib/close.sh
 . "$PEAL_ROOT/lib/close.sh"
+# shellcheck source=../lib/decisions.sh
+. "$PEAL_ROOT/lib/decisions.sh"
 # shellcheck source=../lib/review.sh
 . "$PEAL_ROOT/lib/review.sh"
 
@@ -49,8 +53,9 @@ usage() {
 usage: peal <command> [args]
 
   --version, version            print Peal's version
-  check                         report what is not valid: the milestone files, and a
-                                task file under done/ without an Outcome
+  check                         report what is not valid: the milestone files, a task
+                                file under done/ without an Outcome, and with the
+                                decisions module on, what peal decision check reports
   config [KEY]                  print the effective settings, or one of them
   frontmatter check FILE        refuse a frontmatter outside Peal's YAML subset
   frontmatter keys FILE         print its keys
@@ -70,6 +75,8 @@ usage: peal <command> [args]
                                 with the Outcome empty or work uncommitted or unpushed
   hook git-guard                the PreToolUse hook on Bash: refuse git calls that work
                                 around the git gates (lib/git-guard.sh)
+  hook decisions                the PostToolUse hook on Edit and Write: after a decision
+                                entry is written, peal decision check's findings
 
 Git gates (lib/githooks.sh):
   hooks install                 Peal's git hooks into this repository's git directory,
@@ -150,6 +157,18 @@ issue-N on branch issue/N, labelled "in progress", as Belfry claims one):
   close wait                    verify until not WAIT, or the budget is spent
                                 (PEAL_CLOSE_WAIT_BUDGET, 540 s; PEAL_CLOSE_WAIT_INTERVAL, 20)
 
+Decision records, when the setting decisions names their directory (lib/decisions.sh):
+  decision reserve SLUG         reserve the next number for this branch (refs/decisions/
+                                NNNN, pushed) and scaffold DIR/NNNN-SLUG.md to fill in
+  decision check                the entries well-formed; this branch's new ones hold its
+                                reservations, pair their supersessions, leave the index
+                                alone (GITHUB_HEAD_REF names the branch in a pull
+                                request's workflow)
+  decision index                the index of the entries, printed
+  decision publish              the index regenerated on the remote's main branch and
+                                pushed there, if it changed; run after a merge
+  decision brief --task FILE | --diff [BASE]
+                                the entries naming a path of the task, or of the diff
 A milestone's end (lib/review.sh):
   milestone-review [ID]         what /peal:milestone-review needs of milestone ID (this
                                 worktree's task's, else the current one): its tasks not
@@ -207,6 +226,7 @@ cmd_check() {
   [ $# -eq 0 ] || { usage >&2; exit 2; }
   peal_ms_load || status=2
   peal_check_outcomes || status=2
+  peal_decisions_check || status=2
   exit $status
 }
 
@@ -242,6 +262,7 @@ cmd_hook() {
     session-end) peal_hook_read; peal_session_end ;;
     stop) peal_hook_read; peal_close_stop || exit $? ;;
     git-guard) peal_git_guard ;;
+    decisions) peal_hook_read; peal_decisions_guard || exit $? ;;
     *) usage >&2; exit 2 ;;
   esac
 }
@@ -326,6 +347,7 @@ main() {
         *) with_store peal_close "$@" ;;
       esac
       ;;
+    decision) peal_config_load || exit 2; peal_decision "$@" ;;
     milestone-review) with_store peal_milestone_review "$@" ;;
     milestone-state) with_store peal_milestone_state "$@" ;;
     comment) [ $# -eq 2 ] || { usage >&2; exit 2; }; with_store peal_store_comment "$1" "$2" ;;

@@ -1,0 +1,40 @@
+# Peal's decisions module: regenerates the decisions index on the main branch after a
+# merge adds or changes an entry. No pull request changes the index (peal check refuses
+# one that does), so two pull requests that each add an entry never conflict over it; this
+# workflow writes it instead. Copy it to .github/workflows/decisions.yml; the directory
+# below is the `decisions` setting of .peal/config.yml, and main the `main` one.
+#
+# The push is made with the workflow's GITHUB_TOKEN, which starts no further workflow
+# runs, so it never triggers itself. A main branch protected against direct pushes needs
+# a token that may push there instead.
+name: Decisions index
+
+on:
+  push:
+    branches: [main]
+    paths: ['docs/decisions/**']
+  workflow_dispatch:
+
+# Merges landing together wait for each other; the run that starts last regenerates from
+# the newest main, and peal decision publish retries a push that loses a race.
+concurrency:
+  group: decisions-index
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get Peal
+        # Pin a release with --branch vX.Y.Z to match the Peal your sessions run.
+        run: git clone -q --depth 1 https://github.com/Maximilian-Walz/peal "$RUNNER_TEMP/peal"
+      - name: Publish the index
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          "$RUNNER_TEMP/peal/plugin/bin/peal" decision publish

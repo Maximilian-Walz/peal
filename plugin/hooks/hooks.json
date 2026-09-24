@@ -30,6 +30,15 @@
             "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/peal\" hook post-tool-use"
           }
         ]
+      },
+      {
+        "matcher": "Edit|MultiEdit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/peal\" hook decisions"
+          }
+        ]
       }
     ],
     "Stop": [

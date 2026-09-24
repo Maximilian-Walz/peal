@@ -5,8 +5,8 @@
 # the calling worktree, so any worktree on any branch gets the same answer.
 #
 # Writes to the main branch never touch a worktree: the commit is built on a temporary
-# index from the fetched main and pushed. The push is the lock: one that loses a race is
-# retried on the new main, a new task renumbered.
+# index from the fetched main and pushed (lib/main-write.sh). The push is the lock: one
+# that loses a race is retried on the new main, a new task renumbered.
 
 # _peal_files_settings -> PEAL_REMOTE, PEAL_MAIN, PEAL_TASKS, PEAL_PREFIX from the settings.
 _peal_files_settings() {
@@ -262,71 +262,6 @@ _peal_files_milestones_at() {
   return $status
 }
 
-# _peal_files_push BUILD -> BUILD BASE run on the remote's main and its result pushed
-# there, again on a new main when the push loses a race (PEAL_PUSH_ATTEMPTS, 5). BUILD
-# sets PEAL_TREE and PEAL_SUBJECT, or refuses with status 2. A push that fails for
-# another reason is not retried: status 1.
-_peal_files_push() {
-  local build=$1 attempt=1 max=${PEAL_PUSH_ATTEMPTS:-5} base sha new err status
-  err=$(mktemp) || return 2
-  while :; do
-    base=$(git rev-parse --verify -q "refs/remotes/$PEAL_REMOTE/$PEAL_MAIN") || {
-      peal_err "$PEAL_REMOTE/$PEAL_MAIN is gone"; rm -f "$err"; return 2; }
-    PEAL_TREE="" PEAL_SUBJECT=""
-    "$build" "$base" || { status=$?; rm -f "$err"; return $status; }
-    sha=$(git commit-tree "$PEAL_TREE" -p "$base" -m "$PEAL_SUBJECT") || { rm -f "$err"; return 2; }
-    if git push -q "$PEAL_REMOTE" "$sha:refs/heads/$PEAL_MAIN" 2>"$err"; then
-      rm -f "$err"
-      return 0
-    fi
-    git fetch -q "$PEAL_REMOTE" "$PEAL_MAIN" 2>/dev/null
-    new=$(git rev-parse --verify -q "refs/remotes/$PEAL_REMOTE/$PEAL_MAIN") || new=$base
-    # A remote with several push URLs fails the push when one of them refuses, though
-    # the commit may have landed: landed is landed.
-    if git merge-base --is-ancestor "$sha" "$new" 2>/dev/null; then
-      rm -f "$err"
-      return 0
-    fi
-    if [ "$new" = "$base" ]; then
-      peal_err "the push to $PEAL_REMOTE/$PEAL_MAIN failed, and not from a race:"
-      cat "$err" >&2
-      rm -f "$err"
-      return 1
-    fi
-    if [ $attempt -ge "$max" ]; then
-      peal_err "gave up after $max pushes to $PEAL_REMOTE/$PEAL_MAIN, each losing a race"
-      rm -f "$err"
-      return 1
-    fi
-    peal_err "the push lost a race ($attempt of $max); again on the new $PEAL_MAIN"
-    attempt=$((attempt + 1))
-  done
-}
-
-# _peal_files_tree BASE [add PATH FILE | remove PATH]... -> PEAL_TREE: BASE's tree with
-# those changes.
-_peal_files_tree() {
-  local base=$1 index blob status=0
-  shift
-  index=$(mktemp) || return 2
-  rm -f "$index"
-  GIT_INDEX_FILE=$index git read-tree "$base" || status=2
-  while [ $status = 0 ] && [ $# -gt 0 ]; do
-    case $1 in
-      add)
-        blob=$(git hash-object -w -- "$3") \
-          && GIT_INDEX_FILE=$index git update-index --add --cacheinfo "100644,$blob,$2" || status=2
-        shift 3 ;;
-      remove)
-        GIT_INDEX_FILE=$index git update-index --force-remove -- "$2" || status=2
-        shift 2 ;;
-    esac
-  done
-  [ $status = 0 ] && PEAL_TREE=$(GIT_INDEX_FILE=$index git write-tree) || status=2
-  rm -f "$index"
-  return $status
-}
-
 # _peal_files_next_id BASE -> one past the highest task number in BASE's task files and
 # in every task branch's name, local or on any remote: a claimed number stays taken.
 _peal_files_next_id() {
@@ -384,7 +319,7 @@ peal_store_create() {
     fi
   done
   if [ $status = 0 ]; then
-    _peal_files_push _peal_files_build_create || status=$?
+    peal_push_main _peal_files_build_create || status=$?
   fi
   if [ $status = 0 ]; then
     for ((i = 0; i < count; i++)); do
@@ -424,7 +359,7 @@ _peal_files_build_create() {
     PEAL_CREATE_TITLES+=("$(peal_text_title "${PEAL_CREATE_IDS[i]}" <"$PEAL_CREATE_DIR/out$i")")
     args+=(add "${PEAL_CREATE_PATHS[i]}" "$PEAL_CREATE_DIR/out$i")
   done
-  _peal_files_tree "$base" "${args[@]}" || return 2
+  peal_write_tree "$base" "${args[@]}" || return 2
   subject=${PEAL_CREATE_IDS[0]}
   [ "$count" = 1 ] || subject="$subject-${PEAL_CREATE_IDS[count - 1]}"
   case $PEAL_CREATE_MODE in
@@ -474,7 +409,8 @@ _peal_files_build_edit() {
     peal_err "$PEAL_PATH changed on $PEAL_REMOTE/$PEAL_MAIN meanwhile; read it again and run again"
     return 2
   fi
-  _peal_files_tree "$1" add "$PEAL_PATH" "$PEAL_EDIT_FILE" || return 2
+  peal_write_tree "$1" add "$PEAL_PATH" "$PEAL_EDIT_FILE" || return 2
+  # shellcheck disable=SC2034 # read by peal_push_main
   PEAL_SUBJECT=$PEAL_EDIT_SUBJECT
 }
 
@@ -525,7 +461,7 @@ peal_store_edit() {
     if [ "$dry" = --dry-run ]; then
       (cd "$tmp" && diff -u old edited)
       echo "revise: a dry run; nothing pushed"
-    elif _peal_files_push _peal_files_build_edit; then
+    elif peal_push_main _peal_files_build_edit; then
       echo "revised $id $PEAL_PATH"
     else
       status=$?
@@ -597,7 +533,8 @@ _peal_files_build_defer() {
     peal_err "defer: $PEAL_PATH is gone from $PEAL_REMOTE/$PEAL_MAIN meanwhile"
     return 2
   fi
-  _peal_files_tree "$1" add "$PEAL_PATH" "$PEAL_EDIT_FILE" || return 2
+  peal_write_tree "$1" add "$PEAL_PATH" "$PEAL_EDIT_FILE" || return 2
+  # shellcheck disable=SC2034 # read by peal_push_main
   PEAL_SUBJECT=$PEAL_EDIT_SUBJECT
 }
 
@@ -644,7 +581,7 @@ peal_store_defer() {
     if [ "$dry" = --dry-run ]; then
       (cd "$tmp" && diff -u old deferred)
       echo "defer: a dry run; nothing pushed"
-    elif _peal_files_push _peal_files_build_defer; then
+    elif peal_push_main _peal_files_build_defer; then
       echo "deferred $id $PEAL_PATH"
       if [ -n "$(git -C "$top" status --porcelain -- "$doing")" ] \
           && ! git -C "$top" commit -q -m "wip: defer capture [$id]" -- "$doing" >/dev/null 2>&1; then
@@ -674,7 +611,8 @@ _peal_files_build_retire() {
     return 2
   fi
   peal_text_set_outcome "$PEAL_RETIRE_LINE" <"$PEAL_EDIT_FILE.old" >"$PEAL_EDIT_FILE"
-  _peal_files_tree "$1" remove "$PEAL_PATH" add "$dest" "$PEAL_EDIT_FILE" || return 2
+  peal_write_tree "$1" remove "$PEAL_PATH" add "$dest" "$PEAL_EDIT_FILE" || return 2
+  # shellcheck disable=SC2034 # read by peal_push_main
   PEAL_SUBJECT=$PEAL_EDIT_SUBJECT
 }
 
@@ -698,7 +636,7 @@ _peal_files_retire() {
   PEAL_EDIT_FILE=$tmp/retired
   PEAL_RETIRE_LINE="Retired $(date -u +%Y-%m-%d) without being claimed: $reason"
   PEAL_EDIT_SUBJECT="docs(tasks): retire $id $PEAL_SLUG [$id]"
-  if _peal_files_push _peal_files_build_retire; then
+  if peal_push_main _peal_files_build_retire; then
     echo "retired $id $PEAL_TASKS/done/${PEAL_PATH##*/}"
   else
     status=$?
@@ -776,7 +714,8 @@ _peal_files_build_rewrite() {
     peal_err "$PEAL_PATH already reads so: nothing to change"
     return 2
   fi
-  _peal_files_tree "$1" add "$PEAL_PATH" "$PEAL_EDIT_FILE" || return 2
+  peal_write_tree "$1" add "$PEAL_PATH" "$PEAL_EDIT_FILE" || return 2
+  # shellcheck disable=SC2034 # read by peal_push_main
   PEAL_SUBJECT=$PEAL_EDIT_SUBJECT
 }
 
@@ -805,7 +744,7 @@ _peal_files_rewrite() {
   tmp=$(mktemp -d) || return 2
   PEAL_EDIT_FILE=$tmp/new PEAL_REWRITE=$4
   PEAL_EDIT_SUBJECT="docs(tasks): $3 [$id]"
-  _peal_files_push _peal_files_build_rewrite || status=$?
+  peal_push_main _peal_files_build_rewrite || status=$?
   rm -rf "$tmp"
   return $status
 }
@@ -1100,7 +1039,7 @@ _peal_files_build_ms_state() {
     PEAL_SUBJECT="$PEAL_SUBJECT, $next current"
     PEAL_MS_REPORT="${PEAL_MS_REPORT}milestone $next: current"$'\n'
   fi
-  _peal_files_tree "$base" "${args[@]}"
+  peal_write_tree "$base" "${args[@]}"
 }
 
 # The milestone files rewritten on the main branch, in one commit
@@ -1111,7 +1050,7 @@ peal_store_milestone_state() {
   _peal_files_fetch || return 2
   tmp=$(mktemp -d) || return 2
   PEAL_MS_ID=$1 PEAL_MS_STATE=$2 PEAL_MS_REASON=$3 PEAL_MS_REVIEW=$4 PEAL_MS_TMP=$tmp PEAL_MS_REPORT=""
-  _peal_files_push _peal_files_build_ms_state || status=$?
+  peal_push_main _peal_files_build_ms_state || status=$?
   [ $status = 4 ] && status=0
   [ $status != 0 ] || printf '%s' "$PEAL_MS_REPORT"
   rm -rf "$tmp"

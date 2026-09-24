@@ -17,9 +17,10 @@ _peal_close_gitdir() {
   git rev-parse --absolute-git-dir 2>/dev/null
 }
 
-# _peal_close_base -> PEAL_REMOTE, PEAL_MAIN, PEAL_MAIN_REF (the remote's main, else the
-# local one) and PEAL_BASE (where this branch left it); status 2 if there is no main.
-_peal_close_base() {
+# peal_branch_base VERB -> PEAL_REMOTE, PEAL_MAIN, PEAL_MAIN_REF (the remote's main, else
+# the local one) and PEAL_BASE (where this branch left it); status 2 if there is no main,
+# the message VERB's.
+peal_branch_base() {
   PEAL_REMOTE=$(peal_config_get remote) || return 2
   PEAL_MAIN=$(peal_config_get main) || return 2
   if git rev-parse -q --verify "refs/remotes/$PEAL_REMOTE/$PEAL_MAIN" >/dev/null; then
@@ -27,11 +28,11 @@ _peal_close_base() {
   elif git rev-parse -q --verify "refs/heads/$PEAL_MAIN" >/dev/null; then
     PEAL_MAIN_REF=$PEAL_MAIN
   else
-    peal_err "close: neither $PEAL_REMOTE/$PEAL_MAIN nor $PEAL_MAIN exists to compare against"
+    peal_err "$1: neither $PEAL_REMOTE/$PEAL_MAIN nor $PEAL_MAIN exists to compare against"
     return 2
   fi
   PEAL_BASE=$(git merge-base HEAD "$PEAL_MAIN_REF") || {
-    peal_err "close: this branch shares no history with $PEAL_MAIN_REF"
+    peal_err "$1: this branch shares no history with $PEAL_MAIN_REF (a shallow clone needs its whole history)"
     return 2
   }
 }
@@ -115,7 +116,7 @@ peal_close_begin() {
   PEAL_MAIN=$(peal_config_get main) || return 2
   git fetch -q "$PEAL_REMOTE" "$PEAL_MAIN" 2>/dev/null \
     || peal_err "warning: could not fetch $PEAL_REMOTE/$PEAL_MAIN; comparing with what is known here"
-  _peal_close_base || return 2
+  peal_branch_base close || return 2
   added=$(git diff --name-only --no-renames --diff-filter=A "$PEAL_BASE" HEAD -- "$tasks/backlog/")
   if [ -n "$added" ]; then
     peal_err "close begin: this branch adds backlog task files, which are filed onto $PEAL_MAIN (peal idea), never on a branch:"
@@ -339,7 +340,7 @@ peal_close_body_cmd() {
   cd "$top" || return 2
   _peal_close_args body "$@" || return 2
   _peal_close_task body || return 2
-  _peal_close_base || return 2
+  peal_branch_base close || return 2
   _peal_close_context "$PEAL_ID" || return 2
   peal_close_body "$PEAL_ID"
 }
@@ -362,22 +363,24 @@ _peal_close_checks() {
 
 # peal_close_finish ARGS... -> the close begun here finished: refused, before anything
 # changes, for a missing summary or PR section, an Outcome empty or holding a placeholder,
-# more than three escalations, an uncommitted path other than the Outcome's text, git
-# hooks not installed, and a failing checks.close item; then the queued ideas filed in
+# more than three escalations, an uncommitted path other than the Outcome's text and the
+# decision entries, git hooks not installed, decision entries out of order
+# (_peal_dec_check), and a failing checks.close item; then the queued ideas filed in
 # one push (a failure files nothing, or, where the storage files one by one, dequeues
-# exactly those filed), the storage's finish committed as "docs(tasks): close ID [ID]"
+# exactly those filed), the uncommitted decision entries committed on their own
+# (peal_decisions_commit), the storage's finish committed as "docs(tasks): close ID [ID]"
 # (an empty commit when the branch holds nothing else: a pull request needs one), the
 # branch pushed, the pull request opened or its title and body updated, the sentinel
 # cleared. What fails after the flush leaves the sentinel: run finish again, it goes on
 # from where it stopped.
 peal_close_finish() {
-  local top gitdir rel dirty escalations out status branch ahead repo pr url title body
+  local top gitdir rel decisions dirty escalations out status branch ahead repo pr url title body
   top=$(peal_project_root) || return 2
   cd "$top" || return 2
   _peal_close_args finish "$@" || return 2
   _peal_close_task finish || return 2
   gitdir=$(_peal_close_gitdir) || return 2
-  _peal_close_base || return 2
+  peal_branch_base close || return 2
   _peal_close_context "$PEAL_ID" || return 2
   _peal_close_outcome_ok "$PEAL_TEXT" "close finish" || return 2
   escalations=$(_peal_close_escalations "$PEAL_TEXT")
@@ -387,15 +390,24 @@ peal_close_finish() {
   fi
   rel=$PEAL_TEXT
   case $rel in /*) rel="" ;; esac
-  dirty=$(git status --porcelain -- . ${rel:+":(exclude)$rel"})
+  decisions=$(peal_decisions_dir 2>/dev/null) || decisions=""
+  dirty=$(git status --porcelain -- . ${rel:+":(exclude)$rel"} ${decisions:+":(exclude)$decisions/[0-9]*.md"})
   if [ -n "$dirty" ]; then
-    peal_err "close finish: uncommitted changes besides ${rel:-nothing}; commit them (peal commit) or take them out first:"
+    peal_err "close finish: uncommitted changes besides ${rel:-nothing}${decisions:+ and the decision entries}; commit them (peal commit) or take them out first:"
     printf '%s\n' "$dirty" | sed 's/^/  /' >&2
     return 2
   fi
   if ! peal_hooks_installed; then
     peal_err "close finish: Peal's git hooks are not installed here; run: peal hooks install"
     return 2
+  fi
+  if [ -n "$decisions" ]; then
+    # shellcheck disable=SC2034 # read by _peal_dec_check
+    PEAL_DEC_DIR=$decisions
+    if ! _peal_dec_check "$PEAL_BASE"; then
+      peal_err "close finish: the decision entries are not in order (above); nothing is moved or filed. Fix them and finish again."
+      return 2
+    fi
   fi
   _peal_close_checks || return 2
 
@@ -407,6 +419,8 @@ peal_close_finish() {
     return 2
   fi
 
+  # A decision made in the task lands as a commit of its own, right before the task's move.
+  peal_decisions_commit "$PEAL_ID" || return 1
   peal_store_finish "$PEAL_ID" "done" || return 2
   PEAL_TEXT=$(peal_store_close_text "$PEAL_ID") || return 2
   # The text moved by the storage's finish is staged already; one still here is added.
