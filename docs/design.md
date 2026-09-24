@@ -65,7 +65,11 @@ tasks:
 ```
 
 - `list` prints `NNNN state slug detail...`, states `free`, `claimed-live`, `parked`,
-  `awaiting-merge`, `blocked`, `done` (see [Claim states](#claim-states)).
+  `awaiting-merge`, `blocked`, `done` (see [Claim states](#claim-states)). The detail of
+  a free task is its milestone (`-` for none) and, in a split, `split:<origin>
+  <done>/<total>`; of a blocked one `needs:<id>,...`; of a claim `wt:<path>`,
+  `remote:<remote>`, `N commit(s) ahead, last <date>`, or `pr:#N <url>` (`pr:unknown`
+  without `gh`).
 - `offer` prints `CANDIDATE <id> <bucket> <title>` lines for a pool, best first.
 - `claim` is idempotent: a task already claimed on this machine prints its existing
   worktree, so a re-run Belfry job continues where the last one stopped. The last line is
@@ -311,6 +315,7 @@ commit:
 models: {planner: opus, reviewer: opus, implementer: sonnet}
 task:
   fields: {}                    # the project's own frontmatter fields
+storage: files                  # where tasks live; files, the task files, is the one there is
 decisions: false                # the decisions module, or its directory to turn it on
 ```
 

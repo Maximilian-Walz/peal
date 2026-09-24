@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 # Reading and writing a file's frontmatter, the `---` block at its top, in Peal's YAML
 # subset: scalars, and lists of scalars in flow ([a, b]) or block (- a) style. Anything
-# else is refused with the file, the line and what is not supported (lib/yaml-parse.awk).
+# else is refused with the file, the line and what is not supported (lib/yaml-lib.awk).
 
 # peal_fm_records FILE -> the parser's "key<TAB>kind<TAB>line<TAB>value" records for
 # FILE's frontmatter; nothing if FILE has none; status 2 and a message if it leaves the
@@ -11,7 +11,7 @@ peal_fm_records() {
     peal_err "$1: no such file"
     return 2
   fi
-  awk -v mode=frontmatter -v name="$1" -f "$PEAL_ROOT/lib/yaml-parse.awk" "$1"
+  awk -v mode=frontmatter -v name="$1" -f "$PEAL_ROOT/lib/yaml-lib.awk" -f "$PEAL_ROOT/lib/yaml-parse.awk" "$1"
 }
 
 # peal_fm_check FILE -> status 0 if FILE's frontmatter is within the subset.

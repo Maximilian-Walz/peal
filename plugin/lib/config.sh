@@ -11,10 +11,10 @@ peal_config_load() {
   local top defaults project=""
   top=$(peal_project_root) || return 2
   defaults=$(awk -v mode=config -v name="$PEAL_ROOT/lib/config-defaults.yml" \
-    -f "$PEAL_ROOT/lib/yaml-parse.awk" "$PEAL_ROOT/lib/config-defaults.yml") || return 2
+    -f "$PEAL_ROOT/lib/yaml-lib.awk" -f "$PEAL_ROOT/lib/yaml-parse.awk" "$PEAL_ROOT/lib/config-defaults.yml") || return 2
   if [ -f "$top/$PEAL_CONFIG_FILE" ]; then
     project=$(awk -v mode=config -v name="$PEAL_CONFIG_FILE" \
-      -f "$PEAL_ROOT/lib/yaml-parse.awk" "$top/$PEAL_CONFIG_FILE") || return 2
+      -f "$PEAL_ROOT/lib/yaml-lib.awk" -f "$PEAL_ROOT/lib/yaml-parse.awk" "$top/$PEAL_CONFIG_FILE") || return 2
   fi
   PEAL_CONFIG=$(awk -F '\t' -v name="$PEAL_CONFIG_FILE" -f "$PEAL_ROOT/lib/config-merge.awk" \
     <(printf '%s\n' "$defaults") <(printf '%s\n' "$project")) || return 2

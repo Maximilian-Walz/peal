@@ -3,22 +3,23 @@
 # (setting `milestones`), its data as frontmatter (lib/milestone-read.awk), and the rules
 # the offer and the claim follow for a task's milestone state.
 
-# peal_ms_load -> fills PEAL_MILESTONES with one "id<TAB>title<TAB>state<TAB>order<TAB>
+# peal_ms_load [ROOT] -> fills PEAL_MILESTONES with one "id<TAB>title<TAB>state<TAB>order<TAB>
 # due<TAB>file" line per milestone, by order (those without one last), then id. Every
 # problem found is reported, not only the first: status 2 then. A missing directory
-# holds no milestones.
+# holds no milestones. ROOT is where the milestones directory is looked for, by default
+# the work tree's top; the storage passes a copy of the main branch's.
 peal_ms_load() {
-  local top dir file rel base records line lines="" bad=0
+  local top=${1-} dir file rel base records line lines="" bad=0
   PEAL_MILESTONES=""
   peal_config_load || return 2
-  top=$(peal_project_root) || return 2
+  [ -n "$top" ] || top=$(peal_project_root) || return 2
   dir=$(peal_config_get milestones) || return 2
   [ -d "$top/$dir" ] || return 0
   for file in "$top/$dir"/*.md; do
     [ -f "$file" ] || continue
     rel=${file#"$top"/}
     base=$(basename "$file" .md)
-    if ! records=$(awk -v mode=frontmatter -v name="$rel" -f "$PEAL_ROOT/lib/yaml-parse.awk" "$file"); then
+    if ! records=$(awk -v mode=frontmatter -v name="$rel" -f "$PEAL_ROOT/lib/yaml-lib.awk" -f "$PEAL_ROOT/lib/yaml-parse.awk" "$file"); then
       bad=1
       continue
     fi
@@ -52,28 +53,11 @@ peal_ms_print() {
     { print $1, $3, f($4), f($5), f($2) }'
 }
 
-# peal_ms_json -> the board's milestone lines, the shape of Belfry's contract:
-# {"milestone":{"id":...,"title":...,"state":...,"order":...,"due":...}}, empty fields
-# left out.
+# peal_ms_json -> the board's milestone lines (lib/milestone-json.awk).
 peal_ms_json() {
   [ -n "$PEAL_MILESTONES" ] || return 0
-  printf '%s\n' "$PEAL_MILESTONES" | awk -F '\t' '
-    # str(s) -> s as a JSON string. By character: gsub escapes differ between awks.
-    function str(s,    i, c, out) {
-      out = ""
-      for (i = 1; i <= length(s); i++) {
-        c = substr(s, i, 1)
-        if (c == "\\" || c == "\"") out = out "\\"
-        out = out c
-      }
-      return "\"" out "\""
-    }
-    { line = "{\"milestone\":{\"id\":" str($1)
-      if ($2 != "") line = line ",\"title\":" str($2)
-      line = line ",\"state\":" str($3)
-      if ($4 != "") line = line ",\"order\":" $4
-      if ($5 != "") line = line ",\"due\":" str($5)
-      print line "}}" }'
+  printf '%s\n' "$PEAL_MILESTONES" \
+    | awk -F '\t' -f "$PEAL_ROOT/lib/json.awk" -f "$PEAL_ROOT/lib/milestone-json.awk"
 }
 
 # peal_ms_state ID -> the state of milestone ID; status 1 if there is none.

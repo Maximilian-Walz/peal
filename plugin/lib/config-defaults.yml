@@ -23,4 +23,5 @@ commit:
 models: {planner: opus, reviewer: opus, implementer: sonnet}
 task:
   fields: {}                    # the project's own frontmatter fields: name, allowed values
+storage: files                  # where tasks live; files, the task files, is the one there is
 decisions: false                # the decisions module, or its directory to turn it on
