@@ -196,7 +196,8 @@ storage:
     label: 'it''s peal'" "$(grep -v -e '^#' -e '^$' "$work/.peal/config.yml")"
 
   # Again, the repository set by hand meanwhile: kept; a new label replaces the old.
-  sed -i.bak "s/^  issues:$/  issues:\n    repo: acme\/widgets/" "$work/.peal/config.yml" && rm "$work/.peal/config.yml.bak"
+  awk '{ print } /^  issues:$/ { print "    repo: acme/widgets" }' "$work/.peal/config.yml" >"$work/config.tmp" \
+    && mv "$work/config.tmp" "$work/.peal/config.yml"
   peal init --stage tasks --label tasks >/dev/null
   check "issues again: repo kept, label changed" "acme/widgets
 tasks" "$(peal config storage.issues.repo; peal config storage.issues.label)"

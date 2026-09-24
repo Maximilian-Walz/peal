@@ -58,7 +58,7 @@ _peal_init_rmdir() {
 
 # _peal_init_quote TEXT -> TEXT as a single-quoted YAML scalar.
 _peal_init_quote() {
-  printf "'%s'" "${1//\'/\'\'}"
+  printf "'%s'" "$(printf '%s' "$1" | sed "s/'/''/g")"
 }
 
 # --- .peal/config.yml ------------------------------------------------------------------
