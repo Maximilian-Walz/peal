@@ -1,0 +1,15 @@
+{
+  "description": "Peal's session hooks",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/peal\" hook session-start"
+          }
+        ]
+      }
+    ]
+  }
+}

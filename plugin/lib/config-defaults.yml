@@ -1,0 +1,26 @@
+# Peal's settings and their defaults (docs/design.md, "Configuration"). A project's
+# .peal/config.yml overrides any of them; a key that is not here is refused, except under
+# task.fields, which holds the project's own frontmatter fields.
+remote: origin
+main: main                      # the branch tasks land on
+tasks: tasks                    # holds backlog/, doing/, done/ and TEMPLATE.md
+milestones: docs/milestones
+branch-prefix: task/
+worktrees: ../{repo}-wt         # each claim is {worktrees}/NNNN-slug
+sizes: {S: 60, M: 120, L: 200}  # tool calls; the turn budget nudges at the tier
+plan:
+  required-paths: []            # a task touching one of these gets plan: required
+review:
+  skip-paths: [docs/, tasks/]   # a diff only here skips the reviewer
+context: []                     # documents the planner, reviewer and /peal:idea read
+checks:
+  commit: []                    # commands the commit-msg gate runs
+  close: []                     # commands close runs before opening the PR
+pr:
+  sections: []                  # extra prose sections close asks the session for
+commit:
+  areas: []                     # allowed <area> values in commit subjects; empty allows any
+models: {planner: opus, reviewer: opus, implementer: sonnet}
+task:
+  fields: {}                    # the project's own frontmatter fields: name, allowed values
+decisions: false                # the decisions module, or its directory to turn it on
