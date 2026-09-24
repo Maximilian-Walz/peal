@@ -556,9 +556,34 @@ repo_of() {
   check "repo of another host" "1:" "$(bash -c '. "$1/lib/github.sh"; peal_github_repo_of "$2"; echo "$?:"' _ "$PEAL_ROOT" https://gitlab.com/acme/widgets)"
 }
 
+# Depends cycles: shown with the issues' numbers, and refused where a text would close one.
+cycles() {
+  local work body
+  issues_repo
+  body=$(printf '## Intent\n\nWhy.\n\n## Raw\n\nthe human said so\n\n## Notes\n')
+  issue 1 "Cycle a" --body "Depends on #2"
+  issue 2 "Cycle b" --body "Depends on #1"
+  issue 3 "Origin one" --body "$body"
+  issue 4 "Waits for origin" --body "Depends on #3"
+  check "cycles: list" "1 blocked cycle-a needs:2 cycle: #1 → #2 → #1
+2 blocked cycle-b needs:1 cycle: #2 → #1 → #2
+3 free origin-one -
+4 blocked waits-for-origin needs:3" "$(list 2>&1)"
+  check "cycles: board" '{"id":"1","state":"blocked","slug":"cycle-a","title":"Cycle a","depends":["2"],"cycle":"#1 → #2 → #1","url":"https://github.com/acme/widgets/issues/1"}' \
+    "$(peal board 2>&1 | sed -n 1p)"
+  check_refused "cycles: check" "peal: depends cycle #1 → #2 → #1" peal check
+
+  check_fails "cycles: split" 1 "create: refused: depends cycle PART1 → #4 → PART1" \
+    peal create --part-of 3 a-piece < <(text "part-of: ORIGIN" "depends: [4]")
+  check_fails "cycles: revise" 1 "revise: refused: depends cycle #3 → #4 → #3" \
+    peal revise 3 --reason x < <(printf -- '---\ndepends: [4]\n---\n\n'; peal read 3 2>/dev/null)
+  check "cycles: nothing filed or changed" "4|$body" "$(gh_get 'length')|$(gh_get '.[] | select(.number == 3) | .body')"
+}
+
 cases() {
   states
   expansion
+  cycles
   board
   parity
   writes

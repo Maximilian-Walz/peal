@@ -149,7 +149,7 @@ peal_store_list() {
   if _peal_issues_scan "$tmp" && _peal_issues_prs >"$tmp/prs"; then
     _peal_issues_claims "$tmp/scan" "$tmp/prs" >"$tmp/claims"
     cut -f1-13 "$tmp/scan" >"$tmp/tasks"
-    awk -F '\t' -f "$PEAL_ROOT/lib/task-state.awk" "$tmp/claims" "$tmp/tasks" >"$tmp/out" || status=2
+    awk -F '\t' -v idprefix="#" -f "$PEAL_ROOT/lib/task-state.awk" "$tmp/claims" "$tmp/tasks" >"$tmp/out" || status=2
     # The issues read only for their state are no tasks.
     [ $status != 0 ] || awk -F '\t' 'NR == FNR { if ($15 == 1) extra[$1] = 1; next } !($1 in extra)' "$tmp/scan" "$tmp/out"
   else
@@ -337,6 +337,9 @@ peal_store_create() {
       status=2
     fi
   done
+  if [ $status = 0 ]; then
+    peal_cycle_check_create "$mode" "$origin" "$count" "$dirs" "$PEAL_RECORDS" || status=$?
+  fi
   # Open them, ORIGIN known already.
   for ((i = 1; i <= count && status == 0; i++)); do
     text=$(cat "$dirs/$i")
@@ -442,7 +445,8 @@ _peal_issues_current_labels() {
 
 # _peal_issues_rewrite VERB ID OLD NEW DIR -> the checks on the rewritten task text NEW
 # of issue ID (OLD the one before), peal_edit_check's and task-check.awk's in revise
-# mode, and DIR/issue made from NEW. Status 2 with every problem reported.
+# mode, then peal_cycle_check's, and DIR/issue made from NEW. Status 2 with every problem
+# reported, 1 for a cycle.
 _peal_issues_rewrite() {
   local verb=$1 id=$2 old=$3 new=$4 dir=$5 status=0
   PEAL_FIELDS=$(_peal_issues_fields)
@@ -450,6 +454,7 @@ _peal_issues_rewrite() {
   _peal_issues_context "$dir" "$new" || status=2
   PEAL_CHECK_ID=$id PEAL_CHECK_OLDMS=$(peal_fm_get "$old" milestone 2>/dev/null) \
     peal_task_check "$new" revise "issue $id" "$dir/context" >/dev/null || status=2
+  [ $status != 0 ] || peal_cycle_check_text "$verb" "$id" "$new" "$PEAL_RECORDS" || status=$?
   if [ $status = 0 ]; then
     mkdir -p "$dir/issue"
     _peal_issues_from_text "$new" "$id" "$dir/issue" || status=2
@@ -497,7 +502,7 @@ peal_store_edit() {
     peal_err "revise: the text is the same as issue $id's: nothing to revise"
     status=2
   fi
-  [ $status != 0 ] || _peal_issues_rewrite revise "$id" "$tmp/old" "$tmp/new" "$tmp" || status=2
+  [ $status != 0 ] || _peal_issues_rewrite revise "$id" "$tmp/old" "$tmp/new" "$tmp" || status=$?
   note="Revised $(date -u +%Y-%m-%d): $reason"
   if [ $status = 0 ] && [ "$dry" = --dry-run ]; then
     (cd "$tmp" && diff -u old new)
@@ -556,7 +561,7 @@ peal_store_defer() {
   tmp=$(mktemp -d) || return 2
   _peal_issues_text "$row" >"$tmp/old"
   cp "$text" "$tmp/new"
-  _peal_issues_rewrite defer "$id" "$tmp/old" "$tmp/new" "$tmp" || status=2
+  _peal_issues_rewrite defer "$id" "$tmp/old" "$tmp/new" "$tmp" || status=$?
   note="Deferred $(date -u +%Y-%m-%d) after a claim: $reason"
   if [ $status = 0 ] && [ "$dry" = --dry-run ]; then
     (cd "$tmp" && diff -u old new)

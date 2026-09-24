@@ -83,6 +83,165 @@ peal_task_check() {
 }
 
 
+# A depends cycle leaves every task on it blocked for ever, so a text that would close one
+# is refused (status 1, "refused: depends cycle 0042 → 0043 → 0042") where tasks are
+# filed, revised and deferred. The graph is the read model's (task-state.awk), with the
+# new texts in place: a cycle through a task the texts change or add, which that task
+# was not on before, is one they close. A cycle there already is shown by list, board
+# and check, and does not hold up a revise that leaves it as it is.
+
+# peal_cycle_prefix -> what goes before a task's number where a cycle is shown: "#" for
+# issues, nothing for task files.
+peal_cycle_prefix() {
+  [ "$(peal_config_get storage.kind 2>/dev/null)" != issues ] || printf '#'
+}
+
+# peal_cycles RECORDS -> task-state.awk's cycle lines ("id<TAB>members<TAB>cycle") for the
+# store's list records in the file RECORDS: every task not done on a cycle.
+peal_cycles() {
+  awk -F '\t' -v OFS='\t' '$1 != "" {
+      print $1, ($2 == "done" ? "done" : "backlog"), "-", $4, $5, $6, $7, $8, $9, $10, $11, $12, $15
+    }' "$1" | _peal_cycles_of -
+}
+
+# _peal_cycles_of TASKS -> the cycle lines for task-state.awk's task records in TASKS.
+_peal_cycles_of() {
+  awk -F '\t' -v cycles=1 -v idprefix="$(peal_cycle_prefix)" \
+    -f "$PEAL_ROOT/lib/task-state.awk" /dev/null "$1" 2>/dev/null
+}
+
+# peal_check_cycles -> a line on stderr per depends cycle among the tasks not done, and
+# status 2 if there is one: for task files those of this work tree, for issues the
+# storage's.
+peal_check_cycles() {
+  local tmp top tasks d status=0
+  tmp=$(mktemp -d) || return 2
+  if [ "$(peal_config_get storage.kind)" = files ]; then
+    if ! top=$(peal_project_root) || ! tasks=$(peal_config_get tasks); then
+      rm -rf "$tmp"
+      return 2
+    fi
+    tasks=${tasks%/}
+    for d in backlog doing "done"; do
+      [ ! -d "$top/$tasks/$d" ] || find "$top/$tasks/$d" -maxdepth 1 -type f -name '*.md'
+    done | LC_ALL=C sort >"$tmp/files"
+    if [ -s "$tmp/files" ]; then
+      tr '\n' '\0' <"$tmp/files" | xargs -0 awk -v root="$top" -v tasks="$tasks" \
+        -f "$PEAL_ROOT/lib/yaml-lib.awk" -f "$PEAL_ROOT/lib/task-scan.awk" 2>/dev/null \
+        | LC_ALL=C sort -t "$(printf '\t')" -k1,1 -s | _peal_cycles_of - >"$tmp/cycles"
+    fi
+  else
+    if ! peal_store_load || ! peal_store_list --no-pr >"$tmp/records"; then
+      rm -rf "$tmp"
+      return 2
+    fi
+    peal_cycles "$tmp/records" >"$tmp/cycles"
+  fi
+  if [ -s "$tmp/cycles" ]; then
+    awk -F '\t' '!seen[$2]++ { print "peal: depends cycle " $3 }' "$tmp/cycles" >&2
+    status=2
+  fi
+  rm -rf "$tmp"
+  return $status
+}
+
+# _peal_cycle_row ID FILE [ORIGIN] -> "id<TAB>milestone<TAB>depends<TAB>part-of" for the
+# task text in FILE as task ID, ORIGIN standing for ORIGIN and ID for NNNN.
+_peal_cycle_row() {
+  local id=$1 file=$2 origin=${3-}
+  {
+    printf 'milestone\t%s\n' "$(peal_fm_get "$file" milestone 2>/dev/null)"
+    peal_fm_get "$file" depends 2>/dev/null | sed 's/^/depends\t/'
+    printf 'part-of\t%s\n' "$(peal_fm_get "$file" part-of 2>/dev/null)"
+  } | awk -F '\t' -v id="$id" -v origin="$origin" '
+    function sub_(v) { return v == "ORIGIN" && origin != "" ? origin : v == "NNNN" ? id : v }
+    $1 == "milestone" { m = $2 }
+    $1 == "depends" && $2 != "" { d = d (d == "" ? "" : ",") sub_($2) }
+    $1 == "part-of" { p = sub_($2) }
+    END { printf "%s\t%s\t%s\t%s\n", id, m, d, p }'
+}
+
+# peal_cycle_check VERB RECORDS CHANGES -> status 1, with each cycle named, if the rows
+# in the file CHANGES (_peal_cycle_row's; an id the RECORDS list replaces the task's
+# fields, another is a task to come) close a depends cycle among the store's list
+# records in the file RECORDS.
+peal_cycle_check() {
+  local verb=$1 records=$2 changes=$3 tmp refused
+  tmp=$(mktemp -d) || return 2
+  awk -F '\t' -v OFS='\t' '
+    NR == FNR { if ($1 != "") { m[$1] = $2; d[$1] = $3; p[$1] = $4; o[++n] = $1 }; next }
+    $1 == "" { next }
+    ($1 in m) { $2 = "backlog"; $6 = m[$1]; $7 = d[$1]; $8 = p[$1]; hit[$1] = 1 }
+    { print }
+    END {
+      for (i = 1; i <= n; i++)
+        if (!(o[i] in hit)) print o[i], "backlog", "", "", "", m[o[i]], d[o[i]], p[o[i]], "", "", "", "", "", "", ""
+    }' "$changes" "$records" >"$tmp/records"
+  peal_cycles "$records" >"$tmp/before"
+  peal_cycles "$tmp/records" >"$tmp/after"
+  refused=$(awk -F '\t' '
+    FILENAME == ARGV[1] { if ($1 != "") changed[$1] = 1; next }
+    FILENAME == ARGV[2] { before[$1] = 1; next }
+    ($1 in changed) && !($1 in before) && !seen[$2]++ { print $3 }' "$changes" "$tmp/before" "$tmp/after")
+  rm -rf "$tmp"
+  [ -n "$refused" ] || return 0
+  printf '%s\n' "$refused" | while IFS= read -r cycle; do
+    peal_err "$verb: refused: depends cycle $cycle"
+  done
+  peal_err "$verb: a task on a depends cycle waits for itself for ever; drop one of its depends"
+  return 1
+}
+
+# _peal_cycle_records -> the store's list records; its warnings, which the caller's own
+# reading has shown already, only when the listing fails.
+_peal_cycle_records() {
+  local err status=0
+  err=$(mktemp) || return 2
+  peal_store_list --no-pr 2>"$err" || { status=2; cat "$err" >&2; }
+  rm -f "$err"
+  return $status
+}
+
+# peal_cycle_check_text VERB ID FILE [RECORDS] -> peal_cycle_check for task ID's new text
+# in FILE, against the store's list records RECORDS (a string), read when not given.
+peal_cycle_check_text() {
+  local verb=$1 id=$2 file=$3 tmp status=0
+  tmp=$(mktemp -d) || return 2
+  if [ $# -ge 4 ]; then
+    printf '%s\n' "$4" >"$tmp/records"
+  elif ! _peal_cycle_records >"$tmp/records"; then
+    rm -rf "$tmp"
+    return 2
+  fi
+  _peal_cycle_row "$id" "$file" >"$tmp/changes"
+  peal_cycle_check "$verb" "$tmp/records" "$tmp/changes" || status=$?
+  rm -rf "$tmp"
+  return $status
+}
+
+# peal_cycle_check_create MODE ORIGIN COUNT DIR [RECORDS] -> peal_cycle_check for the
+# texts DIR/1..COUNT peal_store_create is filing, as tasks NNNN (one plain text) or
+# PART1..n, against the store's list records RECORDS (a string), read when not given.
+peal_cycle_check_create() {
+  local mode=$1 origin=$2 count=$3 dir=$4 tmp i id status=0
+  tmp=$(mktemp -d) || return 2
+  if [ $# -ge 5 ]; then
+    printf '%s\n' "$5" >"$tmp/records"
+  elif ! _peal_cycle_records >"$tmp/records"; then
+    rm -rf "$tmp"
+    return 2
+  fi
+  [ "$mode" = split ] || origin=""
+  for ((i = 1; i <= count; i++)); do
+    id=PART$i
+    [ "$mode" != plain ] || id=NNNN
+    _peal_cycle_row "$id" "$dir/$i" "$origin"
+  done >"$tmp/changes"
+  peal_cycle_check create "$tmp/records" "$tmp/changes" || status=$?
+  rm -rf "$tmp"
+  return $status
+}
+
 # peal_list [--fetch] [--no-pr] [--state STATE[,STATE...]] [ID...] -> "ID state slug
 # detail" per task, by id; only those in one of the STATEs, and only the IDs, if given.
 peal_list() {

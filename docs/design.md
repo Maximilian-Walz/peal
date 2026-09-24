@@ -74,15 +74,17 @@ actions:
 - `list` prints `NNNN state slug detail...`, states `free`, `claimed-live`, `parked`,
   `awaiting-merge`, `blocked`, `done` (see [Claim states](#claim-states)). The detail of
   a free task is its milestone (`-` for none) and, in a split, `split:<origin>
-  <done>/<total>`; of a blocked one `needs:<id>,...`; of a claim `wt:<path>`,
-  `remote:<remote>`, `N commit(s) ahead, last <date>`, or `pr:#N <url>` (`pr:unknown`
-  without `gh`).
+  <done>/<total>`; of a blocked one `needs:<id>,...`, followed by `cycle: 0042 → 0043 →
+  0042` when the task lies on a depends cycle (`#42 → #43 → #42` for issues); of a claim
+  `wt:<path>`, `remote:<remote>`, `N commit(s) ahead, last <date>`, or `pr:#N <url>`
+  (`pr:unknown` without `gh`).
 - `offer` prints `CANDIDATE <id> <bucket> <title>` lines for a pool, best first.
 - `claim` is idempotent: a task already claimed on this machine prints its existing
   worktree, so a re-run Belfry job continues where the last one stopped. The last line is
   the worktree path.
 - `board` prints one JSON object per task (`id`, `state`, `slug`, `title`, `milestone`,
-  `depends`, `part_of`, `size`, `plan`, `needs`, `pr`, `path`, `ref`), and one
+  `depends`, `part_of`, `size`, `plan`, `needs`, `pr`, `path`, `ref`, and `cycle`, the
+  list detail's cycle, which the contract lets a board add), and one
   `{"milestone":{...}}` line per milestone, exactly the shapes of Belfry's contract.
 - `/peal:work NNNN` notices it is already inside NNNN's worktree (the branch is the task's
   branch and `tasks/doing/` holds its file) and skips its own claim. It does not read any
@@ -253,10 +255,19 @@ Peal's fields, all optional:
 | `milestone` | a milestone id; absent means unassigned. |
 | `plan` | `required` or `skipped`. `/peal:idea` sets it from the config's `plan.required-paths` and the declared size. |
 | `size` | `S`, `M` or `L`, tool-call tiers from config; empty until the planner sizes it. |
-| `depends` | a list of task ids that must be done first, plus two keywords: `milestone` (every other task of this task's milestone, written only on a milestone's review task) and `human` (never resolves by itself). Depending on a task that was split waits for it and all its pieces. |
+| `depends` | a list of task ids that must be done first, plus two keywords: `milestone` (every other task of this task's milestone, written only on a milestone's review task) and `human` (never resolves by itself). Depending on a task that was split waits for it and all its pieces. A cycle is refused (below). |
 | `part-of` | the task this one was split from; filed by `/peal:split` only. |
 | `needs` | capabilities a worker must have, Belfry's vocabulary; carried to the board. |
 | `model` | the implementer's model when not the default, written after the human agrees the plan. |
+
+**A depends cycle is refused,** since every task on it would stay blocked for ever. Where
+a task text is filed, revised or deferred, the depends graph is built as the read model
+expands it (`milestone`, split origins), with the new text in place; a cycle through a
+task the text adds or changes, which that task was not on before, exits 1 with
+`refused: depends cycle 0042 → 0043 → 0042` (`#42 → #43 → #42` for issues; a task still
+to be filed shows as `NNNN` or `PART1`). A task depending on its own milestone is no
+cycle: the expansion leaves the task itself out. A cycle made by hand is shown instead:
+`list` and `board` show its tasks as blocked with the cycle, `peal check` names it.
 
 **A project may add its own fields,** declared in `.peal/config.yml` under
 `task.fields` (name, and optionally the allowed values). Peal carries them through every
@@ -283,7 +294,7 @@ Derived from refs and the main branch on the remote, never from the calling work
 | `claimed-live` | the branch has a worktree, or exists only on the remote |
 | `parked` | a local branch ahead of main without a worktree; `claim` resumes it |
 | `awaiting-merge` | the branch tip holds the task under `done/`; waits for the human's merge |
-| `blocked` | a `depends` entry is not done yet |
+| `blocked` | a `depends` entry is not done yet, or the task lies on a depends cycle |
 | `done` | the file is under `done/` on main; outranks every other state |
 
 ## Claims and the session hooks
@@ -375,7 +386,8 @@ the judgement (the review, routing the findings, the Outcome, the summary).
   uncommitted or unpushed. It never refuses twice in a row, and a sentinel another session
   left behind is cleared, not enforced.
 - **`peal check`** refuses a task file under `done/` whose Outcome is empty or holds a
-  placeholder.
+  placeholder, and names each depends cycle among the tasks not done (the work tree's
+  task files; for issues, the storage's).
 
 ## Milestones
 

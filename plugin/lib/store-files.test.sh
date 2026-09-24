@@ -5,7 +5,8 @@
 #   bash plugin/lib/store-files.test.sh
 #
 # Filing (single, --part-of, --batch), numbering by push-as-lock through a lost race, the
-# idea queue, revise, retire, set-milestone, comment, read and finish, and each refusal.
+# idea queue, revise, retire, set-milestone, comment, read and finish, and each refusal,
+# a depends cycle among them.
 # Every write lands on the remote's main without touching the calling worktree.
 set -uo pipefail
 # shellcheck source=test-lib.sh
@@ -369,8 +370,42 @@ read_finish() {
   check "finish: twice, left as it is" "finished 0001 already: tasks/done/0001-read-task.md|0" "$(peal finish 0001 2>&1)|$?"
 }
 
+# A text that would close a depends cycle is refused, naming it; nothing is pushed.
+cycles() {
+  local work before out
+  work=$(repo)
+  put "$work" backlog 0001 first-task "depends: [0002]"
+  put "$work" backlog 0002 second-task
+  put "$work" backlog 0003 third-task "depends: [0001]"
+  put "$work" backlog 0004 review-task "milestone: m2" "depends: [milestone]"
+  put "$work" backlog 0005 waits-for-split "depends: [0006]"
+  put "$work" backlog 0006 split-task
+  before=$(git -C "$work" rev-parse origin/main)
+
+  check_fails "cycle: revise" 1 "revise: refused: depends cycle 0002 → 0001 → 0002" \
+    peal revise 0002 --reason x < <(ID=0002 text "depends: [0001]")
+  check_fails "cycle: revise, longer" 1 "revise: refused: depends cycle 0002 → 0003 → 0001 → 0002" \
+    peal revise 0002 --reason x < <(ID=0002 text "depends: [0003]")
+  check_fails "cycle: file, through a milestone" 1 "create: refused: depends cycle NNNN → 0004 → NNNN" \
+    peal create late-review < <(text "milestone: m2" "depends: [milestone]")
+  check_fails "cycle: split, a piece through its origin" 1 "create: refused: depends cycle PART2 → 0005 → PART2" \
+    peal create --part-of 0006 piece-one piece-two < <(texts "$(text "part-of: ORIGIN")" "$(text "part-of: ORIGIN" "depends: [0005]")")
+  check "cycle: nothing pushed" "$before" "$(git -C "$work" fetch -q origin; git -C "$work" rev-parse origin/main)"
+
+  # What closes no cycle goes through: a piece waiting for its origin, a task waiting for
+  # its own milestone alone, a revise of a task on a cycle made by hand that keeps it.
+  out=$(texts "$(text "part-of: ORIGIN" "depends: [ORIGIN]")" | peal create --part-of 0006 piece-waits 2>&1)
+  check "cycle: none, a piece waits for its origin" "0" "$?"
+  out=$(text "milestone: m1" "depends: [milestone]" | peal create own-review 2>&1)
+  check "cycle: none, its own milestone" "0" "$?"
+  put "$work" backlog 0002 second-task "depends: [0001]"
+  out=$(peal revise 0002 --reason "a title" < <(ID=0002 TITLE="New title" text "depends: [0001]") 2>&1)
+  check "cycle: a revise keeping a cycle there already" "0:revised 0002 tasks/backlog/0002-second-task.md" "$?:$out"
+}
+
 cases() {
   create
+  cycles
   refusals
   race
   ideas
