@@ -13,6 +13,7 @@
 #   needs     labels "needs: <capability>"
 #   fields    labels "<field>: <value>": size, plan, model and the project's own; a
 #             field with several such labels is a list
+#   priority  labels "priority: urgent|high|low", the higher of two; none is normal
 #   claimed   the label "in progress"
 
 # tsv_unescape(s) -> s with @tsv's escapes undone.
@@ -49,6 +50,10 @@ function label_kv(l,    i) {
   LVALUE = trim(substr(l, i + 1))
   return LKEY ~ /^[a-z0-9_-]+$/ && LVALUE != ""
 }
+
+# prio_rank(p) -> how a priority ranks: urgent 4, high 3, normal 2, low 1; 0 for a word
+# that is none of them.
+function prio_rank(p) { return p == "urgent" ? 4 : p == "high" ? 3 : p == "normal" ? 2 : p == "low" ? 1 : 0 }
 
 # add_item(list, v) -> the comma list with v appended, once.
 function add_item(list, v) {

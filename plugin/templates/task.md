@@ -17,6 +17,8 @@ depends: []
   part-of    the task this one was split from; written by a split only.
   needs      capabilities a worker must have, e.g. [display, gpu].
   model      the implementer's model when not the default, once the plan is agreed.
+  priority   urgent, high, normal or low; none is normal. Orders the offer within a
+             milestone, never across milestones.
   A project's own fields are declared under task.fields in .peal/config.yml. -->
 
 ## Intent
