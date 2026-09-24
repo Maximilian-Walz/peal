@@ -29,7 +29,7 @@ with one plugin, `peal`, in `plugin/`:
 
 - `plugin/bin/peal`, the CLI every command, hook and outside caller runs;
 - `plugin/lib/`, its libraries: the frontmatter reader and writer for Peal's YAML
-  subset and the configuration, in bash and awk only;
+  subset, the configuration and the milestones, in bash and awk only;
 - `plugin/hooks/`, the plugin's Claude Code hooks;
 - `plugin/templates/launcher`, the `.peal/peal` a project commits.
 
