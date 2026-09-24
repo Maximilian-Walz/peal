@@ -184,9 +184,10 @@ _peal_files_prs() {
       prs=""
     fi
   fi
-  printf '%s\n' "$claims" | awk -F '\t' -v OFS='\t' -v prs="$prs" '
+  # Through the environment: awk -v refuses a value with newlines in some awks.
+  PEAL_PRS=$prs awk -F '\t' -v OFS='\t' '
     BEGIN {
-      n = split(prs, rows, "\n")
+      n = split(ENVIRON["PEAL_PRS"], rows, "\n")
       for (i = 1; i <= n; i++) {
         split(rows[i], f, "\t")
         if (f[1] == "") continue
@@ -198,7 +199,7 @@ _peal_files_prs() {
       sub(/^pr:unknown/, "pr:#" num[$4] " " url[$4] (draft[$4] ? " draft" : ""), $3)
       $5 = "#" num[$4]
     }
-    { print }'
+    { print }' <<<"$claims" || printf '%s\n' "$claims"
 }
 
 peal_store_list() {
@@ -412,10 +413,11 @@ peal_store_create() {
   fi
   if [ $status = 0 ]; then
     for ((i = 0; i < count; i++)); do
-      printf '%s\n' "${PEAL_CREATE_SUMMARY[i]}" | awk -F '\t' -v id="${PEAL_CREATE_IDS[i]}" \
-        -v path="${PEAL_CREATE_PATHS[i]}" -v title="${PEAL_CREATE_TITLES[i]}" '
+      PEAL_TITLE=${PEAL_CREATE_TITLES[i]} awk -F '\t' -v id="${PEAL_CREATE_IDS[i]}" \
+        -v path="${PEAL_CREATE_PATHS[i]}" '
         function f(v) { return v == "" ? "-" : v }
-        { printf "filed %s %s — milestone: %s, plan: %s, size: %s — \"%s\"\n", id, path, f($1), f($2), f($3), title }'
+        { printf "filed %s %s — milestone: %s, plan: %s, size: %s — \"%s\"\n", id, path, f($1), f($2), f($3), ENVIRON["PEAL_TITLE"] }' \
+        <<<"${PEAL_CREATE_SUMMARY[i]}"
     done
   elif [ -s "$PEAL_CREATE_DIR/1" ]; then
     peal_err "nothing was filed"

@@ -14,7 +14,8 @@ today=$(date -u +%Y-%m-%d)
 # of work.
 repo() {
   local dir
-  dir=$(scratch_dir)
+  # Physical: git names worktrees by their real path (/private/var, not /var, on macOS).
+  dir=$(cd "$(scratch_dir)" && pwd -P)
   git init -q --bare "$dir/remote.git"
   git -C "$dir/remote.git" symbolic-ref HEAD refs/heads/main
   git clone -q "$dir/remote.git" "$dir/work" 2>/dev/null

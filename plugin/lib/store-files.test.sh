@@ -186,13 +186,13 @@ ideas() {
   work=$work-1
   out=$(text "milestone: m2" "plan: skipped" | peal idea first-idea 2>&1)
   check "idea: queued" "0:queued first-idea — milestone: m2, plan: skipped, size: - — \"Title of NNNN\"" "$?:$out"
-  out=$(TITLE="Second thought" text "depends: [0099]" | peal idea second-idea 2>&1)
-  check "idea: queued offline, ids unchecked" "0:queued second-idea — milestone: -, plan: -, size: - — \"Second thought\"" "$?:$out"
+  out=$(TITLE='Second \ thought' text "depends: [0099]" | peal idea second-idea 2>&1)
+  check "idea: queued offline, ids unchecked" "0:queued second-idea — milestone: -, plan: -, size: - — \"Second \\ thought\"" "$?:$out"
   check "idea: nothing pushed" "0001-working-task.md
 0002-on-main.md" "$(ids_on_main)"
   check "idea: not in the work tree" "" "$(git -C "$work" status --porcelain)"
   check "ideas" "first-idea	Title of NNNN
-second-idea	Second thought" "$(peal ideas)"
+second-idea	Second \\ thought" "$(peal ideas)"
 
   check_refused "idea: refused when queued" "bad-idea: unknown field owner" peal idea bad-idea < <(text "owner: me")
   check_refused "idea: a separator line" "would split the queue" peal idea bad-idea < <(text; echo -----NEXT TASK-----)
@@ -211,7 +211,7 @@ second-idea	Second thought" "$(peal ideas)"
   sed -i.bak 's/depends: \[0099\]/depends: [0001]/' "$(git -C "$work" rev-parse --git-dir)/peal-ideas"
   out=$(peal ideas --flush 2>&1)
   check "flush" "0:filed 0004 tasks/backlog/0004-first-idea.md — milestone: m2, plan: skipped, size: - — \"Title of 0004\"
-filed 0005 tasks/backlog/0005-second-idea.md — milestone: -, plan: -, size: - — \"Second thought\"" "$?:$out"
+filed 0005 tasks/backlog/0005-second-idea.md — milestone: -, plan: -, size: - — \"Second \\ thought\"" "$?:$out"
   check "flush: subject" "docs(tasks): file 0004-0005, found in 0001 [0001]" "$(subject)"
   check "flush: the queue is empty" "" "$(peal ideas)"
   check "flush: again, nothing" "no queued ideas" "$(peal ideas --flush)"

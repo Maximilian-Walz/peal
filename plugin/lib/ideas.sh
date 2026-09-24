@@ -46,9 +46,9 @@ peal_idea() {
     peal_check_context >"$tmp/context"
     if summary=$(PEAL_CHECK_OFFLINE=1 peal_task_check "$tmp/text" plain "$slug" "$tmp/context"); then
       { printf -- '-----IDEA %s-----\n' "$slug"; cat "$tmp/text"; } >>"$(peal_idea_queue)"
-      awk -F '\t' -v slug="$slug" -v title="$(peal_text_title NNNN <"$tmp/text")" '
+      PEAL_TITLE=$(peal_text_title NNNN <"$tmp/text") awk -F '\t' -v slug="$slug" '
         function f(v) { return v == "" ? "-" : v }
-        { printf "queued %s — milestone: %s, plan: %s, size: %s — \"%s\"\n", slug, f($1), f($2), f($3), title }' <<<"$summary"
+        { printf "queued %s — milestone: %s, plan: %s, size: %s — \"%s\"\n", slug, f($1), f($2), f($3), ENVIRON["PEAL_TITLE"] }' <<<"$summary"
     else
       status=2
     fi
