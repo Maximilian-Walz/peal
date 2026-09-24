@@ -74,7 +74,8 @@ it. Ask through `AskUserQuestion`, which reaches the human however this session 
 
 - each ambiguity the planner raised, its proposed default the first option, marked
   "(Recommended)" (at most four questions a call; ask again for more);
-- then whether they agree the plan, the planner's model verdict and size included.
+- then whether they agree the plan, the planner's model verdict, size and touches
+  included.
 
 When the human changes the plan, revise it (start a fresh planner with their changes when
 the approach itself moves) and ask again. Settle the plan with them; never settle it on
@@ -90,7 +91,9 @@ elsewhere than in files, a copy of the task), never touching `## Raw`:
   the human agreed to it;
 - the size: `peal frontmatter set <file> size S|M|L`;
 - the model: `peal frontmatter set <file> model <model>` when the agreed model is not the
-  implementer's `MODEL` line, nothing otherwise.
+  implementer's `MODEL` line, nothing otherwise;
+- the touches: `peal frontmatter set-list <file> touches <path>...`, the plan's
+  `Touches:` list as agreed.
 
 Then `peal record <id> plan < <file>` puts it on the claim (a commit on the task's
 branch, or the task where it is kept); a refusal names what to fix. Run `peal work <id>`

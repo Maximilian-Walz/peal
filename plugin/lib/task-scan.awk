@@ -6,13 +6,13 @@
 # FILEs are <root>/<tasks>/<dir>/NNNN-slug.md, dir one of backlog, doing, done; any other
 # file is skipped. The record, tab-separated (lists joined with commas):
 #
-#   id  dir  -  slug  title  milestone  depends  part-of  size  plan  needs  path  url  priority  owner
+#   id  dir  -  slug  title  milestone  depends  part-of  size  plan  needs  path  url  priority  owner  touches
 #
 # dir stands where task-state.awk's state goes and "-" where its detail does; url, a
 # task's page on a host, is empty for a file; priority is urgent, high or low, empty for
 # normal (a word Peal does not know is warned about and read as normal); owner is human
 # for a human task, empty for ai (a word Peal does not know is warned about and read as
-# ai). The title
+# ai); touches the paths and globs the task will likely change. The title
 # is the first "# " heading after the frontmatter, without its "NNNN — " prefix. A file
 # whose frontmatter leaves Peal's subset is warned about and listed without fields; a
 # depends entry that is no task id, milestone or human is warned about and dropped. One
@@ -80,9 +80,9 @@ function flush(    rel, m, nrec, recs, j, f, key, kind, value, n, lst) {
   }
   gsub(/\t/, " ", title)
 
-  printf "%s\t%s\t-\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t\t%s\t%s\n", id, dir, slug, title,
+  printf "%s\t%s\t-\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t\t%s\t%s\t%s\n", id, dir, slug, title,
     v["milestone"], v["depends"], v["part-of"], v["size"], v["plan"], v["needs"], rel, v["priority"],
-    v["owner"]
+    v["owner"], v["touches"]
 }
 
 BEGIN { mode = "frontmatter" }

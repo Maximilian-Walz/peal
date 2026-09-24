@@ -166,9 +166,17 @@ record() {
     at "$wt" "$PEAL" record "$(id 1)" plan < <(with_plan "Build it." <<<"$text" | with_field size XL)
   check "record: nothing recorded by a refusal" "PLAN required" "$(at "$wt" "$PEAL" work | sed -n 2p)"
 
-  out=$(at "$wt" "$PEAL" record "$(id 1)" plan < <(with_plan "Build it with a loop." <<<"$text" \
-    | with_field size S | with_field model opus) 2>&1)
+  check_refused "record: touches, an absolute path" "touches: /etc/hosts is absolute" \
+    at "$wt" "$PEAL" record "$(id 1)" plan < <(with_plan "Build it." <<<"$text" | with_field touches "[/etc/hosts]")
+
+  # As /peal:work records an agreed plan: the text edited, then the frontmatter set.
+  with_plan "Build it with a loop." <<<"$text" >"$wt/.agreed"
+  at "$wt" "$PEAL" frontmatter set "$wt/.agreed" size S
+  at "$wt" "$PEAL" frontmatter set "$wt/.agreed" model opus
+  at "$wt" "$PEAL" frontmatter set-list "$wt/.agreed" touches 'docs/**' src/loop.sh
+  out=$(at "$wt" "$PEAL" record "$(id 1)" plan <"$wt/.agreed" 2>&1)
   status=$?
+  rm -f "$wt/.agreed"
   check "record: the plan recorded" "0" "$status"
   check "record: the plan is agreed" "PLAN agreed
 MODEL implementer opus" "$(at "$wt" "$PEAL" work | grep -e PLAN -e implementer)"
@@ -176,13 +184,18 @@ MODEL implementer opus" "$(at "$wt" "$PEAL" work | grep -e PLAN -e implementer)"
     "$(at "$wt" "$PEAL" read "$(id 1)" | peal_text_section Plan | grep Build)"
   check "record: the size in its frontmatter" "S" \
     "$(at "$wt" "$PEAL" read "$(id 1)" | awk '/^size:/ { print $2 }')"
+  check "record: the touches in its frontmatter" "touches: [docs/**, src/loop.sh]" \
+    "$(at "$wt" "$PEAL" read "$(id 1)" | grep '^touches:')"
   if [ $kind = files ]; then
     check "record: committed on the task's branch" "docs(tasks): record the plan of 0001 [0001]" \
       "$(git -C "$wt" log -1 --format=%s)"
     check "record: the tree clean" "" "$(git -C "$wt" status --porcelain)"
   else
     check "record: said so" "recorded the plan of 1 on issue 1" "$out"
-    check "record: the labels" "in progress,model: opus,plan: required,size: S" "$(labels 1 | tr ',' '\n' | sort | paste -s -d, -)"
+    check "record: the labels" "in progress,model: opus,plan: required,size: S,touches: docs/**,touches: src/loop.sh" "$(labels 1 | tr ',' '\n' | sort | paste -s -d, -)"
+    # A task file's board reads the main branch, which has the plan only once it merges.
+    check "record: the touches on the board" '"touches":["docs/**","src/loop.sh"]' \
+      "$(at "$wt" "$PEAL" board 2>/dev/null | grep -o '"touches":\[[^]]*\]')"
   fi
   # A task file has its Outcome heading from the start, an issue none.
   check_refused "record: an Outcome now" "Outcome" \

@@ -38,8 +38,9 @@ peal_create_texts() {
   return $status
 }
 
-# peal_check_context -> task-check.awk's CONTEXT from the settings: the project's fields
-# and the size tiers. The storage adds its milestones and task ids.
+# peal_check_context -> task-check.awk's CONTEXT from the settings: the project's fields,
+# the size tiers, and on issues GitHub's cap on a label's length (50). The storage adds
+# its milestones and task ids.
 peal_check_context() {
   printf '%s\n' "$PEAL_CONFIG" | awk -F '\t' '
     index($1, "task.fields.") == 1 {
@@ -48,6 +49,7 @@ peal_check_context() {
       if ($2 == "i") values[f] = values[f] (values[f] == "" ? "" : ",") $4
     }
     index($1, "sizes.") == 1 { print "size\t" substr($1, 7) }
+    $1 == "storage.kind" && $4 == "issues" { print "labelmax\t50" }
     END { for (i = 1; i <= n; i++) print "field\t" order[i] "\t" values[order[i]] }'
 }
 

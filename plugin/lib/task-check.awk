@@ -10,6 +10,7 @@
 #   size<TAB>S                  a size tier
 #   ms<TAB>id<TAB>state         a milestone
 #   id<TAB>ID                   a task that exists
+#   labelmax<TAB>N              the storage keeps fields as labels of at most N characters
 # Milestones are checked only with check_ms, task ids only with check_ids: a queued idea
 # is checked offline, and checked again when it is filed.
 #
@@ -33,6 +34,7 @@ FILENAME == ARGV[1] {
   else if ($1 == "size") sizes[$2] = 1
   else if ($1 == "ms") msstate[$2] = $3
   else if ($1 == "id") ids[$2] = 1
+  else if ($1 == "labelmax") labelmax = $2 + 0
   next
 }
 
@@ -48,11 +50,11 @@ $1 == "" { next }
 
 END {
   peal["milestone"] = peal["plan"] = peal["size"] = peal["depends"] = 1
-  peal["part-of"] = peal["needs"] = peal["model"] = peal["owner"] = peal["priority"] = peal["breaking"] = peal["release-note"] = 1
+  peal["part-of"] = peal["needs"] = peal["model"] = peal["owner"] = peal["priority"] = peal["breaking"] = peal["release-note"] = peal["touches"] = 1
   for (k = 1; k <= nkeys; k++) {
     key = keys[k]
     if (!(key in peal) && !(key in custom))
-      problem("unknown field " key " (Peal's: milestone, plan, size, depends, part-of, needs, model, owner, priority, breaking, release-note; a project adds its own under task.fields in .peal/config.yml)")
+      problem("unknown field " key " (Peal's: milestone, plan, size, depends, part-of, needs, model, owner, priority, breaking, release-note, touches; a project adds its own under task.fields in .peal/config.yml)")
   }
 
   m = value["milestone"]
@@ -79,6 +81,16 @@ END {
     problem("breaking " value["breaking"] " is not true or false")
   if (("release-note" in kind) && single("release-note") && value["release-note"] !~ /^(none)?$/)
     problem("release-note " value["release-note"] " is not none (the only value: leave the task out of the release notes)")
+
+  if (kind["touches"] == "s" && value["touches"] != "") { items["touches", 1] = value["touches"]; nitems["touches"] = 1 }
+  for (j = 1; j <= nitems["touches"]; j++) {
+    t = items["touches", j]
+    if (t == "") problem("touches: an empty entry")
+    else if (index(t, ",")) problem("touches: " t " holds a comma, which no path or glob here may")
+    else if (t ~ /^\//) problem("touches: " t " is absolute; paths and globs are relative to the repository's root")
+    else if (labelmax && length("touches: " t) > labelmax)
+      problem("touches: " t " is too long for a label (\"touches: " t "\" is over " labelmax " characters); name a shorter path or glob that covers it")
+  }
 
   if ("part-of" in kind) {
     if (mode == "split") {

@@ -7,12 +7,13 @@
 # ISSUE holds one issue as issues-lib.awk describes it; fields names the project's own
 # frontmatter fields (task.fields), which labels "<field>: <value>" carry like Peal's
 # size, plan, model, breaking and release-note; the labels "priority: urgent|high|low"
-# make its priority (the higher of two), the label "owner: human" its owner.
+# make its priority (the higher of two), the label "owner: human" its owner,
+# the labels "touches: <path>" its touches list.
 
 function put(key, list,    n, it) {
   if (list == "") return
   n = split(list, it, ",")
-  if (key == "depends" || key == "needs" || n > 1) print key ": " yaml_flow_list(it, n)
+  if (key == "depends" || key == "needs" || key == "touches" || n > 1) print key ": " yaml_flow_list(it, n)
   else print key ": " yaml_scalar(it[1], 0)
 }
 
@@ -25,7 +26,7 @@ function put(key, list,    n, it) {
     if (l == claimed || l == label || !label_kv(l)) continue
     if (LKEY == "owner") { if (LVALUE == "human") v["owner"] = "human" }
     else if (LKEY == "priority") { if (prio_rank(LVALUE) > prio_rank(v["priority"])) v["priority"] = LVALUE }
-    else if (LKEY == "needs" || (LKEY in want)) v[LKEY] = add_item(v[LKEY], LVALUE)
+    else if (LKEY == "needs" || LKEY == "touches" || (LKEY in want)) v[LKEY] = add_item(v[LKEY], LVALUE)
   }
   body_refs(tsv_unescape($8))
   title = tsv_unescape($3)
@@ -44,6 +45,7 @@ function put(key, list,    n, it) {
   put("breaking", v["breaking"])
   put("release-note", v["release-note"])
   if (v["priority"] != "normal") put("priority", v["priority"])
+  put("touches", v["touches"])
   for (j = 6; j <= nf; j++) if (fl[j] != "") put(fl[j], v[fl[j]])
   print "---"
   print ""

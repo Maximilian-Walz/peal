@@ -6,7 +6,8 @@
 #
 # Each has frontmatter with a description, takes its arguments, and names only peal
 # subcommands the CLI has: a command calling one renamed or never built fails here, not
-# in a session.
+# in a session. The fields a plan settles: the planner proposes touches, /peal:work
+# writes them once the human agrees, /peal:idea only when the idea names the files.
 set -uo pipefail
 # shellcheck source=../lib/test-lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/test-lib.sh"
@@ -33,5 +34,21 @@ check "a milestone's end: the commands exist" "drift milestone-review" \
 check "releases: the command exists" "release" "$([ -f "$commands/release.md" ] && echo release)"
 check "the backlog commands exist" "defer idea retire revise split" \
   "$(for c in defer idea retire revise split; do [ -f "$commands/$c.md" ] && printf '%s ' "$c"; done | sed 's/ $//')"
+
+# touches: proposed by the planner, recorded by /peal:work with the plan, set by
+# /peal:idea only from the idea's own words.
+agents=$PEAL_ROOT/agents
+check "planner: proposes touches in its Files" "1" \
+  "$(awk '/^3\. \*\*Files\.\*\*/ { f = 1 } /^4\. / { f = 0 } f && /`Touches:`/ { n++ } END { print n + 0 }' "$agents/planner.md")"
+check "planner: leaves the model and the touches to the main session" "2" "$(grep -c 'You do not write it;' "$agents/planner.md")"
+check "work: asks the human to agree the touches" "1" \
+  "$(grep -c -F 'size and touches' "$commands/work.md")"
+check "work: records the agreed touches" "1" \
+  "$(grep -c -F 'peal frontmatter set-list <file> touches' "$commands/work.md")"
+check "work: records them before peal record" "touches plan" \
+  "$(grep -o -E 'set-list <file> touches|peal record <id> plan' "$commands/work.md" | awk '{ print $NF }' | paste -sd' ' -)"
+# shellcheck disable=SC2016 # the literal backticks
+check "idea: touches only when the idea names the files" "1|1" \
+  "$(grep -c -F -- '- `touches`: only when the idea names' "$commands/idea.md")|$(grep -c '^touches: \[' "$commands/idea.md")"
 
 finish
