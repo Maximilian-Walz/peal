@@ -71,8 +71,8 @@ filed 0017 tasks/backlog/0017-idea-two.md — milestone: m2, plan: -, size: - �
 
   # The project's own fields: declared ones pass, with their values checked.
   mkdir -p "$work/.peal"
-  printf 'task:\n  fields:\n    area: [engine, ui]\n    owner:\n' >"$work/.peal/config.yml"
-  out=$(text "area: ui" "owner: sam" | peal create own-fields 2>&1)
+  printf 'task:\n  fields:\n    area: [engine, ui]\n    team:\n' >"$work/.peal/config.yml"
+  out=$(text "area: ui" "team: sam" | peal create own-fields 2>&1)
   check "own fields" "0:filed 0019 tasks/backlog/0019-own-fields.md — milestone: -, plan: -, size: - — \"Title of 0019\"" "$?:$out"
   check_refused "own field, wrong value" "own-fields: area art is not one of engine,ui" \
     peal create own-fields < <(text "area: art")
@@ -85,7 +85,7 @@ refusals() {
   before=$(git -C "$work" rev-parse origin/main)
 
   check_refused "illegal frontmatter" "bad-one:3: expected , or ]" peal create bad-one < <(text "milestone: m1" "depends: [0001")
-  check_refused "unknown field" "bad-one: unknown field owner" peal create bad-one < <(text "owner: me")
+  check_refused "unknown field" "bad-one: unknown field team" peal create bad-one < <(text "team: me")
   check_refused "unknown depends id" "bad-one: depends: 0099 is no task" peal create bad-one < <(text "depends: [0099]")
   check_refused "depends: not an id" "bad-one: depends: soon is no task id, milestone or human" peal create bad-one < <(text "depends: [soon]")
   check_refused "depends: milestone without one" "bad-one: depends: milestone needs a milestone" peal create bad-one < <(text "depends: [milestone]")
@@ -197,7 +197,7 @@ ideas() {
   check "ideas" "first-idea	Title of NNNN
 second-idea	Second \\ thought" "$(peal ideas)"
 
-  check_refused "idea: refused when queued" "bad-idea: unknown field owner" peal idea bad-idea < <(text "owner: me")
+  check_refused "idea: refused when queued" "bad-idea: unknown field team" peal idea bad-idea < <(text "team: me")
   check_refused "idea: a separator line" "would split the queue" peal idea bad-idea < <(text; echo -----NEXT TASK-----)
   check_refused "idea: a queue marker" "would split the queue" peal idea bad-idea < <(text; echo '-----IDEA x-----')
   check "idea: refusals leave the queue" "2" "$(peal ideas | wc -l | tr -d ' ')"
@@ -249,7 +249,7 @@ revise() {
   check_refused "revise: Outcome dropped" "the Outcome heading was added or dropped" peal revise 0001 --reason x < <(ID=0001 text "milestone: m2" | sed '/^## Outcome/d')
   check_refused "revise: no Notes" "no '## Notes' section" peal revise 0001 --reason x < <(ID=0001 text "milestone: m2" | sed '/^## Notes/d')
   check_refused "revise: another number" "the first heading must be '# 0001 — Title'" peal revise 0001 --reason x < <(ID=0009 text)
-  check_refused "revise: unknown field" "unknown field owner" peal revise 0001 --reason x < <(ID=0001 text "owner: me")
+  check_refused "revise: unknown field" "unknown field team" peal revise 0001 --reason x < <(ID=0001 text "team: me")
   check_refused "revise: unknown depends" "depends: 0099 is no task" peal revise 0001 --reason x < <(ID=0001 text "depends: [0099]")
   check_refused "revise: into a parked milestone" "milestone m3 is parked; only a milestone review moves a task there" \
     peal revise 0001 --reason x < <(ID=0001 text "milestone: m3")
