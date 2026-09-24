@@ -44,10 +44,12 @@ mkdir -p .peal
 cp "$root/templates/launcher" .peal/peal
 hooks=$(sed -n 's/^ *"command": *"\(.*\)" *$/\1/p' "$root/hooks/hooks.json" | sed 's/\\"/"/g')
 # shellcheck disable=SC2016 # the commands as written, unexpanded
-check "the hooks are peal's session-start and git-guard" '"${CLAUDE_PLUGIN_ROOT}/bin/peal" hook session-start
-"${CLAUDE_PLUGIN_ROOT}/bin/peal" hook git-guard' "$hooks"
+check "the hooks are peal's" '"${CLAUDE_PLUGIN_ROOT}/bin/peal" hook session-start
+"${CLAUDE_PLUGIN_ROOT}/bin/peal" hook git-guard
+"${CLAUDE_PLUGIN_ROOT}/bin/peal" hook post-tool-use
+"${CLAUDE_PLUGIN_ROOT}/bin/peal" hook session-end' "$hooks"
 hook=$(printf '%s\n' "$hooks" | sed -n 1p)
-CLAUDE_PLUGIN_ROOT=$root CLAUDE_PROJECT_DIR=$project bash -c "$hook" </dev/null
+CLAUDE_PLUGIN_ROOT=$root CLAUDE_PROJECT_DIR=$project bash -c "$hook" </dev/null >/dev/null
 check "the hook recorded the root" "$root" "$(cat .git/peal-root)"
 check "peal --version through the launcher" "$version" "$(env -u PEAL_ROOT .peal/peal --version 2>&1)"
 

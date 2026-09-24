@@ -235,6 +235,45 @@ Derived from refs and the main branch on the remote, never from the calling work
 | `blocked` | a `depends` entry is not done yet |
 | `done` | the file is under `done/` on main; outranks every other state |
 
+## Claims and the session hooks
+
+- **`peal offer POOL [--top N]`** prints `CANDIDATE <id> <bucket> <title>` for the best N
+  (3) free tasks and `MORE <bucket> <count>` for each bucket with some left over. The pool
+  is a comma list of milestone ids, `current` and `unassigned`; each is a bucket (`current`
+  becomes the current milestone's id), in the pool's order. Within a bucket the free
+  members of an open split come first, then by number; their titles say `(part of
+  <origin>, <done>/<total> done)`. A parked, done or unknown milestone in the pool is
+  refused.
+- **`peal claim ID [--print-path]`** fetches, then refuses a task that is done, awaiting
+  merge, blocked, claimed elsewhere, or of a parked, done or unknown milestone. It branches
+  from the remote's main into `{worktrees}/NNNN-slug`, moves the file to `doing/` in one
+  commit (`docs(tasks): claim NNNN slug [NNNN]`) and pushes the branch: a push that loses
+  to another claim takes everything back. A task claimed on this machine prints its
+  worktree again; a parked claim gets its worktree back and is pushed. `--print-path`
+  makes the worktree's path the last line. `--next [POOL]` claims the offer's best
+  candidate for POOL (`current,unassigned`), the next one when a claim loses its race.
+  Scope paths (backticked in `## Scope`) that another claim's branch changes already are
+  warned about, never refused.
+- **`peal release ID`** removes a claim's worktree and branch (the remote's too, if it
+  holds nothing more), the tip kept as `refs/reaped/NNNN-slug` for 30 days. It stays,
+  with the reason, while it is the calling worktree, a session touched it in the last 30
+  minutes, the task is not done on main, the worktree holds uncommitted changes, or the
+  branch holds commits not pushed. Landed means done on main, so a squash merge counts.
+- **SessionStart**: on a new session (`startup`, `clear`) the turn budget restarts, the
+  remote is fetched and every claim under the worktrees directory that `release` would
+  let go is reaped; a landed one kept for uncommitted or unpushed work says so. Then the
+  orientation: the current milestone, this worktree's task, the other claims, the open
+  splits.
+- **PostToolUse**: the heartbeat that keeps a worktree from being reaped, and the turn
+  budget: the main session's tool calls in a task's worktree are counted, and at the
+  task's size tier (M while unsized) the session is nudged once to close or split.
+- **SessionEnd**: when the main session ends (`logout`, `prompt_input_exit`, `other`) in a
+  task's worktree, uncommitted work is committed as `wip: session-end autosave [NNNN]` and
+  the branch pushed.
+
+The heartbeat, the turn count and the autosave's log live in the worktree's git
+directory, where no commit sees them.
+
 ## Milestones
 
 Milestones are data, the model Belfry shares (its issue #3): an id, a title, a state

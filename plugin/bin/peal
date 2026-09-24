@@ -31,6 +31,8 @@ export PEAL_ROOT
 . "$PEAL_ROOT/lib/commit.sh"
 # shellcheck source=../lib/git-guard.sh
 . "$PEAL_ROOT/lib/git-guard.sh"
+# shellcheck source=../lib/claim.sh
+. "$PEAL_ROOT/lib/claim.sh"
 
 usage() {
   cat <<'EOF'
@@ -47,7 +49,11 @@ usage: peal <command> [args]
   frontmatter unset FILE KEY
   milestones [--json]           one line per milestone: id state order due title, or
                                 the board's {"milestone":{...}} lines
-  hook session-start            the SessionStart hook: record where Peal is installed
+  hook session-start            the SessionStart hook: record where Peal is installed;
+                                in a Peal project reap the claims done with (on a new
+                                session) and print the orientation
+  hook post-tool-use            the PostToolUse hook: the heartbeat and the turn budget
+  hook session-end              the SessionEnd hook: autosave a task branch as wip, pushed
   hook git-guard                the PreToolUse hook on Bash: refuse git calls that work
                                 around the git gates (lib/git-guard.sh)
 
@@ -82,6 +88,17 @@ number to come, several texts are separated by lines -----NEXT TASK-----):
   set-milestone ID [M]          set an unclaimed task's milestone, or remove it
   comment ID TEXT               add a dated line to an unclaimed task's Notes
   finish ID                     on the task's branch: its file from doing/ to done/, staged
+
+Claims, each task in a worktree of its own under the worktrees setting:
+  offer POOL [--top N]          CANDIDATE <id> <bucket> <title> for the best N (3) free
+                                tasks, MORE <bucket> <count> for those left; POOL is a
+                                comma list of milestone ids, current and unassigned
+  claim ID [--print-path]       claim a free task, or resume its parked claim; a task
+                                claimed here already prints its worktree again
+  claim --next [POOL] [--print-path]
+                                claim the best free task of POOL (current,unassigned)
+  release ID                    remove a landed claim's worktree and branch, its tip kept
+                                under refs/reaped/; refused while anything would be lost
 EOF
 }
 
@@ -139,7 +156,13 @@ cmd_milestones() {
 cmd_hook() {
   need 1 "$@"
   case $1 in
-    session-start) peal_record_root "${CLAUDE_PROJECT_DIR:-$PWD}" ;;
+    session-start)
+      peal_record_root "${CLAUDE_PROJECT_DIR:-$PWD}"
+      peal_hook_read
+      peal_session_start
+      ;;
+    post-tool-use) peal_hook_read; peal_turn_budget || exit $? ;;
+    session-end) peal_hook_read; peal_session_end ;;
     git-guard) peal_git_guard ;;
     *) usage >&2; exit 2 ;;
   esac
@@ -211,6 +234,9 @@ main() {
     retire) reason_args retire "$@"; with_store peal_store_finish "$PEAL_ID" retired "$PEAL_REASON" ;;
     finish) [ $# -eq 1 ] || { usage >&2; exit 2; }; with_store peal_store_finish "$1" "done" ;;
     set-milestone) need 1 "$@"; with_store peal_store_set_milestone "$@" ;;
+    offer) with_store peal_offer "$@" ;;
+    claim) with_store peal_claim "$@" ;;
+    release) with_store peal_release "$@" ;;
     comment) [ $# -eq 2 ] || { usage >&2; exit 2; }; with_store peal_store_comment "$1" "$2" ;;
     *)
       peal_err "unknown command '$cmd'"
