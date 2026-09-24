@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  harnesses:
+    name: harnesses (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      # Every awk the harnesses can find is one they run under; Peal must work with
+      # whichever a machine has. macOS brings its own BSD awk and bash 3.2.
+      - name: Install the awks
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -q && sudo apt-get install -yq mawk gawk original-awk busybox
+      - name: Install Claude Code
+        if: runner.os == 'Linux'
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Run every harness
+        env:
+          PEAL_REQUIRE_CLAUDE: ${{ runner.os == 'Linux' && '1' || '' }}
+        run: tools/test-all.sh
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: shellcheck --version
+      - run: tools/lint.sh

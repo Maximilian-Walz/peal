@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "peal",
+  "description": "Peal: a task-file process for Claude Code projects.",
+  "owner": {
+    "name": "Maximilian Walz"
+  },
+  "plugins": [
+    {
+      "name": "peal",
+      "description": "Tasks as Markdown files with YAML frontmatter, claimed into their own branch and worktree, planned, implemented and closed as pull requests, grouped by milestones.",
+      "source": "./plugin",
+      "category": "productivity",
+      "homepage": "https://github.com/Maximilian-Walz/peal"
+    }
+  ]
+}

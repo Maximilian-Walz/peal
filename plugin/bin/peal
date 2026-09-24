@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# peal: the one entry point to Peal's scripts. Commands and hooks run it as
+# ${CLAUDE_PLUGIN_ROOT}/bin/peal (the plugin's bin/ is also on the Bash tool's PATH),
+# everything outside Claude Code through a project's launcher, .peal/peal.
+set -uo pipefail
+
+PEAL_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd) || exit 2
+export PEAL_ROOT
+
+# shellcheck source=../lib/common.sh
+. "$PEAL_ROOT/lib/common.sh"
+# shellcheck source=../lib/frontmatter.sh
+. "$PEAL_ROOT/lib/frontmatter.sh"
+# shellcheck source=../lib/config.sh
+. "$PEAL_ROOT/lib/config.sh"
+# shellcheck source=../lib/session.sh
+. "$PEAL_ROOT/lib/session.sh"
+
+usage() {
+  cat <<'EOF'
+usage: peal <command> [args]
+
+  --version, version            print Peal's version
+  config [KEY]                  print the effective settings, or one of them
+  frontmatter check FILE        refuse a frontmatter outside Peal's YAML subset
+  frontmatter keys FILE         print its keys
+  frontmatter get FILE KEY      print a value, or a list's items one per line
+  frontmatter set FILE KEY VALUE
+  frontmatter set-list FILE KEY [ITEM...]
+  frontmatter unset FILE KEY
+  hook session-start            the SessionStart hook: record where Peal is installed
+EOF
+}
+
+peal_version() {
+  sed -n 's/^ *"version": *"\([^"]*\)".*/\1/p' "$PEAL_ROOT/.claude-plugin/plugin.json"
+}
+
+# need N ARGS...: refuse a call with fewer than N arguments after the subcommand.
+need() {
+  local count=$1
+  shift
+  if [ $# -lt "$count" ]; then
+    usage >&2
+    exit 2
+  fi
+}
+
+cmd_frontmatter() {
+  need 2 "$@"
+  local sub=$1
+  shift
+  case $sub in
+    check) need 1 "$@"; peal_fm_check "$1" ;;
+    keys) need 1 "$@"; peal_fm_keys "$1" ;;
+    get) need 2 "$@"; peal_fm_get "$1" "$2" ;;
+    set) need 3 "$@"; peal_fm_set "$1" "$2" "$3" ;;
+    set-list) need 2 "$@"; peal_fm_set_list "$@" ;;
+    unset) need 2 "$@"; peal_fm_unset "$1" "$2" ;;
+    *) usage >&2; exit 2 ;;
+  esac
+}
+
+cmd_config() {
+  peal_config_load || exit 2
+  if [ $# -eq 0 ]; then
+    peal_config_print
+  else
+    peal_config_get "$1"
+  fi
+}
+
+cmd_hook() {
+  need 1 "$@"
+  case $1 in
+    session-start) peal_record_root "${CLAUDE_PROJECT_DIR:-$PWD}" ;;
+    *) usage >&2; exit 2 ;;
+  esac
+}
+
+main() {
+  if [ $# -eq 0 ]; then
+    usage >&2
+    exit 2
+  fi
+  local cmd=$1
+  shift
+  case $cmd in
+    --version | version) peal_version ;;
+    -h | --help | help) usage ;;
+    config) cmd_config "$@" ;;
+    frontmatter) cmd_frontmatter "$@" ;;
+    hook) cmd_hook "$@" ;;
+    *)
+      peal_err "unknown command '$cmd'"
+      usage >&2
+      exit 2
+      ;;
+  esac
+}
+
+main "$@"
