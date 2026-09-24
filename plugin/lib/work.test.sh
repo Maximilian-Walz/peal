@@ -102,6 +102,12 @@ CANDIDATE $(id 2) unassigned Title of $(id 2)" "$(at "$work" "$PEAL" work)"
     "$(at "$work" "$PEAL" work "$(id 1)" 2>/dev/null | tail -n 1)"
   task 4 blocked-task depends=2
   check_refused "work: a blocked task is refused" "is blocked" at "$work" "$PEAL" work "$(id 4)"
+  task 5 human-task owner=human
+  check_refused "work: a human task is refused" "task $(id 5) is a human task" at "$work" "$PEAL" work "$(id 5)"
+  check "work: the human task stays free" "free" "$(at "$work" "$PEAL" list --no-pr "$(id 5)" | cut -d ' ' -f 2)"
+  check "work: the human task is never offered" "" "$(at "$work" "$PEAL" work unassigned | grep "$(id 5)")"
+  check "work: peal claim still claims it" "claimed-live" \
+    "$(claim 5 >/dev/null; at "$work" "$PEAL" list --no-pr "$(id 5)" | cut -d ' ' -f 2)"
   check_refused "work: two arguments" "ID | POOL" at "$work" "$PEAL" work "$(id 1)" "$(id 2)"
   new_repo
   check "work: an empty pool says nothing" "0:" "$(at "$work" "$PEAL" work; printf '%s:' "$?")"

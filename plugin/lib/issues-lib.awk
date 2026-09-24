@@ -14,6 +14,7 @@
 #   fields    labels "<field>: <value>": size, plan, model and the project's own; a
 #             field with several such labels is a list
 #   priority  labels "priority: urgent|high|low", the higher of two; none is normal
+#   owner     the label "owner: human" for a human task; none is ai
 #   claimed   the label "in progress"
 
 # tsv_unescape(s) -> s with @tsv's escapes undone.

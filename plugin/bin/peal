@@ -137,7 +137,8 @@ issue-N on branch issue/N, labelled "in progress", as Belfry claims one):
 /peal:work's steps (lib/work.sh):
   work [ID | POOL]              in a task's worktree: TASK <id> <file>, PLAN required,
                                 agreed or skipped, MODEL <role> <model> per subagent;
-                                elsewhere claim ID (CLAIMED <id> <path>) or offer POOL
+                                elsewhere claim ID (CLAIMED <id> <path>; not a human
+                                task) or offer POOL
   brief ROLE                    what the planner, implementer or reviewer of this
                                 worktree's task needs of the project, for its prompt
   record ID plan|notes          the task's text on stdin recorded on this worktree's

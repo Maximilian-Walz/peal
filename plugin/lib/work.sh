@@ -14,9 +14,10 @@ PEAL_WORK_ROLES="planner implementer reviewer"
 #                           at path, after what peal claim said
 #   CANDIDATE ... / MORE ...  peal offer's lines for POOL (current,unassigned); nothing
 #                           at all for an empty pool
-# Refused: an ID or POOL other than this worktree's own task, in a task's worktree.
+# Refused: an ID or POOL other than this worktree's own task, in a task's worktree; a
+# human task (owner: human), which only the human works: peal claim makes its worktree.
 peal_work() {
-  local arg=${1-} task id path out status
+  local arg=${1-} task id path out status records
   [ $# -le 1 ] || { peal_err "work: [ID | POOL]"; return 2; }
   if task=$(PEAL_TASK_REFRESH=1 peal_session_task); then
     id=$(_peal_field "$task" 1)
@@ -30,6 +31,11 @@ peal_work() {
   case $arg in
     *[!0-9]* | "") peal_offer "${arg:-current,unassigned}" ;;
     *)
+      records=$(peal_store_list --fetch --no-pr) || return 2
+      if printf '%s\n' "$records" | awk -F '\t' -v id="$arg" '$1 == id && $17 == "human" { f = 1 } END { exit !f }'; then
+        peal_err "work: task $arg is a human task (owner: human): the human works it; peal claim $arg makes its worktree"
+        return 2
+      fi
       out=$(peal_claim "$arg" --print-path)
       status=$?
       [ $status = 0 ] || { [ -z "$out" ] || printf '%s\n' "$out"; return $status; }

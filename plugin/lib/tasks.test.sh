@@ -417,6 +417,43 @@ No milestone — 4 open, 1 done
   0005  free           odd-task" "$(at "$work" "$PEAL" overview 2>/dev/null | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}')"
 }
 
+# A human task's owner in the board, the list and the overview; a task depending on one
+# waits for it like for any other.
+owner() {
+  local work err
+  work=$(repo)
+  put "$work" backlog 0001 human-task "milestone: m1" "owner: human"
+  put "$work" backlog 0002 ai-task "owner: ai"
+  put "$work" backlog 0003 waits-task "depends: [0001]"
+  put "$work" backlog 0004 odd-task "owner: robot"
+  put "$work" "done" 0005 done-task "owner: human"
+  put "$work" backlog 0006 after-done "depends: [0005]"
+  check "owner: board" '{"id":"0001","state":"free","slug":"human-task","title":"Title of 0001","milestone":"m1","owner":"human","path":"tasks/backlog/0001-human-task.md"}
+{"id":"0002","state":"free","slug":"ai-task","title":"Title of 0002","path":"tasks/backlog/0002-ai-task.md"}
+{"id":"0003","state":"blocked","slug":"waits-task","title":"Title of 0003","depends":["0001"],"path":"tasks/backlog/0003-waits-task.md"}
+{"id":"0004","state":"free","slug":"odd-task","title":"Title of 0004","path":"tasks/backlog/0004-odd-task.md"}
+{"id":"0005","state":"done","slug":"done-task","title":"Title of 0005","owner":"human","path":"tasks/done/0005-done-task.md"}
+{"id":"0006","state":"free","slug":"after-done","title":"Title of 0006","depends":["0005"],"path":"tasks/backlog/0006-after-done.md"}' \
+    "$(at "$work" "$PEAL" board --no-pr 2>/dev/null | grep -v '^{"milestone"')"
+  err=$(list 2>&1 >/dev/null)
+  check "owner: an unknown word is ai, with a warning" \
+    "peal: warning: tasks/backlog/0004-odd-task.md: owner: 'robot' is not ai or human; read as ai" "$err"
+  check "owner: list" "0001 free human-task m1 owner:human
+0002 free ai-task -
+0003 blocked waits-task needs:0001
+0004 free odd-task -
+0005 done done-task
+0006 free after-done -" "$(list 2>/dev/null)"
+  check "owner: overview" "m1 Milestone m1 (current) — 1 open, 0 done
+  0001  free           human-task  owner:human
+
+No milestone — 4 open, 1 done
+  0002  free           ai-task
+  0003  blocked        waits-task  needs:0001
+  0004  free           odd-task
+  0006  free           after-done" "$(at "$work" "$PEAL" overview 2>/dev/null | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}')"
+}
+
 cases() {
   states
   expansion
@@ -424,6 +461,7 @@ cases() {
   board
   overview
   priority
+  owner
 }
 
 for_each_awk cases

@@ -3,8 +3,8 @@
 # GitHub issues, its id the issue's number, read and written with `gh api`. What an
 # issue says as a task (lib/issues-lib.awk): its milestone; "Depends on #3, #7" and
 # "Part of #3" lines in its body; labels "needs: <capability>", "size: M", "plan:
-# required", "model: opus", "priority: high" and "<field>: <value>" for the project's own
-# fields.
+# required", "model: opus", "priority: high", "owner: human" and "<field>: <value>" for the
+# project's own fields.
 #
 # A claim is Belfry's, so that either recognises the other's: the label "in progress",
 # the branch issue/N in the worktree {worktrees}/issue-N (continuing the remote's
@@ -149,7 +149,7 @@ peal_store_list() {
   tmp=$(mktemp -d) || return 2
   if _peal_issues_scan "$tmp" && _peal_issues_prs >"$tmp/prs"; then
     _peal_issues_claims "$tmp/scan" "$tmp/prs" >"$tmp/claims"
-    cut -f1-13,16 "$tmp/scan" >"$tmp/tasks"
+    cut -f1-13,16,17 "$tmp/scan" >"$tmp/tasks"
     awk -F '\t' -v idprefix="#" -f "$PEAL_ROOT/lib/task-state.awk" "$tmp/claims" "$tmp/tasks" >"$tmp/out" || status=2
     # The issues read only for their state are no tasks.
     [ $status != 0 ] || awk -F '\t' 'NR == FNR { if ($15 == 1) extra[$1] = 1; next } !($1 in extra)' "$tmp/scan" "$tmp/out"
@@ -199,12 +199,12 @@ peal_store_read() {
 }
 
 # _peal_issues_managed LABEL -> status 0 for a label the task text's frontmatter owns:
-# needs, size, plan, model, priority and the project's fields, as "<key>: <value>".
+# needs, size, plan, model, priority, owner and the project's fields, as "<key>: <value>".
 _peal_issues_managed() {
   local key
   case $1 in *:*) ;; *) return 1 ;; esac
   key=$(printf '%s' "${1%%:*}" | tr '[:upper:]' '[:lower:]' | sed 's/^ *//; s/ *$//')
-  case ",needs,size,plan,model,priority,$PEAL_FIELDS," in *",$key,"*) return 0 ;; esac
+  case ",needs,size,plan,model,priority,owner,$PEAL_FIELDS," in *",$key,"*) return 0 ;; esac
   return 1
 }
 
@@ -222,6 +222,7 @@ _peal_issues_from_text() {
   done
   item=$(peal_fm_get "$file" priority 2>/dev/null)
   case $item in urgent | high | low) printf 'priority: %s\n' "$item" >>"$dir/labels" ;; esac
+  [ "$(peal_fm_get "$file" owner 2>/dev/null)" != human ] || printf 'owner: human\n' >>"$dir/labels"
   peal_fm_get "$file" needs 2>/dev/null | while IFS= read -r item; do
     [ -z "$item" ] || printf 'needs: %s\n' "$item"
   done >>"$dir/labels"

@@ -78,15 +78,15 @@ actions:
   0042` when the task lies on a depends cycle (`#42 → #43 → #42` for issues); of a claim
   `wt:<path>`, `remote:<remote>`, `N commit(s) ahead, last <date>`, or `pr:#N <url>`
   (`pr:unknown` without `gh`). A task not done whose priority is not normal ends its
-  detail with `priority:<urgent|high|low>`.
+  detail with `priority:<urgent|high|low>`, and a human task not done with `owner:human`.
 - `offer` prints `CANDIDATE <id> <bucket> <title>` lines for a pool, best first.
 - `claim` is idempotent: a task already claimed on this machine prints its existing
   worktree, so a re-run Belfry job continues where the last one stopped. The last line is
   the worktree path.
 - `board` prints one JSON object per task (`id`, `state`, `slug`, `title`, `milestone`,
-  `depends`, `part_of`, `size`, `plan`, `needs`, `priority`, `pr`, `path`, `ref`, and
+  `depends`, `part_of`, `size`, `plan`, `needs`, `priority`, `owner`, `pr`, `path`, `ref`, and
   `cycle`, the list detail's cycle, which the contract lets a board add; each but `id`
-  and `state` only when set, so a normal priority is no field), and one
+  and `state` only when set, so a normal priority and an AI's task are no field), and one
   `{"milestone":{...}}` line per milestone, exactly the shapes of Belfry's contract.
 - `/peal:work NNNN` notices it is already inside NNNN's worktree (the branch is the task's
   branch and `tasks/doing/` holds its file) and skips its own claim. It does not read any
@@ -262,6 +262,7 @@ Peal's fields, all optional:
 | `needs` | capabilities a worker must have, Belfry's vocabulary; carried to the board. |
 | `model` | the implementer's model when not the default, written after the human agrees the plan. |
 | `priority` | `urgent`, `high`, `normal` or `low`; absent means normal. Orders the offer within a milestone, never across milestones; `/peal:idea` sets it only when the idea says so plainly, `/peal:revise` changes it. The board carries it, `peal overview` marks urgent `!` and high `↑`. |
+| `owner` | `ai` or `human`; absent means ai. A human task is work only the human can deliver: the offer never offers it and `/peal:work` refuses it, while `peal claim` still makes its worktree for the human (or Belfry's Start). A `depends` on it waits until it is done, like any other; the `human` keyword, by contrast, never resolves by itself. The board, the list and `peal overview` carry it. |
 
 **A depends cycle is refused,** since every task on it would stay blocked for ever. Where
 a task text is filed, revised or deferred, the depends graph is built as the read model
@@ -305,7 +306,8 @@ Derived from refs and the main branch on the remote, never from the calling work
 - **`peal offer POOL [--top N]`** prints `CANDIDATE <id> <bucket> <title>` for the best N
   (3) free tasks and `MORE <bucket> <count>` for each bucket with some left over. The pool
   is a comma list of milestone ids, `current` and `unassigned`; each is a bucket (`current`
-  becomes the current milestone's id), in the pool's order. Within a bucket by priority
+  becomes the current milestone's id), in the pool's order; a human task (`owner: human`)
+  is never offered. Within a bucket by priority
   (urgent, high, normal, low; priority never lifts a task into an earlier bucket), then
   the free members of an open split, then by number; their titles say `(part of
   <origin>, <done>/<total> done)`. A parked, done or unknown milestone in the pool is
@@ -318,6 +320,7 @@ Derived from refs and the main branch on the remote, never from the calling work
   worktree again; a parked claim gets its worktree back and is pushed. `--print-path`
   makes the worktree's path the last line. `--next [POOL]` claims the offer's best
   candidate for POOL (`current,unassigned`), the next one when a claim loses its race.
+  A human task is claimed by its id like any other; `/peal:work` refuses it.
   Scope paths (backticked in `## Scope`) that another claim's branch changes already are
   warned about, never refused.
 - **`peal release ID`** removes a claim's worktree and branch (the remote's too, if it
@@ -592,6 +595,7 @@ in both:
 | `needs` | labels `needs: <capability>` |
 | `size`, `plan`, `model`, the project's own fields | labels `<field>: <value>` |
 | `priority` | labels `priority: urgent`, `priority: high`, `priority: low`, Belfry's; of two the higher counts, none is normal |
+| `owner` | the label `owner: human`, Belfry's; none is ai |
 
 Labels rather than a frontmatter block in the body: they show and filter on GitHub, and
 Belfry reads `needs:` labels already. The sections (Intent, Scope, Raw, ...) are the

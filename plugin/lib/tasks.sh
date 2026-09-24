@@ -244,7 +244,8 @@ peal_cycle_check_create() {
 
 # peal_list [--fetch] [--no-pr] [--state STATE[,STATE...]] [ID...] -> "ID state slug
 # detail" per task, by id, the detail ending in "priority:<p>" for a task not done whose
-# priority is not normal; only those in one of the STATEs, and only the IDs, if given.
+# priority is not normal, and in "owner:human" for a human task not done; only those in
+# one of the STATEs, and only the IDs, if given.
 peal_list() {
   local states="" ids="" args=() records
   while [ $# -gt 0 ]; do
@@ -266,7 +267,8 @@ peal_list() {
   awk -F '\t' -v states=",$states," -v ids="$ids," '
     states != ",," && !index(states, "," $2 ",") { next }
     ids != "," && !index(ids, "," $1 ",") { next }
-    { print $1, $2, $4 ($3 == "" ? "" : " " $3) ($16 == "" || $2 == "done" ? "" : " priority:" $16) }' <<<"$records"
+    { print $1, $2, $4 ($3 == "" ? "" : " " $3) ($16 == "" || $2 == "done" ? "" : " priority:" $16) \
+      ($17 == "" || $2 == "done" ? "" : " owner:" $17) }' <<<"$records"
 }
 
 # peal_board [--fetch] [--no-pr] -> the board: a JSON line per task (lib/board.awk), then

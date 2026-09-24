@@ -6,8 +6,9 @@
 # current milestone, tasks without one, the open milestones by order, the parked ones,
 # the done ones that still hold a task, and milestones no file defines. Each has a header
 # with how many of its tasks are open and done, then "  NNNN  state  slug  detail" per open
-# task, by id, the id marked "!" for an urgent task and "↑" for a high one. A free task's
-# detail leaves out its milestone, which the header says.
+# task, by id, the id marked "!" for an urgent task and "↑" for a high one, the detail
+# ending in "owner:human" for a human task. A free task's detail leaves out its
+# milestone, which the header says.
 
 $0 == "" { next }
 
@@ -22,6 +23,7 @@ FILENAME == ARGV[1] {
   if ($2 == "done") { ndone[m]++; next }
   detail = $3
   if ($2 == "free") { sub(/^[^ ]*/, "", detail); sub(/^ /, "", detail) }
+  if ($17 != "") detail = detail (detail == "" ? "" : " ") "owner:" $17
   mark = $16 == "urgent" ? "!" : $16 == "high" ? "↑" : " "
   lines[m] = lines[m] sprintf("  %s%s %-14s %s%s\n", $1, mark, $2, $4, detail == "" ? "" : "  " detail)
   nopen[m]++

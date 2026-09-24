@@ -99,15 +99,15 @@ peal_pool_buckets() {
   [ -z "$out" ] || printf '%s\n' "$out" | tr ',' '\n'
 }
 
-# _peal_offer_order BUCKETS -> the list records on stdin that are free and in one of the
-# BUCKETS (a comma list), best first: by bucket in the pool's order, then by priority
+# _peal_offer_order BUCKETS -> the list records on stdin that are free, an AI's (a human
+# task is never offered) and in one of the BUCKETS (a comma list), best first: by bucket in the pool's order, then by priority
 # (urgent, high, normal, low; never across buckets), then the free members of an open
 # split, then by number. "bucket<TAB>id<TAB>title<TAB>split" each,
 # split "(part of ORIGIN, D/T done)" or empty.
 _peal_offer_order() {
   awk -F '\t' -v buckets="$1" '
     BEGIN { n = split(buckets, b, ","); for (i = 1; i <= n; i++) rank[b[i]] = i }
-    $2 == "free" {
+    $2 == "free" && $17 == "" {
       k = $6 == "" ? "unassigned" : $6
       if (!(k in rank)) next
       sp = ""
