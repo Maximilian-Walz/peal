@@ -13,6 +13,8 @@ export PEAL_ROOT
 . "$PEAL_ROOT/lib/frontmatter.sh"
 # shellcheck source=../lib/config.sh
 . "$PEAL_ROOT/lib/config.sh"
+# shellcheck source=../lib/milestones.sh
+. "$PEAL_ROOT/lib/milestones.sh"
 # shellcheck source=../lib/session.sh
 . "$PEAL_ROOT/lib/session.sh"
 
@@ -21,6 +23,7 @@ usage() {
 usage: peal <command> [args]
 
   --version, version            print Peal's version
+  check                         report what is not valid: the milestones
   config [KEY]                  print the effective settings, or one of them
   frontmatter check FILE        refuse a frontmatter outside Peal's YAML subset
   frontmatter keys FILE         print its keys
@@ -28,6 +31,8 @@ usage: peal <command> [args]
   frontmatter set FILE KEY VALUE
   frontmatter set-list FILE KEY [ITEM...]
   frontmatter unset FILE KEY
+  milestones [--json]           one line per milestone: id state order due title, or
+                                the board's {"milestone":{...}} lines
   hook session-start            the SessionStart hook: record where Peal is installed
 EOF
 }
@@ -70,6 +75,19 @@ cmd_config() {
   fi
 }
 
+cmd_check() {
+  [ $# -eq 0 ] || { usage >&2; exit 2; }
+  peal_ms_load || exit 2
+}
+
+cmd_milestones() {
+  case ${1-} in
+    "") peal_ms_load || exit 2; peal_ms_print ;;
+    --json) peal_ms_load || exit 2; peal_ms_json ;;
+    *) usage >&2; exit 2 ;;
+  esac
+}
+
 cmd_hook() {
   need 1 "$@"
   case $1 in
@@ -88,9 +106,11 @@ main() {
   case $cmd in
     --version | version) peal_version ;;
     -h | --help | help) usage ;;
+    check) cmd_check "$@" ;;
     config) cmd_config "$@" ;;
     frontmatter) cmd_frontmatter "$@" ;;
     hook) cmd_hook "$@" ;;
+    milestones) cmd_milestones "$@" ;;
     *)
       peal_err "unknown command '$cmd'"
       usage >&2
