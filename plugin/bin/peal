@@ -35,6 +35,8 @@ export PEAL_ROOT
 . "$PEAL_ROOT/lib/claim.sh"
 # shellcheck source=../lib/work.sh
 . "$PEAL_ROOT/lib/work.sh"
+# shellcheck source=../lib/backlog.sh
+. "$PEAL_ROOT/lib/backlog.sh"
 
 usage() {
   cat <<'EOF'
@@ -89,7 +91,8 @@ number to come, several texts are separated by lines -----NEXT TASK-----):
   idea SLUG [--now]             queue an idea on a task branch, else (or --now) file it
   ideas [--flush]               the queued ideas; --flush files them
   revise ID --reason R [--dry-run]
-                                rewrite an unclaimed task's text
+                                rewrite an unclaimed task's text; in the worktree of
+                                ID's claim, the claim's (a split narrowing its origin)
   retire ID --reason R          move an unclaimed task to done, R as its Outcome (an
                                 issue: closed as not planned, R as a comment)
   set-milestone ID [M]          set an unclaimed task's milestone, or remove it
@@ -107,8 +110,12 @@ issue-N on branch issue/N, labelled "in progress", as Belfry claims one):
                                 claimed here already prints its worktree again
   claim --next [POOL] [--print-path]
                                 claim the best free task of POOL (current,unassigned)
-  release ID                    remove a landed claim's worktree and branch, its tip kept
-                                under refs/reaped/; refused while anything would be lost
+  release ID                    remove a landed or deferred claim's worktree and branch,
+                                its tip kept under refs/reaped/; refused while anything
+                                would be lost
+  defer --reason R [--dry-run]  in a claim's worktree, give the claim back without work:
+                                the task's text (on stdin) written back under its number
+                                (lib/backlog.sh); then peal release ID from elsewhere
 
 /peal:work's steps (lib/work.sh):
   work [ID | POOL]              in a task's worktree: TASK <id> <file>, PLAN required,
@@ -261,7 +268,7 @@ main() {
     create) with_store cmd_create "$@" ;;
     idea) need 1 "$@"; with_store peal_idea "$@" ;;
     ideas) with_store peal_ideas "$@" ;;
-    revise) reason_args revise "$@"; with_store peal_store_edit "$PEAL_ID" "$PEAL_REASON" "$PEAL_DRY" ;;
+    revise) reason_args revise "$@"; with_store peal_revise "$PEAL_ID" "$PEAL_REASON" "$PEAL_DRY" ;;
     retire) reason_args retire "$@"; with_store peal_store_finish "$PEAL_ID" retired "$PEAL_REASON" ;;
     finish) [ $# -eq 1 ] || { usage >&2; exit 2; }; with_store peal_store_finish "$1" "done" ;;
     set-milestone) need 1 "$@"; with_store peal_store_set_milestone "$@" ;;
@@ -271,6 +278,7 @@ main() {
     work) with_store peal_work "$@" ;;
     brief) with_store peal_brief "$@" ;;
     record) with_store peal_record "$@" ;;
+    defer) with_store peal_defer "$@" ;;
     comment) [ $# -eq 2 ] || { usage >&2; exit 2; }; with_store peal_store_comment "$1" "$2" ;;
     *)
       peal_err "unknown command '$cmd'"

@@ -505,6 +505,37 @@ _peal_issues_current_labels() {
   return "${PIPESTATUS[0]}"
 }
 
+# _peal_issues_rewrite VERB ID OLD NEW DIR -> the checks on the rewritten task text NEW
+# of issue ID (OLD the one before), peal_edit_check's and task-check.awk's in revise
+# mode, and DIR/issue made from NEW. Status 2 with every problem reported.
+_peal_issues_rewrite() {
+  local verb=$1 id=$2 old=$3 new=$4 dir=$5 status=0
+  PEAL_FIELDS=$(_peal_issues_fields)
+  peal_edit_check "$verb" "$old" "$new" "issue $id" || status=2
+  _peal_issues_context "$dir" "$new" || status=2
+  PEAL_CHECK_ID=$id PEAL_CHECK_OLDMS=$(peal_fm_get "$old" milestone 2>/dev/null) \
+    peal_task_check "$new" revise "issue $id" "$dir/context" >/dev/null || status=2
+  if [ $status = 0 ]; then
+    mkdir -p "$dir/issue"
+    _peal_issues_from_text "$new" "$id" "$dir/issue" || status=2
+  fi
+  return $status
+}
+
+# _peal_issues_apply ID ROW DIR NOTE -> issue ID, as ROW read it, rewritten from DIR/issue
+# (title, body, milestone, the labels the text owns) and NOTE as a comment. An edit
+# replaces text it does not own: a change since ROW is refused, not overwritten.
+_peal_issues_apply() {
+  local id=$1 row=$2 dir=$3 note=$4 now
+  if ! now=$(_peal_issues_issue "$id") || [ "$now" != "$row" ]; then
+    peal_err "issue $id changed meanwhile; read it again and run again"
+    return 2
+  fi
+  _peal_issues_post "$dir/issue" "$id" \
+    && _peal_issues_labels "$id" "$(_peal_issues_current_labels "$id")" "$(cat "$dir/issue/labels")" \
+    && _peal_issues_comment "$id" "$note" || return 1
+}
+
 # peal_store_edit ID REASON [--dry-run] -> the unclaimed issue's text replaced by the one
 # on stdin: its title, body, milestone and the labels its frontmatter owns, and REASON as
 # a comment "Revised <date>: REASON"; --dry-run prints the change instead. Refused as for
@@ -512,67 +543,98 @@ _peal_issues_current_labels() {
 # heading added or dropped, no change at all, whatever task-check.awk refuses), and when
 # the issue changed since it was read.
 peal_store_edit() {
-  local id=$1 reason=$2 dry=${3-} tmp old new status=0 oldms oldpart newpart row now
+  local id=$1 reason=$2 dry=${3-} tmp status=0 row note
   [ -n "$reason" ] || { peal_err "revise: give a reason"; return 2; }
   _peal_issues_unclaimed "$id" revise || return 2
-  PEAL_FIELDS=$(_peal_issues_fields)
   tmp=$(mktemp -d) || return 2
-  old=$tmp/old new=$tmp/new
-  row=$(_peal_issues_issue "$id") || { rm -rf "$tmp"; return 2; }
-  _peal_issues_text "$row" >"$old"
-  cat >"$new"
-  if cmp -s "$old" "$new"; then
+  if ! row=$(_peal_issues_issue "$id"); then
+    rm -rf "$tmp"
+    return 2
+  fi
+  if [ "$(_peal_field "$row" 2)" != open ]; then
+    peal_err "revise: issue $id is closed"
+    rm -rf "$tmp"
+    return 2
+  fi
+  _peal_issues_text "$row" >"$tmp/old"
+  cat >"$tmp/new"
+  if cmp -s "$tmp/old" "$tmp/new"; then
     peal_err "revise: the text is the same as issue $id's: nothing to revise"
     status=2
   fi
-  if [ $status = 0 ]; then
-    if [ "$(peal_text_has_section Raw <"$old"; echo $?)" != "$(peal_text_has_section Raw <"$new"; echo $?)" ] \
-        || [ "$(peal_text_section Raw <"$old")" != "$(peal_text_section Raw <"$new")" ]; then
-      peal_err "revise: the Raw section changed: it holds the human's own words, never rewritten"
-      status=2
-    fi
-    if [ "$(peal_text_has_section Outcome <"$old"; echo $?)" != "$(peal_text_has_section Outcome <"$new"; echo $?)" ]; then
-      peal_err "revise: the Outcome heading was added or dropped"
-      status=2
-    fi
-    if peal_text_outcome_filled <"$old"; then
-      peal_err "revise: issue $id's Outcome is filled in: work happened, this is no plain backlog task"
-      status=2
-    elif peal_text_outcome_filled <"$new"; then
-      peal_err "revise: the new text fills in the Outcome: a task with an Outcome is closed, not revised"
-      status=2
-    fi
-    oldms=$(peal_fm_get "$old" milestone 2>/dev/null)
-    oldpart=$(peal_fm_get "$old" part-of 2>/dev/null)
-    newpart=$(peal_fm_get "$new" part-of 2>/dev/null)
-    if [ "$oldpart" != "$newpart" ]; then
-      peal_err "revise: part-of changed: only a split writes it"
-      status=2
-    fi
-    _peal_issues_context "$tmp" "$new" || status=2
-    PEAL_CHECK_ID=$id PEAL_CHECK_OLDMS=$oldms \
-      peal_task_check "$new" revise "issue $id" "$tmp/context" >/dev/null || status=2
-  fi
-  if [ $status = 0 ]; then
-    mkdir -p "$tmp/issue"
-    _peal_issues_from_text "$new" "$id" "$tmp/issue" || status=2
-  fi
+  [ $status != 0 ] || _peal_issues_rewrite revise "$id" "$tmp/old" "$tmp/new" "$tmp" || status=2
+  note="Revised $(date -u +%Y-%m-%d): $reason"
   if [ $status = 0 ] && [ "$dry" = --dry-run ]; then
     (cd "$tmp" && diff -u old new)
-    echo "comment: Revised $(date -u +%Y-%m-%d): $reason"
+    echo "comment: $note"
     echo "revise: a dry run; nothing changed"
   elif [ $status = 0 ]; then
-    # An edit replaces text it does not own: a change meanwhile is refused, not overwritten.
-    if ! now=$(_peal_issues_issue "$id") || [ "$now" != "$row" ]; then
-      peal_err "revise: issue $id changed meanwhile; read it again and run again"
-      status=2
-    elif ! _peal_issues_post "$tmp/issue" "$id" \
-        || ! _peal_issues_labels "$id" "$(_peal_issues_current_labels "$id")" "$(cat "$tmp/issue/labels")" \
-        || ! _peal_issues_comment "$id" "Revised $(date -u +%Y-%m-%d): $reason"; then
-      status=1
+    if _peal_issues_apply "$id" "$row" "$tmp" "$note"; then
+      echo "revised $id $(_peal_field "$row" 7)"
     else
-      echo "revised $id $(_peal_field "$PEAL_RECORD" 15)"
+      status=$?
     fi
+  fi
+  rm -rf "$tmp"
+  return $status
+}
+
+# peal_store_defer ID REASON TEXT [--dry-run] -> the claim of issue ID, checked out here,
+# given back: the issue rewritten from the task text in the file TEXT as a revise would,
+# and "Deferred <date> after a claim: REASON" as a comment. Refused: another branch, any
+# commit on it beyond the remote's main (an issue's claim makes none, so a commit is
+# work), its remote branch holding more, anything uncommitted, a closed issue, and the
+# checks of a revise but "no change".
+peal_store_defer() {
+  local id=$1 reason=$2 text=$3 dry=${4-} base work tmp row status=0 note
+  [ -n "$reason" ] || { peal_err "defer: give a reason"; return 2; }
+  _peal_issues_settings || return 2
+  if [ "$(peal_store_branch_task)" != "$id" ]; then
+    peal_err "defer: not on issue $id's branch (issue/$id), but on $(git symbolic-ref -q --short HEAD || echo a detached HEAD)"
+    return 2
+  fi
+  git fetch -q "$PEAL_REMOTE" 2>/dev/null
+  base=refs/remotes/$PEAL_REMOTE/$PEAL_MAIN
+  git rev-parse -q --verify "$base" >/dev/null || { peal_err "defer: no $PEAL_REMOTE/$PEAL_MAIN"; return 2; }
+  work=$(git log --format='%h %s' HEAD --not "$base")
+  if [ -n "$work" ]; then
+    peal_err "defer: issue/$id holds work beyond $PEAL_REMOTE/$PEAL_MAIN:"
+    printf '%s\n' "$work" | head -n 5 | sed 's/^/  /' >&2
+    peal_err "work ends through its close, with a pull request; defer only gives back a claim nothing was built on"
+    return 2
+  fi
+  if git rev-parse -q --verify "refs/remotes/$PEAL_REMOTE/issue/$id" >/dev/null \
+      && ! git merge-base --is-ancestor "refs/remotes/$PEAL_REMOTE/issue/$id" HEAD; then
+    peal_err "defer: $PEAL_REMOTE/issue/$id holds commits this worktree does not have"
+    return 2
+  fi
+  if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
+    peal_err "defer: uncommitted changes, which would go with the claim:"
+    git status --porcelain --untracked-files=all | cut -c4- | sed 's/^/  /' >&2
+    return 2
+  fi
+  row=$(_peal_issues_issue "$id") || return 2
+  if [ "$(_peal_field "$row" 2)" != open ]; then
+    peal_err "defer: issue $id is closed"
+    return 2
+  fi
+  tmp=$(mktemp -d) || return 2
+  _peal_issues_text "$row" >"$tmp/old"
+  cp "$text" "$tmp/new"
+  _peal_issues_rewrite defer "$id" "$tmp/old" "$tmp/new" "$tmp" || status=2
+  note="Deferred $(date -u +%Y-%m-%d) after a claim: $reason"
+  if [ $status = 0 ] && [ "$dry" = --dry-run ]; then
+    (cd "$tmp" && diff -u old new)
+    echo "comment: $note"
+    echo "defer: a dry run; nothing changed"
+  elif [ $status = 0 ]; then
+    # An unchanged text changes nothing on the issue; the comment says why it came back.
+    if cmp -s "$tmp/old" "$tmp/new"; then
+      _peal_issues_comment "$id" "$note" || status=1
+    else
+      _peal_issues_apply "$id" "$row" "$tmp" "$note" || status=$?
+    fi
+    [ $status != 0 ] || echo "deferred $id $(_peal_field "$row" 7)"
   fi
   rm -rf "$tmp"
   return $status
