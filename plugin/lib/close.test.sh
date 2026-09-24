@@ -386,6 +386,7 @@ stop() {
 }
 
 stop_cases() {
+  local shown
   new_repo
   ready 1 first-task
   [ $kind = files ] || git -C "$wt" push -q -u origin issue/1 2>/dev/null
@@ -394,8 +395,10 @@ stop_cases() {
   check "stop: no close, dirty, silent" "0:" "$(stop)"
   rm "$wt/a.txt"
   begin >/dev/null
+  # As the hook names it: relative to the worktree's top, where it is inside.
+  shown=${text#"$wt"/}
   check "stop: the Outcome empty" "2:Peal: the close of task $(id 1) is in progress (peal close begin) and not finished:
-  - the Outcome in $(case $text in "$wt"/*) echo "${text#"$wt"/}" ;; *) echo "$text" ;; esac) is empty
+  - the Outcome in $shown is empty
 Finish it: write the Outcome, then peal close finish. If the close is off, peal close abort REASON." "$(stop)"
   check "stop: never twice in a row" "0:" "$(stop '{"stop_hook_active": true}')"
   outcome $'Built.\n<!-- more -->'
