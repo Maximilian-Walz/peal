@@ -39,6 +39,7 @@ release.tag-prefix: v
 release.wait-ci: false
 release.report: []
 decisions: false
+stages: []
 EOF
 }
 

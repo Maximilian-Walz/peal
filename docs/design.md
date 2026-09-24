@@ -64,7 +64,8 @@ tasks:
     start: /peal:work {task}
     idea: /peal:idea {idea}
     board: .peal/peal board
-    milestone: .peal/peal milestone-state {id} {state}
+    milestone: .peal/peal milestone-state {id} {state} --reason {reason}
+    retire: .peal/peal retire {task} --reason {reason}
 actions:
   milestone-review:
     title: Milestone review
@@ -517,6 +518,7 @@ release:
   wait-ci: false                # /peal:release waits for the workflow runs of the tag
   report: []                    # texts whose lines in those runs' logs the release reports
 decisions: false                # the decisions module, or its directory to turn it on
+stages: []                      # the setup stages peal init has done
 ```
 
 Conventions with no setting: the `backlog`/`doing`/`done` directories, `NNNN-slug.md`
@@ -526,7 +528,7 @@ sequence. A setting exists only where two real projects would differ.
 
 ## Git gates
 
-`peal hooks install` (run by `/peal:init`) writes one small hook under every git hook
+`peal hooks install` (the `guardrails` stage of `peal init`) writes one small hook under every git hook
 name into the repository's git directory (`<git-common-dir>/peal/hooks`) and points
 `core.hooksPath` there. Living outside every branch, no branch can weaken them. Each finds
 the installed Peal the way the launcher does, runs Peal's gate for `pre-push` and
@@ -781,8 +783,7 @@ installs it for everyone working on it, sessions Belfry starts included, through
 }
 ```
 
-and runs `/peal:init` once, which writes `.peal/config.yml`, the launcher, the task
-template and directories, and sets `core.hooksPath` to Peal's git hooks.
+and sets itself up with `peal init` (below), which writes those lines itself.
 
 Finding Peal's scripts at run time:
 
@@ -797,14 +798,35 @@ Finding Peal's scripts at run time:
 The `peal` CLI is the one entry point for all scripts (`peal list`, `peal claim`, ...);
 commands and hooks call it too, so there is a single place that loads config and storage.
 
+## Setting up a project
+
+`peal init --stage STAGE` writes one stage of a project's setup, deterministically;
+`/peal:setup` is the conversation on top, which decides the options. A stage is safe to
+run again (what is there already is kept and said so) and taken back by `peal init
+--remove STAGE`, which leaves the tasks themselves alone. Nothing is committed: each
+stage prints what it created, updated, kept or removed, for the caller to commit.
+`stages:` in `.peal/config.yml` records the stages set up, in this order, so other
+commands know what is there.
+
+| Stage | Writes | `--remove` |
+|---|---|---|
+| `tasks` | `.peal/config.yml` (`stages:`, and Peal's defaults as comments), the launcher `.peal/peal`, and for task files the tasks directory's `backlog/`, `doing/`, `done/` (a `.gitkeep` in each empty one) and `TEMPLATE.md` (a project's own is kept); `--storage issues [--label L]` writes `storage.kind: issues` and the label instead (empty by default: the write-access rule), keeping a `repo` set by hand, and `--storage files` removes it. Last, the `.claude/settings.json` lines of [Distribution](#distribution): the file is created when absent, the keys inserted into it when present (`lib/settings-json.awk`, keeping the rest as written); when it does not parse, the lines to add are printed and the stage exits 1. | refused while another stage is set up. The template, the `.gitkeep`s, the directories left empty, `storage`, `stages`, the launcher, Peal's lines in the settings (the file and `.claude/` when nothing else is left); the config file when it holds nothing else. |
+| `guardrails` | `peal hooks install`. The session hooks come from the plugin's `hooks.json`, so nothing is written to the settings. | `peal hooks uninstall`: `core.hooksPath` back to what it was. |
+| `milestones` | for task files a first milestone, `m1.md` (`current`, `--title T`, "First milestone" by default), unless the milestones directory holds one; for issues nothing but the record (the repository's milestones are the milestones). | `m1.md` while it is as the stage wrote it. |
+| `belfry` | `.belfry.yml`: the `commands` backend of [Peal and Belfry](#peal-and-belfry) (with `retire` and a parking reason) for task files, `github-issues` with the label, `start: /peal:work {task}` and `idea: /peal:idea {idea}` for issues; the actions Peal provides (`milestone-review`, `release`) as comments to uncomment. A `.belfry.yml` that is not Peal's is left alone, the contract printed, status 1. The file is to be checked with `belfry check` once Belfry has one; until then the stage says it skipped the check. | the file while it is as the stage writes it; otherwise status 1, for the human to remove it. |
+
+Each stage but `tasks` needs `tasks` set up first. A `guardrails` stage recorded in the
+committed config says the project wants the hooks; `core.hooksPath` is each clone's own,
+so a fresh clone runs the stage again.
+
 ## Migrating an existing project
 
 Adopting Peal is a migration, not a rewrite: tasks keep their numbers, history stays,
 the project's own tooling keeps working through the extension points. For a project with
 its own task-file process, such as the reference:
 
-1. **Install** the plugin (settings above) and run `/peal:init`, keeping the existing
-   `tasks/` layout.
+1. **Install** the plugin: `peal init --stage tasks` and `--stage guardrails`, keeping
+   the existing `tasks/` layout and template.
 2. **Convert headers.** `peal migrate headers` rewrites each task's `key: value` header
    into a frontmatter block: space- or comma-separated `depends` and `needs` become YAML
    lists, trailing comments are dropped, the pools map to milestones (a numbered milestone
@@ -818,7 +840,7 @@ its own task-file process, such as the reference:
 5. **Replace the generic scripts, commands, subagents and hooks with Peal's,** keeping
    every piece the [scope tables](#scope-what-moves-what-stays) mark as staying, and
    moving project rules for the reviewer and planner into `.peal/`.
-6. **Point `.belfry.yml`** at the launcher.
+6. **Point `.belfry.yml`** at the launcher (the `belfry` stage writes Peal's).
 
 All of it lands as one task, one PR, in the project itself.
 
@@ -839,10 +861,11 @@ Issue #2 filed one issue per buildable piece, with `Depends on #N` where order m
 | #10 | backlog commands: idea, split, defer, retire, revise | #5, #7 |
 | #11 | milestone review and drift | #9, #10 |
 | #12 | decisions module | #9 |
-| #13 | `/peal:init` and the Belfry integration | #6, #7 |
+| #13 | `/peal:setup` and the Belfry integration | #6, #7, #35 |
 | #14 | migration from an existing task-file process | #4, #5, #13 |
 | #15 | Peal runs on itself | #9, #10, #11, #13 |
 | #22 | issues storage: Peal's workflow on GitHub issues | #5, #7 |
+| #35 | `peal init`: the setup stages, written deterministically | #6, #7, #9 |
 
 Until Peal can run on itself, Belfry runs this repository from those issues
 (`.belfry.yml`); #15 switches it over.

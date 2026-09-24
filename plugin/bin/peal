@@ -49,12 +49,23 @@ export PEAL_ROOT
 . "$PEAL_ROOT/lib/review.sh"
 # shellcheck source=../lib/ship.sh
 . "$PEAL_ROOT/lib/ship.sh"
+# shellcheck source=../lib/init.sh
+. "$PEAL_ROOT/lib/init.sh"
 
 usage() {
   cat <<'EOF'
 usage: peal <command> [args]
 
   --version, version            print Peal's version
+  init --stage STAGE [--storage files|issues] [--label L] [--title T]
+                                set up a stage of this project, safe to run again
+                                (lib/init.sh): tasks (.peal/config.yml, the launcher,
+                                the tasks directories and template, or the issues
+                                storage with its --label; the plugin enabled in
+                                .claude/settings.json), guardrails (the git hooks),
+                                milestones (a first milestone, --title), belfry
+                                (.belfry.yml); recorded as stages: in the config
+  init --remove STAGE           take a stage back; the tasks themselves stay
   check                         report what is not valid: the milestone files, a task
                                 file under done/ without an Outcome, a depends cycle
                                 among the tasks not done, and with the decisions
@@ -85,6 +96,7 @@ Git gates (lib/githooks.sh):
   hooks install                 Peal's git hooks into this repository's git directory,
                                 core.hooksPath pointed there; they chain to the hooks
                                 that were in use before
+  hooks uninstall               Peal's git hooks removed, core.hooksPath put back
   githook NAME ARGS...          run the gate of git hook NAME (pre-push, commit-msg)
   commit SUBJECT [--body TEXT | --body-file FILE] [PATH...]
                                 stage PATHs (or everything), commit, report; refused on
@@ -340,7 +352,14 @@ main() {
     config) cmd_config "$@" ;;
     frontmatter) cmd_frontmatter "$@" ;;
     hook) cmd_hook "$@" ;;
-    hooks) [ "$*" = install ] || { usage >&2; exit 2; }; peal_hooks_install ;;
+    hooks)
+      case "$*" in
+        install) peal_hooks_install ;;
+        uninstall) peal_hooks_uninstall ;;
+        *) usage >&2; exit 2 ;;
+      esac
+      ;;
+    init) peal_init "$@" ;;
     githook) need 1 "$@"; peal_githook "$@" ;;
     commit) peal_config_load || exit 2; peal_commit "$@" ;;
     milestones) cmd_milestones "$@" ;;

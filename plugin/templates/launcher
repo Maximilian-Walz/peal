@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Peal's launcher: finds the installed Peal plugin and runs its peal CLI with these
 # arguments. Committed as .peal/peal, so git hooks, other tools and a shell reach Peal
-# without Claude Code. Written by /peal:init; do not edit, re-run /peal:init to update.
+# without Claude Code. Written by peal init --stage tasks; do not edit, run that again to
+# update.
 #
 # Where it looks, in order:
 #   1. $PEAL_ROOT, a Peal checkout or installation (an error if it holds no Peal);

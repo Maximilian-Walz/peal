@@ -47,6 +47,25 @@ peal_hooks_install() {
   echo "installed Peal's git hooks in $dir (core.hooksPath); they chain to the hooks in $chain"
 }
 
+# peal_hooks_uninstall -> what peal_hooks_install did taken back: core.hooksPath back to
+# the hooks path it replaced (peal.projectHooks), or unset, and the stubs removed.
+peal_hooks_uninstall() {
+  local dir prev now
+  dir=$(_peal_hooks_dir) || return 2
+  if [ "$(git config core.hooksPath)" = "$dir" ]; then
+    if prev=$(git config peal.projectHooks); then
+      git config core.hooksPath "$prev" || return 2
+    else
+      git config --unset core.hooksPath || return 2
+    fi
+  fi
+  git config --unset peal.projectHooks
+  [ ! -d "$dir" ] || rm -rf "$dir" || return 2
+  rmdir "${dir%/hooks}" 2>/dev/null
+  now=$(git config core.hooksPath) || now="unset"
+  echo "removed Peal's git hooks from $dir; core.hooksPath is $now"
+}
+
 # peal_hooks_installed -> status 0 if core.hooksPath points at Peal's stubs.
 peal_hooks_installed() {
   local dir

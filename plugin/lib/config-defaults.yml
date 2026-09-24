@@ -38,3 +38,4 @@ release:
   report: []                    # texts whose lines in those runs' logs the release reports,
                                 # e.g. "digest: sha256:"
 decisions: false                # the decisions module, or its directory to turn it on
+stages: []                      # the setup stages peal init has done (lib/init.sh)

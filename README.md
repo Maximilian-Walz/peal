@@ -16,7 +16,8 @@ a task with the planner and implementer subagents, `/peal:idea`, `/peal:split`,
 `/peal:defer`, `/peal:revise` and `/peal:retire` keep the backlog, `/peal:close`
 reviews a task and opens its pull request, `/peal:milestone-review` closes a milestone
 once the human agrees, `/peal:drift` files what the documents and the repository
-disagree on, `/peal:release` makes a release from the tasks finished since the last, and the optional decisions module keeps a project's decision records. See
+disagree on, `/peal:release` makes a release from the tasks finished since the last, `peal init` sets
+a project up in stages and takes them back, and the optional decisions module keeps a project's decision records. See
 [docs/design.md](docs/design.md) and
 the issues.
 
@@ -48,8 +49,10 @@ with one plugin, `peal`, in `plugin/`:
   the pull request's body, verify, wait, the Stop hook), through `gh` (`github.sh`),
   a milestone's end (`review.sh`: the review's brief, the state change), the optional
   decision records (`decisions.sh`: reserve, check, index, publish, brief), releases
-  (`ship.sh`: the proposal, the notes, the tag, the GitHub release, the wait), and writes
-  onto the main branch (`main-write.sh`);
+  (`ship.sh`: the proposal, the notes, the tag, the GitHub release, the wait), writes
+  onto the main branch (`main-write.sh`), and a project's setup in stages (`init.sh`,
+  with `config-block.awk` and `settings-json.awk` editing the config and Claude Code's
+  settings as text);
 - `plugin/commands/`, the plugin's Claude Code commands (`/peal:work`, `/peal:idea`,
   `/peal:split`, `/peal:defer`, `/peal:revise`, `/peal:retire`, `/peal:close`,
   `/peal:milestone-review`, `/peal:drift`, `/peal:release`), and
