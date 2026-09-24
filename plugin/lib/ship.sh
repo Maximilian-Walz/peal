@@ -346,7 +346,9 @@ peal_ship_tag() {
   _peal_ship_range "$tag"
   PEAL_SHIP_TAG=$tag
   if _peal_ship_items "$dir"; then
-    msg=$(_peal_ship_notes "$tag" "$dir/items" | head -n 1)
+    # The whole notes, then their first line: head closing the pipe early upsets BSD awk.
+    msg=$(_peal_ship_notes "$tag" "$dir/items")
+    msg=${msg%%$'\n'*}
   else
     status=2
   fi
