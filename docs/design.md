@@ -49,6 +49,7 @@ following:
 | milestones | milestones as data; `peal milestone-state`; `/peal:milestone-review {milestone}` | a milestone list in the board output; `tasks.commands.milestone` for its Close, Park and Un-park; actions with the `milestone` trigger |
 | a session | `/peal:work` and `/peal:close` in the claimed worktree | claim before the session; finished means a PR open and green |
 | the human | questions through `AskUserQuestion` | routes them to its inbox |
+| releases | `/peal:release {version}` | an action marked `release: true`, which its Releases tab's button runs |
 
 A project's `.belfry.yml` for Peal is then:
 
@@ -261,6 +262,8 @@ Peal's fields, all optional:
 | `part-of` | the task this one was split from; filed by `/peal:split` only. |
 | `needs` | capabilities a worker must have, Belfry's vocabulary; carried to the board. |
 | `model` | the implementer's model when not the default, written after the human agrees the plan. |
+| `breaking` | `true` when the task breaks something its users rely on: the next release is a major one ([Releases](#releases)). |
+| `release-note` | `none` leaves the task out of the release notes. |
 | `priority` | `urgent`, `high`, `normal` or `low`; absent means normal. Orders the offer within a milestone, never across milestones; `/peal:idea` sets it only when the idea says so plainly, `/peal:revise` changes it. The board carries it, `peal overview` marks urgent `!` and high `↑`. |
 | `owner` | `ai` or `human`; absent means ai. A human task is work only the human can deliver: the offer never offers it and `/peal:work` refuses it, while `peal claim` still makes its worktree for the human (or Belfry's Start). A `depends` on it waits until it is done, like any other; the `human` keyword, by contrast, never resolves by itself. The board, the list and `peal overview` carry it. |
 
@@ -507,6 +510,10 @@ storage:
     repo: ""                    # owner/name; empty: the remote's GitHub repository
     label: ""                   # only issues with this label are tasks; empty: the issues
                                 # opened by someone with write access
+release:
+  tag-prefix: v                 # release tags are <prefix>MAJOR.MINOR.PATCH
+  wait-ci: false                # /peal:release waits for the workflow runs of the tag
+  report: []                    # texts whose lines in those runs' logs the release reports
 decisions: false                # the decisions module, or its directory to turn it on
 ```
 
@@ -593,7 +600,7 @@ in both:
 | `depends` | lines `Depends on #3, #7` (with `human` and `milestone` too), read up to the first word that is none of those |
 | `part-of` | a line `Part of #3` |
 | `needs` | labels `needs: <capability>` |
-| `size`, `plan`, `model`, the project's own fields | labels `<field>: <value>` |
+| `size`, `plan`, `model`, `breaking`, `release-note`, the project's own fields | labels `<field>: <value>` |
 | `priority` | labels `priority: urgent`, `priority: high`, `priority: low`, Belfry's; of two the higher counts, none is normal |
 | `owner` | the label `owner: human`, Belfry's; none is ai |
 
@@ -708,6 +715,53 @@ paragraph starting `**Supersedes** decision NNNN` (or `decisions NNNN and MMMM`,
   The commit gate allows the area `decisions` with the module on, for a commit that
   touches the decisions directory only, and skips the project's checks for it as for
   `tasks`.
+
+## Releases
+
+`/peal:release [version]` makes a release from what Peal knows better than commit
+messages do: the tasks finished since the last release, with their Outcomes. It works in
+either storage, claims nothing, and asks the human one question. `peal release` is the
+claims' command, so the release's steps are `peal ship ...`, each rerunnable on its own:
+
+- **`peal ship propose`** reads the last release: the highest tag
+  `<release.tag-prefix>MAJOR.MINOR.PATCH` reachable from the remote's main branch (a
+  pre-release, `v1.1.0-rc.1`, is never the last release). It prints `LAST <tag>`, an
+  `ITEM kind id prs title` line per item since, and `PROPOSE <tag> <bump>`: `major`
+  when an item is breaking, `minor` when one is a feature, `patch` when all are fixes,
+  `first` (`v0.1.0`, with every done task) without an earlier release; or `NOTHING
+  since <tag>`.
+- **What went in** is read from the main branch's commits since the last release,
+  squash merges as the close's pull requests make them (`Title [ID] (#PR)`). For task
+  files: each file the range adds under `done/`, but those retired (`docs(tasks):
+  retire`); the pull request from the commit adding it. For issues: each issue a
+  subject names (`[42]`) that is closed as completed, and all its pull requests in the
+  range. For both, each `feat` or `fix` commit of no such task (nor of an issue closed
+  as not planned) is an item of its own, its subject the line.
+- **Kinds.** Breaking: `breaking: true`, a label `breaking` or `breaking: true`, or a
+  subject `type!:`. A fix: a commit subject starting `fix`, or an issue labelled `bug`.
+  A feature otherwise. `release-note: none` (field or label) leaves the task out of the
+  notes and of the version's bump.
+- **`peal ship notes VERSION`** prints the notes: a first line (`v0.2.0: 2 features, 1
+  fix since v0.1.0.`, the tag's message), then the sections Breaking, Features and
+  Fixes, one line per item: its title and the first sentence of its Outcome (for an
+  issue, of the Outcome its first pull request's body holds), then the task (a link to
+  its file at the tag on GitHub, or `#42`) and its pull requests. Once the tag exists,
+  the notes are those of its range, whatever landed since.
+- **`peal ship tag VERSION`** tags the remote's main branch, annotated, and pushes the
+  tag. It refuses a tag that exists (here or on the remote; a release is never moved)
+  and a version not above the last release; a push that fails takes the tag back.
+- **`peal ship publish VERSION`** creates the GitHub release with the notes (`gh release
+  create --notes-file`), or brings an existing one up to date (`gh release edit`); on a
+  remote not on GitHub the tag is the release.
+- **`peal ship wait VERSION`**, run when `release.wait-ci` is `true`, waits for the
+  workflow runs the tag's push started, with a budget as `peal close wait` has, and
+  prints a `RUN` line per run, a `REPORT` line per text of `release.report` (the first
+  line of the runs' job logs holding it: an image digest, say), then `READY`,
+  `FAILED:<run> <url>`, `NONE:<why>` (no run within five minutes of the tag), or
+  `WAIT:<why>` when the budget is spent.
+
+The command proposes, shows the notes, and asks "Release <version>?" in one
+`AskUserQuestion` (under Belfry, its inbox), then tags, publishes and waits.
 
 ## Distribution
 

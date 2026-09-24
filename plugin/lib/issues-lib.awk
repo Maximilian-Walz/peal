@@ -11,8 +11,8 @@
 #             items are read up to the first word that is none of those
 #   part-of   a line "Part of #3"
 #   needs     labels "needs: <capability>"
-#   fields    labels "<field>: <value>": size, plan, model and the project's own; a
-#             field with several such labels is a list
+#   fields    labels "<field>: <value>": size, plan, model, breaking, release-note and
+#             the project's own; a field with several such labels is a list
 #   priority  labels "priority: urgent|high|low", the higher of two; none is normal
 #   owner     the label "owner: human" for a human task; none is ai
 #   claimed   the label "in progress"

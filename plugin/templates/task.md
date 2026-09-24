@@ -21,6 +21,8 @@ depends: []
              never offered, and /peal:work refuses it.
   priority   urgent, high, normal or low; none is normal. Orders the offer within a
              milestone, never across milestones.
+  breaking   true when the task breaks something users rely on: the next release is major.
+  release-note  none to leave the task out of the release notes.
   A project's own fields are declared under task.fields in .peal/config.yml. -->
 
 ## Intent

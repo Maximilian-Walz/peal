@@ -30,6 +30,7 @@ done
 
 check "a milestone's end: the commands exist" "drift milestone-review" \
   "$(for c in drift milestone-review; do [ -f "$commands/$c.md" ] && printf '%s ' "$c"; done | sed 's/ $//')"
+check "releases: the command exists" "release" "$([ -f "$commands/release.md" ] && echo release)"
 check "the backlog commands exist" "defer idea retire revise split" \
   "$(for c in defer idea retire revise split; do [ -f "$commands/$c.md" ] && printf '%s ' "$c"; done | sed 's/ $//')"
 
