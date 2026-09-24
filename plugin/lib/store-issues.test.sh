@@ -263,6 +263,8 @@ parity() {
   ID=0008 TITLE="Title of 8" put "$work" backlog 0008 title-of-8
   ID=0009 TITLE="Title of 9" put "$work" backlog 0009 title-of-9 "priority: high"
   ID=0010 TITLE="Title of 10" put "$work" backlog 0010 title-of-10 "priority: urgent"
+  ID=0011 TITLE="Title of 11" put "$work" backlog 0011 title-of-11 "owner: human"
+  ID=0012 TITLE="Title of 12" put "$work" backlog 0012 title-of-12 "depends: [0011]"
   files=$work
   issues_repo
   issue 1 "Title of 1" --milestone m1
@@ -276,6 +278,8 @@ parity() {
   issue 8 "Title of 8"
   issue 9 "Title of 9" --label "priority: high"
   issue 10 "Title of 10" --label "priority: urgent"
+  issue 11 "Title of 11" --label "owner: human"
+  issue 12 "Title of 12" --body "Depends on #11"
   issues=$work
   check "parity: list" "$(at "$files" "$PEAL" list --no-pr 2>&1 | normal)" "$(at "$issues" "$PEAL" list 2>&1)"
   check "parity: board" "$(at "$files" "$PEAL" board --no-pr 2>&1 | grep -v '^{"milestone"' | normal)" \
@@ -284,6 +288,8 @@ parity() {
     "$(at "$issues" "$PEAL" milestones | cut -d' ' -f1,2 | sort)"
   check "parity: offer" "$(at "$files" "$PEAL" offer current,unassigned,m2 --top 9 2>&1 | normal)" \
     "$(at "$issues" "$PEAL" offer current,unassigned,m2 --top 9 2>&1)"
+  check "parity: a human task, and one waiting on it" "11 free title-of-11 - owner:human
+12 blocked title-of-12 needs:11" "$(at "$issues" "$PEAL" list 2>&1 | grep -e '^11 ' -e '^12 ')"
   check "parity: the offer's order" "10 9 8 7" "$(at "$issues" "$PEAL" offer unassigned --top 9 2>&1 | cut -d' ' -f2 | paste -sd' ' -)"
   work=$issues
   check "parity: read" "---
@@ -620,6 +626,36 @@ priority: urgent
     peal create odd-thing < <(text "priority: soon")
 }
 
+# The owner as the label "owner: human": read, written by create and revise; a task
+# depending on a human task waits until its issue is closed.
+owner() {
+  local work out
+  issues_repo
+  issue 1 "Human" --label "owner: human"
+  issue 2 "Waits" --body "Depends on #1"
+  issue 3 "Ai" --label "owner: ai"
+  check "owner: board" '{"id":"1","state":"free","slug":"human","title":"Human","owner":"human"}
+{"id":"2","state":"blocked","slug":"waits","title":"Waits","depends":["1"]}
+{"id":"3","state":"free","slug":"ai","title":"Ai"}' "$(peal board 2>&1 | grep -v '^{"milestone"' | normal)"
+  check "owner: the offer leaves it out" "CANDIDATE 3 unassigned Ai" "$(peal offer unassigned 2>&1)"
+  check "owner: read" "owner: human" "$(peal read 1 | grep '^owner')"
+  check "owner: read, ai is none" "" "$(peal read 3 | grep '^owner')"
+  out=$(peal create human-thing < <(TITLE="Human thing" text "owner: human") 2>&1)
+  check "owner: create" "0:filed 4" "$?:${out%% https*}"
+  check "owner: the label" "owner: human" "$(labels 4)"
+  peal create ai-thing < <(TITLE="Ai thing" text "owner: ai") >/dev/null 2>&1
+  check "owner: ai makes no label" "" "$(labels 5)"
+  { printf -- '---\nowner: human\n'; peal read 5 | sed 1d; } | peal revise 5 --reason "only the human" >/dev/null 2>&1
+  check "owner: revise adds the label" "owner: human" "$(labels 5)"
+  peal read 5 | sed '/^owner:/d' | peal revise 5 --reason "an AI can" >/dev/null 2>&1
+  check "owner: revise to ai drops it" "" "$(labels 5)"
+  check_refused "owner: a word Peal does not know" "owner robot is not ai or human" \
+    peal create odd-thing < <(text "owner: robot")
+  issue 6 "Human done" --closed --label "owner: human"
+  issue 7 "After" --body "Depends on #6"
+  check "owner: a human task done frees what waits on it" "7 free after -" "$(peal list 7 2>&1)"
+}
+
 cases() {
   states
   expansion
@@ -627,6 +663,7 @@ cases() {
   board
   parity
   priority
+  owner
   writes
   claims
   session

@@ -8,12 +8,13 @@
 # may open an issue on a public repository). EXTRA are issues only named by a task's
 # depends or part-of, read to know whether they are done. The record:
 #
-#   id  dir  -  slug  title  milestone  depends  part-of  size  plan  needs  path  url  labelled  extra  priority
+#   id  dir  -  slug  title  milestone  depends  part-of  size  plan  needs  path  url  labelled  extra  priority  owner
 #
 # dir is done for a closed issue, backlog for an open one; path is empty, url the
 # issue's page; labelled is 1 when the issue carries the claim label, extra 1 for an
 # issue from EXTRA (whose milestone and part-of are left out: it is no task here);
-# priority from the labels "priority: urgent|high|low", the higher of two, empty for normal.
+# priority from the labels "priority: urgent|high|low", the higher of two, empty for normal;
+# owner human for an issue labelled "owner: human", empty for ai.
 
 FNR == 1 { extra = FILENAME == ARGV[2] }
 
@@ -27,7 +28,7 @@ $0 == "" || ($1 in seen) { next }
   gsub(/[\t\r\n]/, " ", title)
   ms = extra ? "" : tsv_unescape($4)
   n = split(tsv_unescape($5), ls, ",")
-  labelled = size = plan = needs = prio = ""
+  labelled = size = plan = needs = prio = owner = ""
   for (j = 1; j <= n; j++) {
     l = trim(ls[j])
     if (l == claimed) labelled = 1
@@ -36,11 +37,12 @@ $0 == "" || ($1 in seen) { next }
       else if (LKEY == "size") size = LVALUE
       else if (LKEY == "plan") plan = LVALUE
       else if (LKEY == "priority" && prio_rank(LVALUE) > prio_rank(prio)) prio = LVALUE
+      else if (LKEY == "owner" && LVALUE == "human") owner = "human"
     }
   }
   if (prio == "normal") prio = ""
   body_refs(tsv_unescape($8))
-  printf "%s\t%s\t-\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t\t%s\t%s\t%s\t%s\n", id,
+  printf "%s\t%s\t-\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t\t%s\t%s\t%s\t%s\t%s\n", id,
     ($2 == "closed" ? "done" : "backlog"), issue_slug(title), title, ms, DEPS,
-    (extra ? "" : PARTOF), size, plan, needs, $7, labelled, (extra ? 1 : ""), prio
+    (extra ? "" : PARTOF), size, plan, needs, $7, labelled, (extra ? 1 : ""), prio, owner
 }

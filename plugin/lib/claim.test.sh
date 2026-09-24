@@ -103,6 +103,25 @@ CANDIDATE 0008 unassigned Title of 0008" "$?:$out"
   check "claim --next: the most urgent first" "$(dirname "$work")/work-wt/0006-current-urgent" "$out"
 }
 
+# A human task is never offered, nor claimed by --next; peal claim ID still claims it.
+offer_owner() {
+  local work out
+  work=$(repo)
+  put "$work" backlog 0001 human-urgent "milestone: m1" "owner: human" "priority: urgent"
+  put "$work" backlog 0002 ai-task "milestone: m1" "owner: ai"
+  put "$work" backlog 0003 human-task "owner: human"
+
+  out=$(peal offer current,unassigned 2>&1)
+  check "offer: no human task" "0:CANDIDATE 0002 m1 Title of 0002" "$?:$out"
+  out=$(peal claim --next --print-path 2>/dev/null | tail -1)
+  check "claim --next: never a human task" "$(dirname "$work")/work-wt/0002-ai-task" "$out"
+  out=$(peal claim --next unassigned 2>&1)
+  check "claim --next: only human tasks left is nothing to claim" "1:peal: claim: no free task in unassigned" "$?:$out"
+  out=$(peal claim 0003 --print-path 2>/dev/null | tail -1)
+  check "claim: a human task by id" "$(dirname "$work")/work-wt/0003-human-task" "$out"
+  check "claim: the human task is claimed" "0003 claimed-live" "$(state_of 0003 | cut -d ' ' -f 1,2)"
+}
+
 claim() {
   local work wt out head before
   work=$(repo)
@@ -348,6 +367,7 @@ refs/reaped/0101-timeless" "$(git -C "$work" for-each-ref --format='%(refname)' 
 cases() {
   offer
   offer_priority
+  offer_owner
   claim
   race
   resume

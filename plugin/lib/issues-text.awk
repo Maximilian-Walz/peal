@@ -7,7 +7,7 @@
 # ISSUE holds one issue as issues-lib.awk describes it; fields names the project's own
 # frontmatter fields (task.fields), which labels "<field>: <value>" carry like Peal's
 # size, plan, model, breaking and release-note; the labels "priority: urgent|high|low"
-# make its priority (the higher of two).
+# make its priority (the higher of two), the label "owner: human" its owner.
 
 function put(key, list,    n, it) {
   if (list == "") return
@@ -23,7 +23,8 @@ function put(key, list,    n, it) {
   for (j = 1; j <= n; j++) {
     l = trim(ls[j])
     if (l == claimed || l == label || !label_kv(l)) continue
-    if (LKEY == "priority") { if (prio_rank(LVALUE) > prio_rank(v["priority"])) v["priority"] = LVALUE }
+    if (LKEY == "owner") { if (LVALUE == "human") v["owner"] = "human" }
+    else if (LKEY == "priority") { if (prio_rank(LVALUE) > prio_rank(v["priority"])) v["priority"] = LVALUE }
     else if (LKEY == "needs" || (LKEY in want)) v[LKEY] = add_item(v[LKEY], LVALUE)
   }
   body_refs(tsv_unescape($8))
@@ -39,6 +40,7 @@ function put(key, list,    n, it) {
   put("part-of", PARTOF)
   put("needs", v["needs"])
   put("model", v["model"])
+  put("owner", v["owner"])
   put("breaking", v["breaking"])
   put("release-note", v["release-note"])
   if (v["priority"] != "normal") put("priority", v["priority"])

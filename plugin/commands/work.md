@@ -15,7 +15,9 @@ with the human and delegates the build: it never writes the task's code itself.
 Run `peal work $ARGUMENTS` and act on its output:
 
 - **Refused** (non-zero exit): report its message and stop. In a task's worktree it
-  refuses any other task or pool: that work starts from the main checkout.
+  refuses any other task or pool: that work starts from the main checkout. It refuses a
+  human task (`owner: human`): the human works it, never a session; `peal claim` makes
+  its worktree for them.
 - **`TASK <id> <file>`**, followed by `PLAN` and `MODEL` lines: this worktree already
   holds the task (its branch is the task's, and the task is claimed here), whether the
   human opened the session here or something started it here after claiming. Claim

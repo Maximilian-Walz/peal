@@ -17,6 +17,8 @@ depends: []
   part-of    the task this one was split from; written by a split only.
   needs      capabilities a worker must have, e.g. [display, gpu].
   model      the implementer's model when not the default, once the plan is agreed.
+  owner      ai or human; none is ai. A human task is work only the human can deliver:
+             never offered, and /peal:work refuses it.
   priority   urgent, high, normal or low; none is normal. Orders the offer within a
              milestone, never across milestones.
   breaking   true when the task breaks something users rely on: the next release is major.
