@@ -10,30 +10,35 @@
 # fake gh first on PATH; ISSUES_CONFIG, when set, is added to its .peal/config.yml. Not
 # in a subshell: it sets the caller's work.
 issues_repo() {
-  local bin
   work=$(repo)
-  FAKE_GH=$(dirname "$work")/gh
-  export FAKE_GH
-  mkdir -p "$FAKE_GH"
-  bin=$(dirname "$work")/bin
-  mkdir -p "$bin"
-  ln -s "$PEAL_ROOT/lib/fake-gh" "$bin/gh"
-  case ":$PATH:" in *":$bin:"*) ;; *) PATH="$bin:$PATH" ;; esac
+  fake_github "$work"
   mkdir -p "$work/.peal"
   printf 'storage:\n  kind: issues\n  issues:\n    repo: acme/widgets\n%s' "${ISSUES_CONFIG-}" >"$work/.peal/config.yml"
   git -C "$work" rm -q -r docs/milestones
   git -C "$work" add -A
   git -C "$work" commit -q -m issues
   git -C "$work" push -q origin main 2>/dev/null
-  printf '[]\n' >"$FAKE_GH/issues.json"
-  printf '[]\n' >"$FAKE_GH/pulls.json"
-  printf '[]\n' >"$FAKE_GH/comments.json"
-  printf '[]\n' >"$FAKE_GH/milestones.json"
-  : >"$FAKE_GH/log"
   milestone 1 m0 closed "" ""
   milestone 2 m1 open "2026-10-01T07:00:00Z" ""
   milestone 3 m2 open "2026-12-01T07:00:00Z" "Second"
   milestone 4 m3 open "" "Parked: until later"
+}
+
+# fake_github WORK -> FAKE_GH, an empty fake GitHub beside WORK, and the fake gh first on
+# PATH.
+fake_github() {
+  local bin f
+  FAKE_GH=$(dirname "$1")/gh
+  export FAKE_GH
+  mkdir -p "$FAKE_GH"
+  for f in issues pulls comments milestones checks statuses; do
+    printf '[]\n' >"$FAKE_GH/$f.json"
+  done
+  : >"$FAKE_GH/log"
+  bin=$(dirname "$1")/bin
+  mkdir -p "$bin"
+  ln -sf "$PEAL_ROOT/lib/fake-gh" "$bin/gh"
+  case ":$PATH:" in *":$bin:"*) ;; *) PATH="$bin:$PATH" ;; esac
 }
 
 # milestone NUMBER TITLE STATE DUE DESCRIPTION -> a milestone on the fake GitHub.

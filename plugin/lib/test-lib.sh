@@ -56,11 +56,13 @@ check_refused() {
   check_fails "$name" 2 "$pattern" "$@"
 }
 
-# for_each_awk FUNCTION -> runs FUNCTION once per awk installed, that awk first on PATH.
+# for_each_awk FUNCTION -> runs FUNCTION once per awk installed, that awk first on PATH;
+# only under PEAL_TEST_AWK when that names one (a quicker run while working on a harness).
 for_each_awk() {
   local candidate bin shims saved=$PATH ran=0
   shims=$(scratch_dir)
   for candidate in mawk gawk nawk original-awk "busybox awk"; do
+    [ -z "${PEAL_TEST_AWK-}" ] || [ "$candidate" = "$PEAL_TEST_AWK" ] || continue
     bin=${candidate%% *}
     command -v "$bin" >/dev/null || continue
     [ "$candidate" != "busybox awk" ] || busybox awk 'BEGIN {}' 2>/dev/null || continue

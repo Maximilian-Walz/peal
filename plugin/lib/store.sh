@@ -24,6 +24,9 @@
 #                                          task's text from the file TEXT, REASON noted,
 #                                          written back under the same id; refused while
 #                                          the branch holds work
+#   peal_store_close_text ID               the file holding the Outcome of task ID, whose
+#                                          branch is checked out here (relative to the
+#                                          top, or absolute); status 1 if there is none
 #   peal_store_comment ID TEXT             a dated line in the task's notes
 #   peal_store_milestones                  peal_ms_load's lines, as the storage holds them
 #   peal_store_claim ID                    the task claimed into a worktree of its own

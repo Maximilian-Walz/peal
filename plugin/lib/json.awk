@@ -1,4 +1,4 @@
-# JSON helpers for the board's lines and the issues storage's requests; included with -f.
+# JSON helpers for the board's lines and the requests to GitHub; included with -f.
 
 # json_str(s) -> s as a JSON string. By character: gsub escapes differ between awks.
 function json_str(s,    i, c, out) {

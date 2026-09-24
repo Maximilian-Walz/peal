@@ -21,6 +21,8 @@ export PEAL_ROOT
 . "$PEAL_ROOT/lib/task-text.sh"
 # shellcheck source=../lib/store.sh
 . "$PEAL_ROOT/lib/store.sh"
+# shellcheck source=../lib/github.sh
+. "$PEAL_ROOT/lib/github.sh"
 # shellcheck source=../lib/tasks.sh
 . "$PEAL_ROOT/lib/tasks.sh"
 # shellcheck source=../lib/ideas.sh
@@ -37,13 +39,16 @@ export PEAL_ROOT
 . "$PEAL_ROOT/lib/work.sh"
 # shellcheck source=../lib/backlog.sh
 . "$PEAL_ROOT/lib/backlog.sh"
+# shellcheck source=../lib/close.sh
+. "$PEAL_ROOT/lib/close.sh"
 
 usage() {
   cat <<'EOF'
 usage: peal <command> [args]
 
   --version, version            print Peal's version
-  check                         report what is not valid: the milestone files
+  check                         report what is not valid: the milestone files, and a
+                                task file under done/ without an Outcome
   config [KEY]                  print the effective settings, or one of them
   frontmatter check FILE        refuse a frontmatter outside Peal's YAML subset
   frontmatter keys FILE         print its keys
@@ -59,6 +64,8 @@ usage: peal <command> [args]
                                 session) and print the orientation
   hook post-tool-use            the PostToolUse hook: the heartbeat and the turn budget
   hook session-end              the SessionEnd hook: autosave a task branch as wip, pushed
+  hook stop                     the Stop hook: while a close is in progress, refuse to stop
+                                with the Outcome empty or work uncommitted or unpushed
   hook git-guard                the PreToolUse hook on Bash: refuse git calls that work
                                 around the git gates (lib/git-guard.sh)
 
@@ -125,6 +132,21 @@ issue-N on branch issue/N, labelled "in progress", as Belfry claims one):
                                 worktree's task needs of the project, for its prompt
   record ID plan|notes          the task's text on stdin recorded on this worktree's
                                 claim: the plan the human agreed, or their answers
+
+/peal:close's steps (lib/close.sh), in the task's worktree:
+  close begin                   declare the close (the Stop hook holds the session to
+                                it); notes, where the Outcome goes, the diff, Done when
+  close finish --summary TEXT [--section TITLE TEXT]...
+                                the close checks, the queued ideas filed, the task moved
+                                to done, committed, pushed, the pull request opened; the
+                                -file forms (--summary-file FILE, --section-file TITLE
+                                FILE) read the text from a file
+  close body --summary TEXT [--section TITLE TEXT]...
+                                the pull request's body finish would open it with
+  close abort REASON            call the close off, REASON logged
+  close verify                  one verdict: READY (0), WAIT:<why> (3), BLOCKED:<why> (1)
+  close wait                    verify until not WAIT, or the budget is spent
+                                (PEAL_CLOSE_WAIT_BUDGET, 540 s; PEAL_CLOSE_WAIT_INTERVAL, 20)
 EOF
 }
 
@@ -167,8 +189,11 @@ cmd_config() {
 }
 
 cmd_check() {
+  local status=0
   [ $# -eq 0 ] || { usage >&2; exit 2; }
-  peal_ms_load || exit 2
+  peal_ms_load || status=2
+  peal_check_outcomes || status=2
+  exit $status
 }
 
 # ms_load -> PEAL_MILESTONES: the milestone files of this work tree, or for another
@@ -201,6 +226,7 @@ cmd_hook() {
       ;;
     post-tool-use) peal_hook_read; peal_turn_budget || exit $? ;;
     session-end) peal_hook_read; peal_session_end ;;
+    stop) peal_hook_read; peal_close_stop || exit $? ;;
     git-guard) peal_git_guard ;;
     *) usage >&2; exit 2 ;;
   esac
@@ -279,6 +305,13 @@ main() {
     brief) with_store peal_brief "$@" ;;
     record) with_store peal_record "$@" ;;
     defer) with_store peal_defer "$@" ;;
+    close)
+      # Verify and wait read the branch and GitHub only, and answer anywhere with a verdict.
+      case ${1-} in
+        verify | wait) peal_close "$@" ;;
+        *) with_store peal_close "$@" ;;
+      esac
+      ;;
     comment) [ $# -eq 2 ] || { usage >&2; exit 2; }; with_store peal_store_comment "$1" "$2" ;;
     *)
       peal_err "unknown command '$cmd'"

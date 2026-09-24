@@ -47,6 +47,7 @@ hooks=$(sed -n 's/^ *"command": *"\(.*\)" *$/\1/p' "$root/hooks/hooks.json" | se
 check "the hooks are peal's" '"${CLAUDE_PLUGIN_ROOT}/bin/peal" hook session-start
 "${CLAUDE_PLUGIN_ROOT}/bin/peal" hook git-guard
 "${CLAUDE_PLUGIN_ROOT}/bin/peal" hook post-tool-use
+"${CLAUDE_PLUGIN_ROOT}/bin/peal" hook stop
 "${CLAUDE_PLUGIN_ROOT}/bin/peal" hook session-end' "$hooks"
 hook=$(printf '%s\n' "$hooks" | sed -n 1p)
 CLAUDE_PLUGIN_ROOT=$root CLAUDE_PROJECT_DIR=$project bash -c "$hook" </dev/null >/dev/null

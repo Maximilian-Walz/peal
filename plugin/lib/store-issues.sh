@@ -27,99 +27,34 @@ PEAL_ISSUES_CLOSED=${PEAL_ISSUES_CLOSED:-100}
 PEAL_ISSUES_ROW='[(.number | tostring), .state, .title, (.milestone.title // ""), ([.labels[].name] | join(",")), (.author_association // ""), .html_url, (.body // "")] | @tsv'
 
 # _peal_issues_settings -> PEAL_REMOTE, PEAL_MAIN, PEAL_LABEL and PEAL_REPO (owner/name:
-# the setting, else the remote's GitHub repository, else gh's own guess) from the settings.
+# peal_github_repo) from the settings.
 _peal_issues_settings() {
   PEAL_REMOTE=$(peal_config_get remote) || return 2
   PEAL_MAIN=$(peal_config_get main) || return 2
   PEAL_LABEL=$(peal_config_get storage.issues.label) || return 2
-  PEAL_REPO=$(peal_config_get storage.issues.repo) || return 2
-  [ -n "$PEAL_REPO" ] || PEAL_REPO=$(_peal_issues_repo_of "$(git remote get-url "$PEAL_REMOTE" 2>/dev/null)") \
-    || PEAL_REPO='{owner}/{repo}'
-}
-
-# _peal_issues_repo_of URL -> owner/name of a github.com remote URL; status 1 for another.
-_peal_issues_repo_of() {
-  local url=$1
-  case $url in
-    https://github.com/* | http://github.com/*) url=${url#*://github.com/} ;;
-    https://*@github.com/*) url=${url#*@github.com/} ;;
-    ssh://*github.com/*) url=${url#*github.com/} ;;
-    *@github.com:*) url=${url#*@github.com:} ;;
-    *) return 1 ;;
-  esac
-  url=${url%/}
-  url=${url%.git}
-  [[ "$url" =~ ^[^/]+/[^/]+$ ]] || return 1
-  printf '%s\n' "$url"
-}
-
-# _peal_urlencode TEXT -> TEXT %-encoded for a URL's path or query.
-_peal_urlencode() {
-  local LC_ALL=C s=$1 i c out=""
-  for ((i = 0; i < ${#s}; i++)); do
-    c=${s:i:1}
-    case $c in
-      [A-Za-z0-9._~-]) out=$out$c ;;
-      *) out=$out$(printf '%%%02X' "'$c") ;;
-    esac
-  done
-  printf '%s\n' "$out"
-}
-
-# _peal_gh ARGS... -> `gh api ARGS` (within a minute, where timeout exists); status 2 and
-# gh's message when it fails.
-_peal_gh() {
-  local err status=0
-  if ! command -v gh >/dev/null 2>&1; then
-    peal_err "the issues storage needs gh (https://cli.github.com), logged in"
-    return 2
-  fi
-  err=$(mktemp) || return 2
-  if command -v timeout >/dev/null 2>&1; then
-    timeout 60 gh api "$@" 2>"$err" || status=2
-  else
-    gh api "$@" 2>"$err" || status=2
-  fi
-  if [ $status != 0 ]; then
-    while [ $# -gt 0 ]; do
-      case $1 in
-        --jq | --input | --method) shift ;;
-        -*) ;;
-        *) set -- "$1" && break ;;
-      esac
-      shift
-    done
-    peal_err "gh api ${1-} failed: $(tr '\n' ' ' <"$err" | sed 's/ $//')"
-  fi
-  rm -f "$err"
-  return $status
-}
-
-# _peal_issues_json [KIND:KEY VALUE]... -> a request's JSON object (lib/issues-json.awk).
-_peal_issues_json() {
-  awk -f "$PEAL_ROOT/lib/json.awk" -f "$PEAL_ROOT/lib/issues-json.awk" "$@"
+  PEAL_REPO=$(peal_github_repo) || return 2
 }
 
 # _peal_issues_issue N -> issue N as an issues-lib.awk row; status 2 if it cannot be read.
 _peal_issues_issue() {
-  _peal_gh "repos/$PEAL_REPO/issues/$1" --jq "$PEAL_ISSUES_ROW"
+  peal_gh "repos/$PEAL_REPO/issues/$1" --jq "$PEAL_ISSUES_ROW"
 }
 
 # _peal_issues_listed -> the rows of the issues that are tasks: open ones, and the most
 # recently updated closed ones.
 _peal_issues_listed() {
   local q="per_page=100"
-  [ -z "$PEAL_LABEL" ] || q="$q&labels=$(_peal_urlencode "$PEAL_LABEL")"
-  _peal_gh --paginate "repos/$PEAL_REPO/issues?state=open&$q" \
+  [ -z "$PEAL_LABEL" ] || q="$q&labels=$(peal_urlencode "$PEAL_LABEL")"
+  peal_gh --paginate "repos/$PEAL_REPO/issues?state=open&$q" \
     --jq ".[] | select(.pull_request == null) | $PEAL_ISSUES_ROW" || return 2
-  _peal_gh "repos/$PEAL_REPO/issues?state=closed&sort=updated&direction=desc&${q/per_page=100/per_page=$PEAL_ISSUES_CLOSED}" \
+  peal_gh "repos/$PEAL_REPO/issues?state=closed&sort=updated&direction=desc&${q/per_page=100/per_page=$PEAL_ISSUES_CLOSED}" \
     --jq ".[] | select(.pull_request == null) | $PEAL_ISSUES_ROW" || return 2
 }
 
 # _peal_issues_prs -> issues-prs.awk's lines for the open pull requests that may close an
 # issue: from a branch of the repository itself, or by someone with write access.
 _peal_issues_prs() {
-  _peal_gh --paginate "repos/$PEAL_REPO/pulls?state=open&per_page=100" --jq '.[]
+  peal_gh --paginate "repos/$PEAL_REPO/pulls?state=open&per_page=100" --jq '.[]
     | select(.head.repo.full_name == .base.repo.full_name or .author_association == "OWNER"
         or .author_association == "MEMBER" or .author_association == "COLLABORATOR")
     | [(.number | tostring), .html_url, (.draft | tostring), (.body // "")] | @tsv' \
@@ -227,7 +162,7 @@ peal_store_list() {
 # _peal_issues_milestone_rows -> "number<TAB>title<TAB>state<TAB>due_on<TAB>description<TAB>url"
 # per milestone of the repository.
 _peal_issues_milestone_rows() {
-  _peal_gh --paginate "repos/$PEAL_REPO/milestones?state=all&per_page=100" \
+  peal_gh --paginate "repos/$PEAL_REPO/milestones?state=all&per_page=100" \
     --jq '.[] | [(.number | tostring), .title, .state, (.due_on // ""), (.description // ""), .html_url] | @tsv'
 }
 
@@ -355,11 +290,11 @@ _peal_issues_post() {
   if [ -z "$n" ]; then
     labels=$(cat "$dir/labels")
     [ -z "$PEAL_LABEL" ] || labels=$(printf '%s\n%s\n' "$PEAL_LABEL" "$labels")
-    _peal_issues_json s:title "$(cat "$dir/title")" f:body "$dir/body" l:labels "$labels" r:milestone "$ms" \
-      | _peal_gh --method POST "repos/$PEAL_REPO/issues" --input - --jq '[(.number | tostring), .html_url] | @tsv'
+    peal_json s:title "$(cat "$dir/title")" f:body "$dir/body" l:labels "$labels" r:milestone "$ms" \
+      | peal_gh --method POST "repos/$PEAL_REPO/issues" --input - --jq '[(.number | tostring), .html_url] | @tsv'
   else
-    _peal_issues_json s:title "$(cat "$dir/title")" f:body "$dir/body" r:milestone "$ms" \
-      | _peal_gh --method PATCH "repos/$PEAL_REPO/issues/$n" --input - --jq '.number' >/dev/null
+    peal_json s:title "$(cat "$dir/title")" f:body "$dir/body" r:milestone "$ms" \
+      | peal_gh --method PATCH "repos/$PEAL_REPO/issues/$n" --input - --jq '.number' >/dev/null
   fi
 }
 
@@ -438,7 +373,7 @@ peal_store_create() {
     fi
   done
   for ((i = 0; i < ${#created[@]}; i++)); do
-    PEAL_TITLE=${titles[i]-} awk -F '\t' -v id="${created[i]}" -v url="${urls[i]}" '
+    PEAL_TITLE=${titles[i]-$(cat "$dirs/issue$((i + 1))/title")} awk -F '\t' -v id="${created[i]}" -v url="${urls[i]}" '
       function f(v) { return v == "" ? "-" : v }
       { printf "filed %s %s — milestone: %s, plan: %s, size: %s — \"%s\"\n", id, url, f($1), f($2), f($3), ENVIRON["PEAL_TITLE"] }' \
       <<<"${PEAL_CREATE_SUMMARY[i]}"
@@ -478,7 +413,7 @@ _peal_issues_unclaimed() {
 
 # _peal_issues_comment ID TEXT -> TEXT as a comment on issue ID.
 _peal_issues_comment() {
-  _peal_issues_json s:body "$2" | _peal_gh --method POST "repos/$PEAL_REPO/issues/$1/comments" --input - --jq '.id' >/dev/null
+  peal_json s:body "$2" | peal_gh --method POST "repos/$PEAL_REPO/issues/$1/comments" --input - --jq '.id' >/dev/null
 }
 
 # _peal_issues_labels ID OLD NEW -> the labels of issue ID the task text manages brought
@@ -488,18 +423,18 @@ _peal_issues_labels() {
   add=$(comm -13 <(printf '%s\n' "$2" | sed '/^$/d' | sort -u) <(printf '%s\n' "$3" | sed '/^$/d' | sort -u))
   remove=$(comm -23 <(printf '%s\n' "$2" | sed '/^$/d' | sort -u) <(printf '%s\n' "$3" | sed '/^$/d' | sort -u))
   if [ -n "$add" ]; then
-    _peal_issues_json l:labels "$add" \
-      | _peal_gh --method POST "repos/$PEAL_REPO/issues/$id/labels" --input - --jq 'length' >/dev/null || return 2
+    peal_json l:labels "$add" \
+      | peal_gh --method POST "repos/$PEAL_REPO/issues/$id/labels" --input - --jq 'length' >/dev/null || return 2
   fi
   while IFS= read -r l; do
-    [ -z "$l" ] || _peal_gh --method DELETE "repos/$PEAL_REPO/issues/$id/labels/$(_peal_urlencode "$l")" >/dev/null || return 2
+    [ -z "$l" ] || peal_gh --method DELETE "repos/$PEAL_REPO/issues/$id/labels/$(peal_urlencode "$l")" >/dev/null || return 2
   done <<<"$remove"
 }
 
 # _peal_issues_current_labels ID -> the labels of issue ID the task text manages.
 _peal_issues_current_labels() {
   local l
-  _peal_gh "repos/$PEAL_REPO/issues/$1" --jq '.labels[].name' | while IFS= read -r l; do
+  peal_gh "repos/$PEAL_REPO/issues/$1" --jq '.labels[].name' | while IFS= read -r l; do
     _peal_issues_managed "$l" && printf '%s\n' "$l"
   done
   return "${PIPESTATUS[0]}"
@@ -658,7 +593,7 @@ peal_store_set_milestone() {
     esac
     ms=$(_peal_issues_milestone_number "$m") || return 2
   fi
-  _peal_issues_json r:milestone "$ms" | _peal_gh --method PATCH "repos/$PEAL_REPO/issues/$id" --input - --jq '.number' >/dev/null || return 1
+  peal_json r:milestone "$ms" | peal_gh --method PATCH "repos/$PEAL_REPO/issues/$id" --input - --jq '.number' >/dev/null || return 1
   echo "task $id: milestone ${m:-none}"
 }
 
@@ -694,8 +629,8 @@ _peal_issues_retire() {
     return 2
   fi
   _peal_issues_comment "$id" "Retired $(date -u +%Y-%m-%d) without being claimed: $reason" || return 1
-  _peal_issues_json s:state closed s:state_reason not_planned \
-    | _peal_gh --method PATCH "repos/$PEAL_REPO/issues/$id" --input - --jq '.number' >/dev/null || return 1
+  peal_json s:state closed s:state_reason not_planned \
+    | peal_gh --method PATCH "repos/$PEAL_REPO/issues/$id" --input - --jq '.number' >/dev/null || return 1
   echo "retired $id $(_peal_field "$PEAL_RECORD" 15)"
 }
 
@@ -710,6 +645,19 @@ _peal_issues_finish_done() {
     return 2
   fi
   echo "finished $id: the pull request's body says \"Fixes #$id\"; its merge closes the issue"
+}
+
+# An issue has no Outcome section of its own: the close writes it in the worktree's git
+# directory, and the pull request's body carries it.
+peal_store_close_text() {
+  local file
+  file=$(git rev-parse --absolute-git-dir)/peal-outcome.md || return 2
+  if [ ! -e "$file" ]; then
+    printf '%s\n' "## Outcome" "" \
+      "<!-- Written at close, replacing this comment: what was built, what was decided, what was" \
+      "     found and left (each a new task), and what the next session needs to know. -->" >"$file" || return 2
+  fi
+  printf '%s\n' "$file"
 }
 
 peal_store_finish() {
@@ -733,8 +681,8 @@ _peal_issues_cache() {
 
 # _peal_issues_label_claim ID -> the claim label on issue ID.
 _peal_issues_label_claim() {
-  _peal_issues_json l:labels "$PEAL_ISSUES_CLAIMED" \
-    | _peal_gh --method POST "repos/$PEAL_REPO/issues/$1/labels" --input - --jq 'length' >/dev/null
+  peal_json l:labels "$PEAL_ISSUES_CLAIMED" \
+    | peal_gh --method POST "repos/$PEAL_REPO/issues/$1/labels" --input - --jq 'length' >/dev/null
 }
 
 # peal_store_claim ID -> the issue claimed as Belfry claims one: the worktree
@@ -815,9 +763,9 @@ peal_store_release() {
       peal_err "warning: could not delete $PEAL_REMOTE/$branch"
     fi
   fi
-  if labels=$(_peal_gh "repos/$PEAL_REPO/issues/$id" --jq 'select(.state == "open") | .labels[].name'); then
+  if labels=$(peal_gh "repos/$PEAL_REPO/issues/$id" --jq 'select(.state == "open") | .labels[].name'); then
     if printf '%s\n' "$labels" | grep -qxF "$PEAL_ISSUES_CLAIMED" \
-        && ! _peal_gh --method DELETE "repos/$PEAL_REPO/issues/$id/labels/$(_peal_urlencode "$PEAL_ISSUES_CLAIMED")" >/dev/null; then
+        && ! peal_gh --method DELETE "repos/$PEAL_REPO/issues/$id/labels/$(peal_urlencode "$PEAL_ISSUES_CLAIMED")" >/dev/null; then
       peal_err "warning: could not take the label '$PEAL_ISSUES_CLAIMED' off issue $id"
     fi
   else

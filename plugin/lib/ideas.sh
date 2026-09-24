@@ -6,6 +6,7 @@
 # when it is filed.
 
 PEAL_IDEA_QUEUE=peal-ideas
+PEAL_IDEAS_FILED=peal-ideas-filed
 
 # peal_idea_queue -> the path of this worktree's queue.
 peal_idea_queue() {
@@ -53,9 +54,11 @@ peal_idea() {
 }
 
 # peal_ideas [--flush] -> the queued ideas, "slug<TAB>title" each; --flush files them all
-# in one push as found in this branch's task, and empties the queue once they are filed.
+# as found in this branch's task, in one push where the storage can (a failure files
+# none), and takes off the queue exactly those filed; the storage's "filed ..." lines are
+# kept in the worktree's git directory too (peal-ideas-filed), for the pull request.
 peal_ideas() {
-  local queue task slugs
+  local queue task slugs out status filed
   queue=$(peal_idea_queue)
   case ${1-} in
     "")
@@ -72,10 +75,20 @@ peal_ideas() {
       task=$(peal_idea_task) || { peal_err "ideas: not on a task branch"; return 2; }
       slugs=$(sed -n 's/^-----IDEA \(.*\)-----$/\1/p' "$queue")
       # shellcheck disable=SC2086 # slugs are kebab-case words
-      awk -v delim="$PEAL_TASK_DELIMITER" '
+      out=$(awk -v delim="$PEAL_TASK_DELIMITER" '
         /^-----IDEA .*-----$/ { if (n++) print delim; next }
-        { print }' "$queue" | peal_store_create batch "$task" $slugs || return
-      rm -f "$queue"
+        { print }' "$queue" | peal_store_create batch "$task" $slugs)
+      status=$?
+      [ -z "$out" ] || printf '%s\n' "$out"
+      filed=$(printf '%s\n' "$out" | grep -c '^filed ')
+      [ "$filed" = 0 ] || printf '%s\n' "$out" | grep '^filed ' >>"$(git rev-parse --git-dir)/$PEAL_IDEAS_FILED"
+      if [ $status = 0 ]; then
+        rm -f "$queue"
+      elif [ "$filed" != 0 ]; then
+        # Filed one by one and stopped: the ones filed leave the queue, in their order.
+        awk -v k="$filed" '/^-----IDEA .*-----$/ { n++ } n > k' "$queue" >"$queue.$$" && mv -f "$queue.$$" "$queue"
+      fi
+      return $status
       ;;
     *) peal_err "ideas: unknown option $1"; return 2 ;;
   esac

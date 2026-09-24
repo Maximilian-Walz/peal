@@ -317,6 +317,56 @@ Derived from refs and the main branch on the remote, never from the calling work
 The heartbeat, the turn count and the autosave's log live in the worktree's git
 directory, where no commit sees them.
 
+## Closing a task
+
+`/peal:close` runs in the task's worktree once its `## Done when` holds, or once the task
+is decided against. `peal close` holds every step a script can check; the command holds
+the judgement (the review, routing the findings, the Outcome, the summary).
+
+- **`peal close begin`** declares the close: a sentinel in the worktree's git directory
+  arms the Stop hook. It refuses outside a task's worktree, without the git hooks
+  installed, with more than one task under `doing/`, and on a branch that adds a backlog
+  file. It notes, never refusing: how far the branch is behind main (task files not
+  counted), the paths a merge of main would conflict in, milestone files the branch
+  changes, the ideas queued, an empty `## Scope` or `## Done when`. Then it names the file
+  the Outcome goes in (the task file; for an issue, a file of the close's own in the git
+  directory, since an issue has no Outcome section), the project's PR sections, the diff
+  and the `## Done when`.
+- **The review** runs unless every path of the diff lies under `review.skip-paths`. Each
+  finding is fixed on the branch, filed as an idea, escalated under `### Escalations` in
+  the Outcome, or rebutted under `### Reviewer findings not acted on`.
+- **`peal close finish --summary TEXT [--section TITLE TEXT]...`** refuses, before
+  anything changes, a missing summary or PR section, an empty Outcome or one with a
+  placeholder left, more than three escalations (the task was underspecified: the human
+  decides first), an uncommitted path besides the Outcome's text, the git hooks missing,
+  and a failing `checks.close` command. Then it files the queued ideas in one push (a
+  storage that files one at a time, like issues, takes off the queue exactly those filed,
+  so a rerun never files one twice), commits the storage's finish as `docs(tasks): close
+  ID [ID]` (the file's move to `done/`; an empty commit when the branch holds nothing
+  else, since a pull request needs one), pushes, and opens the pull request, or updates
+  the title and body of the one open for the branch. Whatever fails after the flush keeps
+  the close in progress; finish run again goes on where it stopped.
+- **The pull request's body** is generated (`peal close body` prints it): the summary
+  bullets; `Fixes #N` for an issue, which closes it on merge; the split it is part of; the
+  project's `pr.sections`, each an item `"Title: what to write"` whose text the session
+  passes to finish; the Outcome; the ideas filed from the worktree; the branch's commits.
+- **`peal close abort REASON`** calls a close off, the reason logged in the git directory;
+  the queued ideas stay queued.
+- **`peal close verify`** prints one verdict about the branch checked out: `READY` (open
+  and green; `:merged`, `:pr-closed`, `:no-checks` for a repository without Actions
+  workflows), `WAIT:<why>` (checks pending or not registered yet, mergeability unknown),
+  or `BLOCKED:<why>` (the close unfinished, uncommitted or unpushed work, no pull request,
+  conflicts, failing checks, no `gh`, ...). Anything it cannot verify is `BLOCKED`, never
+  `READY`. **`peal close wait`** runs it again until the verdict is not `WAIT` or its
+  budget (nine minutes, under a tool call's ten) is spent; the command runs wait again
+  while it says `WAIT`.
+- **The Stop hook** is silent unless a close is in progress in the worktree; then it
+  refuses to let a turn end while the Outcome is empty or holds a placeholder, or work is
+  uncommitted or unpushed. It never refuses twice in a row, and a sentinel another session
+  left behind is cleared, not enforced.
+- **`peal check`** refuses a task file under `done/` whose Outcome is empty or holds a
+  placeholder.
+
 ## Milestones
 
 Milestones are data, the model Belfry shares (its issue #3): an id, a title, a state
@@ -391,7 +441,7 @@ checks:
   commit: []                    # commands the commit-msg gate runs; each may name paths it applies to
   close: []                     # commands close runs before opening the PR
 pr:
-  sections: []                  # extra prose sections close asks the session for: title and instruction
+  sections: []                  # extra prose sections close asks the session for: "Title: instruction"
 commit:
   areas: []                     # allowed <area> values in commit subjects; empty allows any
 models: {planner: opus, reviewer: opus, implementer: sonnet}

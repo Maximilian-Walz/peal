@@ -2,7 +2,7 @@
 # string, f a file's content as a string, r raw JSON (a number, null), l a list of
 # strings, one per line of VALUE.
 #
-#   awk -f json.awk -f issues-json.awk s:title "A title" f:body FILE l:labels "$labels"
+#   awk -f json.awk -f json-request.awk s:title "A title" f:body FILE l:labels "$labels"
 
 BEGIN {
   out = "{"
