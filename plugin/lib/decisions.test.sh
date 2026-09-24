@@ -155,7 +155,8 @@ case "\$*" in
   *push*:refs/decisions/*)
     if [ ! -e "$shims/raced" ]; then
       : >"$shims/raced"
-      ref=\${*##*:}
+      for arg; do ref=\$arg; done
+      ref=\${ref##*:}
       sha=\$("$real" -C "$work" commit-tree "\$("$real" -C "$work" hash-object -w -t tree /dev/null)" -m "reserve decision \${ref##*/}: rival (branch rival, $today)")
       "$real" -C "$work" push -q origin "\$sha:\$ref" 2>/dev/null
     fi
