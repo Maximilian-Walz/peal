@@ -475,12 +475,14 @@ directory's `hooks/`. A gate that cannot find Peal refuses rather than waves thr
   already holds, and the storage's own writes, told by subject and checked by the diff's
   shape: `docs(tasks): file ...` only adds backlog task files; `docs(tasks): revise`,
   `defer`, `set milestone of`, `note on` modify exactly one, the subject's `[NNNN]`;
-  `docs(tasks): retire` moves that one to `done/` under its name. Nothing else, no
-  rewrite of main, no deletion. A pull request merged on the server runs no client hook.
+  `docs(tasks): retire` moves that one to `done/` under its name; with the decisions
+  module on, `docs(decisions): regenerate the index` changes the index alone. Nothing
+  else, no rewrite of main, no deletion. A pull request merged on the server runs no client hook.
 - **commit-msg** checks the subject `<type>(<area>): <what> [NNNN]`, types `feat fix test
-  refactor docs chore wip`; the area is one of `commit.areas` (then required) or `tasks`.
-  `wip: <what>` skips the checks and needs no id; a `(tasks)` commit must touch only the
-  tasks directory and skips them too. Otherwise each `checks.commit` item runs when the
+  refactor docs chore wip`; the area is one of `commit.areas` (then required), `tasks`,
+  or `decisions` with the decisions module on. `wip: <what>` skips the checks and needs
+  no id; a `(tasks)` commit must touch only the tasks directory and skips them too, as a
+  `(decisions)` commit the decisions directory. Otherwise each `checks.commit` item runs when the
   commit touches its paths: `"src/ *.cs: dotnet test"` runs on a change under `src/` or to
   a `.cs` file, an item without paths always. Git's own subjects (merge, revert, fixup)
   pass the grammar; a merge still pays the checks.
@@ -585,6 +587,69 @@ project, and the close sequence and both subagents integrate with it (a decision
 committed right before the task's move to done, the brief in their prompts), so leaving
 it to each project would mean re-plumbing those integrations. But plenty of projects
 record no decisions, and the task process must not require them.
+
+An entry is `<dir>/NNNN-slug.md`, in the reference's shape, so its entries move over
+unchanged:
+
+```markdown
+# 0042 — Title
+Date: 2026-09-24
+Status: accepted
+
+**Decision.** What was decided.
+**Why.** Why, and what was weighed.
+**Rules out.** What it excludes, so it is not argued again.
+```
+
+`Status` is `accepted` or `superseded by NNNN`, anything after the number free (the
+reference narrows a partial supersession there). An entry that supersedes another has a
+paragraph starting `**Supersedes** decision NNNN` (or `decisions NNNN and MMMM`, a link
+`[NNNN](...)`, `**Supersedes (in part).**`). Once merged, an entry's one edit is its
+`Status` line, made in the pull request of its successor.
+
+- **`peal decision reserve SLUG`** takes the next number past every entry on the
+  remote's main, every `refs/decisions/*` on the remote and every entry in the work tree,
+  and pushes a marker commit (`reserve decision NNNN: slug (branch B, date)`, on the
+  empty tree) to `refs/decisions/NNNN`. The ref is the number alone, so two branches
+  after the same number contend for the same ref; the loser's push is not a fast-forward
+  and fails, and it retries with the next number. A push failing for another reason is
+  not retried. It then scaffolds the entry in the work tree, placeholders to fill in;
+  nothing is committed. Refused on the main branch and on a detached HEAD.
+- **`peal decision check`**, and `peal check` with the module on, refuse: an entry that
+  is not well-formed (its name, its heading with its own number, its `Status`, a
+  successor that exists, no placeholder left, a number used once); and, for what the
+  branch changes since it left main (commits, the work tree and new files alike): a
+  change to the index, a deleted entry, a `Status` turned `superseded by NNNN` without
+  NNNN being an entry the branch adds whose `**Supersedes**` names it, an added entry
+  whose `**Supersedes**` names an entry whose `Status` does not say so, and an added
+  entry whose number the branch holds no reservation of (the marker names another
+  branch, or there is none). The branch is `GITHUB_HEAD_REF` in a pull request's
+  workflow, whose checkout is a merge commit, else the one checked out. Checking only
+  what the branch changes keeps the pairing check off merged entries, whose text is
+  frozen however it was worded then.
+- **The guard**, a PostToolUse hook on Edit and Write, runs the check when an entry or
+  the index is written, and shows the session what it finds. A reservation it cannot
+  verify (the remote out of reach) is only a warning; the check in CI is the gate.
+- **The index**, `<dir>/index.md`: the accepted entries by number, then the superseded
+  ones with their successors. `peal decision index` prints it. `peal decision publish`
+  regenerates it from the remote's main and pushes it there as `docs(decisions):
+  regenerate the index`, built on a temporary index like the storage's own writes (so it
+  touches no worktree and runs anywhere) and let through by the pre-push gate when it
+  changes the index alone. `templates/decisions.yml` is the workflow a project copies to
+  run it after every merge that changes the directory.
+- **`peal decision brief --task FILE | --diff [BASE]`** prints the entries whose text
+  names a path of the task (its `## Scope`, or `## Intent` and `## Notes` while the
+  Scope is empty) or of the diff since the branch left main: a path being a word of two
+  or more `/`-separated parts or a file name with an extension, matched as written, by
+  its last part, and by each of its directories three or more parts deep. Superseded
+  entries are counted, not shown. `peal brief planner` includes the task's, `peal brief
+  reviewer` the diff's.
+- **The close.** `peal close finish` lets uncommitted entries through its clean-tree
+  check, refuses on anything the check finds, and commits the entries as
+  `docs(decisions): record NNNN [ID]` of their own, right before the task's move to done.
+  The commit gate allows the area `decisions` with the module on, for a commit that
+  touches the decisions directory only, and skips the project's checks for it as for
+  `tasks`.
 
 ## Distribution
 

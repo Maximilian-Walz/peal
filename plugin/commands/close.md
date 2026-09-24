@@ -58,13 +58,22 @@ Each finding goes into exactly one of:
 - **Rebut** it under `### Reviewer findings not acted on` in the Outcome, one line each,
   with why.
 
-## 4. Write the Outcome
+## 4. Write the Outcome, and a decision entry if one was made
 
 Under `## Outcome` in the file `begin` named, replacing the placeholder comment: what was
 built, what was decided and why, what was found and left (each an idea filed), and what
 the next session needs to know, written for someone who remembers nothing of this one;
 then the Escalations and the rebuttals of step 3. Leave the Outcome uncommitted: finish
 commits it with the task's move. Anything else changed now is committed now.
+
+When the project records decisions (`peal config decisions` names a directory) and the
+task made an architectural call, record it: `peal decision reserve <slug>` reserves its
+number and scaffolds the entry; never take a number by reading the directory. Fill in
+its title and paragraphs. If it replaces an earlier decision, it says `**Supersedes**
+decision NNNN.` and that entry's `Status:` line becomes `superseded by <its number>`, the
+one edit a merged entry ever gets. Never touch the directory's `index.md`: it is
+regenerated on the main branch after the merge. Leave the entry uncommitted too: finish
+checks it and commits it on its own, right before the task's move.
 
 Do not end a turn between this step and finish: the Stop hook reads the uncommitted
 Outcome as unfinished work.
@@ -82,8 +91,9 @@ peal close finish --summary "<bullets>" [--section "<title>" "<text>"]...
 (`--summary-file FILE` and `--section-file TITLE FILE` read a text from a file outside the
 work tree, for long ones.) It refuses, before anything changes, a missing summary or
 section, an empty Outcome or one with a placeholder left, more than three escalations,
-an uncommitted path other than the Outcome's, and a failing close check of the project
-(`checks.close`): fix what it names and run it again. Then it files the queued ideas in
+an uncommitted path other than the Outcome's and the decision entries', a decision entry
+out of order (`peal decision check` says the same), and a failing close check of the
+project (`checks.close`): fix what it names and run it again. Then it files the queued ideas in
 one push, commits the task's move to done, pushes and opens the pull request, or updates
 the one open for this branch; its body is the summary, the sections, the Outcome, the
 ideas filed and the branch's commits (`peal close body` with the same arguments prints it

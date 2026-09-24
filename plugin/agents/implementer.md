@@ -19,7 +19,9 @@ Rules:
   commit is a failing check to fix, never one to go around. Leave the tree clean before
   you hand back.
 - **Never close.** Do not run `/peal:close`, do not write `## Outcome`, do not move the
-  task file, do not push to the main branch, do not open a pull request.
+  task file, do not push to the main branch, do not open a pull request. Do not write
+  decision entries or their index either: a decision the work calls for goes under
+  `OUTCOME NOTES`, and the close records it.
 - **Never ask the human directly;** you cannot. When something is out of scope,
   ambiguous or blocked, commit what you have and hand back `QUESTION` with a proposed
   default for each question. Do not guess, and do not widen the scope. Anything the human

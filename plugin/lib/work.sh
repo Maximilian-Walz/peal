@@ -60,8 +60,10 @@ _peal_work_here() {
 
 # peal_brief ROLE -> what the subagent ROLE (planner, implementer, reviewer) needs of the
 # project, for the prompt that starts it in this worktree: the task, the main branch, the
-# current milestone, the size tiers, the context documents to read, and the project's own
-# rules for ROLE (.peal/ROLE.md, the planner's and the reviewer's only) verbatim.
+# current milestone, the size tiers, the context documents to read; for the planner and
+# the reviewer, with the decisions module on, the decisions that name a path of the task
+# or of the diff (peal_decision_brief), and the project's own rules for them
+# (.peal/ROLE.md) verbatim.
 peal_brief() {
   local role=${1-} task id file remote main ms docs rules top
   if [ $# -ne 1 ] || [[ " $PEAL_WORK_ROLES " != *" $role "* ]]; then
@@ -92,9 +94,18 @@ peal_brief() {
   else
     echo "Context documents: none listed."
   fi
+  top=$(peal_project_root) || return 2
+  if [ "$role" != implementer ] && peal_decisions_dir >/dev/null 2>&1; then
+    case $file in /*) ;; *) file=$top/$file ;; esac
+    echo
+    if [ "$role" = planner ]; then
+      (peal_decision_brief --task "$file")
+    else
+      (peal_decision_brief --diff)
+    fi
+  fi
   case $role in
     planner | reviewer)
-      top=$(peal_project_root) || return 2
       rules=.peal/$role.md
       [ -s "$top/$rules" ] || return 0
       echo
