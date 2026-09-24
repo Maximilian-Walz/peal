@@ -903,3 +903,12 @@ peal_store_local_branch() {
   _peal_files_settings || return 2
   _peal_files_local_branch "$1"
 }
+
+# The claim's own copy: the task file under doing/ on the task's branch, committed there.
+peal_store_record() {
+  local id=$1 what=$2 text=$3 task file
+  task=$(peal_store_session_task) || return 2
+  file=$(_peal_field "$task" 2)
+  cp "$text" "$file" || return 2
+  peal_commit "docs(tasks): record the $what of $id [$id]" "$file"
+}

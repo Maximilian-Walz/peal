@@ -117,6 +117,25 @@ does the generic part and calls something the project provides.
 Model routing moves as defaults: planner and reviewer on Opus, implementer on Sonnet
 unless the task's `model:` says otherwise. The project may override them in config.
 
+A subagent's frontmatter cannot read the project's config, so `/peal:work` passes each
+its model (`peal work` prints them) and starts each with `peal brief ROLE`: the task, the
+main branch, the current milestone, the size tiers, the `context` documents, and
+`.peal/planner.md` or `.peal/reviewer.md` verbatim. The planner has no Bash; the brief
+gives it what it would otherwise have to parse the config for.
+
+`/peal:work [id | pool]` runs `peal work`, which decides every step a script can: in a
+task's worktree (its branch and its claim) it prints the task, where its plan stands
+(`required`, `agreed`, `skipped`) and the subagents' models, and claims nothing; outside
+one it claims an id, or offers a pool for the human to pick from through
+`AskUserQuestion`. After a claim the session enters the worktree (`EnterWorktree`); the
+planner runs when the plan is required, and the session stops for the human, asking
+through `AskUserQuestion` so the same step works interactive and headless. The agreed
+plan goes into the task's `Plan` section, the size and a non-default `model:` into its
+frontmatter, and `peal record ID plan` puts that text on the claim (the storage's
+`record`). The implementer builds; its `QUESTION`s
+go to the human and back to it through `SendMessage`. The main session never writes the
+task's code.
+
 ### Scripts
 
 | Reference piece | Verdict | Notes |
@@ -221,7 +240,9 @@ machine, as in the reference) while every file stays valid YAML for any other to
 
 The section structure (`Intent`, `Scope`, `Done when`, `Raw`, `Notes`, `Outcome`) is a
 convention Peal's commands rely on: `Raw` is the human's words and never rewritten,
-`Outcome` is written at close and must not be empty or a placeholder.
+`Outcome` is written at close and must not be empty or a placeholder. A task with
+`plan: required` gets a `Plan` section after `Notes` once the human agrees the planner's
+plan; until it holds something, the plan is not agreed.
 
 ### Claim states
 
@@ -425,6 +446,7 @@ The interface:
 | `finish id done` | file moved to `done/` with its Outcome, in the PR | says what closes it: the PR's body says `Fixes #N` |
 | `finish id retired reason` | file moved to `done/` with the reason, on main | closed as not planned, the reason a comment |
 | `comment id text` | appended under `## Notes` | a comment |
+| `record id text` | the claimed task's file rewritten on its branch, committed | title, body and managed labels rewritten |
 | `milestones` | the milestone files | the repository's milestones |
 
 **Ids.** A task file's id is four digits (`0042`), an issue's its number (`42`). The

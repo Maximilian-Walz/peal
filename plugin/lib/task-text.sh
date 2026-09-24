@@ -38,7 +38,14 @@ peal_text_has_section() {
 # peal_text_outcome_filled -> status 0 if "## Outcome" holds anything but blank lines and
 # HTML comments (the template's placeholder): work happened.
 peal_text_outcome_filled() {
-  peal_text_section Outcome | awk '
+  peal_text_section_filled Outcome
+}
+
+# peal_text_section_filled NAME -> status 0 if section "## NAME" holds anything but blank
+# lines, HTML comments and the "---" rule before the Outcome.
+peal_text_section_filled() {
+  peal_text_section "$1" | awk '
+    $0 == "---" { next }
     { while (match($0, /<!--.*-->/)) $0 = substr($0, 1, RSTART - 1) substr($0, RSTART + RLENGTH)
       if (inc) { if (match($0, /-->/)) { $0 = substr($0, RSTART + RLENGTH); inc = 0 } else next }
       if (match($0, /<!--/)) { $0 = substr($0, 1, RSTART - 1); inc = 1 }

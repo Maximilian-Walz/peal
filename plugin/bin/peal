@@ -33,6 +33,8 @@ export PEAL_ROOT
 . "$PEAL_ROOT/lib/git-guard.sh"
 # shellcheck source=../lib/claim.sh
 . "$PEAL_ROOT/lib/claim.sh"
+# shellcheck source=../lib/work.sh
+. "$PEAL_ROOT/lib/work.sh"
 
 usage() {
   cat <<'EOF'
@@ -107,6 +109,15 @@ issue-N on branch issue/N, labelled "in progress", as Belfry claims one):
                                 claim the best free task of POOL (current,unassigned)
   release ID                    remove a landed claim's worktree and branch, its tip kept
                                 under refs/reaped/; refused while anything would be lost
+
+/peal:work's steps (lib/work.sh):
+  work [ID | POOL]              in a task's worktree: TASK <id> <file>, PLAN required,
+                                agreed or skipped, MODEL <role> <model> per subagent;
+                                elsewhere claim ID (CLAIMED <id> <path>) or offer POOL
+  brief ROLE                    what the planner, implementer or reviewer of this
+                                worktree's task needs of the project, for its prompt
+  record ID plan|notes          the task's text on stdin recorded on this worktree's
+                                claim: the plan the human agreed, or their answers
 EOF
 }
 
@@ -257,6 +268,9 @@ main() {
     offer) with_store peal_offer "$@" ;;
     claim) with_store peal_claim "$@" ;;
     release) with_store peal_release "$@" ;;
+    work) with_store peal_work "$@" ;;
+    brief) with_store peal_brief "$@" ;;
+    record) with_store peal_record "$@" ;;
     comment) [ $# -eq 2 ] || { usage >&2; exit 2; }; with_store peal_store_comment "$1" "$2" ;;
     *)
       peal_err "unknown command '$cmd'"
