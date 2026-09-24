@@ -100,8 +100,9 @@ peal_pool_buckets() {
 }
 
 # _peal_offer_order BUCKETS -> the list records on stdin that are free and in one of the
-# BUCKETS (a comma list), best first: by bucket in the pool's order, then the free
-# members of an open split, then by number. "bucket<TAB>id<TAB>title<TAB>split" each,
+# BUCKETS (a comma list), best first: by bucket in the pool's order, then by priority
+# (urgent, high, normal, low; never across buckets), then the free members of an open
+# split, then by number. "bucket<TAB>id<TAB>title<TAB>split" each,
 # split "(part of ORIGIN, D/T done)" or empty.
 _peal_offer_order() {
   awk -F '\t' -v buckets="$1" '
@@ -114,8 +115,9 @@ _peal_offer_order() {
         s = substr($3, RSTART + 6, RLENGTH - 6)
         sp = "(part of " substr(s, 1, index(s, " ") - 1) ", " substr(s, index(s, " ") + 1) " done)"
       }
-      printf "%d\t%d\t%s\t%s\t%s\t%s\n", rank[k], (sp == "" ? 1 : 0), $1, k, $5, sp
-    }' | LC_ALL=C sort -t "$(printf '\t')" -k1,1n -k2,2n -k3,3 | cut -f3- \
+      pr = $16 == "urgent" ? 0 : $16 == "high" ? 1 : $16 == "low" ? 3 : 2
+      printf "%d\t%d\t%d\t%s\t%s\t%s\t%s\n", rank[k], pr, (sp == "" ? 1 : 0), $1, k, $5, sp
+    }' | LC_ALL=C sort -t "$(printf '\t')" -k1,1n -k2,2n -k3,3n -k4,4n | cut -f4- \
     | awk -F '\t' -v OFS='\t' '{ print $2, $1, $3, $4 }'
 }
 

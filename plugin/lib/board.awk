@@ -17,6 +17,7 @@
   if ($9 != "") line = line ",\"size\":" json_str($9)
   if ($10 != "") line = line ",\"plan\":" json_str($10)
   if ($11 != "") line = line ",\"needs\":" json_list($11)
+  if ($16 != "") line = line ",\"priority\":" json_str($16)
   if ($2 == "blocked" && (c = index($3, " cycle: ")) > 0) line = line ",\"cycle\":" json_str(substr($3, c + 8))
   if ($14 != "") line = line ",\"pr\":" json_str($14)
   if ($15 != "") line = line ",\"url\":" json_str($15)

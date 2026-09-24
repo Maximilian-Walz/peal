@@ -6,7 +6,8 @@
 #   bash plugin/lib/store-issues.test.sh
 #
 # What the task-file harnesses cover, on issues: every state (the label, the refs, the
-# pull requests), the depends expansion, the board and the overview, and the same
+# pull requests), the depends expansion, the board and the overview, priority labels,
+# and the same
 # records as task files for the same tasks; read, create, revise, set-milestone,
 # comment, retire and finish; offer, claim and release, with a claim made by Belfry's
 # conventions resumed and Peal's claim recognised by Belfry's; the session hooks and
@@ -258,6 +259,10 @@ parity() {
     "needs: [gpu, display]" "depends: [human, 0002]"
   ID=0005 TITLE="Title of 5" put "$work" backlog 0005 title-of-5 "milestone: m2" "depends: [milestone]"
   ID=0006 TITLE="Title of 6" put "$work" backlog 0006 title-of-6 "milestone: m2"
+  ID=0007 TITLE="Title of 7" put "$work" backlog 0007 title-of-7 "priority: low"
+  ID=0008 TITLE="Title of 8" put "$work" backlog 0008 title-of-8
+  ID=0009 TITLE="Title of 9" put "$work" backlog 0009 title-of-9 "priority: high"
+  ID=0010 TITLE="Title of 10" put "$work" backlog 0010 title-of-10 "priority: urgent"
   files=$work
   issues_repo
   issue 1 "Title of 1" --milestone m1
@@ -267,6 +272,10 @@ parity() {
     --body $'Part of #1\nDepends on human, #2'
   issue 5 "Title of 5" --milestone m2 --body "Depends on milestone"
   issue 6 "Title of 6" --milestone m2
+  issue 7 "Title of 7" --label "priority: low"
+  issue 8 "Title of 8"
+  issue 9 "Title of 9" --label "priority: high"
+  issue 10 "Title of 10" --label "priority: urgent"
   issues=$work
   check "parity: list" "$(at "$files" "$PEAL" list --no-pr 2>&1 | normal)" "$(at "$issues" "$PEAL" list 2>&1)"
   check "parity: board" "$(at "$files" "$PEAL" board --no-pr 2>&1 | grep -v '^{"milestone"' | normal)" \
@@ -275,6 +284,7 @@ parity() {
     "$(at "$issues" "$PEAL" milestones | cut -d' ' -f1,2 | sort)"
   check "parity: offer" "$(at "$files" "$PEAL" offer current,unassigned,m2 --top 9 2>&1 | normal)" \
     "$(at "$issues" "$PEAL" offer current,unassigned,m2 --top 9 2>&1)"
+  check "parity: the offer's order" "10 9 8 7" "$(at "$issues" "$PEAL" offer unassigned --top 9 2>&1 | cut -d' ' -f2 | paste -sd' ' -)"
   work=$issues
   check "parity: read" "---
 plan: required
@@ -580,12 +590,43 @@ cycles() {
   check "cycles: nothing filed or changed" "4|$body" "$(gh_get 'length')|$(gh_get '.[] | select(.number == 3) | .body')"
 }
 
+# Priority as labels: read (the higher of two; normal is none), written by create and
+# revise.
+priority() {
+  local work out
+  issues_repo
+  issue 1 "Both" --label "priority: low" --label "priority: high"
+  issue 2 "Normal" --label "priority: normal"
+  issue 3 "Unknown" --label "priority: soon"
+  check "priority: board" '{"id":"1","state":"free","slug":"both","title":"Both","priority":"high"}
+{"id":"2","state":"free","slug":"normal","title":"Normal"}
+{"id":"3","state":"free","slug":"unknown","title":"Unknown"}' "$(peal board 2>&1 | grep -v '^{"milestone"' | normal)"
+  check "priority: read, the higher of two" "priority: high" "$(peal read 1 | grep '^priority')"
+  check "priority: read, normal is none" "" "$(peal read 2 | grep '^priority')"
+
+  out=$(peal create urgent-thing < <(TITLE="Urgent" text "priority: urgent") 2>&1)
+  check "priority: create" "0:filed 4" "$?:${out%% https*}"
+  check "priority: the label" "priority: urgent" "$(labels 4)"
+  peal create normal-thing < <(TITLE="Normal" text "priority: normal") >/dev/null 2>&1
+  check "priority: normal makes no label" "" "$(labels 5)"
+  check "priority: read back" "---
+priority: urgent
+---" "$(peal read 4 | sed -n 1,3p)"
+  peal read 4 | sed 's/^priority: urgent$/priority: low/' | peal revise 4 --reason "can wait" >/dev/null 2>&1
+  check "priority: revise replaces the label" "priority: low" "$(labels 4)"
+  peal read 4 | sed '/^priority:/d' | peal revise 4 --reason "as any" >/dev/null 2>&1
+  check "priority: revise to normal drops it" "" "$(labels 4)"
+  check_refused "priority: a word Peal does not know" "priority soon is not urgent, high, normal or low" \
+    peal create odd-thing < <(text "priority: soon")
+}
+
 cases() {
   states
   expansion
   cycles
   board
   parity
+  priority
   writes
   claims
   session

@@ -54,6 +54,10 @@ Frontmatter, triaged now:
   only they can make); left in prose only, no claim could see it. A number you are unsure
   is a real prerequisite stays out and goes into Notes: a wrong one blocks the task
   silently.
+- `priority`: only when the idea says so plainly: `urgent` when it says it is urgent or
+  blocks something now ("urgent", "blocks …", "cannot wait"), `high` when it says it
+  should come first or soon, `low` when it says it can wait. Otherwise leave it out: no
+  priority is `normal`. Priority orders the offer within a milestone, never across them.
 - `size`: left out; the planner sizes a task when it is claimed.
 
 Write `NNNN` wherever the task's number belongs, the heading first; the storage puts in
@@ -64,6 +68,7 @@ the number it gets. Never invent a number.
 milestone: <id, or leave the line out>
 plan: <required | skipped>
 depends: [<ids, human>]
+priority: <urgent | high | low, or leave the line out>
 ---
 
 # NNNN — <Title>

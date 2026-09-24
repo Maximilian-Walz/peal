@@ -78,14 +78,16 @@ actions:
   <done>/<total>`; of a blocked one `needs:<id>,...`, followed by `cycle: 0042 → 0043 →
   0042` when the task lies on a depends cycle (`#42 → #43 → #42` for issues); of a claim
   `wt:<path>`, `remote:<remote>`, `N commit(s) ahead, last <date>`, or `pr:#N <url>`
-  (`pr:unknown` without `gh`).
+  (`pr:unknown` without `gh`). A task not done whose priority is not normal ends its
+  detail with `priority:<urgent|high|low>`.
 - `offer` prints `CANDIDATE <id> <bucket> <title>` lines for a pool, best first.
 - `claim` is idempotent: a task already claimed on this machine prints its existing
   worktree, so a re-run Belfry job continues where the last one stopped. The last line is
   the worktree path.
 - `board` prints one JSON object per task (`id`, `state`, `slug`, `title`, `milestone`,
-  `depends`, `part_of`, `size`, `plan`, `needs`, `pr`, `path`, `ref`, and `cycle`, the
-  list detail's cycle, which the contract lets a board add), and one
+  `depends`, `part_of`, `size`, `plan`, `needs`, `priority`, `pr`, `path`, `ref`, and
+  `cycle`, the list detail's cycle, which the contract lets a board add; each but `id`
+  and `state` only when set, so a normal priority is no field), and one
   `{"milestone":{...}}` line per milestone, exactly the shapes of Belfry's contract.
 - `/peal:work NNNN` notices it is already inside NNNN's worktree (the branch is the task's
   branch and `tasks/doing/` holds its file) and skips its own claim. It does not read any
@@ -262,6 +264,7 @@ Peal's fields, all optional:
 | `model` | the implementer's model when not the default, written after the human agrees the plan. |
 | `breaking` | `true` when the task breaks something its users rely on: the next release is a major one ([Releases](#releases)). |
 | `release-note` | `none` leaves the task out of the release notes. |
+| `priority` | `urgent`, `high`, `normal` or `low`; absent means normal. Orders the offer within a milestone, never across milestones; `/peal:idea` sets it only when the idea says so plainly, `/peal:revise` changes it. The board carries it, `peal overview` marks urgent `!` and high `↑`. |
 
 **A depends cycle is refused,** since every task on it would stay blocked for ever. Where
 a task text is filed, revised or deferred, the depends graph is built as the read model
@@ -305,8 +308,9 @@ Derived from refs and the main branch on the remote, never from the calling work
 - **`peal offer POOL [--top N]`** prints `CANDIDATE <id> <bucket> <title>` for the best N
   (3) free tasks and `MORE <bucket> <count>` for each bucket with some left over. The pool
   is a comma list of milestone ids, `current` and `unassigned`; each is a bucket (`current`
-  becomes the current milestone's id), in the pool's order. Within a bucket the free
-  members of an open split come first, then by number; their titles say `(part of
+  becomes the current milestone's id), in the pool's order. Within a bucket by priority
+  (urgent, high, normal, low; priority never lifts a task into an earlier bucket), then
+  the free members of an open split, then by number; their titles say `(part of
   <origin>, <done>/<total> done)`. A parked, done or unknown milestone in the pool is
   refused.
 - **`peal claim ID [--print-path]`** fetches, then refuses a task that is done, awaiting
@@ -594,6 +598,7 @@ in both:
 | `part-of` | a line `Part of #3` |
 | `needs` | labels `needs: <capability>` |
 | `size`, `plan`, `model`, `breaking`, `release-note`, the project's own fields | labels `<field>: <value>` |
+| `priority` | labels `priority: urgent`, `priority: high`, `priority: low`, Belfry's; of two the higher counts, none is normal |
 
 Labels rather than a frontmatter block in the body: they show and filter on GitHub, and
 Belfry reads `needs:` labels already. The sections (Intent, Scope, Raw, ...) are the
