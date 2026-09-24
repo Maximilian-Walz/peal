@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Peal's git hook, one copy under each hook name in the repository's git directory,
+# where `peal hooks install` wrote it and pointed core.hooksPath. It lives outside every
+# branch, so no branch can weaken it; do not edit, re-run `peal hooks install` to update.
+#
+# pre-push and commit-msg first run Peal's gate (`peal githook NAME ARGS`), found like
+# the launcher finds Peal: $PEAL_ROOT, the root recorded in the git directory, the newest
+# Peal in Claude Code's plugin cache. Then every hook runs the project's own hook of the
+# same name, if there is one: in the directory git config peal.projectHooks names (the
+# core.hooksPath the install replaced), else in the git directory's hooks/.
+set -u
+
+name=${0##*/}
+common=$(cd "$(git rev-parse --git-common-dir)" && pwd) || exit 1
+
+# The hooks git feeds on stdin: captured, so both the gate and the project's hook read it.
+input=""
+case $name in
+  pre-push | post-rewrite)
+    input=$(mktemp) || exit 1
+    trap 'rm -f "$input"' EXIT
+    cat >"$input" || exit 1
+    ;;
+esac
+
+case $name in
+  pre-push | commit-msg)
+    root=${PEAL_ROOT:-}
+    if [ -z "$root" ] && [ -r "$common/peal-root" ]; then
+      IFS= read -r root <"$common/peal-root"
+    fi
+    if [ -z "$root" ] || [ ! -x "$root/bin/peal" ]; then
+      root=""
+      for dir in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/plugins/cache/*/peal/*/; do
+        [ -x "${dir}bin/peal" ] || continue
+        if [ -z "$root" ] || [ "$dir" -nt "$root" ]; then
+          root=$dir
+        fi
+      done
+    fi
+    if [ -z "$root" ] || [ ! -x "${root%/}/bin/peal" ]; then
+      echo "$name: Peal's gate cannot run: the Peal plugin is not found (PEAL_ROOT, $common/peal-root, the plugin cache)." >&2
+      echo "$name: install it in Claude Code, or point PEAL_ROOT at it; the $name is refused until then." >&2
+      exit 1
+    fi
+    if [ -n "$input" ]; then
+      "${root%/}/bin/peal" githook "$name" "$@" <"$input" || exit
+    else
+      "${root%/}/bin/peal" githook "$name" "$@" || exit
+    fi
+    ;;
+esac
+
+hooks=$(git config peal.projectHooks) || hooks=$common/hooks
+[ "$hooks" != "$common/peal/hooks" ] || exit 0
+[ -x "$hooks/$name" ] || exit 0
+if [ -n "$input" ]; then
+  "$hooks/$name" "$@" <"$input"
+else
+  "$hooks/$name" "$@"
+fi

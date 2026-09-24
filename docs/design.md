@@ -324,6 +324,38 @@ names, one task per branch and PR, the task sections, the commit subject grammar
 `<type>(<area>): <what> [NNNN]`, which pushes may reach main directly, and the close
 sequence. A setting exists only where two real projects would differ.
 
+## Git gates
+
+`peal hooks install` (run by `/peal:init`) writes one small hook under every git hook
+name into the repository's git directory (`<git-common-dir>/peal/hooks`) and points
+`core.hooksPath` there. Living outside every branch, no branch can weaken them. Each finds
+the installed Peal the way the launcher does, runs Peal's gate for `pre-push` and
+`commit-msg` (`peal githook NAME`), then the project's own hook of the same name: in the
+hooks path the install replaced (kept as git config `peal.projectHooks`), else the git
+directory's `hooks/`. A gate that cannot find Peal refuses rather than waves through.
+
+- **pre-push** lets onto the main branch merges whose other parents a pushed branch
+  already holds, and the storage's own writes, told by subject and checked by the diff's
+  shape: `docs(tasks): file ...` only adds backlog task files; `docs(tasks): revise`,
+  `defer`, `set milestone of`, `note on` modify exactly one, the subject's `[NNNN]`;
+  `docs(tasks): retire` moves that one to `done/` under its name. Nothing else, no
+  rewrite of main, no deletion. A pull request merged on the server runs no client hook.
+- **commit-msg** checks the subject `<type>(<area>): <what> [NNNN]`, types `feat fix test
+  refactor docs chore wip`; the area is one of `commit.areas` (then required) or `tasks`.
+  `wip: <what>` skips the checks and needs no id; a `(tasks)` commit must touch only the
+  tasks directory and skips them too. Otherwise each `checks.commit` item runs when the
+  commit touches its paths: `"src/ *.cs: dotnet test"` runs on a change under `src/` or to
+  a `.cs` file, an item without paths always. Git's own subjects (merge, revert, fixup)
+  pass the grammar; a merge still pays the checks.
+- **`peal commit SUBJECT [--body TEXT | --body-file FILE] [PATH...]`** stages, commits and
+  reports in one call; refused on the main branch, without the hooks installed, and for a
+  new backlog file (those are filed onto main).
+- **The git guard**, a PreToolUse hook on Bash, refuses in a Peal repository a commit on
+  the main branch, a gate bypass (`--no-verify`, `commit -n`, `core.hooksPath` changed or
+  set inline, `GIT_CONFIG_*` around a git call) and a push to main. It parses the git
+  invocations a command runs, `bash -c`, `eval` and substitutions included, so a message
+  or heredoc that mentions them passes. It is a signpost; the hooks are the gates.
+
 ## Storage
 
 Two things are kept apart: *where tasks live*, and *how a session works a task*. The

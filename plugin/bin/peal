@@ -25,6 +25,12 @@ export PEAL_ROOT
 . "$PEAL_ROOT/lib/tasks.sh"
 # shellcheck source=../lib/ideas.sh
 . "$PEAL_ROOT/lib/ideas.sh"
+# shellcheck source=../lib/githooks.sh
+. "$PEAL_ROOT/lib/githooks.sh"
+# shellcheck source=../lib/commit.sh
+. "$PEAL_ROOT/lib/commit.sh"
+# shellcheck source=../lib/git-guard.sh
+. "$PEAL_ROOT/lib/git-guard.sh"
 
 usage() {
   cat <<'EOF'
@@ -42,6 +48,17 @@ usage: peal <command> [args]
   milestones [--json]           one line per milestone: id state order due title, or
                                 the board's {"milestone":{...}} lines
   hook session-start            the SessionStart hook: record where Peal is installed
+  hook git-guard                the PreToolUse hook on Bash: refuse git calls that work
+                                around the git gates (lib/git-guard.sh)
+
+Git gates (lib/githooks.sh):
+  hooks install                 Peal's git hooks into this repository's git directory,
+                                core.hooksPath pointed there; they chain to the hooks
+                                that were in use before
+  githook NAME ARGS...          run the gate of git hook NAME (pre-push, commit-msg)
+  commit SUBJECT [--body TEXT | --body-file FILE] [PATH...]
+                                stage PATHs (or everything), commit, report; refused on
+                                the main branch
 
 Tasks, read from the remote's main branch and the refs (--fetch: fetch first; --no-pr:
 do not ask gh for pull requests):
@@ -123,6 +140,7 @@ cmd_hook() {
   need 1 "$@"
   case $1 in
     session-start) peal_record_root "${CLAUDE_PROJECT_DIR:-$PWD}" ;;
+    git-guard) peal_git_guard ;;
     *) usage >&2; exit 2 ;;
   esac
 }
@@ -178,6 +196,9 @@ main() {
     config) cmd_config "$@" ;;
     frontmatter) cmd_frontmatter "$@" ;;
     hook) cmd_hook "$@" ;;
+    hooks) [ "$*" = install ] || { usage >&2; exit 2; }; peal_hooks_install ;;
+    githook) need 1 "$@"; peal_githook "$@" ;;
+    commit) peal_config_load || exit 2; peal_commit "$@" ;;
     milestones) cmd_milestones "$@" ;;
     list) with_store peal_list "$@" ;;
     board) with_store peal_board "$@" ;;
