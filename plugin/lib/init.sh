@@ -324,6 +324,7 @@ _peal_init_tasks_remove() {
   fi
   _peal_init_rm .peal/peal
   _peal_init_rmdir .peal
+  rm -f "$(git rev-parse --git-common-dir)/$PEAL_ROOT_RECORD"
   return $status
 }
 

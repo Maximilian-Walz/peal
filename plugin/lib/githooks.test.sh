@@ -53,6 +53,25 @@ install() {
   git -C "$work" worktree add -q -b task/0001-linked "$work-linked" 2>/dev/null
   (cd "$work-linked" && "$PEAL" hooks install >/dev/null)
   check "install from a worktree: the shared directory" "$dir" "$(git -C "$work-linked" config core.hooksPath)"
+
+  # A Peal inside the repository is never recorded: the hooks would refuse to run it.
+  mkdir -p "$work/vendor"
+  cp -R "$PEAL_ROOT" "$work/vendor/peal"
+  check_refused "install: a Peal in the work tree refused" "lies inside the repository" \
+    at "$work" "$work/vendor/peal/bin/peal" hooks install
+  cp -R "$PEAL_ROOT" "$work-linked/peal"
+  check_refused "install: a Peal in a linked worktree refused" "lies inside the repository" \
+    at "$work" "$work-linked/peal/bin/peal" hooks install
+  check "install refused: the root recorded before stays" "$PEAL_ROOT" "$(cat "$work/.git/peal-root")"
+  rm -rf "$work/vendor" "$work-linked/peal"
+
+  # Uninstall leaves nothing of Peal's in the git directory or the config.
+  git -C "$work" config peal.extra.key one
+  peal hooks uninstall >/dev/null
+  check "uninstall: the hooks path given back" ".githooks" "$(git -C "$work" config core.hooksPath)"
+  check "uninstall: no peal.* key, no [peal] section" "" \
+    "$(git -C "$work" config --local --list | grep '^peal\.'; grep -i '^\[peal' "$work/.git/config")"
+  check "uninstall: no peal-root, no peal/" "" "$(cd "$work/.git" && ls -d peal-root peal 2>/dev/null)"
 }
 
 pre_push() {
@@ -424,10 +443,23 @@ post-commit " "$(cat "$log")"
   git -C "$work" commit -q --allow-empty -m "feat: chained [0001]"
   check "chain: the default hooks directory" "default " "$(cat "$log")"
 
+  # Only the configured hooks path is chained: the git directory's hooks/ is not.
+  work=$(repo)
+  mkdir -p "$work/.githooks"
+  printf '#!/bin/sh\necho "configured $*" >>%s\n' "$log" >"$work/.githooks/post-commit"
+  printf '#!/bin/sh\necho "default $*" >>%s\n' "$log" >"$work/.git/hooks/post-commit"
+  chmod +x "$work/.githooks/post-commit" "$work/.git/hooks/post-commit"
+  git -C "$work" config core.hooksPath .githooks
+  peal hooks install >/dev/null
+  git -C "$work" checkout -q -b task/0001-configured
+  : >"$log"
+  git -C "$work" commit -q --allow-empty -m "feat: chained [0001]"
+  check "chain: only the configured path" "configured " "$(cat "$log")"
+
   # Without Peal to find, the gates refuse.
   mv "$work/.git/peal-root" "$work/.git/peal-root.away"
-  check_fails "no Peal found: refused" 1 "the Peal plugin is not found" \
-    env HOME="$(scratch_dir)" CLAUDE_CONFIG_DIR="" git -C "$work" commit -q --allow-empty -m "feat: x [0001]"
+  check_fails "no Peal found: refused" 1 "no installed Peal plugin is found" \
+    env -u PEAL_ROOT HOME="$(scratch_dir)" CLAUDE_CONFIG_DIR="" git -C "$work" commit -q --allow-empty -m "feat: x [0001]"
 }
 
 PEAL_GITHOOKS_LIST=$(bash -c ". '$PEAL_ROOT/lib/githooks.sh'; printf '%s\n' \$PEAL_GITHOOKS")

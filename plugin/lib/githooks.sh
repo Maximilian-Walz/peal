@@ -25,10 +25,15 @@ _peal_hooks_dir() {
 
 # peal_hooks_install -> the stubs written, core.hooksPath pointed at them, a hooks path
 # set before kept as peal.projectHooks for the stubs to chain to, and this Peal's root
-# recorded for the stubs to find.
+# recorded for the stubs to find; refused for a Peal inside this repository, which the
+# stubs would refuse to run.
 peal_hooks_install() {
   local dir prev name chain
   dir=$(_peal_hooks_dir) || return 2
+  if peal_repo_holds . "$PEAL_ROOT"; then
+    peal_err "hooks install: this Peal ($PEAL_ROOT) lies inside the repository, and the hooks never run a Peal the repository holds; install from the installed plugin (.peal/peal hooks install)"
+    return 2
+  fi
   mkdir -p "$dir" || return 2
   for name in $PEAL_GITHOOKS; do
     if ! { cp "$PEAL_ROOT/templates/githook" "$dir/$name.$$" && chmod +x "$dir/$name.$$" \
@@ -48,9 +53,10 @@ peal_hooks_install() {
 }
 
 # peal_hooks_uninstall -> what peal_hooks_install did taken back: core.hooksPath back to
-# the hooks path it replaced (peal.projectHooks), or unset, and the stubs removed.
+# the hooks path it replaced (peal.projectHooks), or unset, every peal.* key of the
+# repository's config, the stubs and the recorded root removed.
 peal_hooks_uninstall() {
-  local dir prev now
+  local dir prev now key
   dir=$(_peal_hooks_dir) || return 2
   if [ "$(git config core.hooksPath)" = "$dir" ]; then
     if prev=$(git config peal.projectHooks); then
@@ -59,9 +65,12 @@ peal_hooks_uninstall() {
       git config --unset core.hooksPath || return 2
     fi
   fi
-  git config --unset peal.projectHooks
-  [ ! -d "$dir" ] || rm -rf "$dir" || return 2
-  rmdir "${dir%/hooks}" 2>/dev/null
+  git config --local --name-only --get-regexp '^peal\.' 2>/dev/null | sort -u | while IFS= read -r key; do
+    git config --local --unset-all "$key"
+  done
+  git config --local --remove-section peal 2>/dev/null
+  [ ! -d "${dir%/hooks}" ] || rm -rf "${dir%/hooks}" || return 2
+  rm -f "${dir%/peal/hooks}/$PEAL_ROOT_RECORD" || return 2
   now=$(git config core.hooksPath) || now="unset"
   echo "removed Peal's git hooks from $dir; core.hooksPath is $now"
 }

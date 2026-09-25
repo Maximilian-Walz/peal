@@ -7,14 +7,39 @@
 
 PEAL_ROOT_RECORD=peal-root
 
+# peal_repo_holds REPO PATH -> status 0 if PATH lies inside git repository REPO: in one of
+# its worktrees or its git directory, compared as physical paths. The same test the
+# launcher and the git hooks make before they run a Peal (templates/launcher).
+peal_repo_holds() {
+  local path dir line common
+  path=$(cd "$2" 2>/dev/null && pwd -P) || path=$2
+  common=$(cd "$1" && cd "$(git rev-parse --git-common-dir 2>/dev/null)" && pwd -P) 2>/dev/null
+  while IFS= read -r dir; do
+    [ -n "$dir" ] || continue
+    dir=$(cd "$dir" 2>/dev/null && pwd -P) || continue
+    case "${path%/}/" in "${dir%/}/"*) return 0 ;; esac
+  done <<EOF
+$(git -C "$1" worktree list --porcelain 2>/dev/null | while IFS= read -r line; do
+    case $line in ("worktree "*) printf '%s\n' "${line#worktree }" ;; esac
+  done)
+$common
+EOF
+  return 1
+}
+
 # peal_record_root DIR -> writes PEAL_ROOT into the git directory shared by all of DIR's
-# worktrees, if DIR is in a repository that uses Peal (has .peal/). Silent, and never
-# fails a session: a missing record only makes the launcher search the cache.
+# worktrees, if DIR is in a repository that uses Peal (has .peal/) and PEAL_ROOT lies
+# outside it (the launcher would refuse it; said on stderr). Never fails a session: a
+# missing record only makes the launcher search the cache.
 peal_record_root() {
   local top common
   top=$(git -C "$1" rev-parse --show-toplevel 2>/dev/null) || return 0
   [ -d "$top/.peal" ] || return 0
   common=$(cd "$top" && cd "$(git rev-parse --git-common-dir)" && pwd) 2>/dev/null || return 0
+  if peal_repo_holds "$top" "$PEAL_ROOT"; then
+    peal_err "not recording $PEAL_ROOT as Peal's root: it lies inside this repository"
+    return 0
+  fi
   if printf '%s\n' "$PEAL_ROOT" >"$common/$PEAL_ROOT_RECORD.$$" 2>/dev/null; then
     mv -f "$common/$PEAL_ROOT_RECORD.$$" "$common/$PEAL_ROOT_RECORD" 2>/dev/null
   fi
