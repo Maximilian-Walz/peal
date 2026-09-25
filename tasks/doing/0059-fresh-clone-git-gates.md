@@ -40,6 +40,32 @@ Filed as issue #59 (https://github.com/Maximilian-Walz/peal/issues/59) from an i
 
 So in a fresh clone of a project whose `.peal/config.yml` lists `guardrails` in `stages` (as this repository does), a session claims a task, works it, and only finds out at `/peal:close` or its first `peal commit` that the gates are missing. The README tells a human to run `.peal/peal hooks install` once per clone. An unattended worker (for example, a control plane's fresh clone of this repository) has no human to do that step, so the job stops mid-task.
 
+Draft plan (2026-09-25, planner; **not agreed**. The session could not reach the human: AskUserQuestion timed out twice). It is for the next session to put to the human:
+
+- A helper `peal_hooks_ensure` in `plugin/lib/githooks.sh`. It does nothing without `guardrails` in `stages` or when `peal_hooks_installed` succeeds. Otherwise it runs `peal_hooks_install` and prints its `installed Peal's git hooks in …` line. On failure it prints the reason and `.peal/peal hooks install`. It never fails its caller.
+- It is called from `peal_session_start` (`plugin/lib/session.sh:98-136`), with the line right after `Peal:`, and once at the top of `peal_claim` (`plugin/lib/claim.sh:159-199`), before the worktree. Success goes to stdout before the path; warnings go to stderr.
+- `close.sh:104-107,462-465` and `commit.sh:53-56` stay refusals and name `.peal/peal hooks install`. `hooks.json` needs no change.
+- Docs: `docs/design.md` (930-932, 346-350, 328-338, 601-613) and `README.md:61`. Possibly also `docs/security.md:44-50`, `plugin/commands/setup.md:78-81`, and the usage text in `plugin/bin/peal` (88-90, 145-148). `CLAUDE.md:22` goes to an idea rather than an edit.
+- Tests: about 11 cases, a `gates()` in each of `claim.test.sh` and `session.test.sh`, on a fresh clone with `stages: [tasks, guardrails]`:
+  - the hooks get installed, and `close begin` gets past the hooks check;
+  - a second run is silent;
+  - a project without guardrails gets nothing;
+  - a foreign `core.hooksPath`;
+  - a forced failure (`<common>/peal` made a plain file).
+- Size M, model default, merge default.
+
+Open questions for the human (recommended default first):
+1. A foreign `core.hooksPath`: warn only, with the chaining command, or chain automatically?
+2. Close and commit: pure refusals naming `.peal/peal hooks install`, or should they also try the install themselves?
+3. Docs outside the task: fix security.md, setup.md and the usage text, and file an idea for CLAUDE.md? Or fix all four, or only design.md and README?
+4. Security: auto-install from a committed `stages` line, documented in security.md. Acceptable?
+
+Minor defaults:
+- the working tree's loaded config decides;
+- the hooks are installed once, at the top of claim;
+- warnings repeat on every session start;
+- a stale path to Peal's own stubs is re-installed, while another Peal path counts as foreign.
+
 ---
 
 ## Outcome
