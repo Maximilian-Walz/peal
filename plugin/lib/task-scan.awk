@@ -29,7 +29,8 @@ function flush(    rel, m, nrec, recs, j, f, key, kind, value, n, lst) {
   m = substr(rel, length(tasks) + 2)
   if (m !~ /^(backlog|doing|done)\/[0-9][0-9][0-9][0-9]-[^\/]+\.md$/) return
   if (m !~ /^[a-z]+\/[0-9][0-9][0-9][0-9]-[a-z0-9]+(-[a-z0-9]+)*\.md$/) {
-    printf "peal: warning: %s: the slug is not kebab-case words of a-z and 0-9; skipped\n", rel > "/dev/stderr"
+    shown = rel; gsub(/[[:cntrl:]]/, "?", shown)
+    printf "peal: warning: %s: the slug is not kebab-case words of a-z and 0-9; skipped\n", shown > "/dev/stderr"
     return
   }
   dir = substr(m, 1, index(m, "/") - 1)

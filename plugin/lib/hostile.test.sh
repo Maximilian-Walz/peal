@@ -294,6 +294,19 @@ awk_channels() {
   try "milestones, hostile fields" "$WORK" milestones
   try "milestones --json, hostile fields" "$WORK" milestones --json
   try "check, hostile names in the work tree" "$WORK" check
+  # What the refusals leave working, and what they say.
+  check_fails "check names a task file whose slug breaks the rule" 2 \
+    "tasks/backlog/0013--rf.md: the slug is not kebab-case" at "$WORK" "$PEAL" check
+  check_fails "list skips it, with a warning" 0 "0013--rf.md: the slug is not kebab-case words of a-z and 0-9; skipped" \
+    at "$WORK" "$PEAL" list --no-pr
+  check "list: the tasks whose names keep the rule" "0001 0002 0003 0023 0030" \
+    "$(at "$WORK" "$PEAL" list --no-pr 2>/dev/null | cut -d' ' -f1 | tr '\n' ' ' | sed 's/ $//')"
+  check "read: a task that keeps the rule" "# 0001 — Title of 0001" \
+    "$(at "$WORK" "$PEAL" read 0001 2>/dev/null | grep '^# ')"
+  check_refused "read: a file name that breaks it is no task" "no task 0013" at "$WORK" "$PEAL" read 0013
+  check_refused "read: an id of three digits" "refused: no task id '001'" at "$WORK" "$PEAL" read 001
+  check_refused "decision brief: a diff base that reads as an option" "refused: decision brief: no commit '--output" \
+    at "$WORK" "$PEAL" decision brief --diff "--output=$CANARY/x"
   local id
   for id in 0003 0010 0011 0012 0013 0014 0015 0016 0017 0018 0019 0020 0021 0022 0023 0030 \
       0040 0041 0042 0043 0044 0045; do
@@ -511,7 +524,7 @@ self_test() {
 targets() {
   awk '
     /^main\(\) \{/ { fn = "main" } /^cmd_hook\(\) \{/ { fn = "hook" } /^}/ { fn = "" }
-    fn != "" && /^    [^ ()*][^()]*\) / {
+    fn != "" && /^    [^ ()*][^()]*\)( |$)/ {
       t = $0; sub(/^ +/, "", t); sub(/[ |)].*/, "", t)
       print (fn == "hook" ? "hook " t : t)
     }' "$PEAL"

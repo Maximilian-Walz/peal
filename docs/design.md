@@ -226,6 +226,11 @@ The backlog commands call the storage only, through the `peal` CLI:
 A task is a Markdown file `tasks/<dir>/NNNN-slug.md`. The number is four digits, the slug
 2–5 kebab-case words. Its state is the directory (`backlog`, `doing`, `done`) together
 with refs; there is no status field. The title is the first heading, `# NNNN — Title`.
+Text from a task can come from a stranger, so a malformed id, slug, branch name or
+relative path is refused where it enters (`refused: ...`, status 2), a task file or
+branch whose slug is not kebab-case `a-z0-9` is skipped with a warning (`peal check`
+names the file), and free text (titles, reasons, bodies) is passed only as data
+(`plugin/lib/hostile.test.sh` holds every command to that).
 
 The header is real YAML frontmatter:
 
