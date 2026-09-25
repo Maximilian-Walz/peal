@@ -124,4 +124,6 @@ know moves into Notes as prose.
 ## 4. Report
 
 Say what `peal idea` printed, `queued ...` or `filed ...` with its milestone, plan and
-title, as printed: the human may overrule the triage in one sentence while here.
+title, as printed, and the `pull request #N <url>` line when main takes writes through
+pull requests (the number is final once it merges): the human may overrule the triage in
+one sentence while here.

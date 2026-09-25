@@ -3,6 +3,8 @@
 # task.fields, which holds the project's own frontmatter fields.
 remote: origin
 main: main                      # the branch tasks land on
+main-writes: auto               # Peal's own writes onto main: push, pr (through a pull
+                                # request), auto (push; pr once the remote refuses)
 tasks: tasks                    # holds backlog/, doing/, done/ and TEMPLATE.md
 milestones: docs/milestones
 branch-prefix: task/

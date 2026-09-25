@@ -351,8 +351,9 @@ peal_decision_index() {
 
 # peal_decision_publish -> the index regenerated from the entries on the remote's main
 # branch and, when it differs, committed there ("docs(decisions): regenerate the index")
-# and pushed, again on a new main when the push loses a race. No worktree is touched, so it
-# runs anywhere; a project's workflow runs it after every merge (templates/decisions.yml).
+# and pushed, again on a new main when the push loses a race (or through a pull request,
+# lib/main-write.sh, where main refuses pushes). No worktree is touched, so it runs
+# anywhere; a project's workflow runs it after every merge (templates/decisions.yml).
 peal_decision_publish() {
   local status
   _peal_dec_on publish || return 2
@@ -363,12 +364,17 @@ peal_decision_publish() {
     peal_err "decision publish: could not fetch $PEAL_REMOTE/$PEAL_MAIN"
     return 2
   fi
-  peal_push_main _peal_dec_build_index
+  peal_push_main _peal_dec_build_index "decision publish"
   status=$?
-  case $status in
-    0) echo "published $PEAL_DEC_DIR/index.md to $PEAL_REMOTE/$PEAL_MAIN" ;;
-    3) echo "$PEAL_DEC_DIR/index.md on $PEAL_REMOTE/$PEAL_MAIN is up to date"; return 0 ;;
-  esac
+  if peal_main_write_written $status; then
+    echo "published $PEAL_DEC_DIR/index.md to $PEAL_REMOTE/$PEAL_MAIN"
+    peal_main_write_report
+    return $status
+  fi
+  if [ $status = 3 ]; then
+    echo "$PEAL_DEC_DIR/index.md on $PEAL_REMOTE/$PEAL_MAIN is up to date"
+    return 0
+  fi
   return $status
 }
 

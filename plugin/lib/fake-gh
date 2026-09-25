@@ -7,7 +7,13 @@
 # or status also names its commit, sha; a job its run, run_id; a release is {tag, title,
 # notes, url}), $FAKE_GH/logs/<job id>, a job's log, and $FAKE_GH/workflows, how many
 # Actions workflows there are (1). --jq
-# is applied with jq, as gh applies its own. Every call is appended to $FAKE_GH/log as
+# is applied with jq, as gh applies its own. A pull request's merge (PUT pulls/N/merge,
+# a squash) and a branch's deletion (DELETE git/refs/heads/B) act on the bare repository
+# $FAKE_GH/remote; `gh api graphql` knows the mutation enablePullRequestAutoMerge, refused
+# while $FAKE_GH/no-auto-merge exists. A pull request opens unmergeable while
+# $FAKE_GH/unmergeable exists. $FAKE_GH/checks-pending, when it exists, holds N: the next
+# N reads of a commit's check runs find one still running, every later one a completed
+# run, failed while $FAKE_GH/checks-fail exists. Every call is appended to $FAKE_GH/log as
 # "METHOD PATH"; $FAKE_GH/fail, when it exists, holds a pattern: a call whose
 # "METHOD PATH" matches it fails, but for the first N such calls when $FAKE_GH/fail-after
 # holds N.
@@ -81,10 +87,11 @@ fi
 [ "${1-}" = api ] || die "only gh api and gh release are faked, not: gh $*"
 shift
 
-method=GET jq_expr="" input="" path=""
+method=GET jq_expr="" input="" path="" fields=()
 while [ $# -gt 0 ]; do
   case $1 in
     -X | --method) method=$2; shift ;;
+    -f | -F | --field | --raw-field) fields+=("$2"); shift ;;
     --paginate) ;;
     --input) input=$2; shift ;;
     -q | --jq) jq_expr=$2; shift ;;
@@ -95,6 +102,7 @@ while [ $# -gt 0 ]; do
   shift
 done
 [ -n "$path" ] || die "no path"
+[ "$path" != graphql ] || method=POST
 printf '%s %s\n' "$method" "$path" >>"$FAKE_GH/log"
 if [ -s "$FAKE_GH/fail" ] && [[ "$method $path" == $(cat "$FAKE_GH/fail") ]]; then
   after=$(cat "$FAKE_GH/fail-after" 2>/dev/null || echo 0)
@@ -142,6 +150,32 @@ out() {
   fi
 }
 
+# field NAME -> the value of the -f field NAME.
+field() {
+  local f
+  for f in ${fields[@]+"${fields[@]}"}; do
+    [ "${f%%=*}" != "$1" ] || { printf '%s\n' "${f#*=}"; return 0; }
+  done
+}
+
+if [ "$path" = graphql ]; then
+  case $(field query) in
+    *enablePullRequestAutoMerge*)
+      if [ -e "$FAKE_GH/no-auto-merge" ]; then
+        printf 'GraphQL: Auto merge is not allowed for this repository (enablePullRequestAutoMerge)\n' >&2
+        exit 1
+      fi
+      id=$(field id)
+      jq -e --arg id "$id" 'any(.[]; .node_id == $id and .state == "open")' "$FAKE_GH/pulls.json" >/dev/null \
+        || { printf 'GraphQL: Could not resolve to a node with the global id of %s\n' "$id" >&2; exit 1; }
+      save pulls 'map(if .node_id == $id then . + {auto_merge: {merge_method: "squash"}} else . end)' --arg id "$id"
+      out '{"data":{"enablePullRequestAutoMerge":{"clientMutationId":null}}}'
+      ;;
+    *) die "graphql: only enablePullRequestAutoMerge is faked" ;;
+  esac
+  exit 0
+fi
+
 route=${path%%\?*}
 repo_re='^repos/([^/]+/[^/]+)/(.*)$'
 [[ "$route" =~ $repo_re ]] || die "unknown path $path"
@@ -185,12 +219,45 @@ case "$method $rest" in
     n=$(jq -s '[.[0][].number, .[1][].number] | max // 0 | . + 1' "$FAKE_GH/issues.json" "$FAKE_GH/pulls.json")
     jq -e --arg h "$(jq -r .head <<<"$body")" 'any(.[]; .state == "open" and .head.ref == $h) | not' \
       "$FAKE_GH/pulls.json" >/dev/null || { printf 'gh: A pull request already exists (HTTP 422)\n' >&2; exit 1; }
-    save pulls '. + [{number: $n, title: $in.title, body: $in.body, state: "open", draft: false,
-        merged: false, mergeable: true, author_association: "OWNER",
+    unmergeable=false
+    [ ! -e "$FAKE_GH/unmergeable" ] || unmergeable=true
+    save pulls '. + [{number: $n, node_id: ("PR_" + ($n | tostring)), title: $in.title, body: $in.body, state: "open", draft: false,
+        merged: false, mergeable: ($unm | not), author_association: "OWNER",
         html_url: ($url + "/pull/" + ($n | tostring)),
         head: {ref: $in.head, repo: {full_name: $repo}}, base: {ref: $in.base, repo: {full_name: $repo}}}]' \
-      --argjson in "$body" --argjson n "$n" --arg url "$url" --arg repo "$repo"
+      --argjson in "$body" --argjson n "$n" --arg url "$url" --arg repo "$repo" --argjson unm "$unmergeable"
     out "$(jq -c --argjson n "$n" '.[] | select(.number == $n)' "$FAKE_GH/pulls.json")"
+    ;;
+  "PUT pulls/"*/merge)
+    n=${rest#pulls/} n=${n%/merge}
+    remote=$FAKE_GH/remote
+    [ -d "$remote" ] || die "PUT $path: no \$FAKE_GH/remote"
+    jq -e --argjson n "$n" 'any(.[]; .number == $n and .state == "open")' "$FAKE_GH/pulls.json" >/dev/null \
+      || { printf 'gh: Pull Request is not mergeable (HTTP 405)\n' >&2; exit 1; }
+    IFS="$(printf '\t')" read -r head base title < <(jq -r --argjson n "$n" '.[] | select(.number == $n) | [.head.ref, .base.ref, .title] | @tsv' "$FAKE_GH/pulls.json")
+    h=$(git -C "$remote" rev-parse -q --verify "refs/heads/$head") || { printf 'gh: Head branch is gone (HTTP 422)\n' >&2; exit 1; }
+    b=$(git -C "$remote" rev-parse -q --verify "refs/heads/$base") || die "no base $base"
+    mb=$(git -C "$remote" merge-base "$h" "$b")
+    index=$(mktemp) && rm -f "$index"
+    if ! GIT_INDEX_FILE=$index git -C "$remote" read-tree -m -i --aggressive "$mb" "$b" "$h" 2>/dev/null \
+        || ! tree=$(GIT_INDEX_FILE=$index git -C "$remote" write-tree 2>/dev/null); then
+      rm -f "$index"
+      printf 'gh: Pull Request is not mergeable (HTTP 405)\n' >&2
+      exit 1
+    fi
+    rm -f "$index"
+    if ! c=$(git -C "$remote" commit-tree "$tree" -p "$b" -m "$title (#$n)") \
+        || ! git -C "$remote" update-ref "refs/heads/$base" "$c" "$b"; then
+      die "the squash onto $base failed"
+    fi
+    save pulls 'map(if .number == $n then . + {state: "closed", merged: true} else . end)' --argjson n "$n"
+    out "{\"sha\": \"$c\", \"merged\": true}"
+    ;;
+  "DELETE git/refs/heads/"*)
+    remote=$FAKE_GH/remote
+    [ -d "$remote" ] || die "DELETE $path: no \$FAKE_GH/remote"
+    git -C "$remote" update-ref -d "refs/${rest#git/refs/}" 2>/dev/null \
+      || { printf 'gh: Reference does not exist (HTTP 422)\n' >&2; exit 1; }
     ;;
   "GET pulls/"* | "PATCH pulls/"*)
     n=${rest#pulls/}
@@ -202,7 +269,20 @@ case "$method $rest" in
     ;;
   "GET commits/"*/check-runs)
     sha=${rest#commits/} sha=${sha%/check-runs}
-    out "$(jq -c --arg sha "$sha" 'map(select(.sha == $sha)) | {total_count: length, check_runs: .}' "$FAKE_GH/checks.json")"
+    if [ -f "$FAKE_GH/checks-pending" ]; then
+      left=$(cat "$FAKE_GH/checks-pending")
+      if [ "${left:-0}" -gt 0 ]; then
+        echo $((left - 1)) >"$FAKE_GH/checks-pending"
+        run='{"status": "in_progress", "conclusion": null}'
+      elif [ -e "$FAKE_GH/checks-fail" ]; then
+        run='{"status": "completed", "conclusion": "failure"}'
+      else
+        run='{"status": "completed", "conclusion": "success"}'
+      fi
+      out "{\"total_count\": 1, \"check_runs\": [$run]}"
+    else
+      out "$(jq -c --arg sha "$sha" 'map(select(.sha == $sha)) | {total_count: length, check_runs: .}' "$FAKE_GH/checks.json")"
+    fi
     ;;
   "GET commits/"*/status)
     sha=${rest#commits/} sha=${sha%/status}

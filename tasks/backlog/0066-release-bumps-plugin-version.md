@@ -1,6 +1,7 @@
 ---
 plan: required
 touches: [plugin/.claude-plugin/plugin.json, plugin/commands/release.md]
+milestone: m1
 ---
 
 # 0066 — Releasing Peal itself bumps the plugin's version
