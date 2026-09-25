@@ -33,19 +33,6 @@ peal_valid_slug() {
   [[ "$1" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]
 }
 
-# peal_valid_ref NAME -> status 0 for a branch name git accepts that reads as no option.
-peal_valid_ref() {
-  case $1 in "" | -*) return 1 ;; esac
-  git check-ref-format "refs/heads/$1" 2>/dev/null
-}
-
-# peal_valid_relpath PATH -> status 0 for a path relative to the top that stays under it:
-# no leading / or -, no .. component, no newline.
-peal_valid_relpath() {
-  case $1 in "" | /* | -* | *$'\n'*) return 1 ;; esac
-  case /$1/ in */../*) return 1 ;; esac
-}
-
 # peal_refuse WHAT VALUE -> "peal: refused: WHAT '<VALUE>'" on stderr (VALUE cut short and
 # made printable) and status 2.
 peal_refuse() {
