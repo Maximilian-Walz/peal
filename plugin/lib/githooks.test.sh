@@ -303,6 +303,27 @@ commit_msg() {
   notes.txt" commit "chore(tasks): close 0001 [0001]"
   git -C "$work" reset -q --hard
 
+  # The setup fast path: chore(peal) commits need no task id, touch only what peal init
+  # writes, and skip the checks, commit.areas or not.
+  printf 'checks:\n  commit: ["echo always >>%s"]\ncommit:\n  areas: [sim]\n' "$mark" >"$work/.peal/config.yml"
+  : >"$mark"
+  mkdir -p "$work/.claude" "$work/docs/milestones"
+  echo '{}' >"$work/.claude/settings.json"
+  echo 'tasks: {}' >"$work/.belfry.yml"
+  echo '# m1' >"$work/docs/milestones/m1.md"
+  : >"$work/tasks/doing/.gitkeep"
+  echo launcher >"$work/.peal/peal"
+  git -C "$work" add .peal/peal .claude .belfry.yml docs tasks
+  check "setup fast path" "commit-msg: Peal's setup only; the checks are skipped." "$(commit "chore(peal): set up the tasks stage" 2>&1)"
+  check "setup fast path: no check ran" "" "$(cat "$mark")"
+  echo y >"$work/.belfry.yml"
+  echo x >"$work/README"
+  git -C "$work" add .belfry.yml README
+  check_fails "setup fast path: more than the setup" 1 "a (peal) commit is Peal's setup: .peal/, .claude/settings.json, .belfry.yml, tasks/ and docs/milestones/ only; this one also:
+  README" commit "chore(peal): set up the belfry stage"
+  check_fails "setup fast path: chore only" 1 "the area peal is not one of commit.areas" commit "feat(peal): set up"
+  git -C "$work" reset -q --hard
+
   # checks.commit: by path, from the top of the work tree, a failing one refusing the commit.
   # shellcheck disable=SC2016 # $PWD is the check's, expanded when it runs
   printf 'checks:\n  commit:\n    - "echo always >>%s"\n    - "src/ *.sh: echo code $PWD >>%s"\n    - "docs/guide.md: echo guide >>%s"\n    - "failing/: echo failing; exit 3"\n' \

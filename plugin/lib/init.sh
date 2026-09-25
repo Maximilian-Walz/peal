@@ -14,6 +14,9 @@
 #   belfry      .belfry.yml: the commands backend (files) or github-issues (issues), the
 #               actions Peal provides as suggestions
 #
+# peal init --survey writes nothing: it prints the facts about the repository the
+# conversation decides from.
+#
 # Nothing is committed: the stage prints what it wrote, for the caller to commit.
 
 PEAL_INIT_STAGES="tasks guardrails milestones belfry"
@@ -476,10 +479,145 @@ _peal_init_belfry_remove() {
   _peal_init_record remove belfry
 }
 
+# --- the survey ------------------------------------------------------------------------
+
+# _peal_init_survey_gh WHAT ARGS... -> `WHAT N` from `gh api ARGS` printing N, else
+# `WHAT unknown: why`.
+_peal_init_survey_gh() {
+  local what=$1 n err
+  shift
+  err=$(mktemp) || return 2
+  if n=$(peal_gh "$@" 2>"$err") && [[ "$n" =~ ^[0-9]+$ ]]; then
+    printf '%s %s\n' "$what" "$n"
+  else
+    printf '%s unknown: %s\n' "$what" "$(sed 's/^peal: //' "$err" | tr '\n' ' ' | sed 's/ $//')"
+  fi
+  rm -f "$err"
+}
+
+# _peal_init_list WORDS... -> WORDS joined by commas, or - for none.
+_peal_init_list() {
+  local IFS=,
+  if [ $# -eq 0 ]; then echo -; else printf '%s\n' "$*"; fi
+}
+
+# peal_init_survey -> what /peal:setup decides from, one "key value" line each, writing
+# nothing:
+#   stages      the stages set up (comma list, - for none)
+#   next        the first stage not set up, - when all are
+#   storage     the storage set up, - before the tasks stage
+#   branch      the branch checked out (- when detached), then "main" and the main branch
+#   github      owner/name of the project's GitHub repository, - for none
+#   issues      its open issues (not pull requests), 100 meaning 100 or more
+#   milestones  its open milestones
+#   closes      of the last 200 commits, those whose message closes an issue (fixes #N)
+#   readme      the README, - for none
+#   todo        TODO lists (files named todo, at the top or in docs/), - for none
+#   todo-marks  TODO and FIXME marks in the tracked files
+#   ci          the CI configuration files, - for none
+#   taskdir     the tasks directory before the tasks stage and how many files it holds
+#   belfry      .belfry.yml: peal (the one peal init writes), other, or -
+#   recommend   the storage to recommend: the one set up; else issues when the project
+#               is on GitHub and already has open issues or commits closing some; else files
+# issues and milestones are "unknown: why" when gh cannot tell (not installed, logged
+# out); both are left out without a GitHub repository.
+peal_init_survey() {
+  local stages s next=- storage=- branch main repo issues=0 closes readme f dir tasks n
+  local -a found
+  stages=$(_peal_init_stages) || return 2
+  for s in $PEAL_INIT_STAGES; do
+    if ! printf '%s\n' "$stages" | grep -qx -- "$s"; then
+      next=$s
+      break
+    fi
+  done
+  # shellcheck disable=SC2086 # one stage per word
+  echo "stages $(_peal_init_list $stages)"
+  echo "next $next"
+  if printf '%s\n' "$stages" | grep -qx tasks; then
+    storage=$(peal_config_get storage.kind) || return 2
+  fi
+  echo "storage $storage"
+  main=$(peal_config_get main) || return 2
+  branch=$(git symbolic-ref -q --short HEAD) || branch=-
+  echo "branch $branch main $main"
+
+  repo=$(peal_config_get storage.issues.repo) || return 2
+  [ -n "$repo" ] || repo=$(peal_github_repo_of "$(git remote get-url "$(peal_config_get remote)" 2>/dev/null)") || repo=""
+  echo "github ${repo:--}"
+  if [ -n "$repo" ]; then
+    issues=$(_peal_init_survey_gh issues "repos/$repo/issues?state=open&per_page=100" \
+      --jq '[.[] | select(.pull_request == null)] | length') || return 2
+    echo "$issues"
+    _peal_init_survey_gh milestones "repos/$repo/milestones?state=open&per_page=100" \
+      --jq '[.[] | select(.state == "open")] | length' || return 2
+  fi
+  closes=$(git log -n 200 --format='%B%x00' 2>/dev/null | tr '\n' ' ' | tr '\0' '\n' \
+    | grep -c -i -E '(close[sd]?|fix(e[sd])?|resolve[sd]?):? +([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)?#[0-9]+')
+  echo "closes $closes"
+
+  readme=-
+  for f in README.md README README.rst README.txt README.adoc readme.md Readme.md; do
+    if [ -f "$f" ]; then readme=$f; break; fi
+  done
+  echo "readme $readme"
+  found=()
+  for dir in . docs; do
+    [ -d "$dir" ] || continue
+    for f in "$dir"/*; do
+      [ -f "$f" ] || continue
+      case $(basename "$f" | tr '[:upper:]' '[:lower:]') in
+        todo | todo.* | todos | todos.*) found+=("${f#./}") ;;
+      esac
+    done
+  done
+  echo "todo $(_peal_init_list ${found[@]+"${found[@]}"})"
+  n=$(git grep -I -E -w 'TODO|FIXME' -- . 2>/dev/null | wc -l | tr -d ' ')
+  echo "todo-marks $n"
+  found=()
+  for f in .github/workflows/*.yml .github/workflows/*.yaml .gitlab-ci.yml .circleci/config.yml \
+      .travis.yml Jenkinsfile azure-pipelines.yml .woodpecker.yml bitbucket-pipelines.yml; do
+    [ -f "$f" ] && found+=("$f")
+  done
+  echo "ci $(_peal_init_list ${found[@]+"${found[@]}"})"
+
+  tasks=$(peal_config_get tasks) || return 2
+  tasks=${tasks%/}
+  if [ "$storage" = - ] && [ -d "$tasks" ]; then
+    echo "taskdir $tasks/ $(find "$tasks" -type f | wc -l | tr -d ' ')"
+  else
+    echo "taskdir -"
+  fi
+  if [ ! -e .belfry.yml ]; then
+    echo "belfry -"
+  elif head -n 1 .belfry.yml | grep -q 'written by peal init'; then
+    echo "belfry peal"
+  else
+    echo "belfry other"
+  fi
+
+  if [ "$storage" != - ]; then
+    echo "recommend $storage"
+  elif [ -n "$repo" ] && { [[ "$issues" =~ ^issues\ [1-9] ]] || [ "$closes" -gt 0 ]; }; then
+    echo "recommend issues"
+  else
+    echo "recommend files"
+  fi
+}
+
+# peal_init --survey
 # peal_init --stage STAGE [--storage files|issues] [--label L] [--title T]
 # peal_init --remove STAGE
 peal_init() {
   local action="" stage="" storage="" label="" label_given="" title="" top
+  if [ "${1-}" = --survey ]; then
+    [ $# -eq 1 ] || { peal_err "init: --survey takes no arguments"; return 2; }
+    top=$(peal_project_root) || return 2
+    cd "$top" || return 2
+    peal_config_load || return 2
+    peal_init_survey
+    return
+  fi
   while [ $# -gt 0 ]; do
     case $1 in
       --stage | --remove)

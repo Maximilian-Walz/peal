@@ -66,6 +66,10 @@ usage: peal <command> [args]
                                 milestones (a first milestone, --title), belfry
                                 (.belfry.yml); recorded as stages: in the config
   init --remove STAGE           take a stage back; the tasks themselves stay
+  init --survey                 the facts /peal:setup decides from, writing nothing:
+                                the stages set up, the GitHub repository, its open
+                                issues and milestones, commits closing issues, README,
+                                TODO lists, CI, and the storage to recommend
   check                         report what is not valid: the milestone files, a task
                                 file under done/ without an Outcome, a depends cycle
                                 among the tasks not done, and with the decisions
