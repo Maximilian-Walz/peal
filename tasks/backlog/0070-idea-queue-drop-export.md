@@ -7,7 +7,7 @@ priority: low
 touches: [plugin/lib/, plugin/commands/close.md]
 ---
 
-# 0069 — The idea queue can be dropped or exported, and the Outcome check accepts quoted comments
+# 0070 — The idea queue can be dropped or exported, and the Outcome check accepts quoted comments
 
 ## Intent
 
