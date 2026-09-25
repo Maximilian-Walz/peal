@@ -2,6 +2,7 @@
 plan: required
 priority: high
 touches: [plugin/hooks/hooks.json, plugin/lib/claim.sh, plugin/lib/claim.test.sh, plugin/lib/close.sh, plugin/lib/commit.sh, plugin/lib/githooks.sh, plugin/lib/session.sh, plugin/lib/session.test.sh]
+milestone: m1
 ---
 
 # 0059 — A fresh clone whose config records the guardrails stage gets its git gates without a manual step
