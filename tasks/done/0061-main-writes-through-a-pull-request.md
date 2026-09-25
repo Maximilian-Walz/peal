@@ -173,3 +173,54 @@ Ranges: `plugin/lib/main-write.sh:1-70`; `plugin/lib/store-files.sh:7-45`, `272-
 
 ## Outcome
 
+Built as planned. `peal_push_main` (`plugin/lib/main-write.sh`) picks the route from
+`main-writes: push | pr | auto` (default `auto`). Under `auto`, a server-side
+`[remote rejected] <main>` switches the write to a pull request, and the clone remembers
+the switch in `git config peal.mainWrites pr`. `git config --unset peal.mainWrites`
+forgets it. A lost push race or a local gate refusal never switches the route.
+
+The pull request route works like this:
+- It pushes branch `peal/main-write-<short sha>` and opens the pull request through the
+  REST API.
+- It turns on auto-merge (squash) through GraphQL. When auto-merge is not allowed or the
+  pull request is already clean, Peal merges it itself once `peal_pr_checks` is ready,
+  within `PEAL_MAIN_WRITE_BUDGET`. Running out of time reports the pull request as open,
+  with status 3.
+- A filing returns once its id check passes and prints `pull request #N <url>`.
+  `PEAL_MAIN_WRITE_WAIT=merged` waits for the merge.
+- Races: when an open main-write pull request with a lower number took the same id, the
+  filing closes its own pull request and opens a replacement with the next free id. An
+  unmergeable pull request is closed and the write rebuilt, and a stale edit is refused
+  as before.
+
+Other changes:
+- `peal create --part-of` (the pieces of a split) goes the same way.
+- `store-issues.sh` warns when `main-writes` is set.
+- The checks logic moved from `close.sh` into `github.sh` as `peal_pr_checks`.
+- The decisions workflow template uses an optional `PEAL_TOKEN` secret, falling back to
+  `GITHUB_TOKEN`, and gains `pull-requests: write`.
+- `docs/design.md` has a new section, "Writes onto main". `fake-gh` learned auto-merge,
+  merge, branch delete, closing a pull request and pending checks.
+- `plugin/lib/main-write.test.sh` covers the plan's five cases: a filing through a pull
+  request, `push` failing, a merge waiting for checks, a race and a conflict.
+  `tools/test-all.sh` and `tools/lint.sh` pass.
+
+Outside the touches list, all for the Scope's "says a pull request was opened and where":
+- `plugin/commands/idea.md` and `plugin/commands/split.md` report the pull request line.
+- `.peal/config.yml`'s commented defaults list `main-writes: auto`.
+
+For the next session:
+- The third Done-when line (`/peal:idea` end to end in Peal's own repository) can only be
+  checked after the merge. It is a human step: first turn on "Allow auto-merge" in the
+  repository's settings.
+- For a split, the pull request body names the origin task (taken from the commit
+  subject's `[NNNN]`), not the new piece.
+- Right after a pull request opens, GitHub usually reports `mergeable` as null, so the
+  immediate unmergeable check rarely fires against the real API. A conflict found after
+  the command returned is left for a human, as agreed in the plan.
+
+### Human steps
+
+- In the repository's settings, turn on "Allow auto-merge" (General → Pull Requests).
+- After the merge, from the main checkout, run `/peal:idea` with any small idea. Check that it prints `pull request #N <url>`, that the pull request merges by itself once the checks pass, and that the task shows up on main.
+- Optional: add a `PEAL_TOKEN` secret (a PAT or app token) so that the pull requests the decisions workflow opens also run their required checks.
