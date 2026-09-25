@@ -355,6 +355,7 @@ peal_store_create() {
       split) peal_push_main _peal_files_build_create "create --part-of" || status=$? ;;
       batch) peal_push_main _peal_files_build_create "create --batch" || status=$? ;;
     esac
+    # shellcheck disable=SC2034 # read by peal_push_main
     PEAL_MW_TAKEN=""
   fi
   if peal_main_write_written $status; then
