@@ -165,7 +165,7 @@ peal_claim() {
         next=1
         if [ $# -ge 2 ] && [ "${2#-}" = "$2" ]; then pool=$2; shift; fi ;;
       [0-9]*)
-        [[ "$1" =~ ^[0-9]+$ ]] || { peal_err "claim: '$1' is no task id"; return 2; }
+        peal_valid_id "$1" || { peal_refuse "claim: no task id" "$1"; return; }
         [ -z "$id" ] || { peal_err "claim: one task"; return 2; }
         id=$1 ;;
       *) peal_err "claim: unknown argument $1"; return 2 ;;
@@ -366,10 +366,11 @@ _peal_verdict_words() {
 # deferred: refused with the reason otherwise (peal_release_verdict).
 peal_release() {
   local id=${1-} records state branch path verdict
-  if ! [[ "$id" =~ ^[0-9]+$ ]] || [ $# -ne 1 ]; then
+  if [ $# -ne 1 ]; then
     peal_err "release: ID"
     return 2
   fi
+  peal_valid_id "$id" || { peal_refuse "release: no task id" "$id"; return; }
   records=$(peal_store_list --fetch --no-pr) || return 2
   state=$(printf '%s\n' "$records" | awk -F '\t' -v id="$id" '!f && $1 == id { print $2; f = 1 }')
   if ! branch=$(peal_store_local_branch "$id"); then

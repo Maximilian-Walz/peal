@@ -59,7 +59,7 @@ _peal_files_scan() {
     find "$tmp/$PEAL_TASKS/backlog" "$tmp/$PEAL_TASKS/doing" "$tmp/$PEAL_TASKS/done" \
       -maxdepth 1 -type f -name '*.md' -exec awk -v root="$tmp" -v tasks="$PEAL_TASKS" \
       -f "$PEAL_ROOT/lib/yaml-lib.awk" -f "$PEAL_ROOT/lib/task-scan.awk" {} + 2>&1 >"$tmp.out" \
-      | grep -v '^find: ' >&2
+      | LC_ALL=C grep -a -v '^find: ' >&2
     LC_ALL=C sort -t "$(printf '\t')" -k1,1 -s "$tmp.out"
     rm -f "$tmp.out"
   fi
@@ -67,23 +67,29 @@ _peal_files_scan() {
   return $status
 }
 
-# _peal_files_ids REF -> the id of every task file at REF, one per line.
+# _peal_files_ids REF -> the id of every task file at REF, one per line (a slug that breaks
+# the rule makes no task file).
 _peal_files_ids() {
   git ls-tree -r --name-only "$1" -- "$PEAL_TASKS/" 2>/dev/null | awk -v t="$PEAL_TASKS/" '
     index($0, t) == 1 {
       m = substr($0, length(t) + 1)
-      if (m ~ /^(backlog|doing|done)\/[0-9][0-9][0-9][0-9]-[^\/]+\.md$/) print substr(m, index(m, "/") + 1, 4)
+      if (m ~ /^(backlog|doing|done)\/[0-9][0-9][0-9][0-9]-[a-z0-9]+(-[a-z0-9]+)*\.md$/) print substr(m, index(m, "/") + 1, 4)
     }' | sort -u
 }
 
 # _peal_files_find REF ID -> the path of task ID's file at REF, done/ before doing/ before
-# backlog/; status 1 if there is none.
+# backlog/; status 1 if there is none. A file whose slug breaks the rule is no task's.
 _peal_files_find() {
   git ls-tree -r --name-only "$1" -- "$PEAL_TASKS/" 2>/dev/null | awk -v t="$PEAL_TASKS/" -v id="$2" '
     index($0, t) == 1 {
       m = substr($0, length(t) + 1)
-      if (m !~ /^(backlog|doing|done)\/[0-9][0-9][0-9][0-9]-[^\/]+\.md$/) next
+      if (m !~ /^(backlog|doing|done)\/[0-9][0-9][0-9][0-9]-/) next
       if (substr(m, index(m, "/") + 1, 5) != id "-") next
+      if (m !~ /^[a-z]+\/[0-9][0-9][0-9][0-9]-[a-z0-9]+(-[a-z0-9]+)*\.md$/) {
+        if (m ~ /\.md$/ && m !~ /^[a-z]+\/.*\//)
+          print "peal: warning: " $0 ": the slug is not kebab-case words of a-z and 0-9; skipped" > "/dev/stderr"
+        next
+      }
       d = substr(m, 1, index(m, "/") - 1)
       r = d == "done" ? 3 : d == "doing" ? 2 : 1
       if (r > best) { best = r; path = $0 }
@@ -92,7 +98,8 @@ _peal_files_find() {
 }
 
 # _peal_files_branches -> "id<TAB>where<TAB>branch" for every task branch, where "local"
-# or "remote" (on PEAL_REMOTE), branch without refs/heads/ or refs/remotes/<remote>/.
+# or "remote" (on PEAL_REMOTE), branch without refs/heads/ or refs/remotes/<remote>/. A
+# branch whose slug breaks the rule is no task's.
 _peal_files_branches() {
   local ref name rest
   git for-each-ref --format='%(refname)' "refs/heads/$PEAL_PREFIX*" "refs/remotes/$PEAL_REMOTE/$PEAL_PREFIX*" \
@@ -101,7 +108,7 @@ _peal_files_branches() {
           refs/heads/*) name=${ref#refs/heads/}; rest=local ;;
           *) name=${ref#"refs/remotes/$PEAL_REMOTE/"}; rest=remote ;;
         esac
-        [[ "${name#"$PEAL_PREFIX"}" =~ ^([0-9][0-9][0-9][0-9])- ]] || continue
+        [[ "${name#"$PEAL_PREFIX"}" =~ ^([0-9][0-9][0-9][0-9])-[a-z0-9]+(-[a-z0-9]+)*$ ]] || continue
         printf '%s\t%s\t%s\n' "${BASH_REMATCH[1]}" "$rest" "$name"
       done
 }
@@ -942,7 +949,7 @@ peal_store_branch_task() {
   _peal_files_settings || return 1
   branch=$(git symbolic-ref -q --short HEAD) || return 1
   [ "${branch#"$PEAL_PREFIX"}" != "$branch" ] || [ -z "$PEAL_PREFIX" ] || return 1
-  [[ "${branch#"$PEAL_PREFIX"}" =~ ^([0-9][0-9][0-9][0-9])- ]] || return 1
+  [[ "${branch#"$PEAL_PREFIX"}" =~ ^([0-9][0-9][0-9][0-9])-[a-z0-9]+(-[a-z0-9]+)*$ ]] || return 1
   printf '%s\n' "${BASH_REMATCH[1]}"
 }
 
@@ -967,7 +974,7 @@ peal_store_claim_worktrees() {
       b = substr($0, 8)
       if (index(b, p) != 1) next
       rest = substr(b, length(p) + 1)
-      if (rest ~ /^[0-9][0-9][0-9][0-9]-/) print substr(rest, 1, 4), substr(b, 12), path
+      if (rest ~ /^[0-9][0-9][0-9][0-9]-[a-z0-9]+(-[a-z0-9]+)*$/) print substr(rest, 1, 4), substr(b, 12), path
     }'
 }
 

@@ -429,7 +429,12 @@ peal_decision_brief() {
     from="the task ($from)"
   else
     if [ -n "${2-}" ]; then
-      PEAL_BASE=$2
+      # A commit, never an option: git diff would take "--output=FILE" as one and write it.
+      if [ "${2#-}" != "$2" ] || ! PEAL_BASE=$(git rev-parse -q --verify "$2^{commit}"); then
+        rm -rf "$tmp"
+        peal_refuse "decision brief: no commit" "$2"
+        return
+      fi
     else
       peal_branch_base "decision brief" || { rm -rf "$tmp"; return 2; }
     fi

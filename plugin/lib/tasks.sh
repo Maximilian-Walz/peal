@@ -112,6 +112,28 @@ _peal_cycles_of() {
     -f "$PEAL_ROOT/lib/task-state.awk" /dev/null "$1" 2>/dev/null
 }
 
+# peal_check_names -> a line on stderr per task file of this work tree whose name is
+# NNNN-<something>.md but whose slug is not kebab-case a-z and 0-9, and status 2 if there
+# is one: list and read skip such a file (task files only).
+peal_check_names() {
+  local top tasks d file name status=0
+  [ "$(peal_config_get storage.kind)" = files ] || return 0
+  top=$(peal_project_root) || return 2
+  tasks=$(peal_config_get tasks) || return 2
+  tasks=${tasks%/}
+  for d in backlog doing "done"; do
+    for file in "$top/$tasks/$d"/[0-9][0-9][0-9][0-9]-*.md; do
+      [ -f "$file" ] || continue
+      name=${file##*/}
+      name=${name#[0-9][0-9][0-9][0-9]-}
+      peal_valid_slug "${name%.md}" && continue
+      peal_err "$tasks/$d/$(printf '%s' "${file##*/}" | LC_ALL=C tr -c '[:print:]' '?'): the slug is not kebab-case words of a-z and 0-9; list and read skip it"
+      status=2
+    done
+  done
+  return $status
+}
+
 # peal_check_cycles -> a line on stderr per depends cycle among the tasks not done, and
 # status 2 if there is one: for task files those of this work tree, for issues the
 # storage's.
