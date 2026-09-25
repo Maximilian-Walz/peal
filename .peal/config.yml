@@ -2,7 +2,7 @@
 # uncomment one and change it to set it here; a key Peal does not know is refused.
 # `stages` (the setup stages done) and `storage` belong to `peal init`.
 
-stages: [tasks, milestones, belfry]
+stages: [tasks, guardrails, milestones, belfry]
 
 # Peal's own settings. The harnesses take minutes, so CI runs them, not every commit;
 # a close runs the lint, which is quick.
