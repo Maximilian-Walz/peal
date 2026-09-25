@@ -86,11 +86,12 @@ reads a task before anyone has agreed its plan, carries no Bash tool at all.
 
 ### `gh` holds the token; Peal only calls it
 
-Every GitHub API call goes through one function, so nothing in Peal reads, stores or
+Every GitHub call goes through the `gh` CLI, so nothing in Peal reads, stores or
 forwards the user's token; scoping and revocation are `gh`'s own auth store, not
 Peal's problem to get right.
 
-- Guard: `plugin/lib/github.sh` (`peal_gh`).
+- Guard: `plugin/lib/github.sh` (`peal_gh`), the main path; the board's lookup of open
+  pull requests (`_peal_files_prs` in `plugin/lib/store-files.sh`) calls `gh` directly.
 - Harness: `plugin/lib/store-issues.test.sh`, `plugin/lib/ship.test.sh`, through the
   fake `gh` (`plugin/lib/fake-gh`) that sees every call a harness makes.
 
