@@ -545,6 +545,12 @@ the installed Peal the way the launcher does, runs Peal's gate for `pre-push` an
 `commit-msg` (`peal githook NAME`), then the project's own hook of the same name: in the
 hooks path the install replaced (kept as git config `peal.projectHooks`), else the git
 directory's `hooks/`. A gate that cannot find Peal refuses rather than waves through.
+The hooks never run what the repository ships: the stub reads no file of the work tree,
+calls no network, and verifies every root before it runs it, `$PEAL_ROOT` included (an
+in-repository one is skipped with a message; see [Distribution](#distribution)). Every
+refusal names its reason. `peal hooks install` refuses to record a Peal inside the
+repository. The limits that remain (`checks.commit`, in-tree project hooks, gate
+settings read from the work tree) are in [docs/security.md](security.md).
 
 - **pre-push** lets onto the main branch merges whose other parents a pushed branch
   already holds, and the storage's own writes, told by subject and checked by the diff's
@@ -805,9 +811,17 @@ Finding Peal's scripts at run time:
   installed plugin's directory.
 - **Outside** (git hooks, Belfry's `commands` backend, a human in a shell): the committed
   launcher `.peal/peal`, a short script that finds the plugin and runs its `peal` CLI.
-  It tries `$PEAL_ROOT`, then the root the SessionStart hook records in the repository's
-  git directory each session, then the newest Peal in Claude Code's plugin cache, and
-  fails with an install hint otherwise.
+  It tries `$PEAL_ROOT` (taken as it is: whoever sets it chose what runs), then the root
+  the SessionStart hook records in the repository's git directory each session, then the
+  newest Peal in Claude Code's plugin cache (any marketplace's `peal`), and fails with an
+  install hint otherwise. A recorded or cached root runs only once verified: an absolute
+  path with an executable `bin/peal`, a `.claude-plugin/plugin.json` naming `peal` with a
+  version, outside every worktree of the repository and its git directory, inside
+  `${CLAUDE_CONFIG_DIR:-~/.claude}/plugins/cache/`, and, when Claude Code's
+  `installed_plugins.json` is there, a path and version its `peal@` entries list. A root
+  refused is named on stderr with the reason and the next is tried. The git hooks run the
+  same check (one block, the same text in both templates), `$PEAL_ROOT` included. The
+  SessionStart hook does not record a root inside the repository.
 
 The `peal` CLI is the one entry point for all scripts (`peal list`, `peal claim`, ...);
 commands and hooks call it too, so there is a single place that loads config and storage.
@@ -824,8 +838,8 @@ commands know what is there.
 
 | Stage | Writes | `--remove` |
 |---|---|---|
-| `tasks` | `.peal/config.yml` (`stages:`, and Peal's defaults as comments), the launcher `.peal/peal`, and for task files the tasks directory's `backlog/`, `doing/`, `done/` (a `.gitkeep` in each empty one) and `TEMPLATE.md` (a project's own is kept); `--storage issues [--label L]` writes `storage.kind: issues` and the label instead (empty by default: the write-access rule), keeping a `repo` set by hand, and `--storage files` removes it. Last, the `.claude/settings.json` lines of [Distribution](#distribution): the file is created when absent, the keys inserted into it when present (`lib/settings-json.awk`, keeping the rest as written); when it does not parse, the lines to add are printed and the stage exits 1. | refused while another stage is set up. The template, the `.gitkeep`s, the directories left empty, `storage`, `stages`, the launcher, Peal's lines in the settings (the file and `.claude/` when nothing else is left); the config file when it holds nothing else. |
-| `guardrails` | `peal hooks install`. The session hooks come from the plugin's `hooks.json`, so nothing is written to the settings. | `peal hooks uninstall`: `core.hooksPath` back to what it was. |
+| `tasks` | `.peal/config.yml` (`stages:`, and Peal's defaults as comments), the launcher `.peal/peal`, and for task files the tasks directory's `backlog/`, `doing/`, `done/` (a `.gitkeep` in each empty one) and `TEMPLATE.md` (a project's own is kept); `--storage issues [--label L]` writes `storage.kind: issues` and the label instead (empty by default: the write-access rule), keeping a `repo` set by hand, and `--storage files` removes it. Last, the `.claude/settings.json` lines of [Distribution](#distribution): the file is created when absent, the keys inserted into it when present (`lib/settings-json.awk`, keeping the rest as written); when it does not parse, the lines to add are printed and the stage exits 1. | refused while another stage is set up. The template, the `.gitkeep`s, the directories left empty, `storage`, `stages`, the launcher, Peal's lines in the settings (the file and `.claude/` when nothing else is left); the config file when it holds nothing else; the recorded root (`peal-root`). Task state stays: claims, `task/*` branches, `refs/reaped/*` and the sessions' files in the git directories. |
+| `guardrails` | `peal hooks install`. The session hooks come from the plugin's `hooks.json`, so nothing is written to the settings. | `peal hooks uninstall`: `core.hooksPath` back to what it was; every `peal.*` key of the repository's config, the hooks' directory and the recorded root (`peal-root`) removed. |
 | `milestones` | for task files a first milestone, `m1.md` (`current`, `--title T`, "First milestone" by default), unless the milestones directory holds one; for issues nothing but the record (the repository's milestones are the milestones). | `m1.md` while it is as the stage wrote it. |
 | `belfry` | `.belfry.yml`: the `commands` backend of [Peal and Belfry](#peal-and-belfry) (with `retire` and a parking reason) for task files, `github-issues` with the label, `start: /peal:work {task}` and `idea: /peal:idea {idea}` for issues; the actions Peal provides (`milestone-review`, `release`) as comments to uncomment. A `.belfry.yml` that is not Peal's is left alone, the contract printed, status 1. The file is to be checked with `belfry check` once Belfry has one; until then the stage says it skipped the check. | the file while it is as the stage writes it; otherwise status 1, for the human to remove it. |
 
