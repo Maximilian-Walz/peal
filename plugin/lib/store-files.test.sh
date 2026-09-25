@@ -169,8 +169,11 @@ EOF
 peal: gave up after 2 pushes to origin/main, each losing a race
 peal: nothing was filed" "$?:$out"
 
-  # A push refused for another reason is not retried.
+  # A push refused for another reason is not retried; under main-writes: push, not even
+  # one the remote refused (lib/main-write.test.sh has the pull requests).
   rm "$work/.git/hooks/pre-push"
+  mkdir -p "$work/.peal"
+  printf 'main-writes: push\n' >"$work/.peal/config.yml"
   printf '#!/bin/sh\necho "no pushes today" >&2\nexit 1\n' >"$(dirname "$work")/remote.git/hooks/pre-receive"
   chmod +x "$(dirname "$work")/remote.git/hooks/pre-receive"
   out=$(text | peal create refused-task 2>&1)

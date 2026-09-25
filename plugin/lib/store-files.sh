@@ -5,8 +5,10 @@
 # the calling worktree, so any worktree on any branch gets the same answer.
 #
 # Writes to the main branch never touch a worktree: the commit is built on a temporary
-# index from the fetched main and pushed (lib/main-write.sh). The push is the lock: one
-# that loses a race is retried on the new main, a new task renumbered.
+# index from the fetched main and pushed (lib/main-write.sh), or opened as a pull request
+# where main refuses pushes. The push is the lock: one that loses a race is retried on the
+# new main, a new task renumbered; a filing's pull request whose number an earlier one
+# took is replaced by one with the next.
 
 # _peal_files_settings -> PEAL_REMOTE, PEAL_MAIN, PEAL_TASKS, PEAL_PREFIX from the settings.
 _peal_files_settings() {
@@ -249,6 +251,7 @@ peal_store_read() {
     fi
   done
   peal_err "no task $id"
+  peal_main_write_hint
   return 2
 }
 
@@ -269,11 +272,17 @@ _peal_files_milestones_at() {
   return $status
 }
 
-# _peal_files_next_id BASE -> one past the highest task number in BASE's task files and
-# in every task branch's name, local or on any remote: a claimed number stays taken.
+# _peal_files_next_id BASE -> one past the highest task number in BASE's task files, in
+# every task branch's name, local or on any remote, and in the task files of the main
+# writes' branches fetched (a filing's pull request not merged yet): a claimed number
+# stays taken.
 _peal_files_next_id() {
+  local ref
   {
     _peal_files_ids "$1"
+    for ref in $(git for-each-ref --format='%(refname)' "refs/remotes/$PEAL_REMOTE/$PEAL_MW_PREFIX*"); do
+      _peal_files_ids "$ref"
+    done
     git for-each-ref --format='%(refname)' "refs/heads/$PEAL_PREFIX*" "refs/remotes/*/$PEAL_PREFIX*" \
       | while IFS= read -r ref; do
           case $ref in
@@ -283,6 +292,17 @@ _peal_files_next_id() {
           [[ "${ref#"$PEAL_PREFIX"}" =~ ^([0-9][0-9][0-9][0-9])- ]] && printf '%s\n' "${BASH_REMATCH[1]}"
         done
   } | awk '{ n = $0 + 0; if (n > max) max = n } END { printf "%04d\n", max + 1 }'
+}
+
+# _peal_files_create_taken REF... -> status 0 when one of the numbers the filing took is
+# a task's at one of the REFs: a filing that went there first.
+_peal_files_create_taken() {
+  local ref ids id
+  ids=$(for ref; do _peal_files_ids "$ref"; done)
+  for id in "${PEAL_CREATE_IDS[@]}"; do
+    printf '%s\n' "$ids" | grep -qx "$id" && return 0
+  done
+  return 1
 }
 
 # peal_store_create MODE ORIGIN SLUG... -> the tasks whose texts are on stdin, one per
@@ -329,9 +349,15 @@ peal_store_create() {
     peal_cycle_check_create "$mode" "$origin" "$count" "$PEAL_CREATE_DIR" || status=$?
   fi
   if [ $status = 0 ]; then
-    peal_push_main _peal_files_build_create || status=$?
+    PEAL_MW_TAKEN=_peal_files_create_taken
+    case $mode in
+      plain) peal_push_main _peal_files_build_create create || status=$? ;;
+      split) peal_push_main _peal_files_build_create "create --part-of" || status=$? ;;
+      batch) peal_push_main _peal_files_build_create "create --batch" || status=$? ;;
+    esac
+    PEAL_MW_TAKEN=""
   fi
-  if [ $status = 0 ]; then
+  if peal_main_write_written $status; then
     for ((i = 0; i < count; i++)); do
       PEAL_TITLE=${PEAL_CREATE_TITLES[i]} awk -F '\t' -v id="${PEAL_CREATE_IDS[i]}" \
         -v path="${PEAL_CREATE_PATHS[i]}" '
@@ -339,6 +365,7 @@ peal_store_create() {
         { printf "filed %s %s — milestone: %s, plan: %s, size: %s — \"%s\"\n", id, path, f($1), f($2), f($3), ENVIRON["PEAL_TITLE"] }' \
         <<<"${PEAL_CREATE_SUMMARY[i]}"
     done
+    peal_main_write_report "the number is final once it merges"
   elif [ -s "${PEAL_CREATE_DIR-}/1" ]; then
     peal_err "nothing was filed"
   fi
@@ -397,6 +424,7 @@ _peal_files_unclaimed() {
   PEAL_BASE=$(git rev-parse "refs/remotes/$PEAL_REMOTE/$PEAL_MAIN") || return 2
   if ! PEAL_PATH=$(_peal_files_find "$PEAL_BASE" "$id"); then
     peal_err "$verb: no task $id on $PEAL_REMOTE/$PEAL_MAIN"
+    peal_main_write_hint
     return 2
   fi
   case $PEAL_PATH in
@@ -473,10 +501,12 @@ peal_store_edit() {
     if [ "$dry" = --dry-run ]; then
       (cd "$tmp" && diff -u old edited)
       echo "revise: a dry run; nothing pushed"
-    elif peal_push_main _peal_files_build_edit; then
-      echo "revised $id $PEAL_PATH"
     else
-      status=$?
+      peal_push_main _peal_files_build_edit revise || status=$?
+      if peal_main_write_written $status; then
+        echo "revised $id $PEAL_PATH"
+        peal_main_write_report
+      fi
     fi
   fi
   rm -rf "$tmp"
@@ -570,6 +600,7 @@ peal_store_defer() {
   base=$(git rev-parse "refs/remotes/$PEAL_REMOTE/$PEAL_MAIN") || return 2
   if ! PEAL_PATH=$(_peal_files_find "$base" "$id"); then
     peal_err "defer: no task $id on $PEAL_REMOTE/$PEAL_MAIN"
+    peal_main_write_hint
     return 2
   fi
   case $PEAL_PATH in
@@ -593,15 +624,17 @@ peal_store_defer() {
     if [ "$dry" = --dry-run ]; then
       (cd "$tmp" && diff -u old deferred)
       echo "defer: a dry run; nothing pushed"
-    elif peal_push_main _peal_files_build_defer; then
-      echo "deferred $id $PEAL_PATH"
-      if [ -n "$(git -C "$top" status --porcelain -- "$doing")" ] \
-          && ! git -C "$top" commit -q -m "wip: defer capture [$id]" -- "$doing" >/dev/null 2>&1; then
-        peal_err "defer: the text is on $PEAL_REMOTE/$PEAL_MAIN, but $doing could not be committed; commit it before the release"
-        status=1
-      fi
     else
-      status=$?
+      peal_push_main _peal_files_build_defer defer || status=$?
+      if peal_main_write_written $status; then
+        echo "deferred $id $PEAL_PATH"
+        peal_main_write_report
+        if [ -n "$(git -C "$top" status --porcelain -- "$doing")" ] \
+            && ! git -C "$top" commit -q -m "wip: defer capture [$id]" -- "$doing" >/dev/null 2>&1; then
+          peal_err "defer: the text is on its way to $PEAL_REMOTE/$PEAL_MAIN, but $doing could not be committed; commit it before the release"
+          status=1
+        fi
+      fi
     fi
   fi
   rm -rf "$tmp"
@@ -648,10 +681,10 @@ _peal_files_retire() {
   PEAL_EDIT_FILE=$tmp/retired
   PEAL_RETIRE_LINE="Retired $(date -u +%Y-%m-%d) without being claimed: $reason"
   PEAL_EDIT_SUBJECT="docs(tasks): retire $id $PEAL_SLUG [$id]"
-  if peal_push_main _peal_files_build_retire; then
+  peal_push_main _peal_files_build_retire retire || status=$?
+  if peal_main_write_written $status; then
     echo "retired $id $PEAL_TASKS/done/${PEAL_PATH##*/}"
-  else
-    status=$?
+    peal_main_write_report
   fi
   rm -rf "$tmp"
   return $status
@@ -756,13 +789,13 @@ _peal_files_rewrite() {
   tmp=$(mktemp -d) || return 2
   PEAL_EDIT_FILE=$tmp/new PEAL_REWRITE=$4
   PEAL_EDIT_SUBJECT="docs(tasks): $3 [$id]"
-  peal_push_main _peal_files_build_rewrite || status=$?
+  peal_push_main _peal_files_build_rewrite "$verb" || status=$?
   rm -rf "$tmp"
   return $status
 }
 
 peal_store_set_milestone() {
-  local id=$1 state
+  local id=$1 state status=0
   PEAL_NEW_MILESTONE=${2-}
   _peal_files_settings || return 2
   if [ -n "$PEAL_NEW_MILESTONE" ]; then
@@ -775,19 +808,25 @@ peal_store_set_milestone() {
     esac
   fi
   _peal_files_rewrite "$id" set-milestone "set milestone of $id to ${PEAL_NEW_MILESTONE:-none}" \
-    _peal_files_rewrite_milestone || return
+    _peal_files_rewrite_milestone || status=$?
+  peal_main_write_written $status || return $status
   echo "task $id: milestone ${PEAL_NEW_MILESTONE:-none}"
+  peal_main_write_report
+  return $status
 }
 
 peal_store_comment() {
-  local id=$1
+  local id=$1 status=0
   if [ -z "${2-}" ]; then
     peal_err "comment: no text"
     return 2
   fi
   PEAL_COMMENT="$(date -u +%Y-%m-%d): $2"
-  _peal_files_rewrite "$id" comment "note on $id" _peal_files_rewrite_comment || return
+  _peal_files_rewrite "$id" comment "note on $id" _peal_files_rewrite_comment || status=$?
+  peal_main_write_written $status || return $status
   echo "task $id: noted"
+  peal_main_write_report
+  return $status
 }
 
 # _peal_files_local_branch ID -> the local task branch of ID; status 1 if there is none.
@@ -823,6 +862,7 @@ peal_store_claim() {
   base=$(git rev-parse "refs/remotes/$PEAL_REMOTE/$PEAL_MAIN") || return 2
   if ! path=$(_peal_files_find "$base" "$id"); then
     peal_err "claim: no task $id on $PEAL_REMOTE/$PEAL_MAIN"
+    peal_main_write_hint
     return 2
   fi
   case $path in
@@ -1062,9 +1102,12 @@ peal_store_milestone_state() {
   _peal_files_fetch || return 2
   tmp=$(mktemp -d) || return 2
   PEAL_MS_ID=$1 PEAL_MS_STATE=$2 PEAL_MS_REASON=$3 PEAL_MS_REVIEW=$4 PEAL_MS_TMP=$tmp PEAL_MS_REPORT=""
-  peal_push_main _peal_files_build_ms_state || status=$?
+  peal_push_main _peal_files_build_ms_state milestone-state || status=$?
   [ $status = 4 ] && status=0
-  [ $status != 0 ] || printf '%s' "$PEAL_MS_REPORT"
+  if peal_main_write_written $status; then
+    printf '%s' "$PEAL_MS_REPORT"
+    peal_main_write_report
+  fi
   rm -rf "$tmp"
   return $status
 }

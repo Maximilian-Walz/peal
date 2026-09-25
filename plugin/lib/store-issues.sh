@@ -29,12 +29,17 @@ PEAL_ISSUES_CLOSED=${PEAL_ISSUES_CLOSED:-100}
 PEAL_ISSUES_ROW='[(.number | tostring), .state, .title, (.milestone.title // ""), ([.labels[].name] | join(",")), (.author_association // ""), .html_url, (.body // "")] | @tsv'
 
 # _peal_issues_settings -> PEAL_REMOTE, PEAL_MAIN, PEAL_LABEL and PEAL_REPO (owner/name:
-# peal_github_repo) from the settings.
+# peal_github_repo) from the settings. A warning when main-writes is set to something but
+# its default while nothing writes onto main: issues live on GitHub, and only the
+# decisions module publishes onto main.
 _peal_issues_settings() {
   PEAL_REMOTE=$(peal_config_get remote) || return 2
   PEAL_MAIN=$(peal_config_get main) || return 2
   PEAL_LABEL=$(peal_config_get storage.issues.label) || return 2
   PEAL_REPO=$(peal_github_repo) || return 2
+  if [ "$(peal_config_get main-writes)" != auto ] && [ "$(peal_config_get decisions)" = false ]; then
+    peal_err "warning: main-writes does nothing here: the issues storage writes no task onto $PEAL_MAIN"
+  fi
 }
 
 # _peal_issues_issue N -> issue N as an issues-lib.awk row; status 2 if it cannot be read.

@@ -636,7 +636,7 @@ peal_close_stop() {
 # The branch checked out here is the one checked; anything that cannot be verified is
 # BLOCKED, never READY.
 peal_close_verify() {
-  local top branch main gitdir ahead repo pr state merged mergeable sha runs statuses counts pending failing total
+  local top branch main gitdir ahead repo pr state merged mergeable sha checks status
   top=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "BLOCKED:not-a-repo"; return 1; }
   cd "$top" || { echo "BLOCKED:not-a-repo"; return 1; }
   peal_config_load 2>/dev/null || { echo "BLOCKED:no-settings"; return 1; }
@@ -665,28 +665,9 @@ peal_close_verify() {
   esac
   [ "$mergeable" != false ] || { echo "BLOCKED:conflicts"; return 1; }
   sha=$(git rev-parse HEAD)
-  runs=$(peal_gh "repos/$repo/commits/$sha/check-runs?per_page=100" \
-    --jq '.check_runs[] | [.status, (.conclusion // "")] | @tsv') || { echo "BLOCKED:gh-failed"; return 1; }
-  statuses=$(peal_gh "repos/$repo/commits/$sha/status" --jq '.statuses[] | .state') || { echo "BLOCKED:gh-failed"; return 1; }
-  counts=$( { printf '%s\n' "$runs" | sed '/^$/d; s/^/run\t/'; printf '%s\n' "$statuses" | sed '/^$/d; s/^/status\t/'; } | awk -F '\t' '
-    $1 == "run" && $2 != "completed" { p++ }
-    $1 == "run" && $2 == "completed" && $3 != "success" && $3 != "neutral" && $3 != "skipped" { f++ }
-    $1 == "status" && $2 == "pending" { p++ }
-    $1 == "status" && ($2 == "failure" || $2 == "error") { f++ }
-    { t++ }
-    END { print p + 0, f + 0, t + 0 }')
-  read -r pending failing total <<<"$counts"
-  [ "$failing" = 0 ] || { echo "BLOCKED:checks-failing"; return 1; }
-  [ "$pending" = 0 ] || { echo "WAIT:checks-pending"; return 3; }
-  if [ "$total" = 0 ]; then
-    total=$(peal_gh "repos/$repo/actions/workflows" --jq '.total_count') || { echo "BLOCKED:gh-failed"; return 1; }
-    if [ "$total" = 0 ]; then
-      echo "READY:no-checks"
-      return 0
-    fi
-    echo "WAIT:no-checks-yet"
-    return 3
-  fi
+  checks=$(peal_pr_checks "$repo" "$sha")
+  status=$?
+  [ "$checks" = READY ] || { echo "$checks"; return $status; }
   [ "$mergeable" = true ] || { echo "WAIT:mergeability-unknown"; return 3; }
   echo "READY"
 }
