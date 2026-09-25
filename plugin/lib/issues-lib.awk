@@ -59,6 +59,20 @@ function label_kv(l,    i) {
 # that is none of them.
 function prio_rank(p) { return p == "urgent" ? 4 : p == "high" ? 3 : p == "normal" ? 2 : p == "low" ? 1 : 0 }
 
+# admitted(assoc, labels, label) -> 1 when the write-access rule (or the filter label)
+# admits an issue as a task: labels ($5 of an issues-lib.awk row, comma-joined,
+# @tsv-escaped) holds label (trimmed, exact) when one is set; otherwise assoc ($6) is
+# OWNER, MEMBER or COLLABORATOR. The one rule every read path of the issues storage
+# applies (docs/security.md).
+function admitted(assoc, labels, label,    n, ls, j) {
+  if (label != "") {
+    n = split(tsv_unescape(labels), ls, ",")
+    for (j = 1; j <= n; j++) if (trim(ls[j]) == label) return 1
+    return 0
+  }
+  return assoc == "OWNER" || assoc == "MEMBER" || assoc == "COLLABORATOR"
+}
+
 # add_item(list, v) -> the comma list with v appended, once.
 function add_item(list, v) {
   if (index("," list ",", "," v ",")) return list

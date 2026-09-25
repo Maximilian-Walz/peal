@@ -188,6 +188,32 @@ _peal_issues_text() {
     -f "$PEAL_ROOT/lib/issues-lib.awk" -f "$PEAL_ROOT/lib/issues-text.awk"
 }
 
+# _peal_issues_admitted ROW -> status 0 when the write-access rule or the filter label
+# admits ROW (an issue as PEAL_ISSUES_ROW reads it); PEAL_LABEL must be set
+# (_peal_issues_settings). The one rule every read path of the issues storage applies.
+_peal_issues_admitted() {
+  printf '%s\n' "$1" | awk -F '\t' -v label="$PEAL_LABEL" -f "$PEAL_ROOT/lib/issues-lib.awk" \
+    '{ exit !admitted($6, $5, label) }'
+}
+
+# _peal_issues_refuse ID ROW -> the message that refuses ID: opened by someone without
+# write access to PEAL_REPO, not labelled PEAL_LABEL, or both when a label is set and the
+# opener also lacks write access; an owner's unlabelled issue is refused as not labelled
+# alone. Quotes none of the issue's own text.
+_peal_issues_refuse() {
+  local id=$1 row=$2 assoc why
+  assoc=$(_peal_field "$row" 6)
+  if [ -z "$PEAL_LABEL" ]; then
+    peal_err "refused: issue $id is no task: opened by someone without write access to $PEAL_REPO; set storage.issues.label and label it, or file it anew yourself (peal idea)"
+    return
+  fi
+  case $assoc in
+    OWNER | MEMBER | COLLABORATOR) why="not labelled '$PEAL_LABEL'" ;;
+    *) why="opened by someone without write access to $PEAL_REPO and not labelled '$PEAL_LABEL'" ;;
+  esac
+  peal_err "refused: issue $id is no task: $why; labelling it '$PEAL_LABEL' or filing it anew yourself (peal idea) makes it a task"
+}
+
 peal_store_read() {
   local row
   if ! [[ "${1-}" =~ ^[0-9]+$ ]]; then
@@ -196,6 +222,7 @@ peal_store_read() {
   fi
   _peal_issues_settings || return 2
   row=$(_peal_issues_issue "$1") || { peal_err "no task $1"; return 2; }
+  _peal_issues_admitted "$row" || { _peal_issues_refuse "$1" "$row"; return 2; }
   _peal_issues_text "$row"
 }
 
@@ -563,6 +590,7 @@ peal_store_defer() {
     return 2
   fi
   row=$(_peal_issues_issue "$id") || return 2
+  _peal_issues_admitted "$row" || { _peal_issues_refuse "$id" "$row"; return 2; }
   if [ "$(_peal_field "$row" 2)" != open ]; then
     peal_err "defer: issue $id is closed"
     return 2

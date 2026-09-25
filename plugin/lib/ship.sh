@@ -34,6 +34,7 @@ _peal_ship_settings() {
   PEAL_KIND=$(peal_config_get storage.kind) || return 2
   PEAL_PREFIX=$(peal_config_get release.tag-prefix) || return 2
   PEAL_GH_REPO=$(peal_config_get storage.issues.repo) || return 2
+  PEAL_LABEL=$(peal_config_get storage.issues.label) || return 2
   # The remote's own URL, not what a local insteadOf makes of it.
   [ -n "$PEAL_GH_REPO" ] \
     || PEAL_GH_REPO=$(peal_github_repo_of "$(git config --get "remote.$PEAL_REMOTE.url")") || PEAL_GH_REPO=""
@@ -180,20 +181,35 @@ _peal_ship_file_items() {
   done <"$dir/added"
 }
 
+# _peal_ship_admitted ASSOC LABELS -> status 0 when the write-access rule or the filter
+# label (PEAL_LABEL) admits an issue whose author_association is ASSOC and labels
+# (comma-joined) are LABELS (lib/issues-lib.awk's admitted()).
+_peal_ship_admitted() {
+  awk -v assoc="$1" -v labels="$2" -v label="${PEAL_LABEL-}" -f "$PEAL_ROOT/lib/issues-lib.awk" \
+    'BEGIN { exit !admitted(assoc, labels, label) }'
+}
+
 # _peal_ship_issue_items DIR -> DIR/items for the issues the range's subjects name that
-# are closed as completed.
+# are closed as completed. An issue the write-access rule does not admit (a commit
+# subject naming one that was never really a claimed task) gets the commit's own subject
+# in place of its title, never the issue's own text; a pull request's Outcome is read
+# only from one opened by the repository itself or by someone with write access.
 _peal_ship_issue_items() {
-  local dir=$1 id row state reason title labels ispr prs kind first sentence
+  local dir=$1 id row state reason title labels ispr assoc prs kind first sentence subject trusted samerepo prassoc
   [ -n "$PEAL_GH_REPO" ] || { peal_err "no GitHub repository: set storage.issues.repo"; return 2; }
   awk -F '\t' '$4 ~ /^[0-9]+$/ && !seen[$4]++ { print $4 }' "$dir/commits" >"$dir/ids"
   while IFS= read -r id; do
     row=$(peal_gh "repos/$PEAL_GH_REPO/issues/$id" \
-      --jq '[.state, (.state_reason // ""), .title, ([.labels[].name] | join(",")), (if .pull_request then "pr" else "" end)] | join("\u001f")' </dev/null 2>/dev/null) \
+      --jq '[.state, (.state_reason // ""), .title, ([.labels[].name] | join(",")), (if .pull_request then "pr" else "" end), (.author_association // "")] | join("\u001f")' </dev/null 2>/dev/null) \
       || continue
     # A separator that is no white space: an empty field stays a field.
-    IFS=$'\x1f' read -r state reason title labels ispr <<<"$row"
+    IFS=$'\x1f' read -r state reason title labels ispr assoc <<<"$row"
     [ "$reason" != not_planned ] || echo "$id" >>"$dir/dropped"
     if [ "$state" != closed ] || [ "$reason" = not_planned ] || [ -n "$ispr" ]; then continue; fi
+    if ! _peal_ship_admitted "$assoc" "$labels"; then
+      subject=$(awk -F '\t' -v id="$id" '$4 == id { print $6; exit }' "$dir/commits")
+      title=${subject:-"issue $id"}
+    fi
     prs=$(awk -F '\t' -v id="$id" '$4 == id && $5 != "" { printf "%s#%s", (n++ ? " " : ""), $5 }' "$dir/commits")
     kind=feature
     ! awk -F '\t' -v id="$id" '$4 == id && $2 == "fix" { f = 1 } END { exit !f }' "$dir/commits" || kind=fix
@@ -204,8 +220,18 @@ _peal_ship_issue_items() {
     sentence=""
     first=${prs%% *}
     if [ -n "$first" ]; then
-      sentence=$(peal_gh "repos/$PEAL_GH_REPO/pulls/${first#\#}" --jq '.body // ""' </dev/null 2>/dev/null \
-        | tr -d '\r' | peal_text_section Outcome | _peal_ship_sentence)
+      row=$(peal_gh "repos/$PEAL_GH_REPO/pulls/${first#\#}" \
+        --jq '[(.head.repo.full_name == .base.repo.full_name | tostring), (.author_association // "")] | join("\u001f")' </dev/null 2>/dev/null)
+      IFS=$'\x1f' read -r samerepo prassoc <<<"$row"
+      trusted=0
+      case $prassoc in
+        OWNER | MEMBER | COLLABORATOR) trusted=1 ;;
+        *) [ "$samerepo" != true ] || trusted=1 ;;
+      esac
+      if [ "$trusted" = 1 ]; then
+        sentence=$(peal_gh "repos/$PEAL_GH_REPO/pulls/${first#\#}" --jq '.body // ""' </dev/null 2>/dev/null \
+          | tr -d '\r' | peal_text_section Outcome | _peal_ship_sentence)
+      fi
     fi
     printf '%s\t%s\t%s\t%s\t%s\t\n' "$kind" "$id" "$prs" "$title" "$sentence" >>"$dir/items"
   done <"$dir/ids"

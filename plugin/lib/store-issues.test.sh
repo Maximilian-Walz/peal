@@ -164,6 +164,55 @@ issues_repo_label() {
   issue 3 "Labelled sized" --label tasks --label "size: M"
 }
 
+# admitted(): the write-access rule (or the filter label) on every read path of the
+# issues storage: read, claim, defer and work's cached copy.
+admission() {
+  local work wt out
+  issues_repo
+  issue 1 "Stranger's issue" --assoc NONE
+  issue 2 "Owner's issue"
+  check_refused "read: a stranger's issue, no label configured" \
+    "refused: issue 1 is no task: opened by someone without write access to acme/widgets; set storage.issues.label and label it, or file it anew yourself (peal idea)" \
+    peal read 1
+  check_refused "claim: the same refusal" \
+    "refused: issue 1 is no task: opened by someone without write access to acme/widgets; set storage.issues.label and label it, or file it anew yourself (peal idea)" \
+    peal claim 1
+  check "read: an owner's issue is admitted" "# 2 — Owner's issue" "$(peal read 2 2>&1 | grep '^# ')"
+  check "list: a stranger's unlabelled issue is no task" "2 free owner-s-issue -" "$(list 2>&1)"
+
+  # A filter label: a stranger's labelled issue is readable; an owner's unlabelled issue
+  # is refused as not labelled alone, without naming write access.
+  issues_repo_label
+  issue 4 "Stranger's labelled issue" --label tasks --assoc NONE
+  issue 5 "Owner's unlabelled issue"
+  check "read: a labelled stranger's issue" "# 4 — Stranger's labelled issue" "$(peal read 4 2>&1 | grep '^# ')"
+  check_refused "read: an owner's unlabelled issue" \
+    "refused: issue 5 is no task: not labelled 'tasks'; labelling it 'tasks' or filing it anew yourself (peal idea) makes it a task" \
+    peal read 5
+  check_refused "claim: a stranger's unlabelled issue names both" \
+    "refused: issue 1 is no task: opened by someone without write access to acme/widgets and not labelled 'tasks'; labelling it 'tasks' or filing it anew yourself (peal idea) makes it a task" \
+    peal claim 1
+
+  # defer: the same refusal, once the issue is no longer admitted.
+  issues_repo
+  issue 6 "Claimable"
+  wt=$(peal claim 6 --print-path 2>/dev/null | tail -n 1)
+  gh_save issues 'map(if .number == 6 then .author_association = "NONE" else . end)'
+  check_fails "defer: refused when no longer admitted" 2 \
+    "refused: issue 6 is no task: opened by someone without write access to acme/widgets; set storage.issues.label and label it, or file it anew yourself (peal idea)" \
+    at "$wt" "$PEAL" defer --reason "no longer mine" --dry-run < <(cat "$(git -C "$wt" rev-parse --absolute-git-dir)/peal-task.md")
+
+  # work: a worktree whose cached copy can no longer be read (the label taken off after
+  # the claim, under a filter label) refuses with read's reason, never an empty task.
+  issues_repo_label
+  issue 7 "Claimable, labelled" --label tasks
+  wt=$(peal claim 7 --print-path 2>/dev/null | tail -n 1)
+  gh_save issues 'map(if .number == 7 then .labels = [] else . end)'
+  check_fails "work: refused when the cache is empty" 2 \
+    "refused: issue 7 is no task: not labelled 'tasks'; labelling it 'tasks' or filing it anew yourself (peal idea) makes it a task" \
+    at "$wt" "$PEAL" work
+}
+
 expansion() {
   local work err
   issues_repo
@@ -719,6 +768,7 @@ cases() {
   merge
   writes
   claims
+  admission
   session
   commit_msg
   repo_of

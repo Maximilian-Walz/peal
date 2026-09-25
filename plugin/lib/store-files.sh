@@ -173,16 +173,18 @@ _peal_files_claims() {
 }
 
 # _peal_files_prs -> the claims on stdin, an awaiting-merge claim's pr:unknown replaced by
-# its open pull request from gh, "pr:#N <url>" and " draft" for a draft. Best effort: without
-# gh, or when it fails or takes over 10 seconds, the claims stay as they are, with a warning.
+# its open pull request from gh, "pr:#N <url>" and " draft" for a draft; a pull request
+# from a fork (a branch named like a task's, opened from elsewhere) supplies none. Best
+# effort: without gh, or when it fails or takes over 10 seconds, the claims stay as they
+# are, with a warning.
 _peal_files_prs() {
   local claims prs
   claims=$(cat)
   if ! command -v gh >/dev/null 2>&1; then
     peal_err "warning: gh not found; pull requests of tasks awaiting merge are unknown"
   else
-    set -- gh pr list --state open --limit 200 --json number,headRefName,isDraft,url \
-      --jq '.[] | [.headRefName, (.number|tostring), (.isDraft|tostring), .url] | @tsv'
+    set -- gh pr list --state open --limit 200 --json number,headRefName,isDraft,url,isCrossRepository \
+      --jq '.[] | [.headRefName, (.number|tostring), (.isDraft|tostring), .url, (.isCrossRepository|tostring)] | @tsv'
     if command -v timeout >/dev/null 2>&1; then set -- timeout 10 "$@"; fi
     if ! prs=$("$@" 2>/dev/null); then
       peal_err "warning: gh pr list failed; pull requests of tasks awaiting merge are unknown"
@@ -195,7 +197,7 @@ _peal_files_prs() {
       n = split(ENVIRON["PEAL_PRS"], rows, "\n")
       for (i = 1; i <= n; i++) {
         split(rows[i], f, "\t")
-        if (f[1] == "") continue
+        if (f[1] == "" || f[5] == "true") continue
         num[f[1]] = f[2]; url[f[1]] = f[4]; draft[f[1]] = (f[3] == "true")
       }
     }

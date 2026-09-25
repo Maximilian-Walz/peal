@@ -81,8 +81,32 @@ reads a task before anyone has agreed its plan, carries no Bash tool at all.
 
 - Guard: `plugin/lib/frontmatter.sh`, `plugin/lib/work.sh` (`peal_brief`); the
   review-before-merge principle above.
-- Harness: `plugin/lib/frontmatter.test.sh`, `plugin/lib/work.test.sh`. A harness that
-  runs every command with hostile values throughout is task 0039.
+- Harness: `plugin/lib/frontmatter.test.sh`, `plugin/lib/work.test.sh`,
+  `plugin/lib/hostile.test.sh`, which runs every command with hostile values throughout.
+
+### Only admitted issues reach a session
+
+On the issues storage, an issue's title, body, labels and pull requests are prose like
+any task's; the boundary above bounds what a session does with prose once it has it, not
+whether an issue reaches a session at all. `admitted()` (`plugin/lib/issues-lib.awk`) is
+the one rule every read path of the issues storage applies: the filter label
+(`storage.issues.label`) when one is set, else an opener with write access to the
+repository (OWNER, MEMBER or COLLABORATOR) — anyone may open an issue on a public
+repository. `read`, `claim`, `work` and `defer` refuse an issue the rule does not admit
+and quote none of its text; `list`, the board, the depends expansion and `ship`'s release
+notes apply the same rule, an unadmitted issue a commit subject names getting the
+commit's own subject in the notes, never the issue's title.
+
+Known limits: a stranger's edit to an issue after it was labelled is accepted for now (a
+follow-up task adds a re-label check, admitting only when the last edit precedes the
+labelling or is by someone with write access); a task depending on a stranger's issue
+still reads its state (open or closed) to know whether it is done, the one thing that
+crosses the boundary, never its text. No command reads comments.
+
+- Guard: `plugin/lib/issues-lib.awk` (`admitted()`), `plugin/lib/store-issues.sh`,
+  `plugin/lib/claim.sh`, `plugin/lib/work.sh`, `plugin/lib/ship.sh`.
+- Harness: `plugin/lib/hostile.test.sh` (the issues storage's channels),
+  `plugin/lib/store-issues.test.sh`, `plugin/lib/ship.test.sh`.
 
 ### `gh` holds the token; Peal only calls it
 

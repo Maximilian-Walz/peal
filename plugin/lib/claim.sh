@@ -205,7 +205,7 @@ _peal_claim_one() {
   records=$(peal_store_list --fetch --no-pr) || return 2
   rec=$(printf '%s\n' "$records" | awk -F '\t' -v id="$id" '$1 == id')
   if [ -z "$rec" ]; then
-    peal_err "claim: no task $id"
+    peal_store_read "$id" >/dev/null
     return 2
   fi
   state=$(_peal_field "$rec" 2)

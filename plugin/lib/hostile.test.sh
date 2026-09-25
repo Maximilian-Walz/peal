@@ -32,6 +32,8 @@ set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/test-lib.sh"
 # shellcheck source=task-fixtures.sh
 . "$PEAL_ROOT/lib/task-fixtures.sh"
+# shellcheck source=issue-fixtures.sh
+. "$PEAL_ROOT/lib/issue-fixtures.sh"
 
 # The scratch area: BASE/canary, BASE/abs-target; each repository BASE/rN/a/b/{remote.git,
 # work, work-wt, tmp}, so that ../../escape from the work tree stays under BASE.
@@ -43,6 +45,10 @@ mkdir -p "$CANARY" "$STUBS"
 printf '#!/bin/sh\necho "gh: not in this harness" >&2\nexit 1\n' >"$STUBS/gh"
 chmod +x "$STUBS/gh"
 nrepo=0
+# assess()'s gh: STUBS' failing one, unless issues_channels puts a fake gh ahead of it.
+PATHPREFIX=$STUBS
+# assess()'s outsider-text check: a marker issues_channels expects never to leak.
+MARKER=""
 
 LONG=$(head -c 65536 /dev/zero | tr '\0' 'a')
 # The hostile values, one per line of their names.
@@ -174,19 +180,28 @@ ref_ok() {
   local slug='[a-z0-9]+(-[a-z0-9]+)*'
   [[ "$1" =~ ^refs/heads/main$ ]] || [[ "$1" =~ ^refs/remotes/origin/(HEAD|main)$ ]] \
     || [[ "$1" =~ ^refs/(heads/|remotes/origin/)task/[0-9]{4}-$slug$ ]] \
-    || [[ "$1" =~ ^refs/reaped/[0-9]{4}-$slug$ ]] || [[ "$1" =~ ^refs/decisions/[0-9]{4}$ ]] \
+    || [[ "$1" =~ ^refs/(heads/|remotes/origin/)issue/[0-9]+$ ]] \
+    || [[ "$1" =~ ^refs/reaped/[0-9]{4}-$slug$ ]] || [[ "$1" =~ ^refs/reaped/issue-[0-9]+$ ]] \
+    || [[ "$1" =~ ^refs/decisions/[0-9]{4}$ ]] \
     || [[ "$1" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]
 }
 
 # assess CWD INPUT CMD... -> CMD run in CWD with the file INPUT on stdin; prints each
 # problem found, nothing for a safe run. CMD is the peal CLI unless it names another.
+# PATHPREFIX goes ahead of PATH (the failing stub gh by default, a fake gh that answers
+# for issues_channels); with MARKER set, stdout or stderr holding it is an "outsider
+# text" problem (the write-access rule let a stranger's text reach an output).
 assess() {
-  local cwd=$1 input=$2 before after rbefore rafter err status line leaked
+  local cwd=$1 input=$2 before after rbefore rafter err out status line leaked
   shift 2
   before=$(snapshot)
   rbefore=$(refs)
-  err=$(cd "$cwd" && TMPDIR=$REPO/tmp PATH="$STUBS:$PATH" "$@" <"$input" 2>&1 >/dev/null)
+  out=$(cd "$cwd" && TMPDIR=$REPO/tmp PATH="$PATHPREFIX:$PATH" "$@" <"$input" 2>"$BASE/stderr")
   status=$?
+  err=$(cat "$BASE/stderr" 2>/dev/null)
+  if [ -n "$MARKER" ] && { [[ "$out" == *"$MARKER"* ]] || [[ "$err" == *"$MARKER"* ]]; }; then
+    printf 'outsider text: %s reached an output\n' "$MARKER"
+  fi
   leaked=$(canaries)
   if [ -n "$leaked" ]; then
     printf 'executed: %s\n' "$(printf '%s' "$leaked" | tr '\n' ' ')"
@@ -346,6 +361,73 @@ awk_channels() {
   cover revise
   each_input "revise, hostile text" "$WORK" "$(ID=0002 RAW="the human said so" text "milestone: m2" "touches: ['@']")
 @" revise 0002 --reason why --dry-run
+}
+
+# --- the issues storage's channels: the write-access rule on every read path -----------
+
+# issues_channels -> the issues storage's read paths (list, board, overview, milestones,
+# offer, read, claim, work, revise --dry-run, set-milestone, retire, init --survey, ship
+# notes) run against issues from outsiders (NONE, FIRST_TIME_CONTRIBUTOR, CONTRIBUTOR: no
+# write access), each holding the marker OUTSIDER-TEXT and hostile values in its title,
+# body and labels; a hostile milestone; a fork's and the repository's own pull requests
+# with hostile bodies; an outsider's comment. Every case: nothing runs, nothing is
+# written outside, the outsider's marker reaches no output, and no command reads
+# comments.
+issues_channels() {
+  if ! command -v jq >/dev/null 2>&1; then
+    NOTES="${NOTES}note: no jq here, which the issues storage's fake gh needs; issues_channels skipped"$'\n'
+    return
+  fi
+  local fakebin fakegh id
+  INPUT=$NOINPUT
+  hostile_repo
+  printf 'decisions: docs/decisions\nstorage:\n  kind: issues\n  issues:\n    repo: acme/widgets\n' >"$WORK/.peal/config.yml"
+  git -C "$WORK" add -A
+  git -C "$WORK" commit -q -m "issues storage"
+  git -C "$WORK" push -q origin main 2>/dev/null
+  fake_github "$WORK"
+  fakegh=$FAKE_GH
+  fakebin=$(dirname "$WORK")/bin
+  PATHPREFIX="$fakebin:$STUBS"
+  ALLOW=('*/a/b/gh' '*/a/b/bin')
+
+  # The milestone's title and description are shown regardless of admission (creating a
+  # milestone needs write access already, unlike an issue): hostile shell metacharacters,
+  # but no OUTSIDER-TEXT marker, since displaying them here is correct, not a leak.
+  milestone 1 "hostile \$(touch $CANARY/mstitle)" open "" "desc \$(touch $CANARY/msdesc)"
+  issue 1 "Stranger \$(touch $CANARY/title) OUTSIDER-TEXT" --assoc NONE \
+    --body $'Body $(touch '"$CANARY"'/body) OUTSIDER-TEXT\n\nDepends on #2' \
+    --label 'touches: ../../escape' --label "size: \$(touch $CANARY/size)"
+  issue 2 "Owner's issue"
+  issue 3 "First-timer's issue OUTSIDER-TEXT" --assoc FIRST_TIME_CONTRIBUTOR --body "Body OUTSIDER-TEXT"
+  issue 4 "Contributor's issue OUTSIDER-TEXT" --assoc CONTRIBUTOR --body "Body OUTSIDER-TEXT"
+  pr 5 "PR body \$(touch $CANARY/prbody) OUTSIDER-TEXT" --fork NONE
+  pr 6 "Fixes #2 OUTSIDER-TEXT"
+  gh_save comments '. + [{issue: 1, body: $b, user: {login: "x"}, author_association: "NONE"}]' \
+    --arg b "OUTSIDER-TEXT \$(touch $CANARY/comment)"
+
+  MARKER=OUTSIDER-TEXT
+  try "issues: list" "$WORK" list
+  try "issues: board" "$WORK" board
+  try "issues: overview" "$WORK" overview
+  try "issues: milestones" "$WORK" milestones
+  try "issues: offer" "$WORK" offer current,unassigned
+  for id in 1 2 3 4; do
+    try "issues: read $id" "$WORK" read "$id"
+    try "issues: claim $id" "$WORK" claim "$id"
+    try "issues: work $id" "$WORK" work "$id"
+  done
+  try "issues: revise 1 --dry-run" "$WORK" revise 1 --reason x --dry-run
+  try "issues: set-milestone 1" "$WORK" set-milestone 1 m1
+  try "issues: retire 1" "$WORK" retire 1 --reason x
+  try "issues: init --survey" "$WORK" init --survey
+  try "issues: ship notes" "$WORK" ship notes 0.1.0
+  MARKER=""
+
+  check "issues: no command reads comments" "0" "$(grep -c '^GET.*comments' "$fakegh/log" 2>/dev/null || echo 0)"
+
+  ALLOW=()
+  PATHPREFIX=$STUBS
 }
 
 # --- CLI arguments, once --------------------------------------------------------------------
@@ -514,9 +596,16 @@ self_test() {
   printf '#!/usr/bin/env bash\nmktemp "$TMPDIR/leak.XXXXXX" >/dev/null\n' >"$unsafe.temp"
   printf '#!/usr/bin/env bash\ngit update-ref "refs/heads/$1" HEAD\n' >"$unsafe.ref"
   printf '#!/usr/bin/env bash\nbash -c "if then"\n' >"$unsafe.syntax"
+  printf '#!/usr/bin/env bash\necho "leaked: $1"\n' >"$unsafe.leak"
   chmod +x "$unsafe".*
   problems=$(assess "$WORK" "$NOINPUT" "$unsafe.eval" "${H[0]}")
   check "self-test: an eval is caught" "executed" "${problems%%:*}"
+  MARKER=leaked
+  problems=$(assess "$WORK" "$NOINPUT" "$unsafe.leak" leaked)
+  MARKER=""
+  check "self-test: outsider text reaching an output is caught" "outsider text" "${problems%%:*}"
+  printf 'POST repos/acme/widgets/issues/1/comments\nGET repos/acme/widgets/issues/1/comments\n' >"$BASE/fakelog"
+  check "self-test: a comments read is distinguished from a write" "1" "$(grep -c '^GET.*comments' "$BASE/fakelog")"
   problems=$(assess "$WORK" "$NOINPUT" "$unsafe.write" "${H[7]}")
   check "self-test: a write outside is caught" "wrote outside" "${problems%%:*}"
   problems=$(assess "$WORK" "$NOINPUT" "$unsafe.temp")
@@ -555,9 +644,9 @@ coverage() {
   check "coverage: every dispatch target of bin/peal has a hostile case" "" "$missing"
 }
 
-# PEAL_HOSTILE_CASES: the groups to run (self_test awk_channels arg_cases hook_cases), all
-# by default; the coverage check runs with all of them only.
-cases=${PEAL_HOSTILE_CASES:-self_test awk_channels arg_cases hook_cases}
+# PEAL_HOSTILE_CASES: the groups to run (self_test awk_channels issues_channels arg_cases
+# hook_cases), all by default; the coverage check runs with all of them only.
+cases=${PEAL_HOSTILE_CASES:-self_test awk_channels issues_channels arg_cases hook_cases}
 # run_group NAME CMD... -> CMD, if NAME is one of the groups to run.
 run_group() {
   local name=$1
@@ -566,6 +655,7 @@ run_group() {
 }
 run_group self_test self_test
 run_group awk_channels for_each_awk awk_channels
+run_group issues_channels for_each_awk issues_channels
 # The rest under the first awk only: their values never reach awk as a task text.
 first_awk=""
 for candidate in mawk gawk nawk original-awk; do

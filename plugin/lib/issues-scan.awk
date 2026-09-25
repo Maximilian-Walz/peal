@@ -23,7 +23,7 @@ $0 == "" || ($1 in seen) { next }
 
 {
   id = $1
-  if (!extra && label == "" && $6 != "OWNER" && $6 != "MEMBER" && $6 != "COLLABORATOR") next
+  if (!extra && !admitted($6, $5, label)) next
   seen[id] = 1
   title = tsv_unescape($3)
   gsub(/[\t\r\n]/, " ", title)
