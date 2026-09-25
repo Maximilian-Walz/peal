@@ -3,7 +3,10 @@
 # of the cases under every awk installed here, since Peal's scripts must work with
 # whichever one a machine has (mawk, gawk, BSD awk, busybox).
 
+# Exported, so the git hooks the harnesses install run this checkout's Peal: a recorded
+# root outside Claude Code's plugin cache is refused (templates/githook).
 PEAL_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+export PEAL_ROOT
 # shellcheck disable=SC2034 # used by the harnesses
 PEAL="$PEAL_ROOT/bin/peal"
 pass=0

@@ -34,9 +34,43 @@ a task's branch cannot weaken the gates that judge it, and a hostile commit cann
 a fake `peal` for its own hooks to execute instead. The committed launcher (`.peal/peal`)
 resolves `$PEAL_ROOT`, the plugin root its `SessionStart` hook recorded in the git
 directory, or Claude Code's plugin cache — never a script beside it in the working tree.
+A recorded or cached root runs only once verified: a `plugin.json` naming `peal` with a
+version, outside every worktree of the repository and its git directory (compared as
+physical paths, so a link into the repository is the repository's), inside Claude Code's
+plugin cache, and listed at that version by `installed_plugins.json` when that is there.
+The git hooks' stub runs the same check on `$PEAL_ROOT` too, so an in-repository
+`PEAL_ROOT` is skipped; it sources nothing, reads no file of the work tree, calls no
+network, and names every root it refuses and every reason it refuses a commit or a push.
+`peal hooks install` and the `SessionStart` hook refuse to record a root inside the
+repository, and `peal init --remove` takes the hooks, the recorded root and every
+`peal.*` key back out.
 
-- Guard: `plugin/templates/launcher`.
-- Harness: `plugin/templates/launcher.test.sh`.
+- Guard: `plugin/templates/launcher`, `plugin/templates/githook` (the same verifying
+  block in both), `plugin/lib/githooks.sh` (`peal_hooks_install`,
+  `peal_hooks_uninstall`), `plugin/lib/session.sh` (`peal_record_root`).
+- Harness: `plugin/templates/launcher.test.sh` (one table against launcher and stub),
+  `plugin/templates/githook.test.sh` (a hostile clone driven by real git: a planted
+  plugin, launcher and hooks directory, a recorded root and `PEAL_ROOT` in the work tree,
+  failing cache entries, network tools shimmed), `plugin/lib/githooks.test.sh`,
+  `plugin/lib/init.test.sh` (removal).
+
+Limits this boundary does not cover, accepted for now:
+
+- **`checks.commit` runs the checked-out tree.** The commands the `commit-msg` gate runs
+  are the project's own build and tests, and they run what the branch holds; that is
+  their job. Which commands run still comes from the work tree's `.peal/config.yml`, so
+  a branch can change them; reading the gates' settings (`checks.commit`, `main`,
+  `tasks`, `milestones`) from the main branch's tip instead is a task of its own.
+- **In-tree project hooks.** When the hooks path the install replaced
+  (`peal.projectHooks`) is a directory of the work tree, such as `.githooks`, the stub
+  chains to the hooks there, which a branch can change. Only that configured path runs;
+  an unconfigured hooks directory in the tree never does.
+- **The committed launcher.** `.peal/peal` is a file of the repository: a branch can
+  replace it, and whoever runs `.peal/peal` by hand runs the branch's copy. The git hooks
+  never run it; they find Peal themselves.
+- **A repository that holds the plugin cache.** A Peal under a worktree of the
+  repository is refused even when it is Claude Code's cache (a repository at `$HOME`,
+  say): the hooks then refuse until Peal is found elsewhere.
 
 ### No git gate can be bypassed from inside a Bash call
 
@@ -132,6 +166,8 @@ needs a secret or a write.
 ## What this milestone leaves open
 
 This threat model is m1's first task; the rest of m1 closes what it can only name here:
-0039 runs every command against hostile values in CI; 0040 shows the git hooks and the
+0039 runs every command against hostile values in CI; 0040 showed the git hooks and the
 launcher execute nothing a repository ships, and that `peal init --remove` leaves
-nothing behind; 0041 pins the CI supply chain and tightens each job's permissions.
+nothing behind, with the limits listed under the first boundary above; 0041 pins the CI
+supply chain and tightens each job's permissions. Reading the gates' settings from the
+main branch instead of the work tree is a task of its own, split from 0040.

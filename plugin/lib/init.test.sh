@@ -27,13 +27,18 @@ project() {
 }
 
 # snapshot -> every path of the work tree (directories too) with its content's hash,
-# and the git settings the stages touch.
+# every path under .git that is neither git's own nor a session's state (the heartbeat,
+# the turn budget: task state, which removal keeps), and the repository's git config.
 snapshot() {
   (cd "$work" && find . -path ./.git -prune -o -print | sort | while IFS= read -r path; do
     if [ -f "$path" ]; then printf '%s %s\n' "$path" "$(git hash-object "$path")"; else printf '%s/\n' "$path"; fi
   done)
-  printf 'core.hooksPath=%s\n' "$(git -C "$work" config core.hooksPath)"
-  printf 'peal.projectHooks=%s\n' "$(git -C "$work" config peal.projectHooks)"
+  (cd "$work/.git" && find . \( -path ./objects -o -path ./refs -o -path ./logs -o -path ./hooks \
+    -o -path ./info -o -path ./branches \) -prune -o -print | sort \
+    | grep -v -x -e . -e ./HEAD -e ./config -e ./description -e ./index -e ./COMMIT_EDITMSG \
+      -e ./ORIG_HEAD -e ./FETCH_HEAD -e ./packed-refs -e ./peal-heartbeat -e ./peal-turns \
+      -e ./peal-nudged | sed 's|^\.|.git|')
+  git -C "$work" config --local --list
 }
 
 settings_created='{
@@ -70,6 +75,8 @@ unchanged tasks/TEMPLATE.md (the project's own is kept)
 unchanged .claude/settings.json (the peal plugin enabled for the project)" "$out"
   check "tasks again: the same files" "$again" "$(snapshot)"
 
+  out=$(peal hook session-start </dev/null 2>&1)
+  check "session-start: the root recorded" "$PEAL_ROOT" "$(cat "$work/.git/peal-root")"
   out=$(peal init --stage guardrails)
   hooks=$(cd "$work/.git" && pwd)/peal/hooks
   check "guardrails: the hooks" "installed Peal's git hooks in $hooks (core.hooksPath); they chain to the hooks in $(cd "$work/.git" && pwd)/hooks" "$out"
@@ -216,6 +223,8 @@ tasks" "$(peal config storage.issues.repo; peal config storage.issues.label)"
     start: /peal:work {task}
     idea: /peal:idea {idea}" "$(sed -n '2,7p' "$work/.belfry.yml")"
 
+  peal hook session-start </dev/null >/dev/null 2>&1
+  check "issues, session-start: the root recorded" "$PEAL_ROOT" "$(cat "$work/.git/peal-root")"
   peal init --remove belfry >/dev/null
   peal init --remove milestones >/dev/null
   out=$(peal init --remove tasks)
