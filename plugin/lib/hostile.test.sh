@@ -373,9 +373,11 @@ awk_channels() {
 # notes) run against issues from outsiders (NONE, FIRST_TIME_CONTRIBUTOR, CONTRIBUTOR: no
 # write access), each holding the marker OUTSIDER-TEXT and hostile values in its title,
 # body and labels; a hostile milestone; a fork's and the repository's own pull requests
-# with hostile bodies; an outsider's comment. Every case: nothing runs, nothing is
-# written outside, the outsider's marker reaches no output, and no command reads
-# comments.
+# with hostile bodies; an outsider's comment; an admitted (owner's) issue depending on
+# and part of a stranger's, so the depends extras path (store-issues.sh's own read of an
+# issue only named by another's depends or part-of, whose state alone crosses the
+# boundary) runs on outsider text too. Every case: nothing runs, nothing is written
+# outside, the outsider's marker reaches no output, and no command reads comments.
 issues_channels() {
   if ! command -v jq >/dev/null 2>&1; then
     NOTES="${NOTES}note: no jq here, which the issues storage's fake gh needs; issues_channels skipped"$'\n'
@@ -404,6 +406,7 @@ issues_channels() {
   issue 2 "Owner's issue"
   issue 3 "First-timer's issue OUTSIDER-TEXT" --assoc FIRST_TIME_CONTRIBUTOR --body "Body OUTSIDER-TEXT"
   issue 4 "Contributor's issue OUTSIDER-TEXT" --assoc CONTRIBUTOR --body "Body OUTSIDER-TEXT"
+  issue 7 "Owner's issue depending on a stranger's" --body $'Depends on #1\n\nPart of #1'
   pr 5 "PR body \$(touch $CANARY/prbody) OUTSIDER-TEXT" --fork NONE
   pr 6 "Fixes #2 OUTSIDER-TEXT"
   gh_save comments '. + [{issue: 1, body: $b, user: {login: "x"}, author_association: "NONE"}]' \
