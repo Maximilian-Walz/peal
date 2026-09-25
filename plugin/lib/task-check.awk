@@ -50,11 +50,11 @@ $1 == "" { next }
 
 END {
   peal["milestone"] = peal["plan"] = peal["size"] = peal["depends"] = 1
-  peal["part-of"] = peal["needs"] = peal["model"] = peal["owner"] = peal["priority"] = peal["breaking"] = peal["release-note"] = peal["touches"] = 1
+  peal["part-of"] = peal["needs"] = peal["model"] = peal["owner"] = peal["merge"] = peal["priority"] = peal["breaking"] = peal["release-note"] = peal["touches"] = 1
   for (k = 1; k <= nkeys; k++) {
     key = keys[k]
     if (!(key in peal) && !(key in custom))
-      problem("unknown field " key " (Peal's: milestone, plan, size, depends, part-of, needs, model, owner, priority, breaking, release-note, touches; a project adds its own under task.fields in .peal/config.yml)")
+      problem("unknown field " key " (Peal's: milestone, plan, size, depends, part-of, needs, model, owner, merge, priority, breaking, release-note, touches; a project adds its own under task.fields in .peal/config.yml)")
   }
 
   m = value["milestone"]
@@ -75,6 +75,8 @@ END {
   if ("model" in kind) single("model")
   if (("owner" in kind) && single("owner") && value["owner"] !~ /^(ai|human)?$/)
     problem("owner " value["owner"] " is not ai or human")
+  if (("merge" in kind) && single("merge") && value["merge"] !~ /^(auto)?$/)
+    problem("merge " value["merge"] " is not auto (the only value: leave the line out for the project's default)")
   if (("priority" in kind) && single("priority") && value["priority"] !~ /^(urgent|high|normal|low)?$/)
     problem("priority " value["priority"] " is not urgent, high, normal or low")
   if (("breaking" in kind) && single("breaking") && value["breaking"] !~ /^(true|false)?$/)

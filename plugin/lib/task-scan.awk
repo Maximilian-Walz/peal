@@ -6,13 +6,15 @@
 # FILEs are <root>/<tasks>/<dir>/NNNN-slug.md, dir one of backlog, doing, done; any other
 # file is skipped. The record, tab-separated (lists joined with commas):
 #
-#   id  dir  -  slug  title  milestone  depends  part-of  size  plan  needs  path  url  priority  owner  touches
+#   id  dir  -  slug  title  milestone  depends  part-of  size  plan  needs  path  url  priority  owner  touches  merge
 #
 # dir stands where task-state.awk's state goes and "-" where its detail does; url, a
 # task's page on a host, is empty for a file; priority is urgent, high or low, empty for
 # normal (a word Peal does not know is warned about and read as normal); owner is human
 # for a human task, empty for ai (a word Peal does not know is warned about and read as
-# ai); touches the paths and globs the task will likely change. The title
+# ai); touches the paths and globs the task will likely change; merge auto for a task the
+# human agreed may merge itself, empty for the project's default (a word Peal does not
+# know is warned about and read as the default). The title
 # is the first "# " heading after the frontmatter, without its "NNNN — " prefix. A file
 # whose frontmatter leaves Peal's subset is warned about and listed without fields; a
 # depends entry that is no task id, milestone or human is warned about and dropped. One
@@ -71,6 +73,11 @@ function flush(    rel, m, nrec, recs, j, f, key, kind, value, n, lst) {
     v["owner"] = ""
   }
 
+  if (v["merge"] !~ /^(auto)?$/) {
+    printf "peal: warning: %s: merge: '%s' is not auto; read as the project's default\n", rel, v["merge"] > "/dev/stderr"
+    v["merge"] = ""
+  }
+
   title = ""
   for (j = body; j <= count; j++) if (lines[j] ~ /^# /) { title = substr(lines[j], 3); break }
   sub(/^ +/, "", title); sub(/[ \r]+$/, "", title)
@@ -80,9 +87,9 @@ function flush(    rel, m, nrec, recs, j, f, key, kind, value, n, lst) {
   }
   gsub(/\t/, " ", title)
 
-  printf "%s\t%s\t-\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t\t%s\t%s\t%s\n", id, dir, slug, title,
+  printf "%s\t%s\t-\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t\t%s\t%s\t%s\t%s\n", id, dir, slug, title,
     v["milestone"], v["depends"], v["part-of"], v["size"], v["plan"], v["needs"], rel, v["priority"],
-    v["owner"], v["touches"]
+    v["owner"], v["touches"], v["merge"]
 }
 
 BEGIN { mode = "frontmatter" }

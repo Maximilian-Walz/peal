@@ -149,12 +149,13 @@ issue-N on branch issue/N, labelled "in progress", as Belfry claims one):
 /peal:close's steps (lib/close.sh), in the task's worktree:
   close begin                   declare the close (the Stop hook holds the session to
                                 it); notes, where the Outcome goes, the diff, Done when
-  close finish --summary TEXT [--section TITLE TEXT]...
+  close finish --summary TEXT [--section TITLE TEXT]... [--review-file FILE]
                                 the close checks, the queued ideas filed, the task moved
                                 to done, committed, pushed, the pull request opened; the
                                 -file forms (--summary-file FILE, --section-file TITLE
-                                FILE) read the text from a file
-  close body --summary TEXT [--section TITLE TEXT]...
+                                FILE) read the text from a file; FILE, the reviewer's
+                                report, whose merge-auto: withdraw removes merge: auto
+  close body --summary TEXT [--section TITLE TEXT]... [--review-file FILE]
                                 the pull request's body finish would open it with
   close abort REASON            call the close off, REASON logged
   close verify                  one verdict: READY (0), WAIT:<why> (3), BLOCKED:<why> (1)

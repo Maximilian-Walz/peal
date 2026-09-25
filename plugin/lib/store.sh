@@ -7,12 +7,13 @@
 #
 #   peal_store_list [--fetch] [--no-pr]
 #       one list record per task, by id, tab-separated (lists joined with commas):
-#         id state detail slug title milestone depends part-of size plan needs path ref pr url priority owner touches
+#         id state detail slug title milestone depends part-of size plan needs path ref pr url priority owner touches merge
 #       state and detail as lib/task-state.awk derives them; path is the task's file,
 #       url its page on a host (one of the two), ref the task's branch, pr its pull
 #       request ("#21") when one is known, priority urgent, high or low (empty: normal),
 #       owner human for a human task (empty: ai), touches the paths and globs the task
-#       will likely change.
+#       will likely change, merge auto for a task the human agreed may merge itself
+#       (empty: the project's default).
 #   peal_store_read ID                     the task's text, from its branch or the main one
 #   peal_store_create MODE ORIGIN SLUG...  new tasks from bodies on stdin; MODE plain,
 #                                          split (ORIGIN the task split) or batch (ORIGIN

@@ -16,6 +16,8 @@
 #   priority  labels "priority: urgent|high|low", the higher of two; none is normal
 #   owner     the label "owner: human" for a human task; none is ai
 #   touches   labels "touches: <path>", a path or glob each
+#   merge     the label "merge: auto" for a task the human agreed may merge itself; none
+#             is the project's default
 #   claimed   the label "in progress"
 
 # tsv_unescape(s) -> s with @tsv's escapes undone.

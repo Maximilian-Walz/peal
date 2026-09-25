@@ -11,7 +11,9 @@ has claimed, because something else changed its ground: a sibling shipped part o
 scope, a `depends` went stale, its milestone needs retriaging. It writes straight into
 the storage, with no pull request: the human's confirmation below is the only review it
 gets. Its priority changes the same way: `priority: urgent`, `high` or `low` in the
-frontmatter, or the line dropped for `normal`. A task whose whole premise died is retired (`/peal:retire`), not revised; a
+frontmatter, or the line dropped for `normal`. A `merge: auto` the task no longer earns
+(its ground grew riskier) is dropped the same way; revise never adds one, since only the
+human's agreement to a plan writes it. A task whose whole premise died is retired (`/peal:retire`), not revised; a
 claimed one is changed in its own session. It never touches this worktree.
 
 If the id or the change is missing, ask the human for it with `AskUserQuestion`.

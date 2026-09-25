@@ -38,7 +38,14 @@ Produce, in this order:
 5. **Model.** The implementer's model: `default` unless the implementation is genuinely
    hard, then the stronger model with a one-line reason. You do not write it; the main
    session records it once the human agrees.
-6. **Ambiguities.** Every single one. This is the most important section and the reason
+6. **Merge.** `merge: auto` (the pull request merges itself once its checks are green,
+   with no human looking at it) or `default` (the project's own rule). Recommend `auto`
+   only for small, low-risk work: size `S`, inside the task's `## Scope`, no public
+   interface, data format, security boundary, dependency or recorded decision changed,
+   and a verification that proves it. Anything else, or any doubt, is `default`; say
+   which in one line with the reason. You do not write it; the main session records it
+   once the human agrees.
+7. **Ambiguities.** Every single one. This is the most important section and the reason
    you exist.
 
 On ambiguities: your instinct will be to pick a sensible default and move on. Do not. A

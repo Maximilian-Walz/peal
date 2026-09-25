@@ -42,6 +42,15 @@ Check, in order of severity:
 Before calling a follow-up idea named in the diff or the task missing, check the ideas
 queued on this branch (`peal ideas`) as well as the backlog: they are filed at close.
 
+When the task's frontmatter holds `merge: auto`, the human agreed that its pull request
+merges itself once its checks are green, on the strength of the plan. Weigh the diff
+against that: is it still small and low-risk (inside its scope, no public interface,
+data format, security boundary, dependency or recorded decision changed), or did it turn
+out larger or riskier than the plan that earned it? End the report with exactly one line,
+`merge-auto: keep` or `merge-auto: withdraw`, and for withdraw one sentence why right
+before it. When in doubt, withdraw: a human then looks at the pull request. Without
+`merge: auto` in the frontmatter, no such line.
+
 Report only findings you would block a merge on; "no findings" is a complete report, not
 one to pad out. State plainly whether this is ready to close. Being agreeable here is
 worse than being wrong.

@@ -8,7 +8,7 @@
 # Every state, from refs and the remote's main only; the depends expansion of milestone,
 # human and split origins; depends cycles in list, board and check; the board as JSON
 # lines in the shapes of Belfry's contract, pull requests from gh included; the
-# overview's groups; a task's priority in all three; its touches on the board.
+# overview's groups; a task's priority in all three; its touches and merge on the board.
 set -uo pipefail
 # shellcheck source=test-lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/test-lib.sh"
@@ -470,6 +470,25 @@ touches() {
 0003 free no-paths -" "$(list 2>&1)"
 }
 
+# merge: auto in the board only; any other word warned about and read as the default.
+merge() {
+  local work err
+  work=$(repo)
+  put "$work" backlog 0001 auto-merge "merge: auto"
+  put "$work" backlog 0002 odd-merge "merge: always"
+  put "$work" backlog 0003 default-merge
+  check "merge: board" '{"id":"0001","state":"free","slug":"auto-merge","title":"Title of 0001","merge":"auto","path":"tasks/backlog/0001-auto-merge.md"}
+{"id":"0002","state":"free","slug":"odd-merge","title":"Title of 0002","path":"tasks/backlog/0002-odd-merge.md"}
+{"id":"0003","state":"free","slug":"default-merge","title":"Title of 0003","path":"tasks/backlog/0003-default-merge.md"}' \
+    "$(at "$work" "$PEAL" board --no-pr 2>/dev/null | grep -v '^{"milestone"')"
+  err=$(list 2>&1 >/dev/null)
+  check "merge: an unknown word is the default, with a warning" \
+    "peal: warning: tasks/backlog/0002-odd-merge.md: merge: 'always' is not auto; read as the project's default" "$err"
+  check "merge: not in the list" "0001 free auto-merge -
+0002 free odd-merge -
+0003 free default-merge -" "$(list 2>/dev/null)"
+}
+
 cases() {
   states
   expansion
@@ -479,6 +498,7 @@ cases() {
   priority
   owner
   touches
+  merge
 }
 
 for_each_awk cases

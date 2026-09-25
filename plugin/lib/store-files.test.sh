@@ -96,6 +96,8 @@ refusals() {
   check_refused "plan" "bad-one: plan maybe is not required or skipped" peal create bad-one < <(text "plan: maybe")
   check_refused "size" "bad-one: size XL is not one of" peal create bad-one < <(text "size: XL")
   check_refused "priority" "bad-one: priority soon is not urgent, high, normal or low" peal create bad-one < <(text "priority: soon")
+  check_refused "merge" "bad-one: merge always is not auto" peal create bad-one < <(text "merge: always")
+  check_refused "merge: a single value" "bad-one: merge takes a single value" peal create bad-one < <(text "merge: [auto]")
   check_refused "priority as a list" "bad-one: priority takes a single value" peal create bad-one < <(text "priority: [high]")
   check_refused "touches: a comma" "bad-one: touches: src/{a,b}.c holds a comma" peal create bad-one < <(text "touches: ['src/{a,b}.c']")
   check_refused "touches: absolute" "bad-one: touches: /etc/hosts is absolute" peal create bad-one < <(text "touches: [/etc/hosts]")

@@ -7,7 +7,9 @@
 # Each has frontmatter with a description, takes its arguments, and names only peal
 # subcommands the CLI has: a command calling one renamed or never built fails here, not
 # in a session. The fields a plan settles: the planner proposes touches, /peal:work
-# writes them once the human agrees, /peal:idea only when the idea names the files.
+# writes them once the human agrees, /peal:idea only when the idea names the files; the
+# planner recommends merge: auto, /peal:work writes it only on the human's word, the
+# reviewer's merge-auto line reaches peal close finish.
 set -uo pipefail
 # shellcheck source=../lib/test-lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/../lib/test-lib.sh"
@@ -40,9 +42,9 @@ check "the backlog commands exist" "defer idea retire revise split" \
 agents=$PEAL_ROOT/agents
 check "planner: proposes touches in its Files" "1" \
   "$(awk '/^3\. \*\*Files\.\*\*/ { f = 1 } /^4\. / { f = 0 } f && /`Touches:`/ { n++ } END { print n + 0 }' "$agents/planner.md")"
-check "planner: leaves the model and the touches to the main session" "2" "$(grep -c 'You do not write it;' "$agents/planner.md")"
+check "planner: leaves the model, the touches and the merge to the main session" "3" "$(grep -c 'You do not write it;' "$agents/planner.md")"
 check "work: asks the human to agree the touches" "1" \
-  "$(grep -c -F 'size and touches' "$commands/work.md")"
+  "$(grep -c -F 'size, touches' "$commands/work.md")"
 check "work: records the agreed touches" "1" \
   "$(grep -c -F 'peal frontmatter set-list <file> touches' "$commands/work.md")"
 check "work: records them before peal record" "touches plan" \
@@ -50,5 +52,21 @@ check "work: records them before peal record" "touches plan" \
 # shellcheck disable=SC2016 # the literal backticks
 check "idea: touches only when the idea names the files" "1|1" \
   "$(grep -c -F -- '- `touches`: only when the idea names' "$commands/idea.md")|$(grep -c '^touches: \[' "$commands/idea.md")"
+
+# merge: auto: recommended by the planner for small, low-risk work only, written only when
+# the human agrees, never by /peal:idea; the reviewer's verdict goes to finish.
+check "planner: recommends merge: auto for small, low-risk work" "1" \
+  "$(awk '/^6\. \*\*Merge\.\*\*/ { f = 1 } /^7\. / { f = 0 } f && /small, low-risk/ { n++ } END { print n + 0 }' "$agents/planner.md")"
+check "work: asks the human to agree the merge" "1" "$(grep -c -F 'touches and merge' "$commands/work.md")"
+check "work: writes merge: auto only when the human agreed" "1" \
+  "$(grep -c -F 'peal frontmatter set <file> merge auto` only when the human agreed' "$commands/work.md")"
+# shellcheck disable=SC2016 # the literal backticks
+check "idea: never sets merge" "1" "$(grep -c -F -- '- `merge`: never.' "$commands/idea.md")"
+check "revise: can drop merge: auto" "1" "$(grep -c -F 'merge: auto` the task no longer earns' "$commands/revise.md")"
+# shellcheck disable=SC2016 # the literal backticks
+check "reviewer: ends in the merge-auto line" "1" \
+  "$(grep -c -F '`merge-auto: keep` or `merge-auto: withdraw`' "$agents/reviewer.md")"
+check "close: hands the report to finish" "1" \
+  "$(grep -c -F 'peal close finish --summary "<bullets>" [--section "<title>" "<text>"]... [--review-file FILE]' "$commands/close.md")"
 
 finish

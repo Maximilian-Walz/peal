@@ -8,7 +8,7 @@
 # frontmatter fields (task.fields), which labels "<field>: <value>" carry like Peal's
 # size, plan, model, breaking and release-note; the labels "priority: urgent|high|low"
 # make its priority (the higher of two), the label "owner: human" its owner,
-# the labels "touches: <path>" its touches list.
+# the labels "touches: <path>" its touches list, the label "merge: auto" its merge.
 
 function put(key, list,    n, it) {
   if (list == "") return
@@ -25,6 +25,7 @@ function put(key, list,    n, it) {
     l = trim(ls[j])
     if (l == claimed || l == label || !label_kv(l)) continue
     if (LKEY == "owner") { if (LVALUE == "human") v["owner"] = "human" }
+    else if (LKEY == "merge") { if (LVALUE == "auto") v["merge"] = "auto" }
     else if (LKEY == "priority") { if (prio_rank(LVALUE) > prio_rank(v["priority"])) v["priority"] = LVALUE }
     else if (LKEY == "needs" || LKEY == "touches" || (LKEY in want)) v[LKEY] = add_item(v[LKEY], LVALUE)
   }
@@ -42,6 +43,7 @@ function put(key, list,    n, it) {
   put("needs", v["needs"])
   put("model", v["model"])
   put("owner", v["owner"])
+  put("merge", v["merge"])
   put("breaking", v["breaking"])
   put("release-note", v["release-note"])
   if (v["priority"] != "normal") put("priority", v["priority"])

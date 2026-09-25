@@ -85,10 +85,10 @@ actions:
   worktree, so a re-run Belfry job continues where the last one stopped. The last line is
   the worktree path.
 - `board` prints one JSON object per task (`id`, `state`, `slug`, `title`, `milestone`,
-  `depends`, `part_of`, `size`, `plan`, `needs`, `priority`, `owner`, `touches`, `pr`,
-  `path`, `ref`, and `cycle`, the list detail's cycle, which the contract lets a board
-  add; each but `id` and `state` only when set, so a normal priority and an AI's task
-  are no field), and one
+  `depends`, `part_of`, `size`, `plan`, `needs`, `priority`, `owner`, `touches`, `merge`,
+  `pr`, `path`, `ref`, and `cycle`, the list detail's cycle, which the contract lets a
+  board add; each but `id` and `state` only when set, so a normal priority, an AI's task
+  and the project's default merge are no field), and one
   `{"milestone":{...}}` line per milestone, exactly the shapes of Belfry's contract.
 - `/peal:work NNNN` notices it is already inside NNNN's worktree (the branch is the task's
   branch and `tasks/doing/` holds its file) and skips its own claim. It does not read any
@@ -146,8 +146,8 @@ one it claims an id, or offers a pool for the human to pick from through
 `AskUserQuestion`. After a claim the session enters the worktree (`EnterWorktree`); the
 planner runs when the plan is required, and the session stops for the human, asking
 through `AskUserQuestion` so the same step works interactive and headless. The agreed
-plan goes into the task's `Plan` section, the size, a non-default `model:` and the
-planner's `touches` into its frontmatter, and `peal record ID plan` puts that text on the claim (the storage's
+plan goes into the task's `Plan` section, the size, a non-default `model:`, the
+planner's `touches` and, only when the human agreed it, `merge: auto` into its frontmatter, and `peal record ID plan` puts that text on the claim (the storage's
 `record`). The implementer builds; its `QUESTION`s
 go to the human and back to it through `SendMessage`. The main session never writes the
 task's code.
@@ -267,6 +267,7 @@ Peal's fields, all optional:
 | `release-note` | `none` leaves the task out of the release notes. |
 | `priority` | `urgent`, `high`, `normal` or `low`; absent means normal. Orders the offer within a milestone, never across milestones; `/peal:idea` sets it only when the idea says so plainly, `/peal:revise` changes it. The board carries it, `peal overview` marks urgent `!` and high `↑`. |
 | `owner` | `ai` or `human`; absent means ai. A human task is work only the human can deliver: the offer never offers it and `/peal:work` refuses it, while `peal claim` still makes its worktree for the human (or Belfry's Start). A `depends` on it waits until it is done, like any other; the `human` keyword, by contrast, never resolves by itself. The board, the list and `peal overview` carry it. |
+| `merge` | `auto`; absent means the project's default. The human agreed that the task's pull request may merge itself once its checks are green, as Belfry's merge rules can require. The planner may recommend it for small, low-risk work; `/peal:work` writes it only when the human agrees the plan, `/peal:idea` never, `/peal:revise` can remove it. When the review finds the diff larger or riskier than that plan, its report ends `merge-auto: withdraw` and `peal close finish` removes the field and says so in the pull request's body. The board carries it. |
 | `touches` | a list of paths, directories or globs (`*`, `?`, `[...]` within a directory, `**` across) the task will likely change, relative to the repository's root; no entry absolute or holding a comma, and on issues none making a label over GitHub's 50 characters. The planner writes it when the human agrees the plan; `/peal:idea` only when the idea names the files plainly. The board carries it, so a scheduler like Belfry does not start two tasks on the same files side by side. A hint: a wrong one costs a missed parallel slot, nothing more. |
 
 **A depends cycle is refused,** since every task on it would stay blocked for ever. Where
@@ -367,20 +368,25 @@ the judgement (the review, routing the findings, the Outcome, the summary).
   and the `## Done when`.
 - **The review** runs unless every path of the diff lies under `review.skip-paths`. Each
   finding is fixed on the branch, filed as an idea, escalated under `### Escalations` in
-  the Outcome, or rebutted under `### Reviewer findings not acted on`.
-- **`peal close finish --summary TEXT [--section TITLE TEXT]...`** refuses, before
-  anything changes, a missing summary or PR section, an empty Outcome or one with a
-  placeholder left, more than three escalations (the task was underspecified: the human
-  decides first), an uncommitted path besides the Outcome's text, the git hooks missing,
-  and a failing `checks.close` command. Then it files the queued ideas in one push (a
-  storage that files one at a time, like issues, takes off the queue exactly those filed,
-  so a rerun never files one twice), commits the storage's finish as `docs(tasks): close
+  the Outcome, or rebutted under `### Reviewer findings not acted on`. For a task holding
+  `merge: auto` the report ends in one line, `merge-auto: keep` or `merge-auto: withdraw`:
+  whether the diff is still the small, low-risk work the plan promised.
+- **`peal close finish --summary TEXT [--section TITLE TEXT]... [--review-file FILE]`**
+  refuses, before anything changes, a missing summary or PR section, an empty Outcome or
+  one with a placeholder left, more than three escalations (the task was underspecified:
+  the human decides first), a task holding `merge: auto` without the reviewer's report
+  and its `merge-auto` line (FILE), an uncommitted path besides the Outcome's text, the
+  git hooks missing, and a failing `checks.close` command. Then it files the queued ideas
+  in one push (a storage that files one at a time, like issues, takes off the queue
+  exactly those filed, so a rerun never files one twice), on `merge-auto: withdraw`
+  removes `merge: auto` from the task through the storage's `record` (a commit on the
+  branch, or the issue's label), commits the storage's finish as `docs(tasks): close
   ID [ID]` (the file's move to `done/`; an empty commit when the branch holds nothing
   else, since a pull request needs one), pushes, and opens the pull request, or updates
   the title and body of the one open for the branch. Whatever fails after the flush keeps
   the close in progress; finish run again goes on where it stopped.
-- **The pull request's body** is generated (`peal close body` prints it): the summary
-  bullets; `Fixes #N` for an issue, which closes it on merge; the split it is part of; the
+- **The pull request's body** is generated (`peal close body` prints it): the count of
+  escalations and a withdrawn `merge: auto` first, then the summary bullets; `Fixes #N` for an issue, which closes it on merge; the split it is part of; the
   project's `pr.sections`, each an item `"Title: what to write"` whose text the session
   passes to finish; the Outcome; the ideas filed from the worktree; the branch's commits.
 - **`peal close abort REASON`** calls a close off, the reason logged in the git directory;
@@ -605,6 +611,7 @@ in both:
 | `size`, `plan`, `model`, `breaking`, `release-note`, the project's own fields | labels `<field>: <value>` |
 | `priority` | labels `priority: urgent`, `priority: high`, `priority: low`, Belfry's; of two the higher counts, none is normal |
 | `owner` | the label `owner: human`, Belfry's; none is ai |
+| `merge` | the label `merge: auto`, the one Belfry reads; none is the project's default |
 | `touches` | labels `touches: <path>`, one per entry, Belfry's |
 
 Labels rather than a frontmatter block in the body: they show and filter on GitHub, and
