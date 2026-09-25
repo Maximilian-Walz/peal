@@ -25,6 +25,8 @@
 # a finding listed here is expected, so it fails the harness once it is fixed and not
 # taken off the list.
 KNOWN=()
+# What this platform keeps the harness from running, printed at the end.
+NOTES=""
 set -uo pipefail
 # shellcheck source=test-lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/test-lib.sh"
@@ -102,7 +104,9 @@ seed_hostile_names() {
   for name in '$(touch pwned-fname)' '`touch pwned-tick`' 'a;touch pwned-semi' '-rf' \
       '$(>pwned-fnamer)' '`>pwned-tickr`' 'a;>pwned-semir' '--upload-pack=>pwned-up' \
       'a b' "x"$'\n'"touch pwned-nl" $'\xff\xfe' '..' 'UPPER' "$(head -c 200 /dev/zero | tr '\0' 'a')"; do
-    ID=00$n text "milestone: m1" >"$1/00$n-$name.md"
+    # APFS refuses a name that is not UTF-8: that channel cannot reach a clone there.
+    { ID=00$n text "milestone: m1" >"$1/00$n-$name.md"; } 2>/dev/null \
+      || NOTES="${NOTES}note: this file system refuses the task file name 00$n-<invalid UTF-8>.md; not seeded"$'\n'
     n=$((n + 1))
   done
 }
@@ -137,20 +141,25 @@ seed_hostile_branches() {
   git -C "$WORK" branch -q 'task/0045-$(>pwned-local)' main 2>/dev/null
 }
 
-# snapshot -> every path under BASE with its checksum, but where writes belong.
+# snapshot -> every path under BASE with its checksum, but where writes belong and the
+# repositories of the cases before (nothing reaches them: a relative path stays within
+# the current one, an absolute value names CANARY or BASE/abs-target). One find: a
+# macOS run spends most of its time here.
 snapshot() {
   local prune=() extra
   for extra in ${ALLOW[@]+"${ALLOW[@]}"}; do prune+=(-path "$extra" -prune -o); done
-  (cd "$BASE" && find . -path ./canary -prune -o -path '*/a/b/remote.git' -prune -o \
-    -path '*/a/b/work/.git' -prune -o -path '*/a/b/work/tasks' -prune -o \
+  (cd "$BASE" && find . -path ./canary -prune -o \( -path './r*' ! -path './r*/*' ! -path "./r$nrepo" \) -prune -o \
+    -path '*/a/b/remote.git' -prune -o -path '*/a/b/work/.git' -prune -o -path '*/a/b/work/tasks' -prune -o \
     -path '*/a/b/work/docs/milestones' -prune -o -path '*/a/b/work/docs/decisions' -prune -o \
-    -path '*/a/b/work-wt' -prune -o -path '*/a/b/tmp' -prune -o ${prune[@]+"${prune[@]}"} -print 2>/dev/null \
-    | LC_ALL=C sort)
-  (cd "$BASE" && find . -path ./canary -prune -o -path '*/a/b/remote.git' -prune -o \
-    -path '*/a/b/work/.git' -prune -o -path '*/a/b/work/tasks' -prune -o \
-    -path '*/a/b/work/docs/milestones' -prune -o -path '*/a/b/work/docs/decisions' -prune -o \
-    -path '*/a/b/work-wt' -prune -o -path '*/a/b/tmp' -prune -o ${prune[@]+"${prune[@]}"} -type f -exec cksum {} + 2>/dev/null \
-    | LC_ALL=C sort)
+    -path '*/a/b/work-wt' -prune -o -path '*/a/b/tmp' -prune -o ${prune[@]+"${prune[@]}"} \
+    -type f -exec cksum {} + -o -print 2>/dev/null | LC_ALL=C sort)
+}
+
+# canaries -> the canary files a run made: in CANARY, or named pwned* in the current
+# repository (git's object stores hold hashed names only).
+canaries() {
+  ls -A "$CANARY"
+  find "$BASE/r$nrepo" -name objects -prune -o -name 'pwned*' -print 2>/dev/null
 }
 ALLOW=()
 
@@ -178,10 +187,10 @@ assess() {
   rbefore=$(refs)
   err=$(cd "$cwd" && TMPDIR=$REPO/tmp PATH="$STUBS:$PATH" "$@" <"$input" 2>&1 >/dev/null)
   status=$?
-  if [ -n "$(ls -A "$CANARY")" ] || [ -n "$(find "$BASE" -name 'pwned*' 2>/dev/null | head -n 1)" ]; then
-    printf 'executed: %s\n' "$(ls -A "$CANARY"; find "$BASE" -name 'pwned*' 2>/dev/null)" | tr '\n' ' '
-    echo
-    rm -rf "${CANARY:?}"/* && find "$BASE" -name 'pwned*' -exec rm -rf {} + 2>/dev/null
+  leaked=$(canaries)
+  if [ -n "$leaked" ]; then
+    printf 'executed: %s\n' "$(printf '%s' "$leaked" | tr '\n' ' ')"
+    rm -rf "${CANARY:?}"/* && find "$BASE/r$nrepo" -name objects -prune -o -name 'pwned*' -exec rm -rf {} + 2>/dev/null
   fi
   after=$(snapshot)
   if [ "$before" != "$after" ]; then
@@ -497,11 +506,12 @@ hook_cases() {
 # --- the self-test: unsafe commands are caught --------------------------------------------
 
 self_test() {
-  local unsafe=$BASE/unsafe problems
+  local unsafe=$BASE/unsafe problems probe
   hostile_repo
   printf '#!/usr/bin/env bash\neval "echo $1" >/dev/null\n' >"$unsafe.eval"
   printf '#!/usr/bin/env bash\nprintf x >"$1"\n' >"$unsafe.write"
-  printf '#!/usr/bin/env bash\nmktemp >/dev/null\n' >"$unsafe.temp"
+  # A template under TMPDIR: BSD mktemp without one may ignore TMPDIR (probed below).
+  printf '#!/usr/bin/env bash\nmktemp "$TMPDIR/leak.XXXXXX" >/dev/null\n' >"$unsafe.temp"
   printf '#!/usr/bin/env bash\ngit update-ref "refs/heads/$1" HEAD\n' >"$unsafe.ref"
   printf '#!/usr/bin/env bash\nbash -c "if then"\n' >"$unsafe.syntax"
   chmod +x "$unsafe".*
@@ -511,6 +521,11 @@ self_test() {
   check "self-test: a write outside is caught" "wrote outside" "${problems%%:*}"
   problems=$(assess "$WORK" "$NOINPUT" "$unsafe.temp")
   check "self-test: a temp file left is caught" "temp files left" "${problems%%:*}"
+  probe=$(TMPDIR=$REPO/tmp mktemp) && rm -f "$probe"
+  case $probe in
+    "$REPO/tmp/"*) ;;
+    *) NOTES="${NOTES}note: mktemp here ignores TMPDIR ($probe), so a temp file Peal leaves is not seen"$'\n' ;;
+  esac
   problems=$(assess "$WORK" "$NOINPUT" "$unsafe.ref" 'task/x;y')
   check "self-test: a ref of no expected shape is caught" "new ref" "${problems%%:*}"
   problems=$(assess "$WORK" "$NOINPUT" "$unsafe.syntax")
@@ -570,4 +585,5 @@ for known in ${KNOWN[@]+"${KNOWN[@]}"}; do
     *) check "KNOWN still found: $known" "found" "fixed, or no longer run: take it off KNOWN" ;;
   esac
 done
+[ -z "$NOTES" ] || printf '%s' "$NOTES"
 finish
