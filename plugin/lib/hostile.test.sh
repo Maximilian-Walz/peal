@@ -41,6 +41,9 @@ BASE=$(cd "$(scratch_dir)" && pwd -P)
 CANARY=$BASE/canary
 STUBS=$BASE/stubs
 mkdir -p "$CANARY" "$STUBS"
+# assess()'s stderr capture, outside BASE: snapshot() watches BASE for an unexpected
+# write, and this file's content changes on every call.
+ERRFILE=$(scratch_dir)/stderr
 # No real gh: one that fails, so nothing leaves this machine.
 printf '#!/bin/sh\necho "gh: not in this harness" >&2\nexit 1\n' >"$STUBS/gh"
 chmod +x "$STUBS/gh"
@@ -196,9 +199,9 @@ assess() {
   shift 2
   before=$(snapshot)
   rbefore=$(refs)
-  out=$(cd "$cwd" && TMPDIR=$REPO/tmp PATH="$PATHPREFIX:$PATH" "$@" <"$input" 2>"$BASE/stderr")
+  out=$(cd "$cwd" && TMPDIR=$REPO/tmp PATH="$PATHPREFIX:$PATH" "$@" <"$input" 2>"$ERRFILE")
   status=$?
-  err=$(cat "$BASE/stderr" 2>/dev/null)
+  err=$(cat "$ERRFILE" 2>/dev/null)
   if [ -n "$MARKER" ] && { [[ "$out" == *"$MARKER"* ]] || [[ "$err" == *"$MARKER"* ]]; }; then
     printf 'outsider text: %s reached an output\n' "$MARKER"
   fi
@@ -383,7 +386,7 @@ issues_channels() {
   hostile_repo
   printf 'decisions: docs/decisions\nstorage:\n  kind: issues\n  issues:\n    repo: acme/widgets\n' >"$WORK/.peal/config.yml"
   git -C "$WORK" add -A
-  git -C "$WORK" commit -q -m "issues storage"
+  git -C "$WORK" commit -q -m "wip: issues storage"
   git -C "$WORK" push -q origin main 2>/dev/null
   fake_github "$WORK"
   fakegh=$FAKE_GH
@@ -424,7 +427,7 @@ issues_channels() {
   try "issues: ship notes" "$WORK" ship notes 0.1.0
   MARKER=""
 
-  check "issues: no command reads comments" "0" "$(grep -c '^GET.*comments' "$fakegh/log" 2>/dev/null || echo 0)"
+  check "issues: no command reads comments" "0" "$(grep -c '^GET.*comments' "$fakegh/log" 2>/dev/null)"
 
   ALLOW=()
   PATHPREFIX=$STUBS
