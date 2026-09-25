@@ -135,15 +135,19 @@ The workflow's top-level `permissions: contents: read` leaves every job read-onl
 default; a fork's pull request runs only the harnesses and `shellcheck`, nothing that
 needs a secret or a write.
 
-- Guard: `.github/workflows/ci.yml` (`permissions:`).
-- Harness: none yet. Pinning every action by its SHA and setting each job's own minimal
-  permissions, so this holds even as the workflow grows, is task 0041.
+Every action runs at a pinned commit SHA, which Dependabot keeps current, and OpenSSF
+Scorecard checks the workflows weekly.
+
+- Guard: `.github/workflows/ci.yml` (`permissions:`, the pinned `uses:`),
+  `.github/dependabot.yml`, `.github/workflows/scorecard.yml`.
+- Harness: none; Scorecard's weekly run reports an unpinned action or a broad
+  permission.
 
 ## What this milestone leaves open
 
 This threat model is m1's first task; the rest of m1 closes what it can only name here:
 0039 runs every command against hostile values in CI; 0040 showed the git hooks and the
 launcher execute nothing a repository ships, and that `peal init --remove` leaves
-nothing behind, with the limits listed under the first boundary above; 0041 pins the CI
-supply chain and tightens each job's permissions. Reading the gates' settings from the
+nothing behind, with the limits listed under the first boundary above; 0041 pinned the CI
+supply chain and checked each job's permissions. Reading the gates' settings from the
 main branch instead of the work tree is a task of its own, split from 0040.
