@@ -35,8 +35,8 @@ check "a milestone's end: the commands exist" "drift milestone-review" \
   "$(for c in drift milestone-review; do [ -f "$commands/$c.md" ] && printf '%s ' "$c"; done | sed 's/ $//')"
 check "releases: the command exists" "release" "$([ -f "$commands/release.md" ] && echo release)"
 check "setup: the command exists" "setup" "$([ -f "$commands/setup.md" ] && echo setup)"
-check "setup: the issue sample is filtered to write access" "0|2" \
-  "$(grep -c -F 'gh issue list --limit 20)' "$commands/setup.md")|$(grep -c -F 'authorAssociation' "$commands/setup.md")"
+check "setup: the issue sample is filtered to write access" "0|1|2" \
+  "$(grep -c -F 'gh issue list' "$commands/setup.md")|$(grep -c -F "gh api 'repos/<github>/issues" "$commands/setup.md")|$(grep -c -F 'author_association' "$commands/setup.md")"
 # shellcheck disable=SC2016 # the literal placeholder
 check "setup: commits with the subject the gate lets through" "2|1" \
   "$(grep -c -F 'chore(peal): set up the <stage> stage' "$commands/setup.md")|$(grep -c -F '"chore(peal)" ]' "$PEAL_ROOT/lib/githooks.sh")"
