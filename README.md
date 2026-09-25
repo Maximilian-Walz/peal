@@ -13,6 +13,24 @@ in order.
 session in your repository. It looks at the repository, asks where your tasks should
 live, and writes the setup as one commit for you to review.
 
+Installing adds this to your `.claude/settings.json` (`peal init` writes it for you):
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "peal": {"source": {"source": "github", "repo": "Maximilian-Walz/peal"}}
+  },
+  "enabledPlugins": {"peal@peal": true}
+}
+```
+
+That tracks `main`. For a fixed version instead, add a release tag's ref to the
+marketplace source before running `peal init`, or edit it in afterwards:
+
+```json
+"peal": {"source": {"source": "github", "repo": "Maximilian-Walz/peal", "ref": "vX"}}
+```
+
 **Status:** being built; the plugin installs, its CLI lists, offers, claims, files,
 revises and retires tasks and gates commits and pushes, its session hooks orient a
 session, keep its budget and autosave its work, `/peal:work` claims, plans and builds
