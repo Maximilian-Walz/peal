@@ -1,5 +1,6 @@
 ---
 plan: required
+touches: [plugin/commands/setup.md]
 ---
 
 # 0058 — /peal:setup ends by pointing at /peal:next, once it exists

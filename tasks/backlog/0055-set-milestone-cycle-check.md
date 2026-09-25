@@ -1,5 +1,6 @@
 ---
 plan: required
+touches: [plugin/bin/peal, plugin/lib/store-files.sh, plugin/lib/store-files.test.sh, plugin/lib/store-issues.sh, plugin/lib/store-issues.test.sh, plugin/lib/tasks.sh]
 ---
 
 # 0055 — set-milestone: refuse a depends cycle, like file, revise and defer
