@@ -28,6 +28,13 @@ From a review of how Peal's changes reach its users: the marketplace entry point
 
 Depends on 0061 for protected mains; the hook itself does not.
 
+Planning, first round (the plan is not agreed yet). The planner proposed a rerunnable `peal ship bump VERSION` before `ship tag`, a `release.version-files` setting of `"PATH: FIELD"` items, and 0061's main-write path for the commit. The human answered:
+- The pre-push gate gets a new direct shape in this task: a `chore(release): <tag>` commit that only modifies listed files, its content re-derived and compared exactly.
+- Formats: JSON, TOML and YAML, not JSON alone.
+- `ship tag` refuses when a listed file on main does not hold the version.
+- Bump PR still open past the budget: the human asked which is cleaner. The proposal is to stop and rerun `/peal:release <version>` (the bump is a no-op once the files hold the version). Not confirmed yet.
+Still open: top-level keys only versus dotted paths for TOML and YAML; the planner's other defaults (value without prefix, subject `chore(release): <tag>`, tag main's tip after the merge, plugin.json left for the v0.2.0 release, marketplace.json untouched, allowed with issues storage, version checks before any write); size (L with three formats), model opus, merge default.
+
 ---
 
 ## Outcome
