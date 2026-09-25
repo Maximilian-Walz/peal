@@ -4,7 +4,8 @@
 #     -f yaml-lib.awk -f task-scan.awk FILE...
 #
 # FILEs are <root>/<tasks>/<dir>/NNNN-slug.md, dir one of backlog, doing, done; any other
-# file is skipped. The record, tab-separated (lists joined with commas):
+# file is skipped, one whose slug is not kebab-case a-z and 0-9 with a warning. The
+# record, tab-separated (lists joined with commas):
 #
 #   id  dir  -  slug  title  milestone  depends  part-of  size  plan  needs  path  url  priority  owner  touches  merge
 #
@@ -27,6 +28,10 @@ function flush(    rel, m, nrec, recs, j, f, key, kind, value, n, lst) {
   if (index(rel, tasks "/") != 1) return
   m = substr(rel, length(tasks) + 2)
   if (m !~ /^(backlog|doing|done)\/[0-9][0-9][0-9][0-9]-[^\/]+\.md$/) return
+  if (m !~ /^[a-z]+\/[0-9][0-9][0-9][0-9]-[a-z0-9]+(-[a-z0-9]+)*\.md$/) {
+    printf "peal: warning: %s: the slug is not kebab-case words of a-z and 0-9; skipped\n", rel > "/dev/stderr"
+    return
+  }
   dir = substr(m, 1, index(m, "/") - 1)
   m = substr(m, length(dir) + 2)
   id = substr(m, 1, 4)
