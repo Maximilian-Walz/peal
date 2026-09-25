@@ -185,13 +185,14 @@ admission() {
   issues_repo_label
   issue 4 "Stranger's labelled issue" --label tasks --assoc NONE
   issue 5 "Owner's unlabelled issue"
+  issue 6 "Stranger's unlabelled issue" --assoc NONE
   check "read: a labelled stranger's issue" "# 4 — Stranger's labelled issue" "$(peal read 4 2>&1 | grep '^# ')"
   check_refused "read: an owner's unlabelled issue" \
     "refused: issue 5 is no task: not labelled 'tasks'; labelling it 'tasks' or filing it anew yourself (peal idea) makes it a task" \
     peal read 5
   check_refused "claim: a stranger's unlabelled issue names both" \
-    "refused: issue 1 is no task: opened by someone without write access to acme/widgets and not labelled 'tasks'; labelling it 'tasks' or filing it anew yourself (peal idea) makes it a task" \
-    peal claim 1
+    "refused: issue 6 is no task: opened by someone without write access to acme/widgets and not labelled 'tasks'; labelling it 'tasks' or filing it anew yourself (peal idea) makes it a task" \
+    peal claim 6
 
   # defer: the same refusal, once the issue is no longer admitted.
   issues_repo
@@ -208,6 +209,10 @@ admission() {
   issue 7 "Claimable, labelled" --label tasks
   wt=$(peal claim 7 --print-path 2>/dev/null | tail -n 1)
   gh_save issues 'map(if .number == 7 then .labels = [] else . end)'
+  # The claim's own cached copy stays (a failed refresh keeps what it had, for a
+  # transient gh failure's sake); emptied here as if the cache had never been written,
+  # the condition _peal_work_here actually checks.
+  : >"$(git -C "$wt" rev-parse --absolute-git-dir)/peal-task.md"
   check_fails "work: refused when the cache is empty" 2 \
     "refused: issue 7 is no task: not labelled 'tasks'; labelling it 'tasks' or filing it anew yourself (peal idea) makes it a task" \
     at "$wt" "$PEAL" work

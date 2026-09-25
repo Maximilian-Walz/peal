@@ -192,8 +192,9 @@ _peal_issues_text() {
 # admits ROW (an issue as PEAL_ISSUES_ROW reads it); PEAL_LABEL must be set
 # (_peal_issues_settings). The one rule every read path of the issues storage applies.
 _peal_issues_admitted() {
+  # shellcheck disable=SC2016 # awk's own $ fields, not the shell's
   printf '%s\n' "$1" | awk -F '\t' -v label="$PEAL_LABEL" -f "$PEAL_ROOT/lib/issues-lib.awk" \
-    '{ exit !admitted($6, $5, label) }'
+    -f <(printf '%s\n' '{ exit !admitted($6, $5, label) }')
 }
 
 # _peal_issues_refuse ID ROW -> the message that refuses ID: opened by someone without

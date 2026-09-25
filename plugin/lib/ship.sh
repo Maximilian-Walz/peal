@@ -186,7 +186,7 @@ _peal_ship_file_items() {
 # (comma-joined) are LABELS (lib/issues-lib.awk's admitted()).
 _peal_ship_admitted() {
   awk -v assoc="$1" -v labels="$2" -v label="${PEAL_LABEL-}" -f "$PEAL_ROOT/lib/issues-lib.awk" \
-    'BEGIN { exit !admitted(assoc, labels, label) }'
+    -f <(printf '%s\n' 'BEGIN { exit !admitted(assoc, labels, label) }')
 }
 
 # _peal_ship_issue_items DIR -> DIR/items for the issues the range's subjects name that
