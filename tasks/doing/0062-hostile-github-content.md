@@ -159,4 +159,42 @@ docs/security.md:17-27, docs/security.md:71-114, .github/workflows/ci.yml:29-34.
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Built the write-access rule for the issues storage. `admitted()` in
+`plugin/lib/issues-lib.awk` is the one rule: with `storage.issues.label` set, the issue
+must carry that label; with none set, its opener must be OWNER, MEMBER or COLLABORATOR.
+The listing (`issues-scan.awk`), `peal_store_read` (and through it the claim's cache,
+`peal_store_session_task` and work), `peal_store_defer` and ship apply it. `peal read`,
+`claim` and `work` refuse an issue it does not admit with the agreed message and quote
+none of its text; `work` in a worktree whose task cache is empty refuses with read's
+reason. Ship's release notes use the commit subject for an issue the rule does not admit,
+and take an Outcome sentence only from a pull request from the repository itself or by
+someone with write access. `/peal:setup`'s issue sample is a `gh api` read filtered to
+write-access openers. The files storage drops fork pull requests (`isCrossRepository`),
+so a fork's branch named like a task branch supplies no PR URL.
+
+`hostile.test.sh` gains the group `issues_channels`: NONE, CONTRIBUTOR and
+FIRST_TIME_CONTRIBUTOR issues, hostile OWNER issues, hostile milestones, fork and
+repository pull requests and outsider comments, with and without a filter label, run
+through every command that reads the issues storage. New assess kinds `outsider text` and
+`read comments` show that no outsider text reaches any output and no command reads
+comments. `docs/security.md` gains the boundary "Only admitted issues reach a session"
+with its known limits.
+
+The build ran in two implementer sessions: the first was cut off and left a `wip:`
+autosave commit, which stays in history. The second found that the WIP called
+`awk -f issues-lib.awk 'PROGRAM'`, which reads the program as an input file, so the rule
+never refused anything; both call sites now pass the check as a second `-f` file. The
+review confirmed on a scratch copy that forcing `admitted()` open fails the harness and
+ship's tests. It also caught a `gh issue list --json authorAssociation` in setup.md (the
+field does not exist there), a silent `claim` exit when read succeeds but the list has
+no such id, and a missing harness case for an owner's task depending on a stranger's
+issue; all three were fixed on the branch.
+
+Left: a stranger editing an issue after a maintainer labelled it is still admitted
+(known limit in security.md; idea `re-label-after-edit` filed, m1). `init --survey`'s
+issue count and the depends extras read strangers' issues but use only their count and
+state; each has a harness case. The awk fix was verified under mawk, nawk and busybox
+awk in the build sandbox; gawk runs in CI.
+
+After the fixes, origin/main (with 0040 and 0061) was merged in. `tools/test-all.sh`
+passed all 26 harnesses, and `tools/lint.sh` was clean.
