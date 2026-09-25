@@ -213,11 +213,12 @@ Left, both safe:
   because `peal_ms_load` fails. That was already the behaviour: a merged hostile
   milestone file blocks everything instead of being skipped.
 
-Split: the rest of the original scope is in two ideas, filed at this close:
-`hostile-github-content` (the issues storage's channels, and the write-access rule on
-every issues read path; depends on 0039) and `outsider-text-in-prompts`. They carry no
-`part-of`: `peal create --part-of` cannot push onto the protected main (0061), and
-`peal idea` refuses `part-of`. Reported as friction.
+Split: the rest of the original scope is in 0062 (`hostile-github-content`: the issues
+storage's channels, and the write-access rule on every issues read path; depends on
+0039) and 0063 (`outsider-text-in-prompts`), both `part-of: 0039`. `peal create
+--part-of` and the close's idea flush cannot push onto the protected main (0061), so with
+the human's agreement they are filed through a pull request of their own
+(chore/file-0062-0063), to merge with this one. Reported as friction.
 
 ### Reviewer findings not acted on
 
