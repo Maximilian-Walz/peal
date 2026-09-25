@@ -27,6 +27,23 @@ From an idea 0039's session filed.
 
 ## Notes
 
+Draft plan from the planner (2026-09-25). The human has not agreed it: the questions timed out in the inbox twice, so there is no `## Plan` yet. The next session asks these questions again instead of replanning.
+
+- mktemp: a shim in hostile.test.sh's `$STUBS` adds `"${TMPDIR:-/tmp}/tmp.XXXXXXXX"` when a call gives no template. The probe (hostile.test.sh:524-528) goes through the shim, and the self-test's `unsafe.temp` uses a bare `mktemp` again.
+- `tools/test-all.sh` takes harness paths as arguments and prints per-harness time. It is outside the current touches.
+- ci.yml keeps its job names (they are required checks) and gets a per-OS harness list through `matrix.include`. macOS runs githook, launcher, install, githooks, frontmatter, store-files, and hostile with `PEAL_HOSTILE_CASES="self_test awk_channels"`. Linux runs all 26. Target: macOS at most 7 minutes (today 21-24).
+- Size M, model sonnet, merge by a human.
+- CI history contradicts the premise: since 0039, Linux takes 29-36 minutes and macOS 21-24 (runs 36129832834, 36163270642). Linux is the job pull requests wait on.
+
+Open questions (the recommended answer first):
+1. Goal: the macOS job at most 1/3 as written, with a follow-up idea for Linux; or make pull requests wait less?
+2. mktemp: the shim, or explicit templates at about 55 call sites?
+3. macOS: log the bash and awk versions and force /bin/bash, stopping on bash 3.2 failures; log only; or leave it?
+4. Hostile arg_cases and hook_cases on Linux only, or the whole harness on macOS?
+5. README.md:95-97: leave it as is, or add a clause about the macOS subset?
+6. Keep the APFS invalid-UTF-8 note (only the mktemp note must go)?
+7. macOS as an include list with a comment, or a skip list?
+
 
 ---
 
