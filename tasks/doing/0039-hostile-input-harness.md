@@ -2,6 +2,9 @@
 milestone: m1
 plan: required
 priority: high
+size: L
+model: opus
+touches: [plugin/lib/*.sh, plugin/lib/*.awk, plugin/bin/peal, docs/design.md]
 ---
 
 # 0039 — Hostile input: shell, awk, gh and prompts
@@ -83,6 +86,67 @@ The human's answers while planning:
 - One sentence in `docs/design.md` on refusing malformed ids, slugs and refs; nothing in
   `docs/security.md` (0038's).
 - No coupling to 0038's threat model.
+
+## Plan
+
+Approach:
+
+- Validation helpers in `plugin/lib/common.sh`: `peal_valid_id` (files `^[0-9]{4}$`,
+  issues `^[0-9]+$`), `peal_valid_slug` (`^[a-z0-9]+(-[a-z0-9]+)*$`), `peal_valid_ref`
+  (`git check-ref-format "refs/heads/$NAME"`), `peal_valid_relpath` (no leading `/` or
+  `-`, no `..` component, no newline). Called where a value first enters (`plugin/bin/peal`
+  dispatch and the `peal_store_*` functions); a value that fails exits 2 with
+  `refused: ...`.
+- Free text (reasons, titles, bodies) is not validated, only passed safely: quoted
+  arguments, `ENVIRON[]` or files instead of `awk -v` (which interprets backslashes),
+  `--` before git operands, JSON through `peal_json`.
+- Known suspects to confirm with the harness: unvalidated ids into awk `-v` and git
+  refspecs (`peal_store_read`, store-files.sh:233-246); `-`-leading values reaching git
+  or `gh api` (`peal_gh`, github.sh:48-73); task file names on main matched as `[^/]+`
+  (store-files.sh:71-92); branch names under `task/`; worktree paths built from slugs;
+  `peal_slugify`'s error echo (task-text.sh:81-90). No `eval` runs text (git-guard.sh:85
+  only parses); no awk file runs `system()` or piped `getline`; the `bash -c` of
+  checks.commit/checks.close runs trusted config (out of scope).
+- `plugin/lib/hostile.test.sh`: a scratch origin and clone from `task-fixtures.sh`;
+  hostile values, each canary writing into `$CANARY_DIR` if run (`$(touch ...)`,
+  backticks, `;`, `&&`, `|`, newline + command, `-rf`, `--output=...`,
+  `--upload-pack=...`, `../../escape`, `/abs`, globs, a 64 KiB string, `$'\xff\xfe'`,
+  awk escape bait `\n` and `a=b`); through every channel (CLI arguments, task texts on
+  stdin with title/frontmatter/depends/touches/needs, task file and branch names seeded
+  in the origin, milestone fields; hostile JSON on stdin for `hook *`, hostile ref lines
+  and message files for `githook`). After each command: no canary file; a `find` +
+  size snapshot of everything outside the allowed places unchanged; no ref outside the
+  expected namespaces; exit 0, 1 or 2 with no shell syntax error on stderr. `TMPDIR`
+  inside the scratch root. A coverage check extracts the command names from `main()`'s
+  `case` in `plugin/bin/peal` and fails when one has no hostile case. A self-test runs a
+  deliberately unsafe one-liner through the same assertions and expects it caught.
+  Full matrix under the first awk found, awk-sensitive channels under all
+  (`for_each_awk`, test-lib.sh:59-84).
+- Up to about ten fixes, worst first; the rest in a `KNOWN` list naming their ideas.
+- One sentence in `docs/design.md` that malformed ids, slugs and refs are refused.
+
+Files: create `plugin/lib/hostile.test.sh`; modify `plugin/lib/common.sh`,
+`plugin/bin/peal`, `docs/design.md`, and the `plugin/lib/*.sh`/`*.awk` the audit
+implicates (likely store-files, claim, backlog, ideas, close, work, task-text,
+milestones, review, ship, decisions, githooks, commit, session, init, github,
+task-fixtures). `tools/test-all.sh` and CI need no change.
+
+Verification: `bash plugin/lib/hostile.test.sh` passes; its self-test is caught;
+dropping a command's case fails the coverage check; reverting one fix makes it fail
+(shown in the Outcome). `tools/test-all.sh` lists it and every harness passes on Linux
+(all awks) and macOS (bash 3.2, BSD awk). `tools/lint.sh` clean. Legitimate values keep
+working (`task/0042-some-slug`, `issue/42`, `m08`). CI's harnesses and shellcheck jobs
+green.
+
+Ranges: tasks/doing/0039-hostile-input-harness.md:1-49, docs/milestones/m1.md:1-24,
+docs/design.md:224-296, docs/design.md:311-351, docs/design.md:535-570,
+docs/design.md:572-654, docs/design.md:811-851, .github/workflows/ci.yml:11-41,
+tools/test-all.sh:1-31, tools/lint.sh:1-21, plugin/bin/peal:1-409,
+plugin/lib/common.sh:1-15, plugin/lib/task-text.sh:1-90, plugin/lib/store.sh:1-88,
+plugin/lib/store-files.sh:40-107, plugin/lib/store-files.sh:233-295,
+plugin/lib/github.sh:1-78, plugin/lib/json-request.awk:1-28, plugin/lib/test-lib.sh:1-90,
+plugin/lib/work.sh:67-123, plugin/lib/githooks.sh:410-418, plugin/lib/close.sh:410-420,
+plugin/lib/git-guard.sh:45-90, plugin/lib/init.sh:484-560, plugin/lib/ship.sh:185-210.
 
 ---
 
