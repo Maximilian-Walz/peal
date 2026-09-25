@@ -98,7 +98,8 @@ PIECES
 Nothing is filed unless every piece passes; a refusal names what to fix. A piece's
 `depends` that closes a cycle (`refused: depends cycle PART1 → 0042 → PART1`), often a
 piece waiting for a task that itself waits for the origin, is one to drop. Report every
-`filed ...` line as printed.
+`filed ...` line as printed, and the `pull request #N <url>` line when main takes writes
+through pull requests: the numbers are final once it merges.
 
 ## 4. Narrow the origin, or close it as split
 
