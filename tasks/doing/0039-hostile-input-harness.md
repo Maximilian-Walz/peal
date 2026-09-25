@@ -152,3 +152,75 @@ plugin/lib/git-guard.sh:45-90, plugin/lib/init.sh:484-560, plugin/lib/ship.sh:18
 
 ## Outcome
 
+Built `plugin/lib/hostile.test.sh`, a hostile-input harness over all 41 dispatch targets
+of `plugin/bin/peal` (the `hook` subcommands and `githook` included) for the files
+storage. It feeds canary values through the CLI arguments, the task texts on stdin, the
+task file and branch names in the origin, and the milestone fields. After every command
+it checks four things: no canary ran, nothing was written outside the allowed places, no
+stray ref appeared, and no shell error was printed. A coverage check reads the dispatch
+cases of `main()` and `cmd_hook()` and fails for a target that has no case: taking `ship`
+out makes it fail. A self-test puts five deliberately unsafe one-liners through the same
+checks, and all five are caught. A full run passed 1616 of 1616 cases on Linux under
+mawk, nawk and busybox awk, in about 5 minutes. macOS (bash 3.2, BSD awk) rests on the
+pull request's CI. `tools/test-all.sh` finds the harness by itself; neither it nor CI
+changed.
+
+Fixes, six, none left in `KNOWN` (which is empty):
+
+1. `peal decision brief --diff BASE`: BASE must be a commit and must not start with `-`.
+   Before, `--output=FILE` reached `git diff` and wrote the file. This was the only write
+   or execution the harness found.
+2. A task file on main whose slug is not `^[a-z0-9]+(-[a-z0-9]+)*$` is skipped with a
+   warning by list, board, overview and read (`task-scan.awk`, `_peal_files_find`,
+   `_peal_files_ids`). So claim no longer makes branches or worktrees from hostile names.
+   Proof: with main's `store-files.sh` and `task-scan.awk` put back, three claim cases
+   fail (for example "new ref: clone refs/heads/task/0013--rf").
+3. A task branch whose slug breaks the rule is no task's (`_peal_files_branches`,
+   `peal_store_branch_task`, `peal_store_claim_worktrees`).
+4. Ids are checked where they enter: `with_id` in `plugin/bin/peal` for read, revise,
+   retire, finish, set-milestone and comment, and `peal_valid_id` in claim and release. A
+   files id is four digits, an issues id digits. Anything else is refused with status 2.
+5. `peal check` names a task file whose slug breaks the rule.
+6. `_peal_files_scan` filtered stderr with `grep -v`, which printed "binary file
+   matches" instead of the warnings for a name with invalid UTF-8. It is now `LC_ALL=C
+   grep -a`.
+
+New in `plugin/lib/common.sh`: `peal_valid_id`, `peal_valid_slug` and `peal_refuse`.
+`docs/design.md` gains one sentence on what is refused and what is skipped.
+
+Departures from the plan, and why:
+
+- The harness accepts exit status 3 as well as 0 to 2: `close verify`/`wait`, `ship
+  wait` and a lost claim race exit 3 by design.
+- There is no per-run `timeout`: uutils' `timeout` refuses invalid UTF-8 arguments
+  (exit 125), which broke the UTF-8 cases.
+- During the `init` cases the whole work tree is an allowed write place, since init
+  writes `.peal/`, `.claude/` and more there by design. The decisions directory is
+  allowed as well, for `decision reserve`.
+- `PEAL_HOSTILE_CASES` (groups `self_test awk_channels arg_cases hook_cases`) allows
+  quicker partial runs. The coverage check runs only when every group runs.
+- The planned `peal_valid_ref` and `peal_valid_relpath` found no caller in the files
+  storage: every branch name comes from an id and slug that are already checked. They
+  were deleted rather than left unused, and the design sentence claims only what the code
+  refuses. The `hostile-github-content` piece may bring them back if its paths need them.
+
+Left, both safe:
+
+- A remote branch like `task/0003-$(...)` no longer counts as a claim in list, but the
+  ref glob of `_peal_files_unclaimed` still counts it, so revise, retire and comment of
+  0003 stay refused. `_peal_files_next_id` keeps that number taken too.
+- A milestone file on main with an invalid id or due date makes every command refuse,
+  because `peal_ms_load` fails. That was already the behaviour: a merged hostile
+  milestone file blocks everything instead of being skipped.
+
+Split: the rest of the original scope is in two ideas, filed at this close:
+`hostile-github-content` (the issues storage's channels, and the write-access rule on
+every issues read path; depends on 0039) and `outsider-text-in-prompts`. They carry no
+`part-of`: `peal create --part-of` cannot push onto the protected main (0061), and
+`peal idea` refuses `part-of`. Reported as friction.
+
+### Reviewer findings not acted on
+
+- None. The design sentence overstated what is refused and two helpers were unused:
+  fixed, both deleted and the sentence corrected. The plan's departures were missing
+  from the Notes: they are recorded above.
