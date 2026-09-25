@@ -71,7 +71,8 @@ usage: peal <command> [args]
                                 issues and milestones, commits closing issues, README,
                                 TODO lists, CI, and the storage to recommend
   check                         report what is not valid: the milestone files, a task
-                                file under done/ without an Outcome, a depends cycle
+                                file under done/ without an Outcome, a task file
+                                whose slug is not kebab-case, a depends cycle
                                 among the tasks not done, and with the decisions
                                 module on, what peal decision check reports
   config [KEY]                  print the effective settings, or one of them
@@ -264,6 +265,7 @@ cmd_check() {
   [ $# -eq 0 ] || { usage >&2; exit 2; }
   peal_ms_load || status=2
   peal_check_outcomes || status=2
+  peal_check_names || status=2
   peal_check_cycles || status=2
   peal_decisions_check || status=2
   exit $status
@@ -309,6 +311,16 @@ cmd_hook() {
 # with_store COMMAND ARGS... -> COMMAND run with the configured storage loaded.
 with_store() {
   peal_store_load || exit 2
+  "$@"
+}
+
+# with_id ID COMMAND ARGS... -> COMMAND run with the configured storage loaded, once ID
+# is a task id of it; refused (status 2) otherwise.
+with_id() {
+  local id=$1
+  shift
+  peal_store_load || exit 2
+  peal_valid_id "$id" || { peal_refuse "no task id" "$id"; exit 2; }
   "$@"
 }
 
@@ -371,14 +383,14 @@ main() {
     list) with_store peal_list "$@" ;;
     board) with_store peal_board "$@" ;;
     overview) with_store peal_overview "$@" ;;
-    read) need 1 "$@"; with_store peal_store_read "$1" ;;
+    read) [ $# -eq 1 ] || { usage >&2; exit 2; }; with_id "$1" peal_store_read "$1" ;;
     create) with_store cmd_create "$@" ;;
     idea) need 1 "$@"; with_store peal_idea "$@" ;;
     ideas) with_store peal_ideas "$@" ;;
-    revise) reason_args revise "$@"; with_store peal_revise "$PEAL_ID" "$PEAL_REASON" "$PEAL_DRY" ;;
-    retire) reason_args retire "$@"; with_store peal_store_finish "$PEAL_ID" retired "$PEAL_REASON" ;;
-    finish) [ $# -eq 1 ] || { usage >&2; exit 2; }; with_store peal_store_finish "$1" "done" ;;
-    set-milestone) need 1 "$@"; with_store peal_store_set_milestone "$@" ;;
+    revise) reason_args revise "$@"; with_id "$PEAL_ID" peal_revise "$PEAL_ID" "$PEAL_REASON" "$PEAL_DRY" ;;
+    retire) reason_args retire "$@"; with_id "$PEAL_ID" peal_store_finish "$PEAL_ID" retired "$PEAL_REASON" ;;
+    finish) [ $# -eq 1 ] || { usage >&2; exit 2; }; with_id "$1" peal_store_finish "$1" "done" ;;
+    set-milestone) need 1 "$@"; [ $# -le 2 ] || { usage >&2; exit 2; }; with_id "$1" peal_store_set_milestone "$@" ;;
     offer) with_store peal_offer "$@" ;;
     claim) with_store peal_claim "$@" ;;
     release) with_store peal_release "$@" ;;
@@ -397,7 +409,7 @@ main() {
     milestone-review) with_store peal_milestone_review "$@" ;;
     milestone-state) with_store peal_milestone_state "$@" ;;
     ship) peal_config_load || exit 2; peal_ship "$@" ;;
-    comment) [ $# -eq 2 ] || { usage >&2; exit 2; }; with_store peal_store_comment "$1" "$2" ;;
+    comment) [ $# -eq 2 ] || { usage >&2; exit 2; }; with_id "$1" peal_store_comment "$1" "$2" ;;
     *)
       peal_err "unknown command '$cmd'"
       usage >&2
