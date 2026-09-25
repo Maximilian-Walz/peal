@@ -39,7 +39,14 @@ Run `peal config review.skip-paths`. Unless every path of the diff (`git diff --
 <main branch>...HEAD`) lies under one of them, run `peal brief reviewer` and start the
 `peal:reviewer` subagent on the reviewer's model (`peal work` prints it: `MODEL reviewer`),
 its prompt the brief followed by "Review task <id>." Otherwise skip the review and say in
-the Outcome that the diff lies only in the skip paths. Review before writing the Outcome:
+the Outcome that the diff lies only in the skip paths.
+
+When the task holds `merge: auto` (`begin` notes it), save the reviewer's report whole
+to a file outside the work tree: its last line, `merge-auto: keep` or `merge-auto:
+withdraw`, decides whether the pull request may still merge itself, and finish reads it
+(`--review-file`). A review skipped for the skip paths keeps it: the file then says
+`merge-auto: keep`. Never edit the reviewer's verdict; a report without the line goes back
+to the reviewer for it. Review before writing the Outcome:
 a finding caught now is an edit, one caught later a rewrite.
 
 ## 3. Route every finding
@@ -85,16 +92,19 @@ first naming what the human should look at. Write each PR section `begin` listed
 instruction says. Then:
 
 ```
-peal close finish --summary "<bullets>" [--section "<title>" "<text>"]...
+peal close finish --summary "<bullets>" [--section "<title>" "<text>"]... [--review-file FILE]
 ```
 
 (`--summary-file FILE` and `--section-file TITLE FILE` read a text from a file outside the
 work tree, for long ones.) It refuses, before anything changes, a missing summary or
-section, an empty Outcome or one with a placeholder left, more than three escalations,
+section, an empty Outcome or one with a placeholder left, a task holding `merge: auto`
+without the reviewer's `merge-auto` line, more than three escalations,
 an uncommitted path other than the Outcome's and the decision entries', a decision entry
 out of order (`peal decision check` says the same), and a failing close check of the
-project (`checks.close`): fix what it names and run it again. Then it files the queued ideas in
-one push, commits the task's move to done, pushes and opens the pull request, or updates
+project (`checks.close`): fix what it names and run it again. Then it files the queued
+ideas in one push; on `merge-auto: withdraw` it removes `merge: auto` from the task (a
+commit on its branch, or the issue's label) and says so at the top of the pull request's
+body; it commits the task's move to done, pushes and opens the pull request, or updates
 the one open for this branch; its body is the summary, the sections, the Outcome, the
 ideas filed and the branch's commits (`peal close body` with the same arguments prints it
 first, if you want to see it). A failure after the ideas are filed leaves the close in

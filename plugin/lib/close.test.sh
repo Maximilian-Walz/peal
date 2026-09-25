@@ -46,23 +46,24 @@ id() {
   if [ $kind = files ]; then printf '%04d\n' "$1"; else printf '%s\n' "$1"; fi
 }
 
-# task N SLUG -> task N put on the storage, with a Scope and a Done when.
+# task N SLUG [MERGE] -> task N put on the storage, with a Scope and a Done when; MERGE
+# auto gives it merge: auto.
 task() {
   local body=$'Why.\n\n## Scope\n\n`a.txt`\n\n## Done when\n\n- a.txt says built\n\n## Raw\n\nthe human said so\n\n## Notes\n'
   if [ $kind = files ]; then
     mkdir -p "$work/tasks/backlog"
-    printf -- '---\n---\n\n# %s — Title of %s\n\n%s\n---\n\n## Outcome\n\n<!-- fill in at close -->\n' \
-      "$(id "$1")" "$(id "$1")" "$body" >"$work/tasks/backlog/$(id "$1")-$2.md"
+    printf -- '---\n%s---\n\n# %s — Title of %s\n\n%s\n---\n\n## Outcome\n\n<!-- fill in at close -->\n' \
+      "${3:+merge: $3$'\n'}" "$(id "$1")" "$(id "$1")" "$body" >"$work/tasks/backlog/$(id "$1")-$2.md"
     publish "$work"
   else
-    issue "$1" "Title of $1" --body "$body"
+    issue "$1" "Title of $1" --body "$body" ${3:+--label "merge: $3"}
   fi
 }
 
-# ready N SLUG -> task N put on the storage, the hooks installed, the task claimed; wt its
-# worktree, text the file its Outcome goes in.
+# ready N SLUG [MERGE] -> task N put on the storage, the hooks installed, the task
+# claimed; wt its worktree, text the file its Outcome goes in.
 ready() {
-  task "$1" "$2"
+  task "$1" "$2" "${3-}"
   at "$work" "$PEAL" hooks install >/dev/null
   wt=$(at "$work" "$PEAL" claim "$(id "$1")" --print-path 2>/dev/null | tail -n 1)
   text=""
@@ -282,6 +283,67 @@ Built a.txt.
   check "finish again: updated" "0|updated the title and body of pull request #$(jq '.[0].number' "$FAKE_GH/pulls.json")|1" \
     "$?|$(printf '%s\n' "$out" | grep '^updated')|$(prs)"
   check "finish again: the new body" "Still nothing." "$(jq -r '.[0].body' "$FAKE_GH/pulls.json" | grep Still)"
+}
+
+# merge_cases -> a task holding merge: auto needs the reviewer's merge-auto line; keep
+# leaves the field, withdraw removes it from the task and says so in the pull request.
+merge_cases() {
+  local review out body
+  review=$(scratch_dir)/review
+  new_repo
+  ready 1 first-task auto
+  build
+  begin >"$review.begin"
+  out=$(cat "$review.begin")
+  check "merge: begin notes it" "1" "$(printf '%s\n' "$out" | grep -c '^NOTE: task .* holds merge: auto')"
+  outcome "Built a.txt."
+  check_refused "merge: no review given" "holds merge: auto, so the reviewer's report decides" close_finish
+  printf 'No findings. Ready to close.\n' >"$review"
+  check_refused "merge: a review without the line" "has no line merge-auto: keep" close_finish --review-file "$review"
+  check "merge: nothing changed by a refusal" "armed|0" "$(sentinel)|$(prs)"
+  printf 'No findings.\n\n`merge-auto: keep`\n' >"$review"
+  body=$(at "$wt" "$PEAL" close body --summary "- built a.txt" --review-file "$review")
+  check "merge: keep says nothing" "" "$(printf '%s\n' "$body" | grep 'withdrawn')"
+
+  printf 'The diff rewrote the parser.\nmerge-auto: withdraw\n' >"$review"
+  body=$(at "$wt" "$PEAL" close body --summary "- built a.txt" --review-file "$review")
+  check "merge: the body says withdraw first" "**merge: auto withdrawn:** the review found the diff larger or riskier than the plan that earned it, so this pull request waits for a human." \
+    "$(printf '%s\n' "$body" | head -n 1)"
+  out=$(close_finish --review-file "$review" 2>&1)
+  check "merge: withdraw, finished" "0|1" "$?|$(printf '%s\n' "$out" | grep -c '^withdrew merge: auto from task')"
+  check "merge: the pull request says so" "1" "$(jq -r '.[0].body' "$FAKE_GH/pulls.json" | grep -c '^\*\*merge: auto withdrawn')"
+  if [ $kind = files ]; then
+    check "merge: gone from the task's file" "" "$(git -C "$wt" show HEAD:tasks/done/0001-first-task.md | grep '^merge:')"
+    check "merge: the Outcome kept" "Built a.txt." \
+      "$(git -C "$wt" show HEAD:tasks/done/0001-first-task.md | peal_text_section Outcome | sed -n 2p)"
+    check "merge: clean" "" "$(git -C "$wt" status --porcelain)"
+  else
+    check "merge: the label gone" "in progress" "$(labels 1)"
+  fi
+
+  new_repo
+  ready 1 first-task auto
+  build
+  begin >/dev/null
+  outcome "Built a.txt."
+  printf 'No findings.\nmerge-auto: keep\n' >"$review"
+  out=$(close_finish --review-file "$review" 2>&1)
+  check "merge: keep, finished" "0|0" "$?|$(printf '%s\n' "$out" | grep -c 'withdrew')"
+  if [ $kind = files ]; then
+    check "merge: kept in the task's file" "merge: auto" "$(git -C "$wt" show HEAD:tasks/done/0001-first-task.md | grep '^merge:')"
+  else
+    check "merge: the label kept" "merge: auto" "$(labels 1 | tr ',' '\n' | grep merge)"
+  fi
+
+  # Without merge: auto, a withdraw means nothing, and no report is needed.
+  new_repo
+  ready 1 first-task
+  build
+  begin >/dev/null
+  outcome "Built a.txt."
+  printf 'merge-auto: withdraw\n' >"$review"
+  body=$(at "$wt" "$PEAL" close body --summary "- built a.txt" --review-file "$review")
+  check "merge: no field, nothing withdrawn" "" "$(printf '%s\n' "$body" | grep 'withdrawn')"
 }
 
 # rerun_cases -> a finish that stops at the push, or at the pull request, goes on when run
@@ -550,6 +612,7 @@ check_cases() {
 cases() {
   begin_cases
   finish_cases
+  merge_cases
   rerun_cases
   flush_cases
   wontfix_cases

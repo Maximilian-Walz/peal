@@ -687,6 +687,26 @@ touches() {
   check "touches: nothing filed" "4" "$(gh_get 'length')"
 }
 
+# merge as the label "merge: auto", Belfry's: read, on the board, written by create and
+# revise, which can drop it.
+merge() {
+  local out
+  issues_repo
+  issue 1 "Auto" --label "merge: auto"
+  issue 2 "Odd" --label "merge: always"
+  check "merge: board" '{"id":"1","state":"free","slug":"auto","title":"Auto","merge":"auto"}
+{"id":"2","state":"free","slug":"odd","title":"Odd"}' "$(peal board 2>&1 | grep -v '^{"milestone"' | normal)"
+  check "merge: read" "merge: auto" "$(peal read 1 | grep '^merge')"
+  check "merge: read, another word is none" "" "$(peal read 2 | grep '^merge')"
+  out=$(peal create auto-thing < <(TITLE="Auto thing" text "merge: auto") 2>&1)
+  check "merge: create" "0:filed 3" "$?:${out%% https*}"
+  check "merge: the label" "merge: auto" "$(labels 3)"
+  peal read 3 | sed '/^merge:/d' | peal revise 3 --reason "riskier than it looked" >/dev/null 2>&1
+  check "merge: revise drops the label" "" "$(labels 3)"
+  check_refused "merge: a word Peal does not know" "merge always is not auto" \
+    peal create odd-thing < <(text "merge: always")
+}
+
 cases() {
   states
   expansion
@@ -696,6 +716,7 @@ cases() {
   priority
   owner
   touches
+  merge
   writes
   claims
   session

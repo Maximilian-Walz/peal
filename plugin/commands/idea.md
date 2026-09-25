@@ -63,6 +63,7 @@ Frontmatter, triaged now:
   Otherwise leave it out; the planner writes it when the plan is agreed. It is a hint
   for starting tasks in parallel, never a guess worth making.
 - `size`: left out; the planner sizes a task when it is claimed.
+- `merge`: never. Only the human's agreement to a plan writes `merge: auto`.
 
 Write `NNNN` wherever the task's number belongs, the heading first; the storage puts in
 the number it gets. Never invent a number.

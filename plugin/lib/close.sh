@@ -10,6 +10,7 @@
 PEAL_CLOSE_SENTINEL=peal-close
 PEAL_CLOSE_BODY=peal-pr-body.md
 PEAL_CLOSE_ABORTS=peal-close-abort.log
+PEAL_CLOSE_WITHDRAWN=peal-merge-withdrawn
 PEAL_CLOSE_EMPTY="Fine for a task closed with nothing built; otherwise fill in what was agreed or built: the review checks the diff against it."
 
 # _peal_close_gitdir -> this worktree's own git directory, absolute.
@@ -127,6 +128,7 @@ peal_close_begin() {
   text=$(peal_store_close_text "$id") || { peal_err "close begin: no text of task $id here to write its Outcome in"; return 2; }
   gitdir=$(_peal_close_gitdir) || return 2
   printf '%s\n%s\n%s\n' "${CLAUDE_CODE_SESSION_ID-}" "$id" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$gitdir/$PEAL_CLOSE_SENTINEL" || return 2
+  rm -f "$gitdir/$PEAL_CLOSE_WITHDRAWN"
 
   echo "close begun: task $id. Until peal close finish (or abort), the Stop hook holds this session to a finished close."
   # The notes: nothing here refuses; each is the session's to weigh.
@@ -158,6 +160,9 @@ peal_close_begin() {
     echo "NOTE: $(printf '%s\n' "$ideas" | wc -l | tr -d ' ') idea(s) queued on this branch, filed by finish:"
     printf '%s\n' "$ideas" | awk -F '\t' '{ print "  " $1 " — " $2 }'
   fi
+  if [ "$(peal_fm_get "$file" merge 2>/dev/null)" = auto ]; then
+    echo "NOTE: task $id holds merge: auto. The reviewer's report ends in merge-auto: keep or withdraw; pass it to finish as --review-file FILE, and withdraw removes the field."
+  fi
   echo
   echo "Outcome: write it in $text, under ## Outcome."
   sections=$(_peal_close_sections)
@@ -176,12 +181,25 @@ peal_close_begin() {
 # _peal_close_args ARGS... -> PEAL_SUMMARY and the PR sections (PEAL_SECTION_TITLES,
 # PEAL_SECTION_TEXTS) from --summary TEXT | --summary-file FILE and --section TITLE TEXT |
 # --section-file TITLE FILE; checked against pr.sections: every one given, no other.
+# --review-file FILE, the reviewer's report: PEAL_REVIEW set (1), PEAL_MERGE_VERDICT its
+# last line "merge-auto: keep|withdraw" (keep or withdraw; empty without one).
 _peal_close_args() {
   local verb=$1 v known title i j
   shift
-  PEAL_SUMMARY="" PEAL_SECTION_TITLES=() PEAL_SECTION_TEXTS=()
+  PEAL_SUMMARY="" PEAL_SECTION_TITLES=() PEAL_SECTION_TEXTS=() PEAL_REVIEW="" PEAL_MERGE_VERDICT=""
   while [ $# -gt 0 ]; do
     case $1 in
+      --review-file)
+        [ $# -ge 2 ] || { peal_err "close $verb: $1 needs a file"; return 2; }
+        if [ ! -r "$2" ] || [ -d "$2" ]; then peal_err "close $verb: no readable file $2"; return 2; fi
+        [ -z "$PEAL_REVIEW" ] || { peal_err "close $verb: one review"; return 2; }
+        PEAL_REVIEW=1
+        PEAL_MERGE_VERDICT=$(awk '{ sub(/\r$/, "") }
+          match($0, /^[ \t`*]*merge-auto:[ \t]*(keep|withdraw)[ \t`*]*$/) {
+            v = $0; sub(/^[ \t`*]*merge-auto:[ \t]*/, "", v); sub(/[ \t`*]*$/, "", v) }
+          END { print v }' "$2")
+        shift 2
+        ;;
       --summary | --summary-file)
         [ $# -ge 2 ] || { peal_err "close $verb: $1 needs a value"; return 2; }
         v=$2
@@ -236,8 +254,8 @@ _peal_close_args() {
   done <<<"$known"
 }
 
-# _peal_close_context ID -> PEAL_TEXT (the text holding the Outcome), PEAL_TITLE and
-# PEAL_PART_OF of task ID, for finish and the PR body.
+# _peal_close_context ID -> PEAL_TEXT (the text holding the Outcome), PEAL_TITLE,
+# PEAL_PART_OF and PEAL_MERGE (its merge field) of task ID, for finish and the PR body.
 _peal_close_context() {
   local id=$1 tmp
   PEAL_TEXT=$(peal_store_close_text "$id") || { peal_err "close: no text of task $id here"; return 2; }
@@ -248,20 +266,60 @@ _peal_close_context() {
   fi
   PEAL_TITLE=$(peal_text_title "$id" <"$tmp") || PEAL_TITLE="task $id"
   PEAL_PART_OF=$(peal_fm_get "$tmp" part-of 2>/dev/null)
+  PEAL_MERGE=$(peal_fm_get "$tmp" merge 2>/dev/null)
   rm -f "$tmp"
+}
+
+# _peal_close_merge_check VERB -> status 0 unless the task holds merge: auto and no
+# reviewer's report with its merge-auto line was given; then why on stderr, status 2.
+_peal_close_merge_check() {
+  [ "$PEAL_MERGE" = auto ] || return 0
+  if [ -z "$PEAL_REVIEW" ]; then
+    peal_err "close $1: task $PEAL_ID holds merge: auto, so the reviewer's report decides whether it stays: --review-file FILE, the report ending in merge-auto: keep or withdraw (for a review skipped, a file saying merge-auto: keep)"
+    return 2
+  fi
+  if [ -z "$PEAL_MERGE_VERDICT" ]; then
+    peal_err "close $1: task $PEAL_ID holds merge: auto, and the reviewer's report has no line merge-auto: keep or merge-auto: withdraw; ask the reviewer for it"
+    return 2
+  fi
+}
+
+# _peal_close_withdraw_merge -> merge: auto removed from the task where the storage keeps
+# its frontmatter (peal_store_record: a commit on a task file's branch, the issue's label),
+# and the withdrawal marked in the worktree's git directory for the PR body.
+_peal_close_withdraw_merge() {
+  local task file tmp status=0
+  task=$(PEAL_TASK_REFRESH=1 peal_session_task) || return 2
+  file=$(_peal_field "$task" 2)
+  tmp=$(mktemp) || return 2
+  if cp "$file" "$tmp" && peal_fm_unset "$tmp" merge; then
+    peal_store_record "$PEAL_ID" "merge withdrawal" "$tmp" || status=$?
+  else
+    status=2
+  fi
+  rm -f "$tmp"
+  if [ $status != 0 ]; then
+    peal_err "close finish: merge: auto could not be withdrawn from task $PEAL_ID (above); nothing is moved. Fix it and finish again."
+    return $status
+  fi
+  : >"$(_peal_close_gitdir)/$PEAL_CLOSE_WITHDRAWN"
+  echo "withdrew merge: auto from task $PEAL_ID: the review found the diff larger or riskier than its plan"
 }
 
 # peal_close_body ID -> the pull request's body for task ID, from what the branch and the
 # worktree hold: PEAL_SUMMARY; "Fixes #ID" for an issue; the split it is part of; the
 # project's PR sections (PEAL_SECTION_*), in pr.sections' order; the Outcome; the ideas
-# filed from this worktree; the branch's commits. Needs PEAL_TEXT, PEAL_PART_OF and
-# PEAL_BASE.
+# filed from this worktree; the branch's commits. A merge: auto the review withdrew is said
+# first. Needs PEAL_TEXT, PEAL_PART_OF, PEAL_MERGE, PEAL_MERGE_VERDICT and PEAL_BASE.
 peal_close_body() {
   local id=$1 escalations kind title i filed
   escalations=$(_peal_close_escalations "$PEAL_TEXT")
   kind=$(peal_config_get storage.kind)
   if [ "$escalations" -gt 0 ]; then
     printf '**Needs your judgement:** %s escalation(s), under the Outcome'\''s Escalations.\n\n' "$escalations"
+  fi
+  if [ -e "$(_peal_close_gitdir)/$PEAL_CLOSE_WITHDRAWN" ] || { [ "$PEAL_MERGE" = auto ] && [ "$PEAL_MERGE_VERDICT" = withdraw ]; }; then
+    printf '**merge: auto withdrawn:** the review found the diff larger or riskier than the plan that earned it, so this pull request waits for a human.\n\n'
   fi
   printf '%s\n' "$PEAL_SUMMARY"
   echo
@@ -342,6 +400,7 @@ peal_close_body_cmd() {
   _peal_close_task body || return 2
   peal_branch_base close || return 2
   _peal_close_context "$PEAL_ID" || return 2
+  _peal_close_merge_check body || return 2
   peal_close_body "$PEAL_ID"
 }
 
@@ -364,10 +423,12 @@ _peal_close_checks() {
 # peal_close_finish ARGS... -> the close begun here finished: refused, before anything
 # changes, for a missing summary or PR section, an Outcome empty or holding a placeholder,
 # more than three escalations, an uncommitted path other than the Outcome's text and the
-# decision entries, git hooks not installed, decision entries out of order
+# decision entries, a task holding merge: auto without the reviewer's merge-auto line
+# (--review-file), git hooks not installed, decision entries out of order
 # (_peal_dec_check), and a failing checks.close item; then the queued ideas filed in
 # one push (a failure files nothing, or, where the storage files one by one, dequeues
-# exactly those filed), the uncommitted decision entries committed on their own
+# exactly those filed), merge: auto removed from the task when the review says
+# withdraw, the uncommitted decision entries committed on their own
 # (peal_decisions_commit), the storage's finish committed as "docs(tasks): close ID [ID]"
 # (an empty commit when the branch holds nothing else: a pull request needs one), the
 # branch pushed, the pull request opened or its title and body updated, the sentinel
@@ -383,6 +444,7 @@ peal_close_finish() {
   peal_branch_base close || return 2
   _peal_close_context "$PEAL_ID" || return 2
   _peal_close_outcome_ok "$PEAL_TEXT" "close finish" || return 2
+  _peal_close_merge_check finish || return 2
   escalations=$(_peal_close_escalations "$PEAL_TEXT")
   if [ "$escalations" -gt 3 ]; then
     peal_err "close finish: $escalations escalations: more than three means the task was underspecified. Open no pull request; ask the human about them first."
@@ -419,6 +481,9 @@ peal_close_finish() {
     return 2
   fi
 
+  if [ "$PEAL_MERGE" = auto ] && [ "$PEAL_MERGE_VERDICT" = withdraw ]; then
+    _peal_close_withdraw_merge || return 1
+  fi
   # A decision made in the task lands as a commit of its own, right before the task's move.
   peal_decisions_commit "$PEAL_ID" || return 1
   peal_store_finish "$PEAL_ID" "done" || return 2
@@ -475,7 +540,7 @@ peal_close_finish() {
     fi
     pr=${out%%	*} url=${out#*	}
   fi
-  rm -f "$gitdir/$PEAL_CLOSE_SENTINEL"
+  rm -f "$gitdir/$PEAL_CLOSE_SENTINEL" "$gitdir/$PEAL_CLOSE_WITHDRAWN"
   echo "closed $PEAL_ID: pull request #$pr $url"
   echo "Next: peal close wait, until its verdict is not WAIT."
 }
