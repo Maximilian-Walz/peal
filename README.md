@@ -22,8 +22,8 @@ reviews a task and opens its pull request, `/peal:milestone-review` closes a mil
 once the human agrees, `/peal:drift` files what the documents and the repository
 disagree on, `/peal:release` makes a release from the tasks finished since the last, `/peal:setup`
 sets a project up in stages from inside your session, on `peal init`, which writes them and takes them back, and the optional decisions module keeps a project's decision records. See
-[docs/design.md](docs/design.md) and
-the issues.
+[docs/design.md](docs/design.md), the [milestones](docs/milestones/) and the backlog in
+[tasks/](tasks/).
 
 ## Peal and Belfry
 
@@ -36,6 +36,13 @@ offer, claim, board, idea), so Belfry can show a Peal project's backlog, run its
 and bring you only the questions, reviews and merges. Neither depends on the other.
 
 ## Working on Peal
+
+Peal runs on itself: its backlog is the task files under `tasks/`, its milestones are
+`docs/milestones/`, and its settings `.peal/config.yml`, so a task is worked with
+`/peal:work` and `/peal:close` like in any Peal project, and new work is filed with
+`/peal:idea` rather than as an issue. Once per clone, `.peal/peal hooks install` installs
+the git gates. The process runs the installed plugin, not the checkout's `plugin/`; to
+try a branch's CLI, run `PEAL_ROOT=$PWD/plugin plugin/bin/peal`.
 
 This repository is a Claude Code plugin marketplace (`.claude-plugin/marketplace.json`)
 with one plugin, `peal`, in `plugin/`:

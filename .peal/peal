@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Peal's launcher: finds the installed Peal plugin and runs its peal CLI with these
+# arguments. Committed as .peal/peal, so git hooks, other tools and a shell reach Peal
+# without Claude Code. Written by peal init --stage tasks; do not edit, run that again to
+# update.
+#
+# Where it looks, in order:
+#   1. $PEAL_ROOT, a Peal checkout or installation (an error if it holds no Peal);
+#   2. the root the plugin's SessionStart hook recorded in this repository's git directory;
+#   3. the newest Peal in Claude Code's plugin cache.
+set -u
+
+if [ -n "${PEAL_ROOT:-}" ]; then
+  if [ ! -x "$PEAL_ROOT/bin/peal" ]; then
+    echo "peal: PEAL_ROOT=$PEAL_ROOT holds no bin/peal" >&2
+    exit 127
+  fi
+  exec "$PEAL_ROOT/bin/peal" "$@"
+fi
+
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+if common=$(cd "$here" && cd "$(git rev-parse --git-common-dir 2>/dev/null)" && pwd) \
+    && [ -r "$common/peal-root" ]; then
+  IFS= read -r root <"$common/peal-root"
+  if [ -n "$root" ] && [ -x "$root/bin/peal" ]; then
+    exec "$root/bin/peal" "$@"
+  fi
+fi
+
+newest=""
+for dir in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/plugins/cache/*/peal/*/; do
+  [ -x "${dir}bin/peal" ] || continue
+  if [ -z "$newest" ] || [ "$dir" -nt "$newest" ]; then
+    newest=$dir
+  fi
+done
+if [ -n "$newest" ]; then
+  exec "${newest}bin/peal" "$@"
+fi
+
+cat >&2 <<'EOF'
+peal: the Peal plugin is not installed. Install it in Claude Code:
+  claude plugin marketplace add Maximilian-Walz/peal
+  claude plugin install peal@peal
+or point PEAL_ROOT at a Peal checkout.
+EOF
+exit 127
