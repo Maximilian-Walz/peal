@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Harness for peal init (lib/init.sh, lib/config-block.awk, lib/settings-json.awk): each
 # stage added to a throwaway project and removed again, for task files and for issues,
-# leaving the project as it was apart from its tasks.
+# leaving the project as it was apart from its tasks; and peal init --survey, on GitHub
+# through lib/fake-gh when jq is here.
 #
 #   bash plugin/lib/init.test.sh
 set -uo pipefail
@@ -9,6 +10,8 @@ set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/test-lib.sh"
 # shellcheck source=task-fixtures.sh
 . "$PEAL_ROOT/lib/task-fixtures.sh"
+# shellcheck source=issue-fixtures.sh
+. "$PEAL_ROOT/lib/issue-fixtures.sh"
 
 peal() { at "$work" "$PEAL" "$@"; }
 
@@ -286,7 +289,89 @@ settings_json() {
   done
 }
 
+# survey KEY... -> the survey's lines of those keys.
+survey() {
+  local keys=$*
+  peal init --survey | awk -v keys=" $keys " 'index(keys, " " $1 " ")'
+}
+
+# The survey: what /peal:setup decides from, and the storage it recommends.
+surveys() {
+  local work
+  work=$(project)
+  check "survey: a bare project" "stages -
+next tasks
+storage -
+branch main main main
+github -
+closes 0
+readme README.md
+todo -
+todo-marks 0
+ci -
+taskdir -
+belfry -
+recommend files" "$(peal init --survey)"
+  check "survey: writes nothing" "" "$(git -C "$work" status --porcelain)"
+
+  mkdir -p "$work/docs" "$work/.github/workflows" "$work/tasks"
+  printf 'x\n' >"$work/TODO.md"
+  printf 'x\n' >"$work/docs/todo.txt"
+  printf 'a: 1 # TODO later\nb: 2 # FIXME\n' >"$work/.github/workflows/ci.yml"
+  printf 'x\n' >"$work/tasks/0001-a.md"
+  git -C "$work" add -A
+  git -C "$work" commit -q -m "feat: things" -m "Fixes #4"
+  git -C "$work" commit -q --allow-empty -m "fix: closes acme/widgets#5"
+  git -C "$work" commit -q --allow-empty -m "docs: see #6"
+  git -C "$work" checkout -q -b topic
+  check "survey: what is there" "branch topic main main
+closes 2
+todo TODO.md,docs/todo.txt
+todo-marks 2
+ci .github/workflows/ci.yml
+taskdir tasks/ 1" "$(survey branch closes todo todo-marks ci taskdir)"
+
+  if command -v jq >/dev/null; then
+    fake_github "$work"
+    git -C "$work" remote add origin https://github.com/acme/widgets.git
+    check "survey: on GitHub, closing issues" "github acme/widgets
+issues 0
+milestones 0
+recommend issues" "$(survey github issues milestones recommend)"
+    git -C "$work" checkout -q main
+    git -C "$work" reset -q --hard HEAD~3
+    check "survey: on GitHub, nothing to keep there" "recommend files" "$(survey recommend)"
+    gh_save issues '. + [{number: 1, state: "open", title: "a"}, {number: 2, state: "open", title: "b", pull_request: {}}]'
+    gh_save milestones '. + [{number: 1, state: "open", title: "m1"}, {number: 2, state: "closed", title: "m0"}]'
+    check "survey: open issues" "issues 1
+milestones 1
+recommend issues" "$(survey issues milestones recommend)"
+    printf 'GET *\n' >"$FAKE_GH/fail"
+    check "survey: gh cannot tell" "issues unknown: gh api repos/acme/widgets/issues?state=open&per_page=100 failed: gh: HTTP 502: failing on purpose (GET repos/acme/widgets/issues?state=open&per_page=100)
+recommend files" "$(survey issues recommend)"
+    rm -f "$FAKE_GH/fail"
+  fi
+
+  peal init --stage tasks >/dev/null
+  printf 'tasks: {}\n' >"$work/.belfry.yml"
+  check "survey: set up" "stages tasks
+next guardrails
+storage files
+taskdir -
+belfry other
+recommend files" "$(survey stages next storage taskdir belfry recommend)"
+  rm "$work/.belfry.yml"
+  peal init --stage guardrails >/dev/null
+  peal init --stage milestones >/dev/null
+  peal init --stage belfry >/dev/null
+  check "survey: every stage" "stages tasks,guardrails,milestones,belfry
+next -
+belfry peal" "$(survey stages next belfry)"
+  check_refused "survey: no arguments" "--survey takes no arguments" peal init --survey x
+}
+
 cases() {
+  surveys
   files_round_trip
   files_existing
   issues_round_trip

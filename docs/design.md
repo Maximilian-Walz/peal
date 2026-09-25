@@ -553,7 +553,10 @@ directory's `hooks/`. A gate that cannot find Peal refuses rather than waves thr
   refactor docs chore wip`; the area is one of `commit.areas` (then required), `tasks`,
   or `decisions` with the decisions module on. `wip: <what>` skips the checks and needs
   no id; a `(tasks)` commit must touch only the tasks directory and skips them too, as a
-  `(decisions)` commit the decisions directory. Otherwise each `checks.commit` item runs when the
+  `(decisions)` commit the decisions directory. `chore(peal): <what>`, a project's setup
+  (`/peal:setup`), needs no id and skips them, touching only what `peal init` writes:
+  `.peal/`, `.claude/settings.json`, `.belfry.yml`, the tasks and milestones directories.
+  Otherwise each `checks.commit` item runs when the
   commit touches its paths: `"src/ *.cs: dotnet test"` runs on a change under `src/` or to
   a `.cs` file, an item without paths always. Git's own subjects (merge, revert, fixup)
   pass the grammar; a merge still pays the checks.
@@ -821,6 +824,27 @@ commands know what is there.
 | `guardrails` | `peal hooks install`. The session hooks come from the plugin's `hooks.json`, so nothing is written to the settings. | `peal hooks uninstall`: `core.hooksPath` back to what it was. |
 | `milestones` | for task files a first milestone, `m1.md` (`current`, `--title T`, "First milestone" by default), unless the milestones directory holds one; for issues nothing but the record (the repository's milestones are the milestones). | `m1.md` while it is as the stage wrote it. |
 | `belfry` | `.belfry.yml`: the `commands` backend of [Peal and Belfry](#peal-and-belfry) (with `retire` and a parking reason) for task files, `github-issues` with the label, `start: /peal:work {task}` and `idea: /peal:idea {idea}` for issues; the actions Peal provides (`milestone-review`, `release`) as comments to uncomment. A `.belfry.yml` that is not Peal's is left alone, the contract printed, status 1. The file is to be checked with `belfry check` once Belfry has one; until then the stage says it skipped the check. | the file while it is as the stage writes it; otherwise status 1, for the human to remove it. |
+
+`peal init --survey` writes nothing: it prints, a `key value` line each, what the
+conversation decides from: the stages set up and the next one, the storage, the branch,
+the GitHub repository with its open issues and milestones, the recent commits that close
+an issue, the README, TODO lists and marks, the CI files, a tasks directory already
+there, whose `.belfry.yml` is there, and the storage to recommend (the one set up; else
+`issues` for a GitHub project that already works from issues, so nothing moves; else
+`files`).
+
+**`/peal:setup [STAGE]`** runs in the human's own session. Without a stage it sets up
+`tasks` and nothing more: it reads the repository, recommends the storage in two
+sentences and asks once, shows what the stage writes, and commits it as one `chore(peal)`
+commit on a `peal/setup-<stage>` branch (never on the main branch), which it offers to
+push as a pull request. Then it proposes one or two first tasks from what it read (a
+TODO, a gap the README admits; for issues, it names fitting open issues instead of
+filing), files those the human picks, and ends in five lines: what was set up, what the
+human can do now (`/peal:idea`, `/peal:work`), and the next stage for later, not set up.
+`/peal:setup STAGE` sets up that stage the same way. Its `milestones` stage asks the
+first milestone's title and offers to file its review task (`depends: [milestone]`),
+once the milestone is on the main branch; its `belfry` stage offers to turn the
+milestone review action on.
 
 Each stage but `tasks` needs `tasks` set up first. A `guardrails` stage recorded in the
 committed config says the project wants the hooks; `core.hooksPath` is each clone's own,

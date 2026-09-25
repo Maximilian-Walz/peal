@@ -9,6 +9,10 @@ tasks along the way. Milestones group the backlog.
 A peal is a full, ordered ringing of changes on a set of bells: a backlog worked through
 in order.
 
+**Getting started:** install the plugin, then run `/peal:setup` in a Claude Code
+session in your repository. It looks at the repository, asks where your tasks should
+live, and writes the setup as one commit for you to review.
+
 **Status:** being built; the plugin installs, its CLI lists, offers, claims, files,
 revises and retires tasks and gates commits and pushes, its session hooks orient a
 session, keep its budget and autosave its work, `/peal:work` claims, plans and builds
@@ -16,8 +20,8 @@ a task with the planner and implementer subagents, `/peal:idea`, `/peal:split`,
 `/peal:defer`, `/peal:revise` and `/peal:retire` keep the backlog, `/peal:close`
 reviews a task and opens its pull request, `/peal:milestone-review` closes a milestone
 once the human agrees, `/peal:drift` files what the documents and the repository
-disagree on, `/peal:release` makes a release from the tasks finished since the last, `peal init` sets
-a project up in stages and takes them back, and the optional decisions module keeps a project's decision records. See
+disagree on, `/peal:release` makes a release from the tasks finished since the last, `/peal:setup`
+sets a project up in stages from inside your session, on `peal init`, which writes them and takes them back, and the optional decisions module keeps a project's decision records. See
 [docs/design.md](docs/design.md) and
 the issues.
 
@@ -50,12 +54,12 @@ with one plugin, `peal`, in `plugin/`:
   a milestone's end (`review.sh`: the review's brief, the state change), the optional
   decision records (`decisions.sh`: reserve, check, index, publish, brief), releases
   (`ship.sh`: the proposal, the notes, the tag, the GitHub release, the wait), writes
-  onto the main branch (`main-write.sh`), and a project's setup in stages (`init.sh`,
+  onto the main branch (`main-write.sh`), and a project's setup in stages and the survey `/peal:setup` decides from (`init.sh`,
   with `config-block.awk` and `settings-json.awk` editing the config and Claude Code's
   settings as text);
 - `plugin/commands/`, the plugin's Claude Code commands (`/peal:work`, `/peal:idea`,
   `/peal:split`, `/peal:defer`, `/peal:revise`, `/peal:retire`, `/peal:close`,
-  `/peal:milestone-review`, `/peal:drift`, `/peal:release`), and
+  `/peal:milestone-review`, `/peal:drift`, `/peal:release`, `/peal:setup`), and
   `plugin/agents/`, its subagents (`planner`, `implementer`, `reviewer`);
 - `plugin/hooks/`, the plugin's Claude Code hooks;
 - `plugin/templates/`: `launcher`, the `.peal/peal` a project commits; `githook`, the

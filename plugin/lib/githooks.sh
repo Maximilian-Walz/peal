@@ -270,7 +270,11 @@ _peal_pre_push_index() {
 #   wip: ... / wip(<area>): ...   honest work in progress, no task id needed;
 #   <type>(tasks): ... [NNNN]     a task file's move or edit: the staged diff must lie in
 #                                 the tasks directory and nowhere else;
-#   <type>(decisions): ... [NNNN] decision entries, the same in the decisions directory.
+#   <type>(decisions): ... [NNNN] decision entries, the same in the decisions directory;
+#   chore(peal): ...              a project's Peal setup (/peal:setup), no task id
+#                                 needed: the staged diff must lie in what peal init
+#                                 writes (.peal/, .claude/settings.json, .belfry.yml, the
+#                                 tasks and milestones directories).
 # Otherwise each of checks.commit runs whose paths the staged diff touches: an item
 # "PATH...: COMMAND" runs COMMAND when a staged path is PATH or under it (PATH may be a
 # glob), an item without paths always runs.
@@ -310,6 +314,10 @@ _peal_commit_msg() {
         "areas: $(printf '%s\n' "$areas" tasks ${decisions:+decisions} | tr '\n' ' ')"
       return 1
     fi
+    if [ "${subject%%:*}" = "chore(peal)" ]; then
+      _peal_setup_commit
+      return
+    fi
     if [ -n "$areas" ] && [ "$area" != tasks ] && { [ -z "$decisions" ] || [ "$area" != decisions ]; } \
         && ! printf '%s\n' "$areas" | grep -qxF -- "$area"; then
       _peal_gate_refuse commit-msg "the area $area is not one of commit.areas" \
@@ -343,6 +351,21 @@ _peal_commit_msg() {
     fi
   fi
   _peal_commit_checks "$merge"
+}
+
+# _peal_setup_commit -> refused unless every staged path is one peal init writes.
+_peal_setup_commit() {
+  local tasks milestones outside
+  tasks=$(peal_config_get tasks) || return 1
+  milestones=$(peal_config_get milestones) || return 1
+  outside=$(_peal_staged | awk -v t="${tasks%/}/" -v m="${milestones%/}/" '
+    index($0, ".peal/") != 1 && $0 != ".claude/settings.json" && $0 != ".belfry.yml" \
+      && index($0, t) != 1 && index($0, m) != 1')
+  if [ -n "$outside" ]; then
+    _peal_gate_refuse commit-msg "a (peal) commit is Peal's setup: .peal/, .claude/settings.json, .belfry.yml, ${tasks%/}/ and ${milestones%/}/ only; this one also:" "$outside"
+    return 1
+  fi
+  echo "commit-msg: Peal's setup only; the checks are skipped."
 }
 
 # _peal_check_split ITEM -> PEAL_CHECK_PATHS and PEAL_CHECK_CMD from "PATH...: COMMAND";
