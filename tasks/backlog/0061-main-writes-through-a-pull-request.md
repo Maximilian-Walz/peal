@@ -2,6 +2,7 @@
 milestone: m1
 plan: required
 priority: urgent
+touches: [plugin/lib/main-write.sh, plugin/lib/store-files.sh]
 ---
 
 # 0061 — Writes onto a protected main go through a pull request

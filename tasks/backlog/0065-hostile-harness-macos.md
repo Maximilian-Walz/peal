@@ -1,6 +1,7 @@
 ---
 plan: required
 priority: high
+touches: [plugin/lib/hostile.test.sh, .github/workflows/**]
 ---
 
 # 0065 — The hostile-input harness on macOS: leftover temp files seen, and a faster CI job

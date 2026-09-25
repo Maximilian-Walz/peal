@@ -1,5 +1,6 @@
 ---
 plan: required
+touches: [plugin/commands/close.md, plugin/agents/planner.md, plugin/commands/commands.test.sh]
 ---
 
 # 0068 — Pull request bodies and questions that invite reading

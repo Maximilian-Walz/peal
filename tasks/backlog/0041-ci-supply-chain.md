@@ -1,6 +1,7 @@
 ---
 milestone: m1
 plan: skipped
+touches: [.github/**]
 ---
 
 # 0041 — CI and supply chain: pinned actions, Dependabot, minimal permissions, Scorecard

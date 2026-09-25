@@ -1,6 +1,7 @@
 ---
 plan: required
 priority: high
+touches: [plugin/lib/store-files.sh, plugin/lib/store-issues.sh, plugin/lib/store-issues.test.sh, plugin/lib/task-fixtures.sh, plugin/lib/tasks.test.sh]
 ---
 
 # 0057 — Branch-date detail in UTC: the "every state" and "parked" harness checks fail around midnight

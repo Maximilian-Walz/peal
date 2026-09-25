@@ -2,6 +2,7 @@
 milestone: m1
 plan: required
 part-of: 0039
+touches: [plugin/agents/*.md, plugin/commands/*.md, plugin/commands/commands.test.sh]
 ---
 
 # 0063 — Outsider text reaches prompts only as quoted data

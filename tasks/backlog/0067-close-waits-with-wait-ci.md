@@ -1,5 +1,6 @@
 ---
 plan: required
+touches: [plugin/commands/close.md]
 ---
 
 # 0067 — Close waits for CI with Belfry's wait_ci when that tool exists

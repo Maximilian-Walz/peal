@@ -3,6 +3,7 @@ milestone: m1
 plan: required
 depends: [0039]
 part-of: 0039
+touches: [plugin/lib/hostile.test.sh]
 ---
 
 # 0062 — Hostile GitHub content: the write-access rule on every issues read
