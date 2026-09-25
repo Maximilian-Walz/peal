@@ -216,6 +216,15 @@ admission() {
   check_fails "work: refused when the cache is empty" 2 \
     "refused: issue 7 is no task: not labelled 'tasks'; labelling it 'tasks' or filing it anew yourself (peal idea) makes it a task" \
     at "$wt" "$PEAL" work
+
+  # claim: read succeeds (the issue exists and is admitted) but the id is not in the
+  # list claim itself fetched (here, closed longer ago than PEAL_ISSUES_CLOSED keeps) —
+  # no refusal of read's to pass on, so the plan's fallback "no task N", not a silent exit.
+  issues_repo
+  issue 1 "Long closed" --closed
+  issue 2 "Recently closed" --closed
+  PEAL_ISSUES_CLOSED=1 check_refused "claim: no task once past the closed window" \
+    "no task 1" peal claim 1
 }
 
 expansion() {
