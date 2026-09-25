@@ -4,9 +4,13 @@
 # workflow writes it instead. Copy it to .github/workflows/decisions.yml; the directory
 # below is the `decisions` setting of .peal/config.yml, and main the `main` one.
 #
-# The push is made with the workflow's GITHUB_TOKEN, which starts no further workflow
-# runs, so it never triggers itself. A main branch protected against direct pushes needs
-# a token that may push there instead.
+# The write is made with the secret PEAL_TOKEN when the project sets one (a personal
+# access token or a GitHub App's, allowed to push branches and open pull requests), else
+# with the workflow's GITHUB_TOKEN. A main branch protected against direct pushes gets the
+# index through a pull request that merges itself once its checks pass; one opened with
+# GITHUB_TOKEN starts no workflow, so its required checks never run and it waits for a
+# human. PEAL_TOKEN lets them run; the index's own merge then runs this workflow once
+# more, which finds the index up to date.
 name: Decisions index
 
 on:
@@ -23,6 +27,7 @@ concurrency:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   publish:
@@ -30,10 +35,14 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PEAL_TOKEN || github.token }}
       - name: Get Peal
         # Pin a release with --branch vX.Y.Z to match the Peal your sessions run.
         run: git clone -q --depth 1 https://github.com/Maximilian-Walz/peal "$RUNNER_TEMP/peal"
       - name: Publish the index
+        env:
+          GH_TOKEN: ${{ secrets.PEAL_TOKEN || github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

@@ -18,7 +18,9 @@ needs. Issue #2 settled the decisions below; the build is split into the issues 
   [Storage](#storage).)
 - **The pushed branch is the lock.** A claim pushes the task's branch; a second claim of
   the same task fails on git's own rejection. Numbering new tasks works the same way: a
-  push that loses the race retries with the next number.
+  push that loses the race retries with the next number. Where the main branch refuses
+  direct pushes, the same commit goes through a pull request that merges itself, and the
+  lower pull request number wins a number ([Writes onto main](#writes-onto-main)).
 - **What must happen every time is a hook or a refusing script, not a reminder.** Prose
   in a command is for judgement; anything checkable is checked.
 - **Hooks come from outside the branch.** A branch cannot weaken the gates policing it.
@@ -497,6 +499,7 @@ Settings, all optional, with their defaults:
 ```yaml
 remote: origin
 main: main                      # the branch tasks land on
+main-writes: auto               # Peal's own writes onto main: push, pr, auto (push; pr once refused)
 tasks: tasks                    # holds backlog/, doing/, done/ and TEMPLATE.md
 milestones: docs/milestones
 branch-prefix: task/
@@ -536,6 +539,63 @@ names, one task per branch and PR, the task sections, the commit subject grammar
 `<type>(<area>): <what> [NNNN]`, which pushes may reach main directly, and the close
 sequence. A setting exists only where two real projects would differ.
 
+## Writes onto main
+
+The storage's writes (`peal create`, `revise`, `retire`, `defer`, `set-milestone`,
+`comment`, `milestone-state`) and `peal decision publish` build their commit on a
+temporary index from the fetched main (`lib/main-write.sh`) and write it there one of
+three ways, the setting `main-writes`:
+
+- **`push`**: pushed straight onto main, as the pre-push gate lets through; a refusal is
+  an error (status 1, git's reason), never retried but for a lost race.
+- **`pr`**: pushed to a branch `peal/main-write-<short sha>` and opened as a pull request
+  titled with the commit's subject, its body naming the command (and the task, from the
+  subject's `[NNNN]`). Peal turns on GitHub's auto-merge (squash, through the GraphQL
+  `enablePullRequestAutoMerge`), which needs "Allow auto-merge" in the repository's
+  settings. Where that is off, or the pull request is mergeable already, Peal merges it
+  itself (`PUT pulls/N/merge`, squash, and deletes the branch) once `peal_pr_checks` finds
+  its checks green, polling every `PEAL_MAIN_WRITE_INTERVAL` seconds (20) within
+  `PEAL_MAIN_WRITE_BUDGET` (540); a failing check leaves it open (status 1), the budget
+  spent leaves it open too and says where (status 3, the write reported as made).
+- **`auto`**, the default: a push first; when the remote itself refuses main (git's
+  `[remote rejected] ... -> main`, a ruleset or branch protection, never a local gate's
+  refusal nor a lost race), the same write goes through a pull request, and the clone
+  remembers it in git config `peal.mainWrites=pr`, so the next write opens its pull
+  request at once. `git config --unset peal.mainWrites` forgets it.
+
+`auto` is the default because Peal cannot know a repository's rules before it pushes,
+and both kinds are common: an unprotected main keeps the one-step push, and a protected
+one (a public project's usual ruleset) keeps working without a setting or a human step
+beyond allowing auto-merge. `push` is for a project that wants a refusal to stay an
+error; `pr` for one that wants every write reviewed as a pull request, or whose remote
+refuses in a way git does not report as a rejection of main.
+
+A write returns once auto-merge is on: filing prints its `filed NNNN ...` lines and
+`pull request #N <url>, merging once its checks pass; the number is final once it
+merges`; an edit its usual line and the pull request's. A caller that needs main to hold
+the change sets `PEAL_MAIN_WRITE_WAIT=merged` to wait for the merge within the same
+budget. Until the merge, a read of main does not find the write; its "no task" says a
+Peal pull request may still be open. A conflict that arises after the command returned
+is left to a human.
+
+**Races.** Two writes built on the same main both open. A filing then lists the open
+`peal/main-write-*` pull requests numbered below its own and looks for its numbers in
+their branches and on the newest main; if one is taken it closes its pull request,
+deletes the branch and files again with the next free number (which counts the task
+files on every fetched `peal/main-write-*` branch), in a pull request saying "Replaces
+#N". A pull request GitHub reports unmergeable is closed the same way and the write
+built again on the new main, where an edit of a text changed meanwhile is refused as
+with a push. Each is bounded by `PEAL_PUSH_ATTEMPTS` (5).
+
+**In CI.** `templates/decisions.yml` publishes with a `PEAL_TOKEN` secret (a personal
+access token or an app's) when the project sets one, else the workflow's
+`GITHUB_TOKEN`. A pull request opened with `GITHUB_TOKEN` starts no workflow, so on a
+main that requires checks it waits for a human; `PEAL_TOKEN` lets its checks run and
+auto-merge take it.
+
+The issues storage writes no task onto main: with the decisions module off, it warns
+when `main-writes` is set to anything but `auto`.
+
 ## Git gates
 
 `peal hooks install` (the `guardrails` stage of `peal init`) writes one small hook under every git hook
@@ -558,7 +618,9 @@ settings read from the work tree) are in [docs/security.md](security.md).
   `defer`, `set milestone of`, `note on` modify exactly one, the subject's `[NNNN]`;
   `docs(tasks): retire` moves that one to `done/` under its name; with the decisions
   module on, `docs(decisions): regenerate the index` changes the index alone. Nothing
-  else, no rewrite of main, no deletion. A pull request merged on the server runs no client hook.
+  else, no rewrite of main, no deletion. A pull request merged on the server runs no client hook,
+  and a write through a pull request pushes only its `peal/main-write-*` branch, which
+  the gate leaves alone ([Writes onto main](#writes-onto-main)).
 - **commit-msg** checks the subject `<type>(<area>): <what> [NNNN]`, types `feat fix test
   refactor docs chore wip`; the area is one of `commit.areas` (then required), `tasks`,
   or `decisions` with the decisions module on. `wip: <what>` skips the checks and needs
@@ -725,8 +787,9 @@ paragraph starting `**Supersedes** decision NNNN` (or `decisions NNNN and MMMM`,
   regenerates it from the remote's main and pushes it there as `docs(decisions):
   regenerate the index`, built on a temporary index like the storage's own writes (so it
   touches no worktree and runs anywhere) and let through by the pre-push gate when it
-  changes the index alone. `templates/decisions.yml` is the workflow a project copies to
-  run it after every merge that changes the directory.
+  changes the index alone, or through a pull request where main refuses pushes
+  ([Writes onto main](#writes-onto-main)). `templates/decisions.yml` is the workflow a
+  project copies to run it after every merge that changes the directory.
 - **`peal decision brief --task FILE | --diff [BASE]`** prints the entries whose text
   names a path of the task (its `## Scope`, or `## Intent` and `## Notes` while the
   Scope is empty) or of the diff since the branch left main: a path being a word of two

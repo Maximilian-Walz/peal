@@ -14,6 +14,7 @@ defaults() {
   cat <<'EOF'
 remote: origin
 main: main
+main-writes: auto
 tasks: tasks
 milestones: docs/milestones
 branch-prefix: task/
