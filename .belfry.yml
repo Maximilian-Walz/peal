@@ -1,27 +1,42 @@
-# Peal runs under Belfry from its GitHub issues until it can run on itself.
+# Belfry's contract for this project, written by peal init --stage belfry, then extended
+# with the milestone review action, the policy and the docs below.
 tasks:
-  backend: github-issues
-  github-issues:
-    # Only issues a maintainer labels become tasks: anyone may open an issue here.
-    label: belfry
-    # The default start prompt, plus what an unattended run needs (auto mode, merge: auto).
-    start: |
-      Work on GitHub issue #{task}: {title} ({url}).
-
-      Read it first with the belfry task tool. You are on its own branch in its own worktree. When the work is done, open a pull request whose body says `Fixes #{task}`, and wait until its CI passes.
-
-      This runs unattended, and the pull request merges itself once its CI is green:
-      - Decide open design questions yourself from the issue and the docs, and list each decision under "Decisions" in the PR body. Ask the human only for what only the human can do.
-      - Put what only the human can do (repository settings, secrets, keys, accounts, installing software, releasing) under "Human steps" in the PR body instead of asking with `action`.
-      - If the issue is too big for one pull request, do a first coherent part, say so in the PR body (then write `Part of #{task}` instead of `Fixes #{task}`), and file the rest as ideas.
-      - Galleries that show your work use the `info` mode, which does not wait.
-      - Add no new dependencies unless the issue names them.
-      - Open the pull request only when the work is complete; anything unfinished stays a draft.
+  backend: commands
+  commands:
+    list: .peal/peal list
+    offer: .peal/peal offer "{pool}" --top 10
+    pool: current,unassigned
+    claim: .peal/peal claim {task} --print-path
+    start: /peal:work {task}
+    idea: /peal:idea {idea}
+    board: .peal/peal board
+    milestone: .peal/peal milestone-state {id} {state} --reason {reason}
+    retire: .peal/peal retire {task} --reason {reason}
+actions:
+  milestone-review:
+    title: Milestone review
+    prompt: /peal:milestone-review {milestone}
+    triggers: [milestone]
+# Not offered yet: releasing is the human's call.
+#   release:
+#     title: Release
+#     prompt: /peal:release
+#     triggers: [button]
+#     single: true
+#     release: true
 policy:
   max_concurrent: 1
   permission_mode: auto
-  merge: auto
+  merge: human
   merge_method: squash
+  auto_merge:
+    # The human agreed, with the task's plan, that its pull request may merge itself.
+    - name: agreed tasks
+      task: { merge: auto }
 docs:
   - title: Readme
     path: README.md
+  - title: Design
+    path: docs/design.md
+  - title: Milestones
+    path: docs/milestones/

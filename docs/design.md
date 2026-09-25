@@ -898,5 +898,9 @@ Issue #2 filed one issue per buildable piece, with `Depends on #N` where order m
 | #22 | issues storage: Peal's workflow on GitHub issues | #5, #7 |
 | #35 | `peal init`: the setup stages, written deterministically | #6, #7, #9 |
 
-Until Peal can run on itself, Belfry runs this repository from those issues
-(`.belfry.yml`); #15 switches it over.
+Belfry ran this repository from those issues until #15 switched it over: Peal runs on
+itself. The issues still open became task files under `tasks/backlog/`, each keeping its
+issue's number (`#38` is `0038`), and were closed with a pointer to their task; the
+milestones are `docs/milestones/`; `.belfry.yml` is the `commands` backend through the
+launcher, written by `peal init --stage belfry`. New work is filed with `/peal:idea`, not
+as an issue.

@@ -13,6 +13,11 @@ Rules:
 - Task headers are real YAML frontmatter: a `---` block at the top of the file, lists
   (`depends`, `needs`) as YAML lists.
 - Peal never needs Belfry; Belfry never knows Peal (`docs/design.md`).
-- Belfry runs this repository from its GitHub issues (`.belfry.yml`) until Peal can run
-  on itself.
+- Peal runs on itself: the tasks are the files under `tasks/`, the milestones
+  `docs/milestones/`, the settings `.peal/config.yml`. Work a task with `/peal:work` and
+  `/peal:close`, file one with `/peal:idea`; GitHub issues are not tasks. The process
+  runs the installed plugin (from `main`), never this checkout's `plugin/`: a branch
+  cannot change the gates it is checked by. Try a branch's CLI with
+  `PEAL_ROOT=$PWD/plugin plugin/bin/peal ...`.
+- Each clone installs the git gates once: `.peal/peal hooks install`.
 - Prefer deleting to deprecating. There are no users yet.

@@ -1,0 +1,4 @@
+{
+  "extraKnownMarketplaces": {"peal": {"source": {"source": "github", "repo": "Maximilian-Walz/peal"}}},
+  "enabledPlugins": {"peal@peal": true}
+}

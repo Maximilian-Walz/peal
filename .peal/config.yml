@@ -1,0 +1,52 @@
+# Peal's settings for this project. The lines commented out below are Peal's defaults:
+# uncomment one and change it to set it here; a key Peal does not know is refused.
+# `stages` (the setup stages done) and `storage` belong to `peal init`.
+
+stages: [tasks, milestones, belfry]
+
+# Peal's own settings. The harnesses take minutes, so CI runs them, not every commit;
+# a close runs the lint, which is quick.
+plan:
+  required-paths: [plugin/, tools/]
+context: [docs/design.md, README.md]
+checks:
+  close: [tools/lint.sh]
+
+# Peal's defaults:
+# remote: origin
+# main: main                      # the branch tasks land on
+# tasks: tasks                    # holds backlog/, doing/, done/ and TEMPLATE.md
+# milestones: docs/milestones
+# branch-prefix: task/
+# worktrees: ../{repo}-wt         # each claim is {worktrees}/NNNN-slug
+# sizes: {S: 60, M: 120, L: 200}  # tool calls; the turn budget nudges at the tier
+# plan:
+#   required-paths: []            # a task touching one of these gets plan: required
+# review:
+#   skip-paths: [docs/, tasks/]   # a diff only here skips the reviewer
+# context: []                     # documents the planner, reviewer and /peal:idea read
+# checks:
+#   commit: []                    # commands the commit-msg gate runs; "PATH...: COMMAND" only
+#                                 # when the commit touches one of those paths
+#   close: []                     # commands close runs before opening the PR
+# pr:
+#   sections: []                  # extra prose sections close asks the session for, each
+#                                 # "Title: what to write"
+# commit:
+#   areas: []                     # allowed <area> values in commit subjects, then required;
+#                                 # empty allows any or none. tasks is always one
+# models: {planner: opus, reviewer: opus, implementer: sonnet}
+# task:
+#   fields: {}                    # the project's own frontmatter fields: name, allowed values
+# storage:
+#   kind: files                   # where tasks live: files (task files) or issues (GitHub issues)
+#   issues:
+#     repo: ""                    # owner/name; empty: the remote's GitHub repository
+#     label: ""                   # only issues with this label are tasks; empty: the issues
+#                                 # opened by someone with write access
+# release:
+#   tag-prefix: v                 # release tags are <prefix>MAJOR.MINOR.PATCH
+#   wait-ci: false                # /peal:release waits for the workflow runs of the tag
+#   report: []                    # texts whose lines in those runs' logs the release reports,
+#                                 # e.g. "digest: sha256:"
+# decisions: false                # the decisions module, or its directory to turn it on
