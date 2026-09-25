@@ -1,4 +1,5 @@
 ---
+milestone: m1
 plan: required
 priority: urgent
 ---
@@ -27,6 +28,9 @@ without a human step.
   (`gh pr merge --auto --squash`, which needs "Allow auto-merge" in the repository's
   settings), or, when auto-merge is off, by the command itself once the checks pass,
   within a time limit it reports when it runs out.
+- `peal create --part-of` (the pieces of `/peal:split`) goes the same way. Today it has no
+  queued fallback either, and `peal idea` refuses `part-of`, so a split on a protected main
+  loses the pieces' link to their origin (friction from 0039's session).
 - Races: two writes built on the same main, e.g. two filings taking the same number. The
   second pull request conflicts or its number is taken; the command rebuilds on the new
   main (as a lost push race does today) and replaces its pull request.
