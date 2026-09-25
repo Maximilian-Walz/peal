@@ -53,7 +53,7 @@ _peal_repo_dirs() {
   [ -z "$_peal_dirs" ] || return 0
   _peal_dirs=$(
     git -C "$_peal_base" worktree list --porcelain 2>/dev/null | while IFS= read -r line; do
-      case $line in "worktree "*) _peal_real "${line#worktree }" ;; esac
+      case $line in ("worktree "*) _peal_real "${line#worktree }" ;; esac
     done
     _peal_real "$_peal_base"
     [ -z "$_peal_common" ] || _peal_real "$_peal_common"

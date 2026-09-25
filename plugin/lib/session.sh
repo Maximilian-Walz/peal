@@ -20,7 +20,7 @@ peal_repo_holds() {
     case "${path%/}/" in "${dir%/}/"*) return 0 ;; esac
   done <<EOF
 $(git -C "$1" worktree list --porcelain 2>/dev/null | while IFS= read -r line; do
-    case $line in "worktree "*) printf '%s\n' "${line#worktree }" ;; esac
+    case $line in ("worktree "*) printf '%s\n' "${line#worktree }" ;; esac
   done)
 $common
 EOF
