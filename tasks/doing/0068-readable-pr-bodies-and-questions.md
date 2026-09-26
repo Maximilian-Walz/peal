@@ -45,6 +45,30 @@ title I sometimes get a huge block of bold font stating the question."
 
 ## Notes
 
+Draft plan (planner, 2026-09-26), not agreed yet: the questions to the human timed out
+twice on the inbox. The next session asks them again before anything is built.
+
+- Body: `peal close body`/`finish` emit `## Summary` (at most five bullets), then
+  `## Decisions` and `## Human steps` when given (new flags `--decisions[-file]`,
+  `--human-steps[-file]`), then pr.sections, `## Outcome`, `## Ideas filed`, commits.
+  Final message after close: one or two sentences with the PR link.
+- Questions: one fixed rule sentence (header up to 12 characters, one or two sentences,
+  shared context in the message before) in every command that asks; context moved out of
+  questions in milestone-review, setup, retire, release and work's MORE lines; the
+  planner writes each ambiguity as label, short question, default.
+- design.md states both; close.test.sh checks order and the cap; commands.test.sh checks
+  the rule sentence; hostile.test.sh covers the new flags.
+- Size M, model default, merge default. Touches wider than listed: plugin/lib/close.sh,
+  plugin/lib/close.test.sh, plugin/lib/hostile.test.sh, plugin/bin/peal,
+  plugin/commands/, plugin/agents/planner.md, docs/design.md.
+- Open questions (default first): task/Fixes lines above Summary, or a `## Task`
+  section; finish refuses more than five bullets, or prompt only; one to five bullets
+  rather than three to five; Decisions from session text only, or auto-listed from
+  docs/decisions; the flag names; close, defer and release follow the rule too; the whole
+  plan stays the message before the plan questions; work's report after close is the
+  one-sentence one; setup's own PR body stays as is; the first bullet still names what
+  to look at.
+
 ---
 
 ## Outcome
