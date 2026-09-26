@@ -24,9 +24,12 @@ Read all it prints:
   now if the task's work depends on what changed there (`git merge`, never a rebase of a
   pushed branch), cheaper now than after the Outcome. Milestone files changed: only a
   milestone's review changes them; take the change out or say why in the Outcome. Queued
-  ideas: they are filed at finish; drop or add one now. `## Scope` or `## Done when`
-  empty: fill them in from the agreed plan or from what was built, unless nothing was
-  built.
+  ideas: they are filed at finish; drop one now with `peal ideas --drop N` or `--all`, or
+  add one with `/peal:idea`. When filing at finish is not possible, `peal ideas --export`
+  prints them in full to quote by hand into the Outcome (indented, so their own
+  `<!-- -->` placeholder does not trip this task's placeholder check), then drop them from
+  the queue. `## Scope` or `## Done when` empty: fill them in from the agreed plan or from
+  what was built, unless nothing was built.
 - `Outcome:`, the file to write the task's Outcome in (for tasks kept elsewhere than in
   files, a file of the close's own).
 - `PR sections`, the project's own sections of the pull request body, each with what to

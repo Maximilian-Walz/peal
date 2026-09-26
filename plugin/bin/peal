@@ -125,7 +125,10 @@ number to come, several texts are separated by lines -----NEXT TASK-----):
                                 PART1..n for each other)
   create --batch ID SLUG...     file ideas found in task ID
   idea SLUG [--now]             queue an idea on a task branch, else (or --now) file it
-  ideas [--flush]               the queued ideas; --flush files them
+  ideas [--flush | --export | --drop N|--all]
+                                the queued ideas; --export prints them in full as
+                                Markdown, --drop takes one off the queue (by its
+                                position) or --all of them, --flush files them
   revise ID --reason R [--dry-run]
                                 rewrite an unclaimed task's text; in the worktree of
                                 ID's claim, the claim's (a split narrowing its origin)
