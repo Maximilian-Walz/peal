@@ -541,9 +541,17 @@ Other claims:
   hook "$wt" post-tool-use '{}' >/dev/null
   check "budget: the text read once" "1" "$(calls 'GET repos/acme/widgets/issues/1$')"
 
-  # The idea queue on an issue's branch, flushed as a batch found in it.
+  # The idea queue on an issue's branch: it lives in this worktree's git directory, not
+  # the storage, so export and drop work the same as for task files, before the rest is
+  # flushed as a batch found in it.
+  out=$(at "$wt" "$PEAL" idea to-be-dropped < <(TITLE="Dropped idea" text) 2>&1)
+  check "idea: queued on an issue's branch" "0:queued to-be-dropped — milestone: -, plan: -, size: - — \"Dropped idea\"" "$?:$out"
   out=$(at "$wt" "$PEAL" idea some-new-idea < <(TITLE="Some new idea" text) 2>&1)
-  check "idea: queued on an issue's branch" "0:queued some-new-idea — milestone: -, plan: -, size: - — \"Some new idea\"" "$?:$out"
+  check "idea: a second one queued" "0:queued some-new-idea — milestone: -, plan: -, size: - — \"Some new idea\"" "$?:$out"
+  check "export: both, as markdown" "$(TITLE="Dropped idea" text)
+
+$(TITLE="Some new idea" text)" "$(at "$wt" "$PEAL" ideas --export)"
+  check "drop: one, by its position" "dropped to-be-dropped — \"Dropped idea\"" "$(at "$wt" "$PEAL" ideas --drop 1)"
   out=$(at "$wt" "$PEAL" ideas --flush 2>&1)
   check "ideas: flushed" "0:filed 3" "$?:${out%% https*}"
   check "ideas: found in the task" "Found while working on #1." \

@@ -183,7 +183,7 @@ peal: nothing was filed" "$?:$out"
 }
 
 ideas() {
-  local work out
+  local work out exp1 exp2
   work=$(repo)
   put "$work" backlog 0001 working-task
 
@@ -226,6 +226,30 @@ filed 0005 tasks/backlog/0005-second-idea.md — milestone: -, plan: -, size: - 
   check "flush: subject" "docs(tasks): file 0004-0005, found in 0001 [0001]" "$(subject)"
   check "flush: the queue is empty" "" "$(peal ideas)"
   check "flush: again, nothing" "no queued ideas" "$(peal ideas --flush)"
+
+  # export and drop: reading the queue as Markdown by hand, and taking ideas off it when
+  # filing at close is not possible.
+  check "export: nothing queued" "" "$(peal ideas --export)"
+  check "drop: nothing queued" "no queued ideas" "$(peal ideas --drop --all)"
+  check_refused "drop: not a number" "needs a number" peal ideas --drop nope
+  check_refused "drop: zero" "needs a number" peal ideas --drop 0
+
+  out=$(text "milestone: m2" "plan: skipped" | peal idea third-idea 2>&1)
+  check "export/drop: queued 1" "0:queued third-idea — milestone: m2, plan: skipped, size: - — \"Title of NNNN\"" "$?:$out"
+  out=$(TITLE=Fourth text | peal idea fourth-idea 2>&1)
+  check "export/drop: queued 2" "0:queued fourth-idea — milestone: -, plan: -, size: - — \"Fourth\"" "$?:$out"
+
+  exp1=$(text "milestone: m2" "plan: skipped")
+  exp2=$(TITLE=Fourth text)
+  check "export: the queue as markdown, the marker lines gone" "$exp1
+
+$exp2" "$(peal ideas --export)"
+
+  check_refused "drop: out of range" "no idea 5 queued (2 queued)" peal ideas --drop 5
+  check "drop: one, by its position in the listing" "dropped third-idea — \"Title of NNNN\"" "$(peal ideas --drop 1)"
+  check "drop: the other stays, renumbered" "fourth-idea	Fourth" "$(peal ideas)"
+  check "drop: all of what's left" "dropped fourth-idea — \"Fourth\"" "$(peal ideas --drop --all)"
+  check "drop: the queue is empty" "" "$(peal ideas)"
 }
 
 revise() {
