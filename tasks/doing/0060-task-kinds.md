@@ -55,6 +55,67 @@ Today a task has no kind. What comes nearest:
 - **`peal close finish`** (`plugin/lib/close.sh`) titles the PR `Title [ID]`, no commit type.
 - **`/peal:release`** (`plugin/commands/release.md`, `plugin/lib/ship.sh`, `docs/design.md` "Releases") guesses a task's kind: a fix when its commit subject starts `fix` or the issue is labelled `bug`, a feature otherwise; the notes have only the sections Breaking, Features and Fixes (`PEAL_SHIP_SECTIONS`).
 
+### Proposed plan, not yet agreed (planner, 2026-09-26)
+
+The human was asked to agree this plan twice, and both questions timed out unanswered. It
+is not the agreed plan: the next `/peal:work 0060` asks the decisions below again,
+starting from this text instead of planning afresh.
+
+**Approach.** Defaults go in `plugin/lib/config-defaults.yml`, one flow map per kind,
+in release-notes order:
+`feature: {colour: a2eeef, commit: feat, section: Features, label: enhancement}`,
+`bug: {colour: d73a4a, commit: fix, section: Fixes, label: bug}`,
+`docs: {colour: 0075ca, commit: docs, section: Documentation, label: documentation}`,
+`chore: {colour: ededed, commit: chore, section: Maintenance, label: chore}`.
+
+- **Config merge:** `config-merge.awk` gets a third shape. A project's `kinds` replaces
+  the defaults wholesale, in its own order. The keys are checked (colour, commit,
+  section, label, each a single value), and colour must be six hex digits so no
+  terminal escapes can get in.
+- **Validation:** `peal_check_context` emits `kind<TAB>name` lines. `task-check.awk`
+  validates `kind`. A new `peal_check_kinds` (in `tasks.sh`, wired in `bin/peal`) names
+  files with an unknown kind.
+- **Read model:** the list record gets a 20th column, `kind`, in `task-scan.awk`,
+  `issues-scan.awk`, `task-state.awk`, the `cut` in `store-issues.sh` and the `store.sh`
+  comment.
+- **Display:** `board.awk` emits `"kind"` only when set. `peal list` gets a `kind:bug`
+  token and `overview.awk` a pill after the slug. Both are coloured with 24-bit ANSI only
+  on a TTY, never with NO_COLOR, and forced with `PEAL_COLOR=always|never`.
+
+**Size: more than L**, so the planner proposes `/peal:split`:
+1. **0060 (L):** the setting and merge, the field and validation, `peal check`, the
+   column, list/overview/board and colour, the `idea.md`/`split.md`/`revise.md` texts,
+   the templates, `docs/design.md` (fields table, Configuration) and `.peal/config.yml`.
+2. **PART1 (S–M):** issues storage maps kinds to labels (`store-issues.sh`,
+   `issues-text.awk`, `issues-scan.awk`). Depends on 0060.
+3. **PART2 (S):** the PR title by kind (`close.sh`). Depends on 0060.
+4. **PART3 (M):** release notes and bump by kind (`ship.sh`, `release.md`). Depends on
+   0060 and PART1.
+
+**Model:** default. **Merge:** default, not auto.
+
+**Decisions to ask, each with the planner's default:**
+1. The split above: yes.
+2. `kinds` override: replace wholesale.
+3. Colour: six-hex, truecolor pill, `PEAL_COLOR`.
+4. Default colours: GitHub's, and `chore` as chore's label.
+5. All keys per kind optional, with fallbacks.
+6. Board: kind only, no colour.
+7. `peal check` skips done tasks.
+8. An unknown kind read from a file: warn, and read as no kind.
+9. Pill placement: list token, overview after the slug.
+10. Two kind labels on an issue: the first in config order wins.
+11. No plain `kind: x` label unless the kind has no label.
+12. No GitHub label colours set.
+13. No `!` in breaking PR titles.
+14. PR titles ignore `commit.areas`.
+15. A release item without a kind: the guess maps to the first fix/feat kind.
+16. Summary line counted per section.
+17. `ITEM` carries the kind's name.
+18. A project field named `kind` is refused; the fixture is renamed.
+19. `/peal:idea` sets a kind only when the wording makes it clear.
+20. Write `## Scope` and correct `touches` from the plan.
+
 ---
 
 ## Outcome
