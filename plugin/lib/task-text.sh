@@ -54,9 +54,11 @@ peal_text_section_filled() {
 }
 
 # peal_text_outcome_placeholder -> status 0 if "## Outcome" still holds an HTML comment,
-# the template's placeholder or a note left in it.
+# the template's placeholder or a note left in it, outside any indented (quoted) block: an
+# idea copied out of the queue by hand and indented into the Outcome carries its own
+# "<!-- Written at close ... -->" placeholder, which is not this task's.
 peal_text_outcome_placeholder() {
-  peal_text_section Outcome | grep -q -F '<!--'
+  peal_text_section Outcome | awk '/^[ \t]/ { next } /<!--/ { found = 1 } END { exit !found }'
 }
 
 # peal_text_add_note LINE -> the text with LINE as its own paragraph right under the first

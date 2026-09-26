@@ -157,7 +157,7 @@ peal_close_begin() {
   esac
   ideas=$(peal_ideas)
   if [ -n "$ideas" ]; then
-    echo "NOTE: $(printf '%s\n' "$ideas" | wc -l | tr -d ' ') idea(s) queued on this branch, filed by finish:"
+    echo "NOTE: $(printf '%s\n' "$ideas" | wc -l | tr -d ' ') idea(s) queued on this branch, filed by finish (peal ideas --export to read them, --drop N or --all to drop one now):"
     printf '%s\n' "$ideas" | awk -F '\t' '{ print "  " $1 " — " $2 }'
   fi
   if [ "$(peal_fm_get "$file" merge 2>/dev/null)" = auto ]; then
