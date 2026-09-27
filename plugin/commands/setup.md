@@ -78,7 +78,9 @@ of the commit.
 `peal init --stage guardrails`: Peal's git hooks for this clone (no commit on the main
 branch, the commit subject grammar, the project's checks before a commit). The commit
 holds only the `stages:` line: the hooks are each clone's own, so tell the human that
-every clone runs `/peal:setup guardrails` (or `.peal/peal hooks install`) once.
+every other clone gets them itself, at its first `peal claim` or session start
+(`peal_hooks_ensure`); `.peal/peal hooks install` still does it by hand or on top of a
+`core.hooksPath` the automatic install only warned about.
 
 ### `milestones`
 

@@ -51,7 +51,7 @@ peal_commit() {
     return 2
   fi
   if ! peal_hooks_installed; then
-    peal_err "commit: Peal's git hooks are not installed here, so nothing would gate the commit; run: peal hooks install"
+    peal_err "commit: Peal's git hooks are not installed here, so nothing would gate the commit; run: .peal/peal hooks install"
     return 2
   fi
   if [ $# -gt 0 ]; then

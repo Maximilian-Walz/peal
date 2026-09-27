@@ -155,7 +155,9 @@ peal_offer() {
 # claim beats to it. Refused: a task done, awaiting merge, blocked, claimed elsewhere, or
 # of a milestone that is parked, done or unknown. A task claimed on this machine already
 # prints its worktree again, and a parked claim is resumed. --print-path: the worktree's
-# path as the last line. Status 1 when --next finds nothing to claim.
+# path as the last line. Status 1 when --next finds nothing to claim. A fresh clone whose
+# config records the `guardrails` stage gets its git gates first (peal_hooks_ensure): its
+# success line on stdout, before anything else; a warning or a failed install on stderr.
 peal_claim() {
   local id="" next=0 pool="" print=0 candidates cand status
   while [ $# -gt 0 ]; do
@@ -176,6 +178,7 @@ peal_claim() {
     peal_err "claim: ID [--print-path], or --next [POOL] [--print-path]"
     return 2
   fi
+  peal_hooks_ensure
   if [ $next = 0 ]; then
     _peal_claim_one "$id" "$print"
     return
