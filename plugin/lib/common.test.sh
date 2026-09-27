@@ -44,34 +44,105 @@ git_try_cases() {
   check "git_try: failure's reason on one line" "1" "$([[ "$PEAL_GIT_ERR" != *$'\n'* ]] && echo 1 || echo 0)"
 }
 
-# git_try_ssh_cases -> the scenario the task fixes: a remote that cannot authenticate.
-# GIT_SSH_COMMAND set as bin/peal sets it (a batch-mode ssh with a connect timeout, never
-# a real one under test: a fake ssh on PATH stands in for "cannot authenticate") fails
-# fast, its reason (what the fake ssh wrote to stderr) landing in PEAL_GIT_ERR, never
-# hanging on a prompt no one is there to answer.
-git_try_ssh_cases() {
-  local dir fakebin out status start elapsed reason
-  dir=$(scratch_dir)
-  git init -q "$dir/repo"
-  fakebin=$(scratch_dir)
-  cat >"$fakebin/ssh" <<'EOF'
+# ssh_batch_mode_cases -> peal_ssh_batch_mode's own resolution of what git would already
+# run: its own GIT_SSH_COMMAND kept and appended to; failing that, this repository's
+# core.sshCommand, same treatment; failing that, GIT_SSH (a bare program path) quoted
+# into a command and appended to; failing all three, plain ssh. Batch mode and a connect
+# timeout are appended only when that program is ssh itself: a non-ssh GIT_SSH_COMMAND or
+# GIT_SSH (plink, a wrapper script) is left exactly as it is.
+ssh_batch_mode_cases() {
+  local dir
+  dir=$(scratch_dir)/repo
+  git init -q "$dir"
+  cd "$dir" || return 2
+
+  unset GIT_SSH_COMMAND GIT_SSH
+  peal_ssh_batch_mode
+  check "ssh batch mode: nothing set" "ssh -o BatchMode=yes -o ConnectTimeout=10" "$GIT_SSH_COMMAND"
+
+  GIT_SSH_COMMAND="ssh -F /my/config -o ProxyCommand=foo"
+  unset GIT_SSH
+  peal_ssh_batch_mode
+  check "ssh batch mode: its own GIT_SSH_COMMAND kept, the options appended after" \
+    "ssh -F /my/config -o ProxyCommand=foo -o BatchMode=yes -o ConnectTimeout=10" "$GIT_SSH_COMMAND"
+
+  unset GIT_SSH_COMMAND GIT_SSH
+  git config core.sshCommand "ssh -i /my/key"
+  peal_ssh_batch_mode
+  check "ssh batch mode: core.sshCommand kept, the options appended after" \
+    "ssh -i /my/key -o BatchMode=yes -o ConnectTimeout=10" "$GIT_SSH_COMMAND"
+  git config --unset core.sshCommand
+
+  unset GIT_SSH_COMMAND GIT_SSH
+  GIT_SSH_COMMAND="plink -batch"
+  peal_ssh_batch_mode
+  check "ssh batch mode: a non-ssh GIT_SSH_COMMAND left untouched" "plink -batch" "$GIT_SSH_COMMAND"
+
+  unset GIT_SSH_COMMAND GIT_SSH
+  GIT_SSH=/usr/bin/ssh
+  peal_ssh_batch_mode
+  check "ssh batch mode: GIT_SSH, a bare path, quoted and appended to" \
+    "/usr/bin/ssh -o BatchMode=yes -o ConnectTimeout=10" "$GIT_SSH_COMMAND"
+
+  unset GIT_SSH_COMMAND GIT_SSH
+  GIT_SSH=/usr/bin/plink
+  peal_ssh_batch_mode
+  check "ssh batch mode: a non-ssh GIT_SSH left GIT_SSH_COMMAND unset" "" "${GIT_SSH_COMMAND-}"
+
+  unset GIT_SSH_COMMAND GIT_SSH
+  cd - >/dev/null || return 2
+}
+
+# fake_ssh_that_needs_batch_mode DIR -> DIR/ssh, an ssh standing in for one that cannot
+# authenticate: it hangs (sleeps well past this harness's own timeout) unless it is run
+# with -o BatchMode=yes, so a case that skips peal_ssh_batch_mode, or a fix that does not
+# really append the option, does not merely look fast by accident; given BatchMode, it
+# fails at once with a message.
+fake_ssh_that_needs_batch_mode() {
+  cat >"$1/ssh" <<'EOF'
 #!/bin/sh
+case " $* " in
+  *" -o BatchMode=yes "*) ;;
+  *) sleep 300 ;;
+esac
 echo "Permission denied (publickey)." >&2
 exit 255
 EOF
-  chmod +x "$fakebin/ssh"
+  chmod +x "$1/ssh"
+}
+
+# git_try_ssh_cases -> the scenario the task fixes: a remote that cannot authenticate,
+# reached through the GIT_SSH_COMMAND a sandbox already set (no batch mode of its own,
+# the way the task's own sandbox sets one with a ProxyCommand) rather than an unset one.
+# peal_ssh_batch_mode must append batch mode to that existing command, not leave it
+# alone or replace it, for this to fail fast instead of hanging on the fake ssh above.
+git_try_ssh_cases() {
+  local dir fakebin out start elapsed status reason cmd
+  if ! command -v timeout >/dev/null 2>&1; then
+    echo "common.test.sh: no timeout here to bound a hang; git_try_ssh_cases skipped" >&2
+    return 0
+  fi
+  dir=$(scratch_dir)
+  git init -q "$dir/repo"
+  fakebin=$(scratch_dir)
+  fake_ssh_that_needs_batch_mode "$fakebin"
 
   start=$SECONDS
   out=$(
-    PATH="$fakebin:$PATH" GIT_SSH_COMMAND="ssh -o BatchMode=yes -o ConnectTimeout=10" GIT_TERMINAL_PROMPT=0 \
-      bash -c 'cd "$1" && . "$2/common.sh" && peal_git_try git fetch -q "$3" main; echo "STATUS:$?"; echo "ERR:$PEAL_GIT_ERR"' \
+    # shellcheck disable=SC2016 # the inner bash -c's own $1, $2, $3, $?, $PEAL_GIT_ERR and
+    # $GIT_SSH_COMMAND (its own, once peal_ssh_batch_mode runs there), not this shell's
+    PATH="$fakebin:$PATH" GIT_SSH_COMMAND="ssh -o ProxyCommand=true" GIT_TERMINAL_PROMPT=0 \
+      timeout 5 bash -c 'cd "$1" && . "$2/common.sh" && peal_ssh_batch_mode && peal_git_try git fetch -q "$3" main; echo "STATUS:$?"; echo "ERR:$PEAL_GIT_ERR"; echo "CMD:$GIT_SSH_COMMAND"' \
       _ "$dir/repo" "$PEAL_ROOT/lib" "ssh://git@example.invalid/acme/widgets.git" 2>&1
   )
   elapsed=$((SECONDS - start))
   status=$(printf '%s\n' "$out" | sed -n 's/^STATUS://p')
   reason=$(printf '%s\n' "$out" | sed -n 's/^ERR://p')
-  check "git_try ssh: fails, not silently" "1" "$([ "$status" != 0 ] && echo 1 || echo 0)"
-  check "git_try ssh: fast, never hangs on a prompt" "1" "$([ "$elapsed" -le 5 ] && echo 1 || echo 0)"
+  cmd=$(printf '%s\n' "$out" | sed -n 's/^CMD://p')
+  check "git_try ssh: batch mode appended to the sandbox's own GIT_SSH_COMMAND" \
+    "ssh -o ProxyCommand=true -o BatchMode=yes -o ConnectTimeout=10" "$cmd"
+  check "git_try ssh: fails, not silently" "1" "$([ -n "$status" ] && [ "$status" != 0 ] && echo 1 || echo 0)"
+  check "git_try ssh: fast, never hangs on the fake ssh above" "1" "$([ "$elapsed" -le 3 ] && echo 1 || echo 0)"
   check "git_try ssh: the reason captured" "1" "$(printf '%s' "$reason" | grep -c 'Permission denied')"
 }
 
@@ -105,6 +176,7 @@ status_porcelain_cases() {
 }
 
 git_try_cases
+ssh_batch_mode_cases
 git_try_ssh_cases
 status_porcelain_cases
 finish

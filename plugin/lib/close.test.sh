@@ -188,23 +188,42 @@ begin_cases() {
 # begin_unreachable_cases -> close begin's fetch, against a remote that cannot
 # authenticate, fails within the timeout instead of hanging over ssh with no output
 # (Intent), and says so with the remote and why; begin still runs, on what is known here
-# already (the stale origin/main this worktree was cloned from).
+# already (the stale origin/main this worktree was cloned from). GIT_SSH_COMMAND is set
+# here as the sandbox the task came from already sets one (an ssh of its own, no batch
+# mode): peal_ssh_batch_mode (bin/peal) must append batch mode to it, not leave it alone,
+# for this to fail fast rather than hang on the fake ssh below, which sleeps well past
+# the harness's own timeout unless it is run with -o BatchMode=yes.
 begin_unreachable_cases() {
   local fakebin out start elapsed
+  if ! command -v timeout >/dev/null 2>&1; then
+    echo "close.test.sh: no timeout here to bound a hang; begin_unreachable_cases skipped" >&2
+    return 0
+  fi
   new_repo
   ready 1 first-task
   fakebin=$(scratch_dir)
   cat >"$fakebin/ssh" <<'SSHEOF'
 #!/bin/sh
+case " $* " in
+  *" -o BatchMode=yes "*) ;;
+  *) sleep 300 ;;
+esac
 echo "Permission denied (publickey)." >&2
 exit 255
 SSHEOF
   chmod +x "$fakebin/ssh"
   git -C "$wt" remote set-url origin "ssh://git@example.invalid/acme/widgets.git"
   start=$SECONDS
-  out=$(PATH="$fakebin:$PATH" at "$wt" "$PEAL" close begin 2>&1)
+  out=$(
+    # shellcheck disable=SC2016 # the inner bash -c's own $1 and "$@" (close begin and its
+    # args), not this shell's; timeout in front keeps shellcheck from seeing bash -c's
+    # usual quoting rule here at all
+    PATH="$fakebin:$PATH" GIT_SSH_COMMAND="ssh -o ProxyCommand=true" \
+      timeout 5 bash -c 'cd "$1" && shift && "$@"' _ "$wt" "$PEAL" close begin 2>&1
+  )
   elapsed=$((SECONDS - start))
-  check "begin unreachable: fast, not hung" "1" "$([ "$elapsed" -le 5 ] && echo 1 || echo 0)"
+  check "begin unreachable: fast, not hung (the fake ssh would sleep on a regression)" "1" \
+    "$([ "$elapsed" -le 3 ] && echo 1 || echo 0)"
   check "begin unreachable: names the remote" "1" \
     "$(printf '%s\n' "$out" | grep -c 'could not fetch origin/main')"
   check "begin unreachable: says why" "1" "$(printf '%s\n' "$out" | grep -c 'Permission denied')"
