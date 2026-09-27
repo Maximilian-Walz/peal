@@ -41,6 +41,15 @@ sessions on main; `idea` with `wait: true` returning no id.
 
 ## Notes
 
+- Order: Belfry's server accepts `tasks.commands.create` only from the release after
+  its #264. Peal's own `.belfry.yml` gets the key once that release is deployed; before,
+  the server refuses the contract and keeps the last valid one, so this task's PR waits
+  for the deploy (or leaves the key out and a follow-up adds it).
+- Origin: a task filed from untrusted text (an outsider's issue or comment) should keep
+  that origin in its frontmatter, as Belfry does for issues (Belfry #211). Belfry's
+  create does not pass an origin yet; decide in the plan whether the command takes one
+  (e.g. `--origin outsider`) or file it as a follow-up with Belfry.
+
 
 ---
 
