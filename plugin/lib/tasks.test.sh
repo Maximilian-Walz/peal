@@ -334,6 +334,13 @@ board() {
   printf '#!/bin/sh\necho called >&2\nexit 1\n' >"$bin/gh"
   check "list: gh only for a task awaiting merge" "0001 blocked odd-title needs:human" \
     "$(PATH="$bin:$PATH" at "$work" "$PEAL" list --state blocked 2>&1 | grep -v '^0003')"
+
+  # A fork's pull request, named like the task's branch, supplies no url: a stranger's
+  # branch of the same name proves nothing about this task.
+  printf '#!/bin/sh\nprintf "task/0003-merging-task\\t22\\tfalse\\thttps://example.com/pull/22\\ttrue\\n"\n' >"$bin/gh"
+  check "list: a fork's pull request supplies no url" "0003 awaiting-merge merging-task pr:unknown wt:$work-0003" \
+    "$(PATH="$bin:$PATH" at "$work" "$PEAL" list 0003 2>&1)"
+
   git -C "$work" worktree remove --force "$work-0003"
   git -C "$work" branch -q -D task/0003-merging-task
   git -C "$work" push -q origin --delete task/0003-merging-task 2>/dev/null
