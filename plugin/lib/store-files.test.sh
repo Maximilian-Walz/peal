@@ -93,6 +93,7 @@ create_belfry() {
   out=$(text "milestone: m1" | peal create --owner ai --title "Model the crate for level two" 2>&1)
   check "belfry create" "0:filed 0004 tasks/backlog/0004-model-the-crate-for-level.md — milestone: m1, plan: -, size: - — \"Title of 0004\"
 filed: 0004" "$?:$out"
+  # shellcheck disable=SC2016 # the literal backtick in the contract's own regex
   check "belfry create: the last line matches the contract's regex" "1" \
     "$(printf '%s\n' "$out" | tail -n 1 | grep -c -E '^[ 	`]*filed:[ 	]*#?([A-Za-z0-9._-]+)[ 	`]*$')"
   check "belfry create: the file, no owner line" "$(ID=0004 text "milestone: m1")" \

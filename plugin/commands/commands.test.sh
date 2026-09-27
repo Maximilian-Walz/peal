@@ -64,7 +64,9 @@ check "idea: touches only when the idea names the files" "1|1" \
 # shellcheck disable=SC2016 # the literal backticks
 check "idea: names BELFRY_SESSION" "2" "$(grep -c -F 'BELFRY_SESSION' "$commands/idea.md")"
 check "idea: calls Belfry's task_create" "3" "$(grep -c -F 'task_create' "$commands/idea.md")"
+# shellcheck disable=SC2016 # the literal backticks
 check "idea: falls back to Belfry's idea tool" "1" "$(grep -c -F 'call the `idea` tool instead' "$commands/idea.md")"
+# shellcheck disable=SC2016 # the literal backticks
 check "idea: never runs peal idea off a task branch under Belfry" "1" \
   "$(grep -c -F 'never run `peal idea` here' "$commands/idea.md")"
 
