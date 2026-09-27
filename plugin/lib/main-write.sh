@@ -46,10 +46,45 @@ _peal_mw_refused_by_rule() {
   return 1
 }
 
-# _peal_mw_fetch_branches -> the remote's main-write branches fetched, the gone ones pruned.
+# _peal_mw_fetch_branches -> the remote's main-write branches fetched, the gone ones pruned;
+# for a write that names PEAL_MW_TAKEN, its rivals too (_peal_mw_rivals, all of them).
 _peal_mw_fetch_branches() {
   git fetch -q --prune "$PEAL_REMOTE" \
     "+refs/heads/$PEAL_MW_PREFIX*:refs/remotes/$PEAL_REMOTE/$PEAL_MW_PREFIX*" 2>/dev/null || true
+  PEAL_MW_RIVALS=""
+  [ -z "${PEAL_MW_TAKEN-}" ] || _peal_mw_rivals "$(peal_github_repo)" ""
+}
+
+# _peal_mw_rivals REPO [BELOW] -> PEAL_MW_RIVALS: the fetched heads (refs) of the open pull
+# requests against main numbered below BELOW (every one, when empty) whose branch is in
+# the repository itself: any branch, a hand filing's as much as Peal's; a fork's never.
+_peal_mw_rivals() {
+  local repo=$1 below=${2:-0} heads ref
+  PEAL_MW_RIVALS=""
+  heads=$(peal_gh --paginate "repos/$repo/pulls?state=open&per_page=100" --jq \
+    ".[] | select(($below == 0 or .number < $below) and .base.ref == \"$PEAL_MAIN\"
+      and .head.repo != null and .head.repo.full_name == .base.repo.full_name) | .head.ref" 2>/dev/null) || heads=""
+  for ref in $heads; do
+    git check-ref-format "refs/heads/$ref" 2>/dev/null || continue
+    git fetch -q "$PEAL_REMOTE" "+refs/heads/$ref:refs/remotes/$PEAL_REMOTE/$ref" 2>/dev/null \
+      && PEAL_MW_RIVALS="$PEAL_MW_RIVALS refs/remotes/$PEAL_REMOTE/$ref"
+  done
+  return 0
+}
+
+# _peal_mw_taken REPO -> status 0 when PEAL_MW_TAKEN finds what PEAL_MW_PR wrote taken on
+# the newest main or by a rival numbered below it, both fetched first.
+_peal_mw_taken() {
+  _peal_mw_rivals "$1" "$PEAL_MW_PR"
+  git fetch -q "$PEAL_REMOTE" "$PEAL_MAIN" 2>/dev/null
+  # shellcheck disable=SC2086 # refs are words
+  "$PEAL_MW_TAKEN" "refs/remotes/$PEAL_REMOTE/$PEAL_MAIN" $PEAL_MW_RIVALS
+}
+
+# _peal_mw_taken_drop REPO BRANCH -> PEAL_MW_PR, what it wrote taken, closed and said so.
+_peal_mw_taken_drop() {
+  peal_err "#$PEAL_MW_PR's number is taken meanwhile, on $PEAL_MAIN or by an earlier pull request; closed, and built again"
+  _peal_mw_drop "$1" "$PEAL_MW_PR" "$2"
 }
 
 # peal_push_main BUILD [COMMAND] -> BUILD BASE run on the remote's main and its result
@@ -59,12 +94,13 @@ _peal_mw_fetch_branches() {
 # request's body. A push that fails for another reason is not retried: status 1; under
 # main-writes auto a refusal by the remote switches to a pull request (_peal_mw_pr).
 # PEAL_MW_TAKEN, when set, names a function REF... telling whether what the build wrote
-# is taken at one of the REFs meanwhile (a filing's numbers); the pull request route then
-# builds again. Afterwards PEAL_MW_PR, PEAL_MW_URL and PEAL_MW_STATE (merged, auto, open)
+# is taken at one of the REFs meanwhile (a filing's numbers): the pull request route then
+# fetches the rival pull requests before the first build, checks again once the pull
+# request is open and before Peal merges it, and builds again when it is taken. Afterwards PEAL_MW_PR, PEAL_MW_URL and PEAL_MW_STATE (merged, auto, open)
 # describe the pull request, if one was made: peal_main_write_report.
 peal_push_main() {
   local build=$1 command=${2-} attempt=1 max=${PEAL_PUSH_ATTEMPTS:-5} route base sha new err status replaces=""
-  PEAL_MW_PR="" PEAL_MW_URL="" PEAL_MW_STATE=""
+  PEAL_MW_PR="" PEAL_MW_URL="" PEAL_MW_STATE="" PEAL_MW_RIVALS=""
   route=$(_peal_mw_route) || return 2
   err=$(mktemp) || return 2
   [ "$route" != pr ] || _peal_mw_fetch_branches
@@ -142,7 +178,7 @@ _peal_mw_body() {
 # when it is still open after PEAL_MAIN_WRITE_BUDGET, 1 when it cannot open or its checks
 # fail, 2 without the settings.
 _peal_mw_pr() {
-  local sha=$1 command=$2 replaces=$3 branch repo out node rivals refs ref mergeable e
+  local sha=$1 command=$2 replaces=$3 branch repo out node mergeable e
   branch=$PEAL_MW_PREFIX$(git rev-parse --short "$sha")
   repo=$(peal_github_repo) || return 2
   e=$(mktemp) || return 2
@@ -169,21 +205,9 @@ _peal_mw_pr() {
 
   # Built on the same main, an earlier pull request may hold what this one does: the
   # lower number wins, this one is built again.
-  if [ -n "${PEAL_MW_TAKEN-}" ]; then
-    rivals=$(peal_gh "repos/$repo/pulls?state=open&per_page=100" --jq \
-      ".[] | select(.number < $PEAL_MW_PR and (.head.ref | startswith(\"$PEAL_MW_PREFIX\"))) | .head.ref") || rivals=""
-    refs="refs/remotes/$PEAL_REMOTE/$PEAL_MAIN"
-    for ref in $rivals; do
-      git fetch -q "$PEAL_REMOTE" "+refs/heads/$ref:refs/remotes/$PEAL_REMOTE/$ref" 2>/dev/null \
-        && refs="$refs refs/remotes/$PEAL_REMOTE/$ref"
-    done
-    git fetch -q "$PEAL_REMOTE" "$PEAL_MAIN" 2>/dev/null
-    # shellcheck disable=SC2086 # refs are words
-    if "$PEAL_MW_TAKEN" $refs; then
-      peal_err "#$PEAL_MW_PR's number is taken meanwhile, on $PEAL_MAIN or by an earlier pull request; closed, and built again"
-      _peal_mw_drop "$repo" "$PEAL_MW_PR" "$branch"
-      return 5
-    fi
+  if [ -n "${PEAL_MW_TAKEN-}" ] && _peal_mw_taken "$repo"; then
+    _peal_mw_taken_drop "$repo" "$branch"
+    return 5
   fi
   mergeable=$(peal_gh "repos/$repo/pulls/$PEAL_MW_PR" --jq '.mergeable | tostring') || mergeable=null
   if [ "$mergeable" = false ]; then
@@ -240,7 +264,8 @@ _peal_mw_merged() {
 # _peal_mw_merge_self REPO BRANCH SHA -> PEAL_MW_PR squash-merged by Peal once the checks
 # on SHA pass, polled every PEAL_MAIN_WRITE_INTERVAL seconds (20) within
 # PEAL_MAIN_WRITE_BUDGET (540). Status 0 merged, 1 a check failing (left open), 3 the
-# budget spent (left open).
+# budget spent (left open), 5 closed to be built again: what it wrote was taken while the
+# checks ran (PEAL_MW_TAKEN, on main or by a rival numbered below it).
 _peal_mw_merge_self() {
   local repo=$1 branch=$2 sha=$3 start=$SECONDS line last=""
   _peal_mw_budget || return 2
@@ -248,6 +273,10 @@ _peal_mw_merge_self() {
     line=$(peal_pr_checks "$repo" "$sha" 2>/dev/null)
     case $line in
       READY*)
+        if [ -n "${PEAL_MW_TAKEN-}" ] && _peal_mw_taken "$repo"; then
+          _peal_mw_taken_drop "$repo" "$branch"
+          return 5
+        fi
         if last=$(peal_json s:merge_method squash s:sha "$sha" \
             | peal_gh --method PUT "repos/$repo/pulls/$PEAL_MW_PR/merge" --input - --jq .sha 2>&1); then
           _peal_mw_merged "$repo" "$branch"

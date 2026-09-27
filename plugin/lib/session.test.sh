@@ -20,12 +20,31 @@ hook() {
   printf '%s:%s' "$?" "$out"
 }
 
+# hook_stdout DIR NAME JSON -> like hook, but stdout only, stderr dropped: what a
+# SessionStart hook's caller actually shows the session, since a hook's stderr never
+# reaches it. Cases that must land in the orientation, not only on stderr, use this.
+hook_stdout() {
+  local out
+  out=$(cd "$1" && "$PEAL" hook "$2" <<<"$3" 2>/dev/null)
+  printf '%s:%s' "$?" "$out"
+}
+
 # peal_repo -> repo, with a committed .peal/config.yml of small size tiers.
 peal_repo() {
   local work
   work=$(repo)
   mkdir "$work/.peal"
   printf 'sizes: {S: 3, M: 5, L: 8}\n' >"$work/.peal/config.yml"
+  publish "$work"
+  printf '%s\n' "$work"
+}
+
+# guarded_repo -> repo, with a committed .peal/config.yml recording the guardrails stage.
+guarded_repo() {
+  local work
+  work=$(repo)
+  mkdir "$work/.peal"
+  printf 'stages: [tasks, guardrails]\n' >"$work/.peal/config.yml"
   publish "$work"
   printf '%s\n' "$work"
 }
@@ -134,10 +153,60 @@ autosave() {
   check "autosave: not on main" "?? stray.txt" "$(git -C "$work" status --porcelain)"
 }
 
+# gates -> a fresh clone whose config records the `guardrails` stage gets its git gates
+# from the SessionStart hook itself (lib/githooks.sh, peal_hooks_ensure), named directly
+# after "Peal:" (0059).
+gates() {
+  local work dir hooksdir out
+
+  work=$(guarded_repo)
+  dir=$(cd "$work/.git" && pwd)/peal/hooks
+  hooksdir=$(cd "$work/.git" && pwd)/hooks
+
+  out=$(hook "$work" session-start '{"source":"startup"}')
+  check "gates: installs the hooks, right after Peal:" \
+    "0:Peal:
+installed Peal's git hooks in $dir (core.hooksPath); they chain to the hooks in $hooksdir
+Current milestone: m1, Milestone m1 (docs/milestones/m1.md)
+Task: none in this worktree. /peal:work claims one into a worktree of its own." "$out"
+  check "gates: core.hooksPath" "$dir" "$(git -C "$work" config core.hooksPath)"
+
+  out=$(hook "$work" session-start '{"source":"startup"}')
+  check "gates: a second start, no hooks line" "0" \
+    "$(printf '%s\n' "$out" | grep -c "installed Peal's git hooks")"
+
+  # Without guardrails: nothing installed, no line.
+  work=$(repo)
+  out=$(hook "$work" session-start '{"source":"startup"}')
+  check "gates: no guardrails stage, no line" "0" "$(printf '%s\n' "$out" | grep -c 'git hooks')"
+  check "gates: no guardrails stage, core.hooksPath stays unset" "" "$(git -C "$work" config core.hooksPath)"
+
+  # A foreign core.hooksPath: the warning, naming the command, left unchanged, in the
+  # stdout orientation (not only on stderr, which a SessionStart hook's caller drops).
+  work=$(guarded_repo)
+  git -C "$work" config core.hooksPath custom-hooks
+  out=$(hook_stdout "$work" session-start '{"source":"startup"}')
+  check "gates: a foreign core.hooksPath warns, right after Peal:" \
+    "0:Peal:
+peal: Peal's git hooks are not installed: core.hooksPath is custom-hooks; to install them chained to it, run: .peal/peal hooks install
+Current milestone: m1, Milestone m1 (docs/milestones/m1.md)
+Task: none in this worktree. /peal:work claims one into a worktree of its own." "$out"
+  check "gates: a foreign core.hooksPath is left alone" "custom-hooks" "$(git -C "$work" config core.hooksPath)"
+
+  # A forced failure: the common directory's peal/ blocked by a plain file. The command
+  # must reach stdout too, not only stderr.
+  work=$(guarded_repo)
+  : >"$work/.git/peal"
+  out=$(hook_stdout "$work" session-start '{"source":"startup"}')
+  check "gates: a failure exits 0, names the command, in stdout" "0:1" \
+    "${out%%:*}:$(printf '%s\n' "$out" | grep -c "could not be installed.*\\.peal/peal hooks install")"
+}
+
 cases() {
   orientation
   budget
   autosave
+  gates
 }
 
 for_each_awk cases

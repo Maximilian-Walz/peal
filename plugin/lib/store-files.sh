@@ -276,13 +276,14 @@ _peal_files_milestones_at() {
 
 # _peal_files_next_id BASE -> one past the highest task number in BASE's task files, in
 # every task branch's name, local or on any remote, and in the task files of the main
-# writes' branches fetched (a filing's pull request not merged yet): a claimed number
-# stays taken.
+# writes' branches fetched and on the heads of the rival pull requests fetched
+# (PEAL_MW_RIVALS: a filing's pull request not merged yet, Peal's or a hand's): a claimed
+# number stays taken.
 _peal_files_next_id() {
   local ref
   {
     _peal_files_ids "$1"
-    for ref in $(git for-each-ref --format='%(refname)' "refs/remotes/$PEAL_REMOTE/$PEAL_MW_PREFIX*"); do
+    for ref in $(git for-each-ref --format='%(refname)' "refs/remotes/$PEAL_REMOTE/$PEAL_MW_PREFIX*") ${PEAL_MW_RIVALS-}; do
       _peal_files_ids "$ref"
     done
     git for-each-ref --format='%(refname)' "refs/heads/$PEAL_PREFIX*" "refs/remotes/*/$PEAL_PREFIX*" \

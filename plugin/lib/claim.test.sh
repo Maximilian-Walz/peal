@@ -364,6 +364,75 @@ refs/reaped/0101-timeless" "$(git -C "$work" for-each-ref --format='%(refname)' 
   check "reap: only on a new session" "0" "$out"
 }
 
+
+# guarded_repo -> repo, with a committed .peal/config.yml recording the guardrails stage.
+guarded_repo() {
+  local w
+  w=$(repo)
+  mkdir "$w/.peal"
+  printf 'stages: [tasks, guardrails]\n' >"$w/.peal/config.yml"
+  publish "$w"
+  printf '%s\n' "$w"
+}
+
+# gates -> a fresh clone whose config records the `guardrails` stage gets its git gates
+# from `peal claim` itself (lib/githooks.sh, peal_hooks_ensure), without a manual `hooks
+# install` (0059).
+gates() {
+  local work wt dir hooksdir out
+
+  work=$(guarded_repo)
+  put "$work" backlog 0001 first-claim
+  wt=$(dirname "$work")/work-wt/0001-first-claim
+  dir=$(cd "$work/.git" && pwd)/peal/hooks
+  hooksdir=$(cd "$work/.git" && pwd)/hooks
+
+  out=$(peal claim 0001 --print-path 2>&1)
+  check "gates: installs the hooks, the path still last" \
+    "installed Peal's git hooks in $dir (core.hooksPath); they chain to the hooks in $hooksdir
+commit-msg: only task files; the checks are skipped.
+claimed 0001 task/0001-first-claim $wt
+$wt" "$out"
+  check "gates: core.hooksPath" "$dir" "$(git -C "$wt" config core.hooksPath)"
+  check "gates: executable stubs" "commit-msg pre-push" \
+    "$([ -x "$dir/commit-msg" ] && printf 'commit-msg ')$([ -x "$dir/pre-push" ] && printf 'pre-push')"
+
+  out=$(at "$wt" "$PEAL" close begin 2>&1)
+  check "gates: close begin not refused for missing hooks" "0" \
+    "$(printf '%s\n' "$out" | grep -c 'hooks are not installed')"
+
+  out=$(peal claim 0001 --print-path 2>&1)
+  check "gates: a second claim, no hooks line" "0" \
+    "$(printf '%s\n' "$out" | grep -c "installed Peal's git hooks")"
+
+  # Without guardrails: nothing installed, no line.
+  work=$(repo)
+  put "$work" backlog 0001 no-guardrails
+  out=$(peal claim 0001 --print-path 2>&1)
+  check "gates: no guardrails stage, core.hooksPath stays unset" "" "$(git -C "$work" config core.hooksPath)"
+  check "gates: no guardrails stage, no line" "0" \
+    "$(printf '%s\n' "$out" | grep -c 'git hooks')"
+
+  # A foreign core.hooksPath: warned, left alone, never installed.
+  work=$(guarded_repo)
+  git -C "$work" config core.hooksPath custom-hooks
+  put "$work" backlog 0002 foreign-hooks
+  out=$(peal claim 0002 --print-path 2>&1 >/dev/null)
+  check "gates: a foreign core.hooksPath warns, names the command" "1" \
+    "$(printf '%s\n' "$out" | grep -c "core.hooksPath is custom-hooks.*\\.peal/peal hooks install")"
+  check "gates: a foreign core.hooksPath is left alone" "custom-hooks" "$(git -C "$work" config core.hooksPath)"
+
+  # A forced failure: the common directory's peal/ blocked by a plain file.
+  work=$(guarded_repo)
+  : >"$work/.git/peal"
+  put "$work" backlog 0003 forced-failure
+  out=$(peal claim 0003 --print-path 2>&1)
+  wt=$(dirname "$work")/work-wt/0003-forced-failure
+  check "gates: a forced failure still claims" "$wt" "$(printf '%s\n' "$out" | tail -1)"
+  check "gates: a forced failure names the command" "1" \
+    "$(printf '%s\n' "$out" | grep -c "could not be installed.*\\.peal/peal hooks install")"
+}
+
 cases() {
   offer
   offer_priority
@@ -374,6 +443,7 @@ cases() {
   overlap
   release
   reap
+  gates
 }
 
 for_each_awk cases
