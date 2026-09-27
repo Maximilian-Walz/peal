@@ -86,3 +86,10 @@ peal_store_load() {
       ;;
   esac
 }
+
+# peal_ref_date_utc REF -> the UTC calendar date of REF's last commit (YYYY-MM-DD), so a
+# parked task's "last <date>" detail matches the UTC dates Peal writes everywhere else.
+# Shared by the stores; not part of the storage interface above.
+peal_ref_date_utc() {
+  TZ=UTC git log -1 --format=%cd --date=format-local:%Y-%m-%d "$1"
+}

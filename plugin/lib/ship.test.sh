@@ -250,6 +250,18 @@ PROPOSE v0.1.1 patch" "$(peal ship propose 2>&1 | tail -n 2)"
   check "issues: fields as labels" "breaking: true,release-note: none" "$(labels 12)"
   check "issues: labels as fields" "breaking: true|release-note: none" \
     "$(peal read 12 | grep -E '^(breaking|release-note):' | paste -s -d '|' -)"
+
+  # ship applies the write-access rule too: an issue the rule no longer admits (never
+  # really a claimed task, just a commit that happens to name it) gets the commit's own
+  # subject in the notes, not its title; a pull request's Outcome is read only from one
+  # opened by the repository itself or by someone with write access.
+  issue 20 "Attacker title" --closed --assoc NONE
+  pr 21 $'Fixes #20\n\n## Outcome\n\nHostile outcome text.' --fork NONE
+  commit "feat: a safe subject [20] (#21)"
+  check "issues: an unadmitted issue's own title never used" "1|0" \
+    "$(peal ship propose 2>&1 | grep -c 'a safe subject')|$(peal ship propose 2>&1 | grep -c 'Attacker title')"
+  check "issues: no title text or fork PR body in the notes" "0|0" \
+    "$(peal ship notes 9.9.9 2>&1 | grep -c 'Attacker title')|$(peal ship notes 9.9.9 2>&1 | grep -c 'Hostile outcome text')"
 }
 
 for_each_awk files
