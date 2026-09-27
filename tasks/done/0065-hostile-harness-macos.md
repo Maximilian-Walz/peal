@@ -77,3 +77,32 @@ Touches: plugin/lib/hostile.test.sh, .github/workflows/ci.yml, tools/test-all.sh
 
 ## Outcome
 
+**What was built.**
+- **The mktemp shim.** `plugin/lib/hostile.test.sh` records the real `mktemp` and writes a `mktemp` shim into `$STUBS`, which is on the PATH of every Peal run in the harness and of the git hooks those runs install. When a call has no `XXX` template, the shim appends `"${TMPDIR:-/tmp}/tmp.XXXXXXXX"`; otherwise it passes the call through unchanged. With it, BSD `mktemp` writes under the harness's `TMPDIR`, where the leftover-temp-file check looks.
+- **The self-test and the note.** The self-test's `unsafe.temp` is a bare `mktemp` again, so "a temp file left is caught" proves the shim works. The "mktemp here ignores TMPDIR" probe runs through the shim and stays as a guard. The APFS invalid-UTF-8 note is untouched, as agreed.
+- **The harness runner.** `tools/test-all.sh` takes harness paths as arguments (with none, it finds every harness, as before) and prints each harness's elapsed seconds.
+- **CI.** `.github/workflows/ci.yml` sets a harness list per OS through `matrix.include`; the job names are unchanged, because they are required checks.
+  - Linux runs every harness, all hostile groups included, plus the coverage check.
+  - macOS runs an include list with a comment explaining each entry: the githook and launcher templates, install, githooks, frontmatter, store-files, and the hostile harness with only `self_test` and `awk_channels`.
+  - macOS also forces `/bin/bash` (bash 3.2) through a PATH shim, and logs its version and the awks it finds.
+
+**What was decided, and why** (the human's answers are under Notes):
+- A shim, not explicit templates at Peal's ~55 call sites: it touches only the harness, covers future calls, and changes no code on users' machines.
+- An include list for macOS: a new harness runs on Linux only until someone adds it here.
+- Forcing `/bin/bash`, because the image's Homebrew bash 5 would otherwise hide bash 3.2. If bash 3.2 failures show up, the human is asked rather than having them fixed in this task.
+
+**Verified.**
+- Locally on Linux:
+  - The full hostile harness: 1616 passed, 0 failed, no notes.
+  - With `self_test` alone: 5 passed.
+  - With `claim.sh`'s temp-file cleanup removed on purpose, `awk_channels` reported `temp files left:` (then reverted).
+  - `test-all.sh` with no arguments finds all 26 harnesses; given paths, it runs only those.
+  - `tools/lint.sh` is clean.
+- The reviewer, with a fake `mktemp` that ignores TMPDIR as BSD's does: main prints the note, this branch doesn't, and the self-test catches a temp file left behind.
+- The macOS timings and the log without the note can only come from this pull request's CI. CI runs only on pull requests, so the per-harness times are added to the pull request once its run is done.
+
+**Found and left.**
+- The Linux job (29-36 minutes since 0039) is the one pull requests actually wait on, not macOS (21-24). Filed as the idea `speed-up-linux-ci`, as the human asked.
+
+**For the next session.** If the macOS job misses 7 minutes, trim the include list in ci.yml against the per-harness times that `test-all.sh` prints in the job log.
+
