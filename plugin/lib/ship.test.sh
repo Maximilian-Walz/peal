@@ -9,7 +9,9 @@
 # (sections, one line per task from its title and Outcome, links, retired and
 # release-note: none tasks left out, feat and fix commits of no task), the tag (annotated,
 # pushed; refused when it exists, here or on the remote, or is not above the last
-# release), the GitHub release created and updated, the wait for the tag's workflow runs
+# release), the version files set before the tag (release.version-files: JSON, TOML and
+# YAML, directly and through a pull request, and their refusals), the GitHub release
+# created and updated, the wait for the tag's workflow runs
 # and the release.report lines, and the fields breaking and release-note.
 set -uo pipefail
 # shellcheck source=test-lib.sh
@@ -197,6 +199,165 @@ READY" "$?:$out"
     peal create a-fourth-thing < <(text "release-note: short")
 }
 
+# versioned WORK [CONFIG-LINE...] -> WORK given three version files at 0.1.0, a JSON, a
+# TOML and a YAML one, listed in release.version-files with those lines, and a task done.
+versioned() {
+  local work=$1
+  shift
+  mkdir -p "$work/.peal" "$work/pkg"
+  printf '%s\n' "release:" "  version-files:" "    - \"plugin.json: version\"" "    - \"pkg/Cargo.toml: version\"" \
+    "    - \"chart.yaml: appVersion\"" "$@" >"$work/.peal/config.yml"
+  printf '{\n  "name": "widgets",\n  "deps": {"version": "9.9.9"},\n  "version": "0.1.0",\n  "tags": ["version"]\n}\n' >"$work/plugin.json"
+  printf 'name = "widgets"\nversion = "0.1.0" # the crate\n\n[dependencies]\nversion = "1"\n' >"$work/pkg/Cargo.toml"
+  printf "name: widgets\nappVersion: '0.1.0'\nimage:\n  appVersion: 3\n" >"$work/chart.yaml"
+  git -C "$work" add -A && git -C "$work" commit -q -m "chore: version files" && git -C "$work" push -q origin main 2>/dev/null
+  OUTCOME="Built it." land 0001 board-view "Board view [0001] (#1)"
+}
+
+# at_version REF -> the three version lines at REF.
+at_version() {
+  git -C "$work" show "$1:plugin.json" | grep '^  "version"'
+  git -C "$work" show "$1:pkg/Cargo.toml" | grep -m 1 '^version'
+  git -C "$work" show "$1:chart.yaml" | grep '^appVersion'
+}
+
+# bump_refused NAME PATTERN -> peal ship bump 0.4.0 refused with PATTERN, main unchanged.
+bump_refused() {
+  local before
+  before=$(git -C "$work" rev-parse origin/main)
+  check_refused "bump: $1" "$2" peal ship bump 0.4.0
+  check "bump: $1, main unchanged" "$before" "$(git -C "$(dirname "$work")/remote.git" rev-parse main)"
+}
+
+# listing ITEM... -> release.version-files of work's settings those items.
+listing() {
+  { echo "release:"; echo "  version-files:"; printf '    - "%s"\n' "$@"; } >"$work/.peal/config.yml"
+}
+
+bump() {
+  local work out main
+  work=$(repo)
+  versioned "$work"
+  main=$(git -C "$work" rev-parse origin/main)
+
+  check_refused "bump: no version" "'banana' is no version" peal ship bump banana
+  check_refused "tag: not bumped" "plugin.json on origin/main does not hold 0.2.0; peal ship bump v0.2.0 first" peal ship tag 0.2.0
+  out=$(peal ship bump 0.2.0 2>&1)
+  check "bump: one commit" "0:bumped plugin.json pkg/Cargo.toml chart.yaml to 0.2.0 on origin/main: $(git -C "$work" rev-parse --short origin/main) chore(release): v0.2.0" "$?:$out"
+  check "bump: on main" "$main chore(release): v0.2.0" "$(git -C "$work" log -1 --format='%P %s' origin/main)"
+  check "bump: only the version lines" '-appVersion: '"'0.1.0'"'
++appVersion: '"'0.2.0'"'
+-version = "0.1.0" # the crate
++version = "0.2.0" # the crate
+-  "version": "0.1.0",
++  "version": "0.2.0",' \
+    "$(git -C "$work" diff -U0 "$main" origin/main | grep '^[-+][^-+]')"
+  out=$(peal ship bump 0.2.0 2>&1)
+  check "bump: again, nothing" "0:already at 0.2.0: plugin.json pkg/Cargo.toml chart.yaml" "$?:$out"
+  check "bump: again, no commit" "chore(release): v0.2.0" "$(git -C "$work" log -1 --format=%s origin/main)"
+
+  peal ship tag 0.2.0 >/dev/null 2>&1
+  check "tag: on the bump, the version in each file" '  "version": "0.2.0",
+version = "0.2.0" # the crate
+appVersion: '"'0.2.0'"'' "$(at_version v0.2.0)"
+  check "tag: the bump commit" "chore(release): v0.2.0" "$(git -C "$work" log -1 --format=%s 'v0.2.0^{commit}')"
+  check "notes: the bump left out" "v0.2.0: the first release, 1 feature.
+
+## Features
+
+- Title of 0001: Built it. (0001, #1)" "$(peal ship notes 0.2.0 2>&1)"
+  check_refused "bump: the tag exists" "v0.2.0 exists already" peal ship bump 0.2.0
+  check_refused "bump: not above the last" "v0.1.5 is not above the last release, v0.2.0" peal ship bump 0.1.5
+  out=$(peal ship bump 0.3.0-rc.1 2>&1)
+  check "bump: a pre-release" "0|appVersion: '0.3.0-rc.1'" "$?|$(git -C "$work" show origin/main:chart.yaml | grep '^appVersion')"
+
+  # Refusals leave main as it is.
+  listing "gone.json: version"
+  bump_refused "a missing file" "gone.json is not on origin/main"
+  listing "plugin.json: nope"
+  bump_refused "a missing field" "plugin.json: no top-level field nope"
+  listing "plugin.json: deps"
+  bump_refused "a field not a string" "plugin.json: the field deps is not a string"
+  git -C "$work" merge -q --ff-only origin/main
+  printf '{"name": "x", "deps": {"only": "1.0.0"}}\n' >"$work/nested.json"
+  printf 'version: 1.0\n' >"$work/number.yml"
+  printf 'x' >"$work/notes.txt"
+  git -C "$work" add nested.json number.yml notes.txt && git -C "$work" commit -q -m "chore: more files" \
+    && git -C "$work" push -q origin main 2>/dev/null
+  listing "nested.json: only"
+  bump_refused "a nested field only" "nested.json: no top-level field only"
+  listing "number.yml: version"
+  bump_refused "a YAML number" "number.yml: the field version is not a string"
+  listing "notes.txt: version"
+  bump_refused "an unknown extension" "'notes.txt' is not a .json, .toml, .yml or .yaml file"
+  listing "plugin.json: deps.version"
+  bump_refused "a dotted field" "is not \"PATH: FIELD\""
+  listing "plugin.json: version" "number.yml: version"
+  bump_refused "one good file, one bad" "number.yml: the field version is not a string"
+
+  # Without version files, a release is as before.
+  printf 'release:\n  version-files: []\n' >"$work/.peal/config.yml"
+  out=$(peal ship bump 0.4.0 2>&1)
+  check "bump: no version files" "0:no release.version-files: nothing to bump" "$?:$out"
+  out=$(peal ship tag 0.4.0 2>&1)
+  check "tag: no version files" "0" "$?"
+}
+
+# protected WORK -> WORK's remote refusing pushes to main, a fake GitHub acme/widgets
+# merging into it; lines of its .peal/config.yml added.
+protected() {
+  local work=$1
+  fake_github "$work"
+  ln -s "$(dirname "$work")/remote.git" "$FAKE_GH/remote"
+  printf '%s\n' "storage:" "  issues:" "    repo: acme/widgets" >>"$work/.peal/config.yml"
+  cat >"$(dirname "$work")/remote.git/hooks/pre-receive" <<'EOF'
+#!/bin/sh
+while read -r old new ref; do
+  if [ "$ref" = refs/heads/main ]; then
+    echo "GH013: Repository rule violations found for refs/heads/main: changes must be made through a pull request" >&2
+    exit 1
+  fi
+done
+exit 0
+EOF
+  chmod +x "$(dirname "$work")/remote.git/hooks/pre-receive"
+}
+
+bump_protected() {
+  local work out main
+  work=$(repo)
+  versioned "$work" "main-writes: pr"
+  protected "$work"
+  touch "$FAKE_GH/no-auto-merge"
+  echo 0 >"$FAKE_GH/checks-pending"
+  main=$(git -C "$work" rev-parse origin/main)
+
+  # Through a pull request, merged: the tag on the merged commit.
+  out=$(PEAL_MAIN_WRITE_INTERVAL=0 peal ship bump 0.2.0 2>&1)
+  check "protected: merged" "0:bumped plugin.json pkg/Cargo.toml chart.yaml to 0.2.0: pull request #1 https://github.com/acme/widgets/pull/1, merged" "$?:$(tail -n 1 <<<"$out")"
+  check "protected: the squash commit" "$main chore(release): v0.2.0 (#1)" "$(git -C "$work" log -1 --format='%P %s' origin/main)"
+  out=$(peal ship tag 0.2.0 2>&1)
+  check "protected: tagged" "0" "$?"
+  check "protected: the tag on the merge" "$(git -C "$work" rev-parse origin/main)|chore(release): v0.2.0 (#1)" \
+    "$(git -C "$work" rev-parse 'v0.2.0^{commit}')|$(git -C "$work" log -1 --format=%s 'v0.2.0^{commit}')"
+  check "protected: the version tagged" '  "version": "0.2.0",
+version = "0.2.0" # the crate
+appVersion: '"'0.2.0'"'' "$(at_version v0.2.0)"
+
+  # The budget spent with the checks pending: status 3, no tag; once merged, the rerun
+  # finds the files at the version and the tag follows.
+  echo 100 >"$FAKE_GH/checks-pending"
+  out=$(PEAL_MAIN_WRITE_INTERVAL=1 PEAL_MAIN_WRITE_BUDGET=0 peal ship bump 0.3.0 2>&1)
+  check "protected: still open" "3|not merged yet: pull request #2 https://github.com/acme/widgets/pull/2, open, not merged; run peal ship bump v0.3.0 again once it merged, then peal ship tag v0.3.0" \
+    "$?|$(tail -n 1 <<<"$out")"
+  check_refused "protected: no tag before the merge" "does not hold 0.3.0; peal ship bump v0.3.0 first" peal ship tag 0.3.0
+  echo '{"merge_method": "squash"}' | at "$work" gh api --method PUT repos/acme/widgets/pulls/2/merge --input - >/dev/null
+  out=$(peal ship bump 0.3.0 2>&1)
+  check "protected: rerun after the merge" "0:already at 0.3.0: plugin.json pkg/Cargo.toml chart.yaml" "$?:$out"
+  out=$(peal ship tag 0.3.0 2>&1)
+  check "protected: tagged after the merge" "0|chore(release): v0.3.0 (#2)" "$?|$(git -C "$work" log -1 --format=%s 'v0.3.0^{commit}')"
+}
+
 issues() {
   local work out
   issues_repo
@@ -265,5 +426,7 @@ PROPOSE v0.1.1 patch" "$(peal ship propose 2>&1 | tail -n 2)"
 }
 
 for_each_awk files
+for_each_awk bump
+for_each_awk bump_protected
 for_each_awk issues
 finish

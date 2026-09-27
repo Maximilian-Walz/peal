@@ -1,8 +1,8 @@
 # shellcheck shell=bash
 # Releases (docs/design.md, "Releases"): what /peal:release makes a release from, the
 # tasks finished since the last release tag, and its steps, each rerunnable on its own:
-# the proposal, the notes, the tag, the GitHub release, the wait for the tag's workflow
-# runs. `peal release` is taken by the claims; these are `peal ship ...`.
+# the proposal, the notes, the version files set (release.version-files), the tag, the
+# GitHub release, the wait for the tag's workflow runs. `peal release` is taken by the claims; these are `peal ship ...`.
 #
 # A release tag is <release.tag-prefix>MAJOR.MINOR.PATCH (a pre-release suffix "-rc.1"
 # allowed when named, never counted as the last release). What went in since the last
@@ -59,6 +59,94 @@ _peal_ship_version() {
     return 2
   fi
   printf '%s%s\n' "$PEAL_PREFIX" "$v"
+}
+
+# peal_version_files -> release.version-files as "PATH<TAB>FIELD" lines, each item
+# "PATH: FIELD" checked: PATH relative, inside the repository, no blank or colon in it,
+# a .json, .toml, .yml or .yaml file; FIELD a top-level field name. Status 2 and a
+# message for the first that is not.
+peal_version_files() {
+  local items item path field
+  items=$(peal_config_get release.version-files) || return 2
+  while IFS= read -r item; do
+    [ -n "$item" ] || continue
+    if ! [[ "$item" =~ ^([^[:space:][:cntrl:]:]+):\ +([A-Za-z0-9_-]+)$ ]]; then
+      peal_err "release.version-files: '$item' is not \"PATH: FIELD\", FIELD a top-level field (letters, digits, _ and -)"
+      return 2
+    fi
+    path=${BASH_REMATCH[1]} field=${BASH_REMATCH[2]}
+    case /$path/ in
+      //* | */../* | */./* | *//*) peal_err "release.version-files: '$path' is no plain path inside the repository"; return 2 ;;
+    esac
+    case $path in
+      -*) peal_err "release.version-files: '$path' starts with -"; return 2 ;;
+      *.json | *.toml | *.yml | *.yaml) ;;
+      *) peal_err "release.version-files: '$path' is not a .json, .toml, .yml or .yaml file"; return 2 ;;
+    esac
+    printf '%s\t%s\n' "$path" "$field"
+  done <<<"$items"
+}
+
+# peal_version_edit PATH FIELD VALUE FILE -> FILE (the content of PATH) with its
+# top-level FIELD set to VALUE and nothing else changed (lib/version-field.awk); status 2
+# and a message when it has no such field holding a string.
+peal_version_edit() {
+  local path=$1 format eol=0
+  case $path in
+    *.json) format=json ;;
+    *.toml) format=toml ;;
+    *.yml | *.yaml) format=yaml ;;
+    *) peal_err "$path: not a JSON, TOML or YAML file"; return 2 ;;
+  esac
+  [ -n "$(tail -c 1 "$4")" ] || eol=1
+  awk -v format="$format" -v field="$2" -v value="$3" -v eol="$eol" -v name="$path" \
+    -f "$PEAL_ROOT/lib/version-field.awk" "$4" || return 2
+}
+
+# _peal_ship_holds REF DIR [NAME] -> status 0 when every version file at REF holds
+# PEAL_SHIP_VERSION already; 1 with PEAL_SHIP_STALE the first that does not; 2 (and a
+# message naming REF as NAME) when one is missing or cannot be set. The edited files are DIR/1, DIR/2, ...
+# in the order of PEAL_SHIP_FILES, DIR/changed their numbers and paths.
+_peal_ship_holds() {
+  local ref=$1 dir=$2 name=${3:-$1} path field n=0 entry
+  PEAL_SHIP_STALE=""
+  : >"$dir/changed"
+  while IFS=$'\t' read -r path field; do
+    [ -n "$path" ] || continue
+    n=$((n + 1))
+    entry=$(git ls-tree -z "$ref" -- "$path" | tr '\0' '\n')
+    if [ -z "$entry" ] || [ "${entry#*$'\t'}" != "$path" ]; then
+      peal_err "$path is not on $name (release.version-files)"
+      return 2
+    fi
+    case $entry in
+      "100644 blob "*) ;;
+      *) peal_err "$path on $name is not a plain file (release.version-files)"; return 2 ;;
+    esac
+    git show "$ref:$path" >"$dir/old" || return 2
+    peal_version_edit "$path" "$field" "$PEAL_SHIP_VERSION" "$dir/old" >"$dir/$n" || return 2
+    if ! cmp -s "$dir/old" "$dir/$n"; then
+      printf '%s\t%s\n' "$n" "$path" >>"$dir/changed"
+      [ -n "$PEAL_SHIP_STALE" ] || PEAL_SHIP_STALE=$path
+    fi
+  done <<<"$PEAL_SHIP_FILES"
+  [ -z "$PEAL_SHIP_STALE" ]
+}
+
+# _peal_ship_fresh CMD TAG -> refused (status 2) when TAG exists, here or on the
+# remote, or is not above the last release on the remote's main.
+_peal_ship_fresh() {
+  local cmd=$1 tag=$2
+  if git rev-parse -q --verify "refs/tags/$tag" >/dev/null \
+      || [ -n "$(git ls-remote --tags "$PEAL_REMOTE" "refs/tags/$tag" 2>/dev/null)" ]; then
+    peal_err "ship $cmd: $tag exists already; a release is never moved. Name another version (peal ship publish $tag makes its GitHub release)."
+    return 2
+  fi
+  PEAL_LAST=$(_peal_ship_last "$PEAL_REMOTE/$PEAL_MAIN")
+  if [ -n "$PEAL_LAST" ] && [ "$(_peal_ship_last "$PEAL_REMOTE/$PEAL_MAIN" "$tag")" != "$PEAL_LAST" ]; then
+    peal_err "ship $cmd: $tag is not above the last release, $PEAL_LAST"
+    return 2
+  fi
 }
 
 # _peal_ship_last END [TAG] -> the last release before TAG: the highest release tag
@@ -349,26 +437,88 @@ peal_ship_notes() {
   return $status
 }
 
+# peal_ship_bump VERSION -> each file of release.version-files set to VERSION (without
+# the tag prefix) on the remote's main branch, in one commit "chore(release): <tag>"; on
+# a main that refuses direct pushes through a pull request, waited for until it merged.
+# Nothing when every file holds the version already. Refused as peal ship tag refuses
+# the version, and for a file missing, or with no top-level field holding a string: main
+# unchanged. Status 3 when the pull request is still open after the budget
+# (PEAL_MAIN_WRITE_BUDGET): run it again once it merged.
+peal_ship_bump() {
+  local tag dir status=0 files
+  [ $# -eq 1 ] || { peal_err "ship bump: VERSION"; return 2; }
+  PEAL_PREFIX=$(peal_config_get release.tag-prefix) || return 2
+  tag=$(_peal_ship_version "$1") || return 2
+  _peal_ship_settings || return 2
+  _peal_ship_fresh bump "$tag" || return 2
+  PEAL_SHIP_FILES=$(peal_version_files) || return 2
+  if [ -z "$PEAL_SHIP_FILES" ]; then
+    echo "no release.version-files: nothing to bump"
+    return 0
+  fi
+  PEAL_SHIP_VERSION=${tag#"$PEAL_PREFIX"} PEAL_SHIP_TAG=$tag
+  dir=$(mktemp -d) || return 2
+  PEAL_SHIP_DIR=$dir
+  PEAL_MAIN_WRITE_WAIT=merged peal_push_main _peal_ship_bump_build "ship bump" || status=$?
+  files=$(cut -f2 "$dir/changed" | paste -s -d ' ' -)
+  rm -rf "$dir"
+  case $status in
+    0)
+      if [ -n "$PEAL_MW_PR" ]; then
+        echo "bumped $files to $PEAL_SHIP_VERSION: $(peal_main_write_report)"
+      else
+        echo "bumped $files to $PEAL_SHIP_VERSION on $PEAL_REMOTE/$PEAL_MAIN: $(git rev-parse --short "$PEAL_REMOTE/$PEAL_MAIN") chore(release): $tag"
+      fi
+      ;;
+    4) echo "already at $PEAL_SHIP_VERSION: $(cut -f1 <<<"$PEAL_SHIP_FILES" | paste -s -d ' ' -)"; status=0 ;;
+    3)
+      if [ -n "$PEAL_MW_PR" ]; then
+        echo "not merged yet: $(peal_main_write_report "run peal ship bump $tag again once it merged, then peal ship tag $tag")"
+      fi
+      ;;
+  esac
+  return $status
+}
+
+# _peal_ship_bump_build BASE -> PEAL_TREE and PEAL_SUBJECT for peal_push_main: BASE with
+# the version files set; status 4 when they hold the version already.
+_peal_ship_bump_build() {
+  local base=$1 n path args=() status
+  _peal_ship_holds "$base" "$PEAL_SHIP_DIR" "$PEAL_REMOTE/$PEAL_MAIN"
+  status=$?
+  [ $status != 0 ] || return 4
+  [ $status = 1 ] || return 2
+  while IFS=$'\t' read -r n path; do
+    args+=(add "$path" "$PEAL_SHIP_DIR/$n")
+  done <"$PEAL_SHIP_DIR/changed"
+  peal_write_tree "$base" "${args[@]}" || return 2
+  # shellcheck disable=SC2034 # read by peal_push_main
+  PEAL_SUBJECT="chore(release): $PEAL_SHIP_TAG"
+}
+
 # peal_ship_tag VERSION -> the annotated tag of VERSION on the remote's main branch, the
 # notes' first line its message, pushed. Refused: a tag that exists (here or on the
-# remote), and a version not above the last release.
+# remote), a version not above the last release, and a file of release.version-files
+# that does not hold the version there (peal ship bump).
 peal_ship_tag() {
   local dir tag msg sha status=0
   [ $# -eq 1 ] || { peal_err "ship tag: VERSION"; return 2; }
   PEAL_PREFIX=$(peal_config_get release.tag-prefix) || return 2
   tag=$(_peal_ship_version "$1") || return 2
   _peal_ship_settings || return 2
-  if git rev-parse -q --verify "refs/tags/$tag" >/dev/null \
-      || [ -n "$(git ls-remote --tags "$PEAL_REMOTE" "refs/tags/$tag" 2>/dev/null)" ]; then
-    peal_err "ship tag: $tag exists already; a release is never moved. Name another version (peal ship publish $tag makes its GitHub release)."
-    return 2
-  fi
-  PEAL_LAST=$(_peal_ship_last "$PEAL_REMOTE/$PEAL_MAIN")
-  if [ -n "$PEAL_LAST" ] && [ "$(_peal_ship_last "$PEAL_REMOTE/$PEAL_MAIN" "$tag")" != "$PEAL_LAST" ]; then
-    peal_err "ship tag: $tag is not above the last release, $PEAL_LAST"
-    return 2
-  fi
+  _peal_ship_fresh tag "$tag" || return 2
+  PEAL_SHIP_FILES=$(peal_version_files) || return 2
+  PEAL_SHIP_VERSION=${tag#"$PEAL_PREFIX"}
   dir=$(mktemp -d) || return 2
+  if [ -n "$PEAL_SHIP_FILES" ]; then
+    _peal_ship_holds "$PEAL_REMOTE/$PEAL_MAIN" "$dir"
+    status=$?
+    if [ $status = 1 ]; then
+      peal_err "ship tag: $PEAL_SHIP_STALE on $PEAL_REMOTE/$PEAL_MAIN does not hold $PEAL_SHIP_VERSION; peal ship bump $tag first"
+      status=2
+    fi
+    [ $status = 0 ] || { rm -rf "$dir"; return 2; }
+  fi
   _peal_ship_range "$tag"
   PEAL_SHIP_TAG=$tag
   if _peal_ship_items "$dir"; then
@@ -522,16 +672,17 @@ peal_ship_wait() {
   done
 }
 
-# peal_ship propose | notes VERSION | tag VERSION | publish VERSION | wait VERSION
+# peal_ship propose | notes VERSION | bump VERSION | tag VERSION | publish VERSION | wait VERSION
 peal_ship() {
   local sub=${1-}
   [ $# -eq 0 ] || shift
   case $sub in
     propose) peal_ship_propose "$@" ;;
     notes) peal_ship_notes "$@" ;;
+    bump) peal_ship_bump "$@" ;;
     tag) peal_ship_tag "$@" ;;
     publish) peal_ship_publish "$@" ;;
     wait) peal_ship_wait "$@" ;;
-    *) peal_err "ship: propose | notes VERSION | tag VERSION | publish VERSION | wait VERSION"; return 2 ;;
+    *) peal_err "ship: propose | notes VERSION | bump VERSION | tag VERSION | publish VERSION | wait VERSION"; return 2 ;;
   esac
 }

@@ -217,9 +217,17 @@ release.tag-prefix and the version):
                                 NOTHING since <tag>
   ship notes VERSION            the release notes: Breaking, Features, Fixes, a line per
                                 task (release-note: none left out)
+  ship bump VERSION             each file of release.version-files set to VERSION on the
+                                remote's main branch in one commit, chore(release):
+                                <tag>, through a pull request where main refuses pushes,
+                                waited for until it merged (3: still open; run it again
+                                once merged); "already at" when they hold it; refused as
+                                ship tag refuses the version, and for a file or field
+                                missing
   ship tag VERSION              the annotated tag on the remote's main branch, pushed;
-                                refused for a tag that exists or a version not above the
-                                last release
+                                refused for a tag that exists, a version not above the
+                                last release, or a file of release.version-files there
+                                not at the version (ship bump first)
   ship publish VERSION          the GitHub release of the tag, created or updated with
                                 the notes (nothing for a remote not on GitHub)
   ship wait VERSION             wait for the tag's workflow runs: READY (0), FAILED:<run>

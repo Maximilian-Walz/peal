@@ -156,6 +156,9 @@ peal_githook() {
 #                                              (peal decision publish)
 #       docs(tasks): milestone ID STATE ...    one or two modified milestone files (the
 #                                              milestone's, and the one made current)
+#       chore(release): <tag>                  only files of release.version-files
+#                                              modified, each exactly as the version
+#                                              written into its parent's (peal ship bump)
 # Rewriting main (not a fast-forward) and deleting it are refused. Git runs no pre-push
 # for a merge made on the server (a pull request's), so this never stands in its way.
 # Known limit: the main branch and the tasks and milestones directories are this
@@ -231,6 +234,10 @@ _peal_pre_push_direct() {
       return
       ;;
     'docs(tasks): milestone '*) shape=milestone ;;
+    'chore(release): '*)
+      _peal_pre_push_release "$sha" "$main" "$short" "$subject"
+      return
+      ;;
     *)
       _peal_gate_refuse pre-push "$short reaches $main directly and is no merge: \"$subject\""
       return
@@ -296,6 +303,48 @@ _peal_pre_push_index() {
       END { exit bad || n != 1 }'; then
     _peal_gate_refuse pre-push "$3 reaches $2 directly as \"$4\", but its diff is not the index alone:" "$diff"
   fi
+}
+
+# _peal_pre_push_release SHA MAIN SHORT SUBJECT -> refused unless SHA's subject names a
+# release tag, and its diff only modifies files of release.version-files, each exactly
+# what setting its field to that version makes of its parent's (peal_version_edit).
+_peal_pre_push_release() {
+  local sha=$1 short=$3 subject=$4 prefix files version diff line mode path field why="" dir n=0
+  prefix=$(peal_config_get release.tag-prefix) || return 1
+  version=${subject#"chore(release): "}
+  if [ "${version#"$prefix"}" = "$version" ] && [ -n "$prefix" ] \
+      || ! [[ "${version#"$prefix"}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]; then
+    _peal_gate_refuse pre-push "$short reaches $2 directly as \"$subject\", which names no release tag (${prefix}MAJOR.MINOR.PATCH)"
+    return
+  fi
+  version=${version#"$prefix"}
+  if ! files=$(peal_version_files 2>&1); then
+    _peal_gate_refuse pre-push "$short reaches $2 directly as \"$subject\", but release.version-files is not right:" "$files"
+    return
+  fi
+  diff=$(git diff-tree -r --raw --no-commit-id --no-renames --root "$sha")
+  dir=$(mktemp -d) || return 1
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    n=$((n + 1))
+    path=${line#*$'\t'}
+    mode=${line%%$'\t'*}
+    field=$(awk -F '\t' -v p="$path" '$1 == p { print $2; exit }' <<<"$files")
+    if [ -z "$field" ]; then
+      why="not a file of release.version-files: $path"
+    elif [[ "$mode" != ":100644 100644 "*" M" ]]; then
+      why="not a modified plain file: $path"
+    elif ! git show "$sha^:$path" >"$dir/old" 2>/dev/null \
+        || ! peal_version_edit "$path" "$field" "$version" "$dir/old" >"$dir/new" 2>"$dir/err"; then
+      why="$path: $(sed 's/^peal: //' "$dir/err" 2>/dev/null)"
+    elif ! git show "$sha:$path" | cmp -s - "$dir/new"; then
+      why="$path changes more than its $field to $version"
+    fi
+    [ -z "$why" ] || break
+  done <<<"$diff"
+  rm -rf "$dir"
+  [ -n "$why" ] || [ $n -gt 0 ] || why="the diff is empty"
+  [ -z "$why" ] || _peal_gate_refuse pre-push "$short reaches $2 directly as \"$subject\", but its diff is not that shape:" "$why"
 }
 
 # --- commit-msg --------------------------------------------------------------------------
