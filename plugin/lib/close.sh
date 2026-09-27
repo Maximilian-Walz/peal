@@ -115,8 +115,8 @@ peal_close_begin() {
   fi
   PEAL_REMOTE=$(peal_config_get remote) || return 2
   PEAL_MAIN=$(peal_config_get main) || return 2
-  git fetch -q "$PEAL_REMOTE" "$PEAL_MAIN" 2>/dev/null \
-    || peal_err "warning: could not fetch $PEAL_REMOTE/$PEAL_MAIN; comparing with what is known here"
+  peal_git_try git fetch -q "$PEAL_REMOTE" "$PEAL_MAIN" \
+    || peal_err "warning: could not fetch $PEAL_REMOTE/$PEAL_MAIN${PEAL_GIT_ERR:+ ($PEAL_GIT_ERR)}; comparing with what is known here"
   peal_branch_base close || return 2
   added=$(git diff --name-only --no-renames --diff-filter=A "$PEAL_BASE" HEAD -- "$tasks/backlog/")
   if [ -n "$added" ]; then
@@ -453,7 +453,7 @@ peal_close_finish() {
   rel=$PEAL_TEXT
   case $rel in /*) rel="" ;; esac
   decisions=$(peal_decisions_dir 2>/dev/null) || decisions=""
-  dirty=$(git status --porcelain -- . ${rel:+":(exclude)$rel"} ${decisions:+":(exclude)$decisions/[0-9]*.md"})
+  dirty=$(peal_status_porcelain -- . ${rel:+":(exclude)$rel"} ${decisions:+":(exclude)$decisions/[0-9]*.md"})
   if [ -n "$dirty" ]; then
     peal_err "close finish: uncommitted changes besides ${rel:-nothing}${decisions:+ and the decision entries}; commit them (peal commit) or take them out first:"
     printf '%s\n' "$dirty" | sed 's/^/  /' >&2
@@ -506,11 +506,17 @@ peal_close_finish() {
 
   branch=$(git symbolic-ref -q --short HEAD) || return 2
   if git rev-parse -q --verify "$branch@{upstream}" >/dev/null; then
-    set -- git push -q
+    if [ "$(git rev-parse HEAD)" = "$(git rev-parse "$branch@{upstream}")" ]; then
+      # Already on the remote: a session pushed it itself, or an earlier finish got
+      # this far. Nothing to push, so nothing that could hang reaching the remote.
+      set --
+    else
+      set -- git push -q
+    fi
   else
     set -- git push -q -u "$PEAL_REMOTE" "$branch"
   fi
-  if ! "$@"; then
+  if [ $# -gt 0 ] && ! "$@"; then
     peal_err "close finish: the push failed (above): the close is committed here, not on $PEAL_REMOTE. Run finish again once it can push."
     return 1
   fi
@@ -603,7 +609,7 @@ peal_close_stop() {
   elif peal_text_outcome_placeholder <"$text"; then
     problems+=("the Outcome in $text still holds a placeholder (<!-- ... -->)")
   fi
-  [ -z "$(git status --porcelain 2>/dev/null)" ] || problems+=("work is uncommitted (git status)")
+  [ -z "$(peal_status_porcelain 2>/dev/null)" ] || problems+=("work is uncommitted (git status)")
   if branch=$(git symbolic-ref -q --short HEAD); then
     if ! git rev-parse -q --verify "$branch@{upstream}" >/dev/null; then
       problems+=("$branch was never pushed")
