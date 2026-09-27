@@ -4,8 +4,8 @@
 #
 #   bash plugin/lib/githooks.test.sh
 #
-# pre-push: every write the storage makes onto main passes, through the real commands;
-# every other shape is refused. commit-msg: every subject form, the wip and task-file fast
+# pre-push: every write the storage makes onto main passes, through the real commands, as
+# does a release's version bump (peal ship bump); every other shape is refused. commit-msg: every subject form, the wip and task-file fast
 # paths, checks.commit (run by path, failing a commit). Both chain to the project's own
 # hook of the same name.
 set -uo pipefail
@@ -262,6 +262,61 @@ docs(tasks): file 0004 new-task [0004]" "$(git -C "$work" log --format=%s -6 ori
   check "the setting: main is then an ordinary branch" "0" "$(push_main 2>/dev/null; echo $?)"
 }
 
+# release_commit VERSION SUBJECT -> plugin.json set to VERSION in the work tree and
+# committed as SUBJECT, the gate skipped.
+release_commit() {
+  sed "s/\"version\": \"[^\"]*\"/\"version\": \"$1\"/" "$work/plugin.json" >"$work/plugin.json.new"
+  mv "$work/plugin.json.new" "$work/plugin.json"
+  git -C "$work" add plugin.json
+  commit_ungated "$2"
+}
+
+pre_push_release() {
+  local work
+  work=$(repo)
+  mkdir -p "$work/.peal"
+  printf 'release:\n  version-files: ["plugin.json: version"]\n' >"$work/.peal/config.yml"
+  printf '{\n  "name": "widgets",\n  "version": "0.1.0"\n}\n' >"$work/plugin.json"
+  echo readme >"$work/README"
+  git -C "$work" add -A && git -C "$work" commit -q -m "chore: version file"
+  git -C "$work" push -q origin main
+  peal hooks install >/dev/null
+  fresh
+
+  # peal ship bump's commit, through the gate.
+  check "release: the bump" "0|chore(release): v0.2.0" "$(peal ship bump 0.2.0 >/dev/null 2>&1; echo $?)|$(git -C "$work" log -1 --format=%s origin/main)"
+
+  fresh
+  release_commit 0.3.0 "chore(release): v0.3.0"
+  check "release: by hand, the same shape" "0" "$(push_main 2>/dev/null; echo $?)"
+
+  fresh
+  release_commit 0.4.0 "chore(release): v0.4.0"
+  echo more >>"$work/README"
+  git -C "$work" add README
+  git -C "$work" commit -q --no-verify --amend --no-edit
+  check_fails "release: refused, another file" 1 "not a file of release.version-files: README" push_main
+
+  fresh
+  release_commit 0.4.0 "chore(release): v0.5.0"
+  check_fails "release: refused, another version" 1 "plugin.json changes more than its version to 0.5.0" push_main
+
+  fresh
+  sed 's/widgets/gadgets/' "$work/plugin.json" >"$work/plugin.json.new"
+  mv "$work/plugin.json.new" "$work/plugin.json"
+  release_commit 0.4.0 "chore(release): v0.4.0"
+  check_fails "release: refused, more than the field" 1 "plugin.json changes more than its version to 0.4.0" push_main
+
+  fresh
+  release_commit 0.4.0 "chore(release): the next one"
+  check_fails "release: refused, no version" 1 "which names no release tag" push_main
+
+  fresh
+  printf 'release:\n  version-files: []\n' >"$work/.peal/config.yml"
+  release_commit 0.4.0 "chore(release): v0.4.0"
+  check_fails "release: refused, not listed" 1 "not a file of release.version-files: plugin.json" push_main
+}
+
 commit_msg() {
   local work mark
   work=$(repo)
@@ -466,6 +521,7 @@ PEAL_GITHOOKS_LIST=$(bash -c ". '$PEAL_ROOT/lib/githooks.sh'; printf '%s\n' \$PE
 cases() {
   install
   pre_push
+  pre_push_release
   commit_msg
   chain
 }

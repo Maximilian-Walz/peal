@@ -80,7 +80,7 @@ with one plugin, `peal`, in `plugin/`:
   the pull request's body, verify, wait, the Stop hook), through `gh` (`github.sh`),
   a milestone's end (`review.sh`: the review's brief, the state change), the optional
   decision records (`decisions.sh`: reserve, check, index, publish, brief), releases
-  (`ship.sh`: the proposal, the notes, the tag, the GitHub release, the wait), writes
+  (`ship.sh`: the proposal, the notes, the version files, the tag, the GitHub release, the wait), writes
   onto the main branch (`main-write.sh`), and a project's setup in stages and the survey `/peal:setup` decides from (`init.sh`,
   with `config-block.awk` and `settings-json.awk` editing the config and Claude Code's
   settings as text);

@@ -31,14 +31,15 @@ PEAL_ISSUES_ROW='[(.number | tostring), .state, .title, (.milestone.title // "")
 # _peal_issues_settings -> PEAL_REMOTE, PEAL_MAIN, PEAL_LABEL and PEAL_REPO (owner/name:
 # peal_github_repo) from the settings. A warning when main-writes is set to something but
 # its default while nothing writes onto main: issues live on GitHub, and only the
-# decisions module publishes onto main.
+# decisions module and a release's version files (release.version-files) go onto main.
 _peal_issues_settings() {
   PEAL_REMOTE=$(peal_config_get remote) || return 2
   PEAL_MAIN=$(peal_config_get main) || return 2
   PEAL_LABEL=$(peal_config_get storage.issues.label) || return 2
   PEAL_REPO=$(peal_github_repo) || return 2
-  if [ "$(peal_config_get main-writes)" != auto ] && [ "$(peal_config_get decisions)" = false ]; then
-    peal_err "warning: main-writes does nothing here: the issues storage writes no task onto $PEAL_MAIN"
+  if [ "$(peal_config_get main-writes)" != auto ] && [ "$(peal_config_get decisions)" = false ] \
+      && [ -z "$(peal_config_get release.version-files)" ]; then
+    peal_err "warning: main-writes does nothing here: the issues storage writes no task onto $PEAL_MAIN, and neither the decisions module nor release.version-files is set"
   fi
 }
 
