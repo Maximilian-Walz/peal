@@ -1,8 +1,9 @@
 ---
 plan: required
 priority: high
-touches: [plugin/hooks/hooks.json, plugin/lib/claim.sh, plugin/lib/claim.test.sh, plugin/lib/close.sh, plugin/lib/commit.sh, plugin/lib/githooks.sh, plugin/lib/session.sh, plugin/lib/session.test.sh]
+touches: [plugin/lib/githooks.sh, plugin/lib/session.sh, plugin/lib/session.test.sh, plugin/lib/claim.sh, plugin/lib/claim.test.sh, plugin/lib/close.sh, plugin/lib/commit.sh, docs/design.md, README.md, docs/security.md, plugin/commands/setup.md, plugin/bin/peal]
 milestone: m1
+size: M
 ---
 
 # 0059 — A fresh clone whose config records the guardrails stage gets its git gates without a manual step
@@ -22,9 +23,9 @@ When the `guardrails` stage is recorded in the config and `peal_hooks_installed`
 - In a fresh clone with `guardrails` in `stages` and no `core.hooksPath`, `peal claim N` leaves `peal_hooks_installed` true, and `peal close begin` in that claim's worktree gets past the hooks check.
 - The SessionStart hook in such a clone installs the hooks and names that in its output. A second session start installs nothing and prints nothing about hooks.
 - A project without `guardrails` in `stages` gets no hooks from claim or session start.
-- A clone whose `core.hooksPath` points elsewhere is handled as documented (chained, or warned about), and a harness case covers it.
+- A clone whose `core.hooksPath` points elsewhere gets a warning naming `.peal/peal hooks install`, and its `core.hooksPath` is left unchanged. A harness case covers it.
 - A failed install is reported at claim and session start with the command to run.
-- `plugin/lib/claim.test.sh` and `plugin/lib/session.test.sh` cover the cases above. `docs/design.md` and `README.md` describe the new behaviour.
+- `plugin/lib/claim.test.sh` and `plugin/lib/session.test.sh` cover the cases above. `docs/design.md`, `README.md`, `docs/security.md`, `plugin/commands/setup.md` and the usage text in `plugin/bin/peal` describe the new behaviour.
 
 ## Raw
 
@@ -40,31 +41,78 @@ Filed as issue #59 (https://github.com/Maximilian-Walz/peal/issues/59) from an i
 
 So in a fresh clone of a project whose `.peal/config.yml` lists `guardrails` in `stages` (as this repository does), a session claims a task, works it, and only finds out at `/peal:close` or its first `peal commit` that the gates are missing. The README tells a human to run `.peal/peal hooks install` once per clone. An unattended worker (for example, a control plane's fresh clone of this repository) has no human to do that step, so the job stops mid-task.
 
-Draft plan (2026-09-25, planner; **not agreed**. The session could not reach the human: AskUserQuestion timed out twice). It is for the next session to put to the human:
+The human agreed the plan below on 2026-09-27. The session that agreed it could not record it: its sandbox failed to start, so no command ran. The next session commits this file with `peal record 0059 plan < tasks/doing/0059-fresh-clone-git-gates.md`, which sets `plan: agreed`, and builds. It does not plan again.
 
-- A helper `peal_hooks_ensure` in `plugin/lib/githooks.sh`. It does nothing without `guardrails` in `stages` or when `peal_hooks_installed` succeeds. Otherwise it runs `peal_hooks_install` and prints its `installed Peal's git hooks in …` line. On failure it prints the reason and `.peal/peal hooks install`. It never fails its caller.
-- It is called from `peal_session_start` (`plugin/lib/session.sh:98-136`), with the line right after `Peal:`, and once at the top of `peal_claim` (`plugin/lib/claim.sh:159-199`), before the worktree. Success goes to stdout before the path; warnings go to stderr.
-- `close.sh:104-107,462-465` and `commit.sh:53-56` stay refusals and name `.peal/peal hooks install`. `hooks.json` needs no change.
-- Docs: `docs/design.md` (930-932, 346-350, 328-338, 601-613) and `README.md:61`. Possibly also `docs/security.md:44-50`, `plugin/commands/setup.md:78-81`, and the usage text in `plugin/bin/peal` (88-90, 145-148). `CLAUDE.md:22` goes to an idea rather than an edit.
-- Tests: about 11 cases, a `gates()` in each of `claim.test.sh` and `session.test.sh`, on a fresh clone with `stages: [tasks, guardrails]`:
-  - the hooks get installed, and `close begin` gets past the hooks check;
-  - a second run is silent;
-  - a project without guardrails gets nothing;
-  - a foreign `core.hooksPath`;
-  - a forced failure (`<common>/peal` made a plain file).
-- Size M, model default, merge default.
+The human's answers (2026-09-27):
+- A foreign `core.hooksPath`: warn only, naming `.peal/peal hooks install` (which chains). The automatic install never rewrites it. The decision is recorded in `docs/design.md` (Git gates) and in the Outcome.
+- The command: `.peal/peal hooks install` everywhere. Close and commit stay pure refusals, as the backstop.
+- Docs outside the Intent: fix `docs/security.md`, `plugin/commands/setup.md` and the usage text in `plugin/bin/peal` here. File an idea for the `CLAUDE.md` rule ("Each clone installs the git gates once") rather than editing it.
+- Security: auto-install from a committed `stages` line is accepted, and documented in `docs/security.md`.
+- Minor defaults accepted:
+  - the config loaded in the current checkout decides;
+  - the hooks are installed once, at the top of `peal_claim`;
+  - warning and failure lines repeat on every session start until fixed;
+  - a stale path to Peal's own stubs is re-installed, while another Peal hooks path counts as foreign;
+  - claim prints success on stdout (before the path) and warnings and failures on stderr;
+  - `hooks.json` is unchanged.
 
-Open questions for the human (recommended default first):
-1. A foreign `core.hooksPath`: warn only, with the chaining command, or chain automatically?
-2. Close and commit: pure refusals naming `.peal/peal hooks install`, or should they also try the install themselves?
-3. Docs outside the task: fix security.md, setup.md and the usage text, and file an idea for CLAUDE.md? Or fix all four, or only design.md and README?
-4. Security: auto-install from a committed `stages` line, documented in security.md. Acceptable?
+## Plan
 
-Minor defaults:
-- the working tree's loaded config decides;
-- the hooks are installed once, at the top of claim;
-- warnings repeat on every session start;
-- a stale path to Peal's own stubs is re-installed, while another Peal path counts as foreign.
+Agreed 2026-09-27. Size M, model default, merge default.
+
+- `plugin/lib/githooks.sh`: a new `peal_hooks_ensure`, run after the config is loaded.
+  - It returns silently when `peal_config_get stages` has no `guardrails` line, or when `peal_hooks_installed` succeeds.
+  - When `core.hooksPath` is set and differs from `_peal_hooks_dir`, it prints one warning and installs nothing: `Peal's git hooks are not installed: core.hooksPath is <path>; to install them chained to it, run: .peal/peal hooks install`.
+  - Otherwise it runs `peal_hooks_install` and passes on its `installed Peal's git hooks in …` line.
+  - On failure it prints `Peal's git hooks could not be installed (<reason>); run: .peal/peal hooks install`.
+  - It always returns 0.
+- `plugin/lib/session.sh` (`peal_session_start`, 98-136): calls it after `peal_hook_project` and `peal_store_load`, and puts its line directly after `Peal:`.
+- `plugin/lib/claim.sh` (`peal_claim`, 159-199): calls it once, after argument validation and before `_peal_claim_one` or the `--next` loop. Success goes to stdout before the path, so `--print-path` still ends with the path. Warnings and failures go to stderr. The header comment is updated.
+- `plugin/lib/close.sh` (104-107, 462-465) and `plugin/lib/commit.sh` (53-56): the remedy text becomes `.peal/peal hooks install`.
+- Docs:
+  - `docs/design.md` (328-338 claim, 346-350 SessionStart, 601-613 Git gates with the warn-not-chain decision, 930-932 fresh clone);
+  - `README.md:61`;
+  - `docs/security.md:44-50` (a committed `stages` line makes Peal set `core.hooksPath` in the clone);
+  - `plugin/commands/setup.md:78-81`;
+  - `plugin/bin/peal` usage (88-90, 145-148).
+- Also: file a `/peal:idea` for `CLAUDE.md:22`.
+
+Verification. The fixture is `repo()` from `task-fixtures.sh` plus a committed `.peal/config.yml` with `stages: [tasks, guardrails]`, published, then a fresh `git clone` of `remote.git` with no `core.hooksPath`.
+- `plugin/lib/claim.test.sh`, a new `gates()`:
+  - `claim --print-path` installs the hooks: the install line is printed, the last line is still the worktree, and `core.hooksPath` is `<common>/peal/hooks` with executable `commit-msg` and `pre-push`;
+  - `close begin` in that worktree is not refused with "hooks are not installed";
+  - a second claim prints no hooks line;
+  - without `guardrails`, `core.hooksPath` stays unset and there is no line;
+  - `core.hooksPath=custom-hooks` gets the warning with the command and is left unchanged;
+  - a forced failure (`<common>/peal` made a plain file) still claims and names the command.
+- `plugin/lib/session.test.sh`, a new `gates()`:
+  - the first `hook session-start` installs the hooks and prints the line after `Peal:`;
+  - a second start prints the same as an already-installed clone, with no hooks line;
+  - without `guardrails`, nothing;
+  - a foreign path gets the warning;
+  - a failure prints the line with the command and exits 0.
+- Then the full `bash plugin/lib/*.test.sh` and `tools/lint.sh`.
+
+Ranges relied on:
+- plugin/lib/githooks.sh:15-83, 341-351
+- plugin/lib/session.sh:94-136
+- plugin/lib/claim.sh:153-253
+- plugin/lib/close.sh:88-107, 462-465
+- plugin/lib/commit.sh:1-56
+- plugin/lib/work.sh:31-46
+- plugin/lib/init.sh:102-114, 331-339
+- plugin/bin/peal:88-90, 145-148, 297-301, 372-381
+- plugin/hooks/hooks.json:1-65
+- plugin/lib/session.test.sh:1-63, 137-144
+- plugin/lib/claim.test.sh:1-31
+- plugin/lib/task-fixtures.sh:12-72
+- plugin/lib/test-lib.sh:1-60
+- docs/design.md:328-350, 599-613, 895-932
+- docs/security.md:30-55
+- README.md:56-63
+- plugin/commands/setup.md:76-81
+- .peal/config.yml:1-13
+- CLAUDE.md:22
 
 ---
 
