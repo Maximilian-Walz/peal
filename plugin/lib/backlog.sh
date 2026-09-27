@@ -134,11 +134,10 @@ peal_create_filed() {
     *) peal_err "create: owner must be ai or human, not '$owner'"; return 2 ;;
   esac
   [ -n "$title" ] || { peal_err "create: --title is required"; return 2; }
-  # The same normalisation peal_slugify does (lower-case, runs of anything but a-z0-9
-  # collapsed to one hyphen), the first five words kept before the word count is judged,
-  # so a long title is never refused for having too many.
-  slug=$(printf '%s' "$title" | tr '[:upper:]' '[:lower:]' \
-    | sed -e 's/[^a-z0-9][^a-z0-9]*/-/g' -e 's/^-*//' -e 's/-*$//' | cut -d- -f1-5)
+  # _peal_slug_normalise (task-text.sh): the same normalisation peal_slugify does, the
+  # first five words kept before the word count is judged, so a long title is never
+  # refused for having too many.
+  slug=$(_peal_slug_normalise "$title" | cut -d- -f1-5)
   words=$(printf '%s' "$slug" | awk -F- '{ print ($0 == "" ? 0 : NF) }')
   if [ "$words" -lt 2 ]; then
     peal_err "create: title '$title' makes a slug of $words word(s); a slug is at least two kebab-case words"

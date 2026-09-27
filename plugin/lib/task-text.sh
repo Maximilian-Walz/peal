@@ -78,11 +78,19 @@ peal_text_set_outcome() {
     END { if (!found) { print ""; print "## Outcome"; print ""; print ENVIRON["PEAL_NOTE"] } }'
 }
 
+# _peal_slug_normalise HINT -> HINT lower-cased, every run of anything but a-z0-9
+# collapsed to one hyphen, no leading or trailing hyphen; not a slug on its own (nothing
+# checks its word count). Shared by peal_slugify and peal_create_filed (backlog.sh),
+# which truncates to the first five words instead of refusing a longer one.
+_peal_slug_normalise() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -e 's/[^a-z0-9][^a-z0-9]*/-/g' -e 's/^-*//' -e 's/-*$//'
+}
+
 # peal_slugify HINT -> HINT as a kebab-case slug of 2 to 5 words; status 2 and a message
 # for fewer or more words.
 peal_slugify() {
   local slug words
-  slug=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -e 's/[^a-z0-9][^a-z0-9]*/-/g' -e 's/^-*//' -e 's/-*$//')
+  slug=$(_peal_slug_normalise "$1")
   words=$(printf '%s' "$slug" | awk -F- '{ print ($0 == "" ? 0 : NF) }')
   if [ "$words" -lt 2 ] || [ "$words" -gt 5 ]; then
     peal_err "slug '$1' makes $words words; a slug is 2 to 5 kebab-case words"
