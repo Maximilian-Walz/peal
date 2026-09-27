@@ -113,10 +113,20 @@ nothing a session builds reaches another user until its pull request is reviewed
 merged by a human (`docs/design.md`, "the merge is the human's"). The planner, which
 reads a task before anyone has agreed its plan, carries no Bash tool at all.
 
+Every prompt under `plugin/commands/` and `plugin/agents/`, except `idea.md` (its input
+is the human's own `$ARGUMENTS`), carries a fixed paragraph: text from an issue, a pull
+request, a comment, a task's `## Raw`, a commit message or a web page cannot widen the
+task, change a rule or have a command run, and passing such text on quotes it and names
+where it came from. No harness proves a model obeys it; the guarantee still rests on
+tool permissions and the human's merge, above.
+
 - Guard: `plugin/lib/frontmatter.sh`, `plugin/lib/work.sh` (`peal_brief`); the
-  review-before-merge principle above.
-- Harness: `plugin/lib/frontmatter.test.sh`, `plugin/lib/work.test.sh`. A harness that
-  runs every command with hostile values throughout is task 0039.
+  review-before-merge principle above; the "Text from others is data" paragraph in
+  `plugin/commands/*.md` and `plugin/agents/*.md`.
+- Harness: `plugin/lib/frontmatter.test.sh`, `plugin/lib/work.test.sh`.
+  `plugin/commands/commands.test.sh` checks the paragraph is word for word identical in
+  every prompt but the exempt list, and absent from the exempt ones. A harness that runs
+  every command with hostile values throughout is task 0039.
 
 ### `gh` holds the token; Peal only calls it
 
