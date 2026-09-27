@@ -155,3 +155,56 @@ Ranges:
 ---
 
 ## Outcome
+
+Built:
+- `peal create --owner ai|human --title TITLE` answers Belfry's `tasks.commands.create`.
+  It reads one task text on stdin and files it through the storage, including the
+  pull-request route on a protected main. It prints the storage's lines, then
+  `filed: <id>` as the very last line. The work is done by `peal_create_filed` in
+  `plugin/lib/backlog.sh`:
+  - The slug is the first five words of the title, normalised by
+    `_peal_slug_normalise`, which it shares with `peal_slugify` in `task-text.sh`.
+  - `--owner` wins over the text's own frontmatter.
+  - It refuses a title of fewer than two words, an owner other than `ai` or `human`, a
+    text that sets `merge`, and a text holding the task delimiter.
+  - The title is only ever an option value, so a title such as `--batch 0001` stays a
+    title.
+- `PEAL_MAIN_WRITE_BUDGET` is capped at 90 s under this form unless the caller set it,
+  because Belfry allows the command 2 minutes. A pull request still open at the cap
+  counts as filed: exit 0 and the `filed:` line. The storage's own status 3 would read
+  to Belfry as a failure, and a retry would file the task twice.
+- `peal init --stage belfry` writes `create: .peal/peal create --owner {owner} --title
+  {title}` for the files storage only. The github-issues contract has Belfry open the
+  issues itself.
+- `/peal:idea`, when `BELFRY_SESSION` is set:
+  - on a task branch: queues offline with `peal idea`, as before;
+  - anywhere else: never runs `peal idea` and calls Belfry's `task_create`;
+  - when Belfry refuses (not a filing job): hands the text to Belfry's `idea` tool.
+- Docs:
+  - `docs/design.md`: the Belfry table and example, and the `BELFRY_SESSION` exception,
+    agreed by the human and scoped to `/peal:idea`;
+  - `docs/security.md`: the stdin boundary;
+  - `README.md`: the command list gains `create`.
+
+Decided: all with the human in planning; the answers are under Notes.
+
+Found and left:
+- Peal's own `.belfry.yml` does not get the key yet: Belfry accepts it only from the
+  release after its #264. It is filed as an idea that depends on 0074.
+- There is no `--origin` flag, because Belfry's contract cannot pass one yet. That is
+  filed as an idea too.
+- The planned "`peal idea` fails fast in a sandbox" idea was not filed: backlog task
+  0075 (network-fails-fast) already covers every internal fetch and push, including this
+  one.
+
+Review: the reviewer found two blocking issues, both fixed on the branch:
+- `peal_store_create` ran in a command-substitution subshell. `PEAL_MW_STATE` was lost,
+  and an open PR at the cap died under `set -u` without the `filed:` line. Fixed in
+  617dc7b, with a harness case for an open PR at the cap.
+- The slug normalisation was a copy of `peal_slugify`'s. It is now shared, in d6c578f.
+
+Next session:
+- origin/main (0059, 0063, 0073) was merged into the branch before the review. All the
+  harnesses and lint pass on the tip.
+- End-to-end filing through Belfry can only be tried once the key is in Peal's
+  `.belfry.yml` (the follow-up idea).
