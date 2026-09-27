@@ -86,8 +86,10 @@ usage: peal <command> [args]
                                 the board's {"milestone":{...}} lines; the milestone
                                 files here, or the storage's milestones
   hook session-start            the SessionStart hook: record where Peal is installed;
-                                in a Peal project reap the claims done with (on a new
-                                session) and print the orientation
+                                in a Peal project install the git gates when the config
+                                records guardrails and they are missing (peal_hooks_ensure),
+                                reap the claims done with (on a new session), and print
+                                the orientation
   hook post-tool-use            the PostToolUse hook: the heartbeat and the turn budget
   hook session-end              the SessionEnd hook: autosave a task branch as wip, pushed
   hook stop                     the Stop hook: while a close is in progress, refuse to stop
@@ -146,7 +148,9 @@ issue-N on branch issue/N, labelled "in progress", as Belfry claims one):
                                 tasks, MORE <bucket> <count> for those left; POOL is a
                                 comma list of milestone ids, current and unassigned
   claim ID [--print-path]       claim a free task, or resume its parked claim; a task
-                                claimed here already prints its worktree again
+                                claimed here already prints its worktree again; first,
+                                install the git gates when the config records guardrails
+                                and they are missing (peal_hooks_ensure)
   claim --next [POOL] [--print-path]
                                 claim the best free task of POOL (current,unassigned)
   release ID                    remove a landed or deferred claim's worktree and branch,

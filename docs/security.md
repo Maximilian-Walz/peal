@@ -65,6 +65,14 @@ Limits this boundary does not cover, accepted for now:
   (`peal.projectHooks`) is a directory of the work tree, such as `.githooks`, the stub
   chains to the hooks there, which a branch can change. Only that configured path runs;
   an unconfigured hooks directory in the tree never does.
+- **A committed `stages:` line installs the hooks without asking.** A `guardrails` stage
+  recorded in `.peal/config.yml` makes `peal claim` and the `SessionStart` hook set
+  `core.hooksPath` in the clone themselves (`peal_hooks_ensure`,
+  `plugin/lib/githooks.sh`), the same write a human runs by hand with `.peal/peal hooks
+  install`; a branch can add the line, but only what `peal hooks install` always did
+  runs, at the same verified root, and never over a `core.hooksPath` already set to
+  something else (that is only warned about). Accepted: the write is exactly the one the
+  project's own committed config already asked for.
 - **The committed launcher.** `.peal/peal` is a file of the repository: a branch can
   replace it, and whoever runs `.peal/peal` by hand runs the branch's copy. The git hooks
   never run it; they find Peal themselves.

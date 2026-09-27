@@ -58,9 +58,11 @@ and bring you only the questions, reviews and merges. Neither depends on the oth
 Peal runs on itself: its backlog is the task files under `tasks/`, its milestones are
 `docs/milestones/`, and its settings `.peal/config.yml`, so a task is worked with
 `/peal:work` and `/peal:close` like in any Peal project, and new work is filed with
-`/peal:idea` rather than as an issue. Once per clone, `.peal/peal hooks install` installs
-the git gates. The process runs the installed plugin, not the checkout's `plugin/`; to
-try a branch's CLI, run `PEAL_ROOT=$PWD/plugin plugin/bin/peal`.
+`/peal:idea` rather than as an issue. A fresh clone installs the git gates itself, at the
+first `peal claim` or session start; `.peal/peal hooks install` still does it by hand, or
+again over a `core.hooksPath` the automatic install only warned about. The process runs
+the installed plugin, not the checkout's `plugin/`; to try a branch's CLI, run
+`PEAL_ROOT=$PWD/plugin plugin/bin/peal`.
 
 This repository is a Claude Code plugin marketplace (`.claude-plugin/marketplace.json`)
 with one plugin, `peal`, in `plugin/`:

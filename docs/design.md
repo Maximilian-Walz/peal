@@ -335,7 +335,10 @@ Derived from refs and the main branch on the remote, never from the calling work
   candidate for POOL (`current,unassigned`), the next one when a claim loses its race.
   A human task is claimed by its id like any other; `/peal:work` refuses it.
   Scope paths (backticked in `## Scope`) that another claim's branch changes already are
-  warned about, never refused.
+  warned about, never refused. A fresh clone whose config records the `guardrails` stage
+  gets its git gates here too (`peal_hooks_ensure`, [Git gates](#git-gates)), before
+  anything else: the install's line on stdout, before the path; a foreign
+  `core.hooksPath` or a failed install only warns, on stderr, naming the command.
 - **`peal release ID`** removes a claim's worktree and branch (the remote's too, if it
   holds nothing more), the tip kept as `refs/reaped/NNNN-slug` for 30 days. It stays,
   with the reason, while it is the calling worktree, a session touched it in the last 30
@@ -343,11 +346,17 @@ Derived from refs and the main branch on the remote, never from the calling work
   branch holds commits not pushed. Landed means done on main, so a squash merge counts.
   A claim `peal defer` gave back goes although its task is not done, and although a
   session touched it lately.
-- **SessionStart**: on a new session (`startup`, `clear`) the turn budget restarts, the
-  remote is fetched and every claim under the worktrees directory that `release` would
-  let go is reaped (a deferred one only once idle); a landed one kept for uncommitted or unpushed work says so. Then the
-  orientation: the current milestone, this worktree's task, the other claims, the open
-  splits.
+- **SessionStart**: a fresh clone whose config records the `guardrails` stage gets its
+  git gates here too (`peal_hooks_ensure`, [Git gates](#git-gates)), its line directly
+  after `Peal:`, in the orientation itself rather than on stderr (a hook's stderr never
+  reaches the session): a foreign `core.hooksPath` or a failed install only warns and
+  installs nothing, but names the command in that same orientation line so the session
+  still sees it. This covers a session that never claims. Then, on a
+  new session (`startup`, `clear`) the turn budget restarts, the remote is fetched and
+  every claim under the worktrees directory that `release` would let go is reaped (a
+  deferred one only once idle); a landed one kept for uncommitted or unpushed work says
+  so. Then the orientation: the current milestone, this worktree's task, the other
+  claims, the open splits.
 - **PostToolUse**: the heartbeat that keeps a worktree from being reaped, and the turn
   budget: the main session's tool calls in a task's worktree are counted, and at the
   task's size tier (M while unsized) the session is nudged once to close or split.
@@ -620,6 +629,17 @@ in-repository one is skipped with a message; see [Distribution](#distribution)).
 refusal names its reason. `peal hooks install` refuses to record a Peal inside the
 repository. The limits that remain (`checks.commit`, in-tree project hooks, gate
 settings read from the work tree) are in [docs/security.md](security.md).
+
+`core.hooksPath` belongs to each clone, not to the repository: a committed `guardrails`
+stage in `stages:` only says the project wants the hooks, so a fresh clone runs the
+install itself, at the start of the work rather than at its first refusal
+(`peal_hooks_ensure`, `plugin/lib/githooks.sh`), from `peal claim` and the `SessionStart`
+hook, both covered whether or not the other runs first. A `core.hooksPath` already set to
+something other than these stubs is a clone's own choice: `peal_hooks_ensure` only warns
+and names `.peal/peal hooks install`, which chains to it (as `peal hooks install` always
+has), rather than installing over it unasked. `peal close begin`, `peal close finish` and
+`peal commit` stay pure refusals: the backstop for whatever `peal_hooks_ensure` could not
+fix, never the first word on it.
 
 - **pre-push** lets onto the main branch merges whose other parents a pushed branch
   already holds, and the storage's own writes, told by subject and checked by the diff's
@@ -942,7 +962,9 @@ milestone review action on.
 
 Each stage but `tasks` needs `tasks` set up first. A `guardrails` stage recorded in the
 committed config says the project wants the hooks; `core.hooksPath` is each clone's own,
-so a fresh clone runs the stage again.
+so a fresh clone runs the stage again itself, at the start of the work rather than
+waiting for a human's `/peal:setup guardrails` or `.peal/peal hooks install`
+(`peal_hooks_ensure`, [Git gates](#git-gates)).
 
 ## Migrating an existing project
 
