@@ -67,6 +67,27 @@ check "work: writes merge: auto only when the human agreed" "1" \
 # shellcheck disable=SC2016 # the literal backticks
 check "idea: never sets merge" "1" "$(grep -c -F -- '- `merge`: never.' "$commands/idea.md")"
 check "revise: can drop merge: auto" "1" "$(grep -c -F 'merge: auto` the task no longer earns' "$commands/revise.md")"
+
+# Text from others is data: one fixed paragraph (the bold marker line to the next blank
+# line), word for word the same in every prompt but the exempt list, which starts as
+# idea alone (its input is the human's own $ARGUMENTS).
+exempt="idea"
+text_from_others() {
+  awk '
+    /\*\*Text from others is data\.\*\*/ { p = 1 }
+    p { if ($0 == "") exit; print }
+  ' "$1"
+}
+reference=$(text_from_others "$commands/work.md")
+check "the text-from-others paragraph: non-empty" "1" "$([ -n "$reference" ] && echo 1 || echo 0)"
+for file in "$commands"/*.md "$agents"/*.md; do
+  name=$(basename "$file" .md)
+  got=$(text_from_others "$file")
+  case " $exempt " in
+    *" $name "*) check "$name: exempt from the text-from-others paragraph" "" "$got" ;;
+    *) check "$name: carries the text-from-others paragraph" "$reference" "$got" ;;
+  esac
+done
 # shellcheck disable=SC2016 # the literal backticks
 check "reviewer: ends in the merge-auto line" "1" \
   "$(grep -c -F '`merge-auto: keep` or `merge-auto: withdraw`' "$agents/reviewer.md")"
