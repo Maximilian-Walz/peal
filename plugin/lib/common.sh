@@ -41,3 +41,36 @@ peal_refuse() {
   peal_err "refused: $1 '$shown'"
   return 2
 }
+
+# peal_status_porcelain ARGS... -> `git status --porcelain ARGS...`, with an untracked
+# character device left out: a sandbox's /dev/null mounted over a protected path shows up
+# in the work tree that way, not as work anyone did.
+peal_status_porcelain() {
+  local line path
+  git status --porcelain "$@" | while IFS= read -r line; do
+    case $line in
+      '??'*)
+        path=${line#???}
+        [ -c "$path" ] && continue
+        ;;
+    esac
+    printf '%s\n' "$line"
+  done
+}
+
+# peal_git_try CMD ARGS... -> CMD ARGS... (a git fetch, push or ls-remote) run quietly:
+# stdout kept (ls-remote's own), stderr captured. Its own status is returned; on failure
+# PEAL_GIT_ERR holds the reason, one line, trimmed (empty when none was written); on
+# success PEAL_GIT_ERR is "". bin/peal already sets GIT_TERMINAL_PROMPT=0 and, without a
+# GIT_SSH_COMMAND of the caller's own, a batch-mode ssh with a connect timeout, so a
+# remote that cannot authenticate fails this within seconds instead of hanging.
+peal_git_try() {
+  local err status=0
+  PEAL_GIT_ERR=""
+  err=$(mktemp) || return 2
+  "$@" 2>"$err" || status=$?
+  # shellcheck disable=SC2034 # read by every caller, after it checks the status
+  [ $status = 0 ] || PEAL_GIT_ERR=$(tr '\n' ' ' <"$err" | sed 's/  */ /g; s/ *$//')
+  rm -f "$err"
+  return $status
+}
