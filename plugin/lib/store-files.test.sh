@@ -139,7 +139,7 @@ filed: 0007" "$?:$out"
 # checks that clear, no auto-merge, and no PEAL_MAIN_WRITE_BUDGET from the caller, so the
 # form's own ~90s cap is what is in play. Needs jq, for the fake gh.
 create_belfry_pr() {
-  local work out
+  local work out st
   unset PEAL_MAIN_WRITE_WAIT PEAL_MAIN_WRITE_BUDGET PEAL_PUSH_ATTEMPTS
   work=$(repo)
   fake_github "$work"
@@ -165,6 +165,20 @@ EOF
     "$?:$(printf '%s\n' "$out" | tail -n 1)"
   check "belfry create, PR route: merged" "closed true" \
     "$(jq -r '.[0] | "\(.state) \(.merged)"' "$FAKE_GH/pulls.json")"
+
+  # An open PR still at the cap (checks never clear within PEAL_MAIN_WRITE_BUDGET) counts
+  # as filed too: status 0, not peal_store_create's own 3 (a caller would read non-zero
+  # as "not filed" and retry, filing the task twice) — and no PEAL_MW_STATE unbound
+  # variable error, which a command substitution around peal_store_create used to cause
+  # (0074, reviewer finding: main-write.sh's peal_main_write_written reads PEAL_MW_STATE,
+  # a plain global peal_push_main sets, under set -u).
+  echo 1000 >"$FAKE_GH/checks-pending"
+  out=$(text "milestone: m1" | PEAL_MAIN_WRITE_INTERVAL=0 PEAL_MAIN_WRITE_BUDGET=0 \
+    peal create --owner ai --title "Belfry files this at the cap" 2>"$work.err")
+  st=$?
+  check "belfry create, PR route: open at the cap counts as filed, status 0" "0:filed: 0002" \
+    "$st:$(printf '%s\n' "$out" | tail -n 1)"
+  check "belfry create, PR route: no unbound variable" "0" "$(grep -c unbound "$work.err")"
 }
 
 refusals() {

@@ -109,10 +109,11 @@ peal_revise() {
 # merge (only a human, editing the task itself, earns merge: auto) or holds the task
 # delimiter (one task at a time here). PEAL_MAIN_WRITE_BUDGET is capped to about 90s
 # unless the caller set it, so a caller waiting on this synchronously does not hang; an
-# open pull request at that cap still counts as filed (peal_main_write_written, status
-# 3). Prints the storage's own lines, then "filed: <id>" as the very last line.
+# open pull request at that cap still counts as filed, status 0 like a merged one (the
+# storage's own status 3 would read as "not filed, retry" to a caller and file it twice).
+# Prints the storage's own lines, then "filed: <id>" as the very last line.
 peal_create_filed() {
-  local owner="" title="" slug words tmp out status=0 id
+  local owner="" title="" slug words tmp outfile out status=0 id
   while [ $# -gt 0 ]; do
     case $1 in
       --owner)
@@ -170,13 +171,21 @@ peal_create_filed() {
     return 2
   fi
   : "${PEAL_MAIN_WRITE_BUDGET:=90}"
-  out=$(peal_store_create plain "" "$slug" <"$tmp")
+  # Not out=$(peal_store_create ...): a command substitution is a subshell, so
+  # PEAL_MW_STATE (main-write.sh's peal_push_main sets it as a plain global) would never
+  # reach peal_main_write_written below, which reads it under set -u. The storage's own
+  # stdout goes to a file instead, peal_store_create running in this shell.
+  outfile=$(mktemp) || { rm -f "$tmp"; return 2; }
+  peal_store_create plain "" "$slug" <"$tmp" >"$outfile"
   status=$?
   rm -f "$tmp"
+  out=$(cat "$outfile")
+  rm -f "$outfile"
   [ -z "$out" ] || printf '%s\n' "$out"
   if peal_main_write_written $status; then
     id=$(awk 'NR == 1 { print $2; exit }' <<<"$out")
     printf 'filed: %s\n' "$id"
+    status=0
   fi
   return $status
 }
