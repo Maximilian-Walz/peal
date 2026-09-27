@@ -6,7 +6,9 @@
 #   bash plugin/lib/main-write.test.sh
 #
 # A filing through a pull request, main-writes: push failing as before, a merge waiting
-# for checks, two filings racing for a number, and an edit whose pull request conflicts.
+# for checks, two filings racing for a number (Peal's, a hand's, a split's, one landing
+# while the checks run, a fork's that is no rival), and an edit whose pull request
+# conflicts.
 set -uo pipefail
 # shellcheck source=test-lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/test-lib.sh"
@@ -202,6 +204,127 @@ refs/heads/peal/main-write-rival" "$(remote for-each-ref --format='%(refname)' r
   check "race: the replacement" "A	tasks/backlog/0003-my-task.md" "$(remote diff-tree -r --name-status main "$(pulls '.[2].head.ref')")"
 }
 
+# rival_hook BRANCH FILE... -> a pre-push hook in work that, once, has a rival clone push
+# BRANCH (from main) adding each tasks/backlog/FILE and open a pull request from it.
+rival_hook() {
+  local branch=$1 rival
+  shift
+  rival=$(dirname "$work")/rival
+  git clone -q "$(dirname "$work")/remote.git" "$rival" 2>/dev/null
+  {
+    printf '#!/bin/sh\n[ -e "%s.raced" ] && exit 0\ntouch "%s.raced"\n' "$rival" "$rival"
+    printf 'cd "%s" && git checkout -q -b %s origin/main && mkdir -p tasks/backlog' "$rival" "$branch"
+    printf ' && echo rival >tasks/backlog/%s' "$@"
+    printf ' && git add -A && git commit -q -m rival && git push -q origin HEAD:refs/heads/%s 2>/dev/null' "$branch"
+    printf ' && echo '"'"'{"title": "rival", "head": "%s", "base": "main", "body": ""}'"'"' | gh api --method POST repos/acme/widgets/pulls --input - >/dev/null\n' "$branch"
+  } >"$work/.git/hooks/pre-push"
+  chmod +x "$work/.git/hooks/pre-push"
+}
+
+# texts TEXT... -> the texts joined by the separator lines.
+texts() {
+  local first=1 t
+  for t in "$@"; do
+    [ $first = 1 ] || echo -----NEXT TASK-----
+    printf '%s\n' "$t"
+    first=0
+  done
+}
+
+hand_race() {
+  local out st
+  protected "main-writes: pr"
+  # A hand filing's pull request, not Peal's, takes 0002 first: this filing ends as 0003
+  # in one replacement, well within two attempts.
+  rival_hook chore/file-0002 0002-rival-task.md
+  out=$(text | PEAL_PUSH_ATTEMPTS=2 peal create my-task 2>&1)
+  st=$?
+  check "hand race: renumbered" "0:peal: opened pull request #2 https://github.com/acme/widgets/pull/2
+peal: #2's number is taken meanwhile, on main or by an earlier pull request; closed, and built again
+peal: opened pull request #3 https://github.com/acme/widgets/pull/3 (replaces #2)
+$(line 0003 my-task)
+pull request #3 https://github.com/acme/widgets/pull/3, merging once its checks pass; the number is final once it merges" "$st:$out"
+  check "hand race: states" "1 open rival
+2 closed docs(tasks): file 0002 my-task [0002]
+3 open docs(tasks): file 0003 my-task [0003]" "$(pulls '.[] | "\(.number) \(.state) \(.title)"')"
+  check "hand race: replaces" "1" "$(pulls '.[2].body' | grep -c '^Replaces #2\.$')"
+  check "hand race: the replacement" "A	tasks/backlog/0003-my-task.md" "$(remote diff-tree -r --name-status main "$(pulls '.[2].head.ref')")"
+
+  # The next filing counts the hand pull request's number before its first build.
+  out=$(text | peal create next-task 2>&1)
+  st=$?
+  check "hand race: the next one" "0:peal: opened pull request #4 https://github.com/acme/widgets/pull/4
+$(line 0004 next-task)
+pull request #4 https://github.com/acme/widgets/pull/4, merging once its checks pass; the number is final once it merges" "$st:$out"
+}
+
+split_race() {
+  local out st head
+  protected "main-writes: pr"
+  # Two pieces, the second depending on the first: raced for 0002, both move up, and the
+  # depends follows.
+  rival_hook chore/file-0002 0002-rival-task.md
+  out=$(texts "$(text "part-of: ORIGIN")" "$(TITLE=x text "part-of: ORIGIN" "depends: [PART1]")" \
+    | peal create --part-of 0001 piece-one piece-two 2>&1)
+  st=$?
+  check "split race: status" "0" "$st"
+  check "split race: filed" "filed 0003 tasks/backlog/0003-piece-one.md
+filed 0004 tasks/backlog/0004-piece-two.md" "$(printf '%s\n' "$out" | grep '^filed' | cut -d' ' -f1-3)"
+  head=$(pulls '.[2].head.ref')
+  check "split race: the replacement" "A	tasks/backlog/0003-piece-one.md
+A	tasks/backlog/0004-piece-two.md" "$(remote diff-tree -r --name-status main "$head")"
+  check "split race: the depends" "part-of: 0001
+depends: [0003]" "$(remote show "$head:tasks/backlog/0004-piece-two.md" | grep -E '^(depends|part-of):')"
+  check "split race: the heading" "# 0004 — x" "$(remote show "$head:tasks/backlog/0004-piece-two.md" | grep '^# ')"
+}
+
+merge_race() {
+  local out st rival
+  protected "main-writes: pr"
+  touch "$FAKE_GH/no-auto-merge"
+  echo 2 >"$FAKE_GH/checks-pending"
+  rival=$(dirname "$work")/rival
+  git clone -q "$(dirname "$work")/remote.git" "$rival" 2>/dev/null
+  # While Peal waits for the checks, 0002 lands on main: it closes before its merge and
+  # files again as 0003.
+  printf 'cd "%s" && mkdir -p tasks/backlog && echo rival >tasks/backlog/0002-rival-task.md && git add -A && git commit -q -m rival && ALLOW_MAIN=1 git push -q origin HEAD:main\n' \
+    "$rival" >"$FAKE_GH/on-check-runs"
+  out=$(text | PEAL_MAIN_WRITE_INTERVAL=0 peal create my-task 2>&1)
+  st=$?
+  check "merge race: renumbered" "0:peal: opened pull request #1 https://github.com/acme/widgets/pull/1
+peal: auto-merge is not on for #1 (GraphQL: Auto merge is not allowed for this repository (enablePullRequestAutoMerge)); Peal merges it once its checks pass
+peal: #1's number is taken meanwhile, on main or by an earlier pull request; closed, and built again
+peal: opened pull request #2 https://github.com/acme/widgets/pull/2 (replaces #1)
+peal: auto-merge is not on for #2 (GraphQL: Auto merge is not allowed for this repository (enablePullRequestAutoMerge)); Peal merges it once its checks pass
+$(line 0003 my-task)
+pull request #2 https://github.com/acme/widgets/pull/2, merged" "$st:$out"
+  check "merge race: states" "1 closed false
+2 closed true" "$(pulls '.[] | "\(.number) \(.state) \(.merged)"')"
+  check "merge race: main" "tasks/backlog/0001-existing-task.md
+tasks/backlog/0002-rival-task.md
+tasks/backlog/0003-my-task.md" "$(remote ls-tree -r --name-only main tasks/)"
+}
+
+fork() {
+  local out st rival
+  protected "main-writes: pr"
+  rival=$(dirname "$work")/rival
+  git clone -q "$(dirname "$work")/remote.git" "$rival" 2>/dev/null
+  # A fork's pull request holding 0002, numbered lower, is no rival: its branch is here
+  # only so that counting it would show.
+  (cd "$rival" && git checkout -q -b patch-1 && mkdir -p tasks/backlog && echo fork >tasks/backlog/0002-fork-task.md \
+    && git add -A && git commit -q -m fork && git push -q origin HEAD:refs/heads/patch-1 2>/dev/null)
+  jq '. + [{number: 1, node_id: "PR_1", title: "fork", body: "", state: "open", draft: false, merged: false,
+      mergeable: true, author_association: "CONTRIBUTOR", html_url: "https://github.com/acme/widgets/pull/1",
+      head: {ref: "patch-1", repo: {full_name: "someone/widgets"}}, base: {ref: "main", repo: {full_name: "acme/widgets"}}}]' \
+    "$FAKE_GH/pulls.json" >"$FAKE_GH/pulls.new" && mv "$FAKE_GH/pulls.new" "$FAKE_GH/pulls.json"
+  out=$(text | peal create my-task 2>&1)
+  st=$?
+  check "fork: not a rival" "0:peal: opened pull request #2 https://github.com/acme/widgets/pull/2
+$(line 0002 my-task)
+pull request #2 https://github.com/acme/widgets/pull/2, merging once its checks pass; the number is final once it merges" "$st:$out"
+}
+
 conflict() {
   local out st rival
   protected "main-writes: pr"
@@ -233,6 +356,10 @@ cases() {
   push_only
   merge_self
   race
+  hand_race
+  split_race
+  merge_race
+  fork
   conflict
 }
 
