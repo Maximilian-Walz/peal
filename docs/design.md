@@ -411,8 +411,10 @@ the judgement (the review, routing the findings, the Outcome, the summary).
   uncommitted or unpushed. It never refuses twice in a row, and a sentinel another session
   left behind is cleared, not enforced.
 - **`peal check`** refuses a task file under `done/` whose Outcome is empty or holds a
-  placeholder, and names each depends cycle among the tasks not done (the work tree's
-  task files; for issues, the storage's).
+  placeholder, names each task id that two or more task files use (backlog, doing and
+  done together: `peal: task id NNNN is used by A and B`), and names each depends cycle
+  among the tasks not done (the work tree's task files; for issues, the storage's). This
+  repository's CI runs the branch's own `peal check` from `tools/lint.sh`.
 
 ## Milestones
 
@@ -578,14 +580,21 @@ budget. Until the merge, a read of main does not find the write; its "no task" s
 Peal pull request may still be open. A conflict that arises after the command returned
 is left to a human.
 
-**Races.** Two writes built on the same main both open. A filing then lists the open
-`peal/main-write-*` pull requests numbered below its own and looks for its numbers in
-their branches and on the newest main; if one is taken it closes its pull request,
-deletes the branch and files again with the next free number (which counts the task
-files on every fetched `peal/main-write-*` branch), in a pull request saying "Replaces
-#N". A pull request GitHub reports unmergeable is closed the same way and the write
-built again on the new main, where an edit of a text changed meanwhile is refused as
-with a push. Each is bounded by `PEAL_PUSH_ATTEMPTS` (5).
+**Races.** Two writes built on the same main both open. A filing's rivals are the open
+pull requests against main whose branch is in the repository itself, any branch (a
+filing made by hand as much as Peal's), never a fork's. Before its first build the
+filing fetches them all, so its next free number counts the task files on their
+branches and on every fetched `peal/main-write-*` branch. Once its pull request is open,
+and again before Peal merges it itself, it looks for its numbers on the newest main and
+in the branches of the rivals numbered below its own (the lower number wins); if one is
+taken it closes its pull request, deletes the branch and files again with the next free
+number, the file's name, heading and any `depends`/`part-of` naming it rebuilt from its
+texts, in a pull request saying "Replaces #N". A pull request GitHub reports unmergeable
+is closed the same way and the write built again on the new main, where an edit of a
+text changed meanwhile is refused as with a push. Each is bounded by
+`PEAL_PUSH_ATTEMPTS` (5). A rival numbered higher that merges first, or a clash after
+auto-merge took over, is left to CI, where `peal check` refuses two task files with one
+id; the `push` route needs no `gh` and leaves a clash there to CI too.
 
 **In CI.** `templates/decisions.yml` publishes with a `PEAL_TOKEN` secret (a personal
 access token or an app's) when the project sets one, else the workflow's

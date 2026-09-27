@@ -13,7 +13,8 @@
 # while $FAKE_GH/no-auto-merge exists. A pull request opens unmergeable while
 # $FAKE_GH/unmergeable exists. $FAKE_GH/checks-pending, when it exists, holds N: the next
 # N reads of a commit's check runs find one still running, every later one a completed
-# run, failed while $FAKE_GH/checks-fail exists. Every call is appended to $FAKE_GH/log as
+# run, failed while $FAKE_GH/checks-fail exists; $FAKE_GH/on-check-runs, when it exists,
+# is run once, at the next such read, and removed. Every call is appended to $FAKE_GH/log as
 # "METHOD PATH"; $FAKE_GH/fail, when it exists, holds a pattern: a call whose
 # "METHOD PATH" matches it fails, but for the first N such calls when $FAKE_GH/fail-after
 # holds N.
@@ -269,6 +270,10 @@ case "$method $rest" in
     ;;
   "GET commits/"*/check-runs)
     sha=${rest#commits/} sha=${sha%/check-runs}
+    if [ -f "$FAKE_GH/on-check-runs" ]; then
+      mv "$FAKE_GH/on-check-runs" "$FAKE_GH/on-check-runs.ran"
+      bash "$FAKE_GH/on-check-runs.ran" >/dev/null 2>&1
+    fi
     if [ -f "$FAKE_GH/checks-pending" ]; then
       left=$(cat "$FAKE_GH/checks-pending")
       if [ "${left:-0}" -gt 0 ]; then
