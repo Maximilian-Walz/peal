@@ -38,10 +38,23 @@ set -uo pipefail
 BASE=$(cd "$(scratch_dir)" && pwd -P)
 CANARY=$BASE/canary
 STUBS=$BASE/stubs
+REAL_MKTEMP=$(command -v mktemp)
 mkdir -p "$CANARY" "$STUBS"
 # No real gh: one that fails, so nothing leaves this machine.
 printf '#!/bin/sh\necho "gh: not in this harness" >&2\nexit 1\n' >"$STUBS/gh"
 chmod +x "$STUBS/gh"
+# BSD mktemp without a template ignores TMPDIR. Every peal run in this harness goes
+# through $STUBS (assess, claim_wt, hostile_repo, and the git hooks they install
+# inherit it too), so forcing a template here is what the leftover-temp-file check
+# below relies on to see what peal leaves behind, on every platform.
+cat >"$STUBS/mktemp" <<EOF
+#!/bin/sh
+case "\$*" in
+  *XXX*) exec "$REAL_MKTEMP" "\$@" ;;
+  *) exec "$REAL_MKTEMP" "\$@" "\${TMPDIR:-/tmp}/tmp.XXXXXXXX" ;;
+esac
+EOF
+chmod +x "$STUBS/mktemp"
 nrepo=0
 
 LONG=$(head -c 65536 /dev/zero | tr '\0' 'a')
@@ -510,8 +523,7 @@ self_test() {
   hostile_repo
   printf '#!/usr/bin/env bash\neval "echo $1" >/dev/null\n' >"$unsafe.eval"
   printf '#!/usr/bin/env bash\nprintf x >"$1"\n' >"$unsafe.write"
-  # A template under TMPDIR: BSD mktemp without one may ignore TMPDIR (probed below).
-  printf '#!/usr/bin/env bash\nmktemp "$TMPDIR/leak.XXXXXX" >/dev/null\n' >"$unsafe.temp"
+  printf '#!/usr/bin/env bash\nmktemp >/dev/null\n' >"$unsafe.temp"
   printf '#!/usr/bin/env bash\ngit update-ref "refs/heads/$1" HEAD\n' >"$unsafe.ref"
   printf '#!/usr/bin/env bash\nbash -c "if then"\n' >"$unsafe.syntax"
   chmod +x "$unsafe".*
@@ -521,7 +533,9 @@ self_test() {
   check "self-test: a write outside is caught" "wrote outside" "${problems%%:*}"
   problems=$(assess "$WORK" "$NOINPUT" "$unsafe.temp")
   check "self-test: a temp file left is caught" "temp files left" "${problems%%:*}"
-  probe=$(TMPDIR=$REPO/tmp mktemp) && rm -f "$probe"
+  # Guard: the shim above (line ~40) is meant to force every mktemp call under this
+  # harness's PATH into TMPDIR, so this should never fire; if it does, the shim broke.
+  probe=$(TMPDIR=$REPO/tmp PATH="$STUBS:$PATH" mktemp) && rm -f "$probe"
   case $probe in
     "$REPO/tmp/"*) ;;
     *) NOTES="${NOTES}note: mktemp here ignores TMPDIR ($probe), so a temp file Peal leaves is not seen"$'\n' ;;
