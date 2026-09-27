@@ -58,12 +58,50 @@ peal_status_porcelain() {
   done
 }
 
+# peal_ssh_batch_mode -> GIT_SSH_COMMAND exported as whatever ssh git already runs (its
+# own GIT_SSH_COMMAND; else this repository's core.sshCommand; else GIT_SSH, a bare
+# program path, quoted into a command; else plain ssh), " -o BatchMode=yes -o
+# ConnectTimeout=10" appended: ssh keeps the first value it is given for an option, so
+# any BatchMode or ConnectTimeout the setup already chose still wins, and a proxy or key
+# it set through one of these still runs. Only when that command's program is ssh itself
+# (the basename of its first word): plink, a wrapper script, is left exactly as it is,
+# whatever it prompts its own business. Setting GIT_SSH_COMMAND outright, the way bin/peal
+# once did, would have overridden core.sshCommand and GIT_SSH instead of layering onto
+# them, and left a sandbox's own GIT_SSH_COMMAND (already set, without batch mode)
+# unchanged, so this must run before Peal does anything over the network.
+peal_ssh_batch_mode() {
+  local cmd program bare=0
+
+  if [ -n "${GIT_SSH_COMMAND-}" ]; then
+    cmd=$GIT_SSH_COMMAND
+  elif cmd=$(git config --get core.sshCommand 2>/dev/null) && [ -n "$cmd" ]; then
+    :
+  elif [ -n "${GIT_SSH-}" ]; then
+    cmd=$GIT_SSH
+    bare=1
+  else
+    cmd=ssh
+  fi
+
+  if [ "$bare" = 1 ]; then
+    program=${cmd##*/}
+    printf -v cmd '%q' "$cmd"
+  else
+    # shellcheck disable=SC2086 # a shell command line: word-split to find its program
+    set -- $cmd
+    program=${1##*/}
+  fi
+  [ "$program" = ssh ] || return 0
+
+  export GIT_SSH_COMMAND="$cmd -o BatchMode=yes -o ConnectTimeout=10"
+}
+
 # peal_git_try CMD ARGS... -> CMD ARGS... (a git fetch, push or ls-remote) run quietly:
 # stdout kept (ls-remote's own), stderr captured. Its own status is returned; on failure
 # PEAL_GIT_ERR holds the reason, one line, trimmed (empty when none was written); on
-# success PEAL_GIT_ERR is "". bin/peal already sets GIT_TERMINAL_PROMPT=0 and, without a
-# GIT_SSH_COMMAND of the caller's own, a batch-mode ssh with a connect timeout, so a
-# remote that cannot authenticate fails this within seconds instead of hanging.
+# success PEAL_GIT_ERR is "". bin/peal already runs peal_ssh_batch_mode and sets
+# GIT_TERMINAL_PROMPT=0, so a remote that cannot authenticate fails this within seconds
+# instead of hanging.
 peal_git_try() {
   local err status=0
   PEAL_GIT_ERR=""

@@ -7,16 +7,16 @@ set -uo pipefail
 PEAL_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd) || exit 2
 export PEAL_ROOT
 
-# Every git fetch, push and ls-remote Peal runs from here on fails within seconds
-# instead of hanging: no interactive prompt (a sandbox has nowhere to show one), and,
-# unless the caller already set its own GIT_SSH_COMMAND, an ssh that never prompts and
-# gives up a dead connection after 10 seconds.
-export GIT_TERMINAL_PROMPT=0
-: "${GIT_SSH_COMMAND:=ssh -o BatchMode=yes -o ConnectTimeout=10}"
-export GIT_SSH_COMMAND
-
 # shellcheck source=../lib/common.sh
 . "$PEAL_ROOT/lib/common.sh"
+
+# Every git fetch, push and ls-remote Peal runs from here on fails within seconds
+# instead of hanging: no interactive prompt (a sandbox has nowhere to show one, and
+# GIT_TERMINAL_PROMPT=0 stops git's own), and the ssh git would already run (a
+# sandbox's own GIT_SSH_COMMAND included) made to give up a dead connection after 10
+# seconds instead of waiting on a prompt nothing will answer (peal_ssh_batch_mode).
+export GIT_TERMINAL_PROMPT=0
+peal_ssh_batch_mode
 # shellcheck source=../lib/frontmatter.sh
 . "$PEAL_ROOT/lib/frontmatter.sh"
 # shellcheck source=../lib/config.sh
