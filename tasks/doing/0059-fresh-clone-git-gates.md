@@ -18,6 +18,11 @@ When the `guardrails` stage is recorded in the config and `peal_hooks_installed`
 - If the install fails, say so up front in the orientation and in the claim output, with the exact command. Do not let the problem surface later at close.
 - Update the sentence in `docs/design.md` and the "once per clone" line in `README.md` to match.
 
+## Scope
+
+- In: a `peal_hooks_ensure` helper in `plugin/lib/githooks.sh`, called from `peal_session_start` and `peal_claim`. The remedy text of the close and commit refusals. Harness cases in `claim.test.sh` and `session.test.sh`. The prose in `docs/design.md`, `README.md`, `docs/security.md`, `plugin/commands/setup.md` and the usage text in `plugin/bin/peal`.
+- Out: rewriting a foreign `core.hooksPath` automatically (it gets a warning only), any install attempt at close or commit, and `CLAUDE.md` (an idea is filed for it).
+
 ## Done when
 
 - In a fresh clone with `guardrails` in `stages` and no `core.hooksPath`, `peal claim N` leaves `peal_hooks_installed` true, and `peal close begin` in that claim's worktree gets past the hooks check.
