@@ -14,6 +14,12 @@ merge: auto
 Print the branch date in UTC so it matches the rest of Peal, for example
 `TZ=UTC git log -1 --format=%cd --date=format-local:%Y-%m-%d ...`. Put it in one shared helper that both stores call, not two copies. This fixes the real inconsistency and not only the tests. Setting `TZ=UTC` in the harnesses would only hide it.
 
+## Scope
+
+- A shared helper `peal_ref_date_utc REF` in `plugin/lib/store.sh`, called by `store-files.sh` and `store-issues.sh` for the parked `last <date>` detail.
+- One fixed-date pin check each in `plugin/lib/tasks.test.sh` and `plugin/lib/store-issues.test.sh`.
+- Out: `docs/design.md`, CI, `task-fixtures.sh`.
+
 ## Done when
 
 - `store-files.sh` and `store-issues.sh` print the `last <date>` detail as the UTC date of the branch's last commit, through one shared helper
