@@ -1,8 +1,10 @@
 ---
 plan: required
 priority: high
-touches: [plugin/lib/store-files.sh, plugin/lib/store-issues.sh, plugin/lib/store-issues.test.sh, plugin/lib/task-fixtures.sh, plugin/lib/tasks.test.sh]
+touches: [plugin/lib/store.sh, plugin/lib/store-files.sh, plugin/lib/store-issues.sh, plugin/lib/tasks.test.sh, plugin/lib/store-issues.test.sh]
 milestone: m1
+size: S
+merge: auto
 ---
 
 # 0057 — Branch-date detail in UTC: the "every state" and "parked" harness checks fail around midnight
@@ -38,6 +40,51 @@ When the local date and the UTC date differ (for example 00:00–02:00 CEST), th
 - `plugin/lib/store-issues.test.sh:501`: "parked"
 
 Every other date Peal writes is already UTC: `Revised`, `Deferred` and `Retired` notes (`backlog.sh`, `store-files.sh`), decisions (`decisions.sh`), and the session and deferral timestamps (`session.sh`, `backlog.sh`).
+
+The human's answers when agreeing the plan:
+
+- The shared helper lives in `plugin/lib/store.sh`, named `peal_ref_date_utc REF`, commented as a helper shared by the stores and kept out of the storage interface list.
+- `docs/design.md` stays as it is; the Outcome mentions that `last <date>` is now UTC.
+- No CI or tooling change to run the suite under a non-UTC zone: the fixed-date pin checks guard it.
+- One pin check in each harness. The date stays the committer date (`%cd`). No minimum git version is recorded (`format-local` needs git 2.7). `task-fixtures.sh` needs no change. A harness run that crosses UTC midnight between sourcing the fixtures and the parked commit can still fail: noted in the Outcome, not fixed.
+- Merge: auto.
+
+## Plan
+
+**Approach.**
+
+- Add `peal_ref_date_utc REF` to `plugin/lib/store.sh`, below `peal_store_load`. It prints the UTC calendar date of the ref's last commit: `TZ=UTC git log -1 --format=%cd --date=format-local:%Y-%m-%d "$1"`. Git's `format-local` is portable across GNU and BSD, unlike `%ct` piped to `date`.
+- Call it from both stores in place of `git log -1 --format=%cd --date=short`:
+  - `plugin/lib/store-files.sh:162`
+  - `plugin/lib/store-issues.sh:130-131`
+- Add a pin check to each harness, in its own repository so the "every state" expectations and the later whole-list comparisons stay untouched:
+  - `plugin/lib/tasks.test.sh` for the files store;
+  - `plugin/lib/store-issues.test.sh` for the issues store, using `issues_repo` and `issue N`, with the branch set up as for issue 7 at lines 84-87.
+  - Each check commits on a parked branch with `GIT_COMMITTER_DATE='2026-03-01T23:30:00-05:00'` and expects `last 2026-03-02`. It may add a second commit the other way, `2026-03-02T00:30:00+14:00`, expecting `2026-03-01`.
+- The existing `last $today` checks need no change: `today` is already `date -u`.
+
+**Verification.**
+
+- The pin checks fail with the helper temporarily reverted to `--date=short`. Check this locally; do not commit the revert.
+- These runs pass:
+  - `TZ=Pacific/Kiritimati`, `TZ=Etc/GMT+12` and `TZ=UTC bash plugin/lib/tasks.test.sh`;
+  - the same three with `plugin/lib/store-issues.test.sh`.
+- `tools/test-all.sh` passes, and shellcheck passes on the changed files.
+
+**Touches:** `plugin/lib/store.sh`, `plugin/lib/store-files.sh`, `plugin/lib/store-issues.sh`, `plugin/lib/tasks.test.sh`, `plugin/lib/store-issues.test.sh`.
+
+**Ranges relied on:**
+
+- plugin/lib/store-files.sh:136-175
+- plugin/lib/store-issues.sh:102-137
+- plugin/lib/store.sh:1-89
+- plugin/lib/task-fixtures.sh:1-79
+- plugin/lib/tasks.test.sh:1-110
+- plugin/lib/store-issues.test.sh:1-125
+- plugin/lib/store-issues.test.sh:480-509
+- docs/design.md:78-85
+- tools/test-all.sh:1-32
+- .github/workflows/ci.yml:17-40
 
 ---
 
