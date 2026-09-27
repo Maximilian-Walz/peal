@@ -149,8 +149,8 @@ peal_store_list() {
     shift
   done
   _peal_issues_settings || return 2
-  if [ $fetch = 1 ] && ! git fetch -q "$PEAL_REMOTE" 2>/dev/null; then
-    peal_err "warning: could not fetch $PEAL_REMOTE; reading what is known here"
+  if [ $fetch = 1 ] && ! peal_git_try git fetch -q "$PEAL_REMOTE"; then
+    peal_err "warning: could not fetch $PEAL_REMOTE${PEAL_GIT_ERR:+ ($PEAL_GIT_ERR)}; reading what is known here"
   fi
   tmp=$(mktemp -d) || return 2
   if _peal_issues_scan "$tmp" && _peal_issues_prs >"$tmp/prs"; then
