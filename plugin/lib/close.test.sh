@@ -185,6 +185,33 @@ begin_cases() {
   check "begin: no Done when" "(no Done when section)" "$(printf '%s\n' "$out" | tail -n 1)"
 }
 
+# begin_unreachable_cases -> close begin's fetch, against a remote that cannot
+# authenticate, fails within the timeout instead of hanging over ssh with no output
+# (Intent), and says so with the remote and why; begin still runs, on what is known here
+# already (the stale origin/main this worktree was cloned from).
+begin_unreachable_cases() {
+  local fakebin out start elapsed
+  new_repo
+  ready 1 first-task
+  fakebin=$(scratch_dir)
+  cat >"$fakebin/ssh" <<'SSHEOF'
+#!/bin/sh
+echo "Permission denied (publickey)." >&2
+exit 255
+SSHEOF
+  chmod +x "$fakebin/ssh"
+  git -C "$wt" remote set-url origin "ssh://git@example.invalid/acme/widgets.git"
+  start=$SECONDS
+  out=$(PATH="$fakebin:$PATH" at "$wt" "$PEAL" close begin 2>&1)
+  elapsed=$((SECONDS - start))
+  check "begin unreachable: fast, not hung" "1" "$([ "$elapsed" -le 5 ] && echo 1 || echo 0)"
+  check "begin unreachable: names the remote" "1" \
+    "$(printf '%s\n' "$out" | grep -c 'could not fetch origin/main')"
+  check "begin unreachable: says why" "1" "$(printf '%s\n' "$out" | grep -c 'Permission denied')"
+  check "begin unreachable: still begun on what is known here" "1" \
+    "$(printf '%s\n' "$out" | grep -c '^close begun: task')"
+}
+
 finish_cases() {
   local body out status stopflag
   stopflag=$(scratch_dir)/stop
@@ -283,6 +310,58 @@ Built a.txt.
   check "finish again: updated" "0|updated the title and body of pull request #$(jq '.[0].number' "$FAKE_GH/pulls.json")|1" \
     "$?|$(printf '%s\n' "$out" | grep '^updated')|$(prs)"
   check "finish again: the new body" "Still nothing." "$(jq -r '.[0].body' "$FAKE_GH/pulls.json" | grep Still)"
+}
+
+# rearm_sentinel -> the sentinel wt's git directory holds written directly (peal close
+# begin's own shape), as a session resuming an unfinished close would find it: for task
+# files, begin itself refuses once the file is under done/, so nothing but this writes
+# the sentinel a second time.
+rearm_sentinel() {
+  printf '%s\n' "$(id 1)" | { printf '\n'; cat; date -u +%Y-%m-%dT%H:%M:%SZ; } \
+    >"$(git -C "$wt" rev-parse --absolute-git-dir)/peal-close"
+}
+
+# push_skip_cases -> close finish with the branch already at its upstream (a session
+# pushed it itself, or an earlier finish got this far and only failed after) pushes
+# nothing: a remote that has since gone missing does not stop it finishing.
+push_skip_cases() {
+  local out status
+  new_repo
+  ready 1 first-task
+  build
+  begin >/dev/null
+  outcome "Built a.txt."
+  close_finish >/dev/null 2>&1
+  rearm_sentinel
+  git -C "$wt" remote set-url origin "$(scratch_dir)/gone.git"
+  out=$(close_finish 2>&1)
+  status=$?
+  check "push skip: finishes although the remote is gone" "0" "$status"
+  check "push skip: never tried to push (no push failure reported)" "0" \
+    "$(printf '%s\n' "$out" | grep -c 'the push failed')"
+  check "push skip: the pull request still just the one, updated" "1" "$(prs)"
+}
+
+# char_device_cases -> an untracked character device (what a sandbox's /dev/null mounted
+# over a protected path looks like to git, not work anyone did) is not counted as
+# uncommitted, by the Stop hook or close finish. Skipped where this machine will not let
+# an unprivileged mknod make one (most CI runners): the assertion needs a real one, not a
+# stand-in device git would treat differently.
+char_device_cases() {
+  local dev
+  new_repo
+  ready 1 first-task
+  build
+  begin >/dev/null
+  outcome "Built a.txt."
+  dev=$wt/dev-null
+  if ! mknod "$dev" c 1 3 2>/dev/null; then
+    echo "close.test.sh: mknod needs a privilege this machine will not give; char-device cases skipped" >&2
+    return 0
+  fi
+  check "char device: stop stays silent" "0:" "$(stop)"
+  check "char device: finish is not refused for it" "0" "$(close_finish >/dev/null 2>&1; echo $?)"
+  rm -f "$dev"
 }
 
 # merge_cases -> a task holding merge: auto needs the reviewer's merge-auto line; keep
@@ -617,7 +696,10 @@ check_cases() {
 
 cases() {
   begin_cases
+  begin_unreachable_cases
   finish_cases
+  push_skip_cases
+  char_device_cases
   merge_cases
   rerun_cases
   flush_cases
