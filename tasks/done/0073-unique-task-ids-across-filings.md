@@ -165,8 +165,12 @@ Built as planned (A to D). The 0069 twins came from a hand pull request
 - **Departure:** the "raced two-piece `--batch`" case is a `--part-of` split instead.
   `PART1` only works in split mode (`task-check.awk` refuses it in a batch).
 - `docs/design.md`: the Races paragraph and the `peal check` bullet are updated.
-- **Merged origin/main** (0070's idea queue and action bumps) before closing. There were
-  no conflicts.
+- **Merged origin/main twice** before closing. The first merge (0070's idea queue and
+  action bumps) was clean. The second (0057, 0065 and the 0074-0076 filings) conflicted
+  only in `plugin/lib/tasks.test.sh`, where both sides added a test function in the
+  same place. The fix keeps both `duplicates` and `branch_date_utc`.
+- A `wip: session-end autosave` commit on the branch holds only this Outcome. It is
+  there because the session's shell sandbox failed mid-close.
 
 **Next session:** a higher-numbered rival that merges first, a direct push racing an
 open hand pull request, and an auto-merged filing raced after it returned are all left
