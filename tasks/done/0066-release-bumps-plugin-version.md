@@ -92,3 +92,41 @@ The human's answers while planning:
 
 ## Outcome
 
+
+**Built.** A release can now set the version in the project's own files before tagging.
+- **Setting:** `release.version-files` in `config-defaults.yml`, default `[]`. Each item is a string `"PATH: FIELD"`.
+- **Field editor:** one awk editor, `plugin/lib/version-field.awk`. It sets a top-level string field in JSON (object depth 1), TOML (before the first `[table]`) and YAML (column 0), and changes nothing else in the file. It refuses an unknown file extension, a missing field, a field that appears twice, and a value that is not a plain string. It uses no jq and runs under mawk, nawk and busybox awk.
+- **`peal ship bump VERSION`:** a new step that can be rerun.
+  - It first runs the same version checks as `tag` (the shared `_peal_ship_fresh`).
+  - It reads each listed file from the remote's main and writes one commit, `chore(release): <tag>`, through 0061's main-write path, set to wait until merged. On a protected main that is a pull request, and bump returns once it has merged.
+  - When every file already holds the version, it prints `already at` and writes nothing.
+  - Status 3 means the pull request was still open when the time budget ran out. Nothing is tagged, and rerunning `/peal:release <version>` after the merge tags.
+  - With no version files it prints `nothing to bump` and succeeds.
+- **`peal ship tag`:** refuses when a listed file on main does not hold the version, and says to run `peal ship bump`. The release notes already skip `chore` commits, so the bump commit is left out of them.
+- **Pre-push gate:** `_peal_pre_push_release` in `githooks.sh` lets a direct `chore(release): <prefix>X.Y.Z[-pre]` commit through. The commit must have one parent and only modify listed files (M, mode 100644). The gate rebuilds each file from its parent's copy with the same editor and requires an exact match.
+- **Issues storage:** the `main-writes` warning now allows for the version files.
+- **Docs:** `release.md` calls `ship bump` first when the setting is not empty. The CLI help, `docs/design.md` (settings, pre-push shapes, Releases) and the README's one-line summary of `ship.sh` are updated.
+
+**Decided with the human:** see the list under Notes. They agreed the gate change, the three formats (top-level keys only), the tag guard, stop-and-rerun for a pull request still open, and the planner's other defaults.
+
+**Done when #2 moved to a follow-up.** The installed Peal (0.1.0) refuses the unknown key. The working line in `.peal/config.yml` would therefore break every Peal command, both in this worktree and on main after the merge. Only the commented default is committed.
+- With the line in place, the branch's `peal config release.version-files` printed `plugin/.claude-plugin/plugin.json: version`.
+- After the merge, the human refreshes the installed plugin by hand.
+- The idea `list-plugin-version-file` (m1, depends on 0066) then adds the line before v0.2.0.
+- The v0.2.0 release then bumps `plugin/.claude-plugin/plugin.json`. It stays at 0.1.0 until then. `.claude-plugin/marketplace.json` is untouched.
+
+**Left for later:** if `ship bump` is rerun before its pull request has merged, it opens a second pull request. That is filed as the idea `bump-rerun-finds-open-pr`.
+
+**Verification.** After merging main in, these passed:
+- `ship.test.sh`: 255
+- `githooks.test.sh`: 339
+- `main-write.test.sh`: 165
+- `config.test.sh`: 69
+- `store-issues.test.sh`: 537
+- `tools/lint.sh`: clean
+
+Before the merge, the implementer ran the harnesses under every awk installed here, and ran `hostile.test.sh`'s argument cases (1157). Its awk-channel cases were not rerun.
+
+### Reviewer findings not acted on
+
+- `README.md` is outside `touches`: it gains a one-line doc sync naming the version files in the `ship.sh` summary. Keeping the README in step is wanted, and it is not a finding to act on.
