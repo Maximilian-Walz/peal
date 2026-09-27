@@ -96,3 +96,28 @@ The human's answers when agreeing the plan:
 
 ## Outcome
 
+**Built.** A parked task's list detail, `N commit(s) ahead, last <date>`, now always shows the UTC calendar date of the branch's last commit. That matches every other date Peal writes.
+
+- The date comes from one helper, `peal_ref_date_utc REF`, in `plugin/lib/store.sh` below `peal_store_load`. It runs `TZ=UTC git log -1 --format=%cd --date=format-local:%Y-%m-%d`.
+- It is commented as shared by the stores and is not part of the storage interface.
+- `store-files.sh` and `store-issues.sh` call it instead of their own `--date=short` calls.
+- Each harness (`tasks.test.sh`, `store-issues.test.sh`) has a `branch_date_utc` case in its own repository. It commits at `2026-03-01T23:30:00-05:00` and expects `last 2026-03-02`, then at `2026-03-02T00:30:00+14:00` and expects `last 2026-03-01`.
+- Both cases fail when the helper is switched back to `--date=short`. That was checked locally and not committed.
+
+**Verified.** After merging origin/main, both harnesses pass under `TZ=Pacific/Kiritimati`, `TZ=Etc/GMT+12` and `TZ=UTC`. `tools/test-all.sh` passes, and shellcheck is clean on the changed files.
+
+**Decided, with the human.**
+
+- The helper lives in `store.sh`, because that file loads both stores.
+- The date is the committer date (`%cd`).
+- `docs/design.md` is unchanged: its `last <date>` does not say that the date is now UTC.
+- No CI run under a non-UTC time zone: the fixed-date cases guard against a regression.
+- No minimum git version is recorded. `format-local` needs git 2.7 or later.
+
+**Left.**
+
+- A harness run that crosses UTC midnight can still fail. The window is between `task-fixtures.sh` computing `today` and a later parked commit made at the real time. That is rarer than the bug fixed here and was accepted, not fixed.
+- The implementer once saw `store-issues.test.sh` fail under `TZ=Etc/GMT+12` with busybox awk while other test runs were going at the same time. It did not recur when run alone, before or after the merge.
+
+**Found.** One of the implementer's `peal commit <paths>` calls also committed about 22 sandbox placeholder files that were already staged. Commit 912623c un-tracks them again, and the net diff does not include them. `peal commit` commits the whole index, not only the paths it is given: filed as the queued idea "peal commit with paths commits only those paths".
+
