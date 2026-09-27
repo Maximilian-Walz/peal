@@ -607,6 +607,12 @@ check_cases() {
   check_refused "check: a placeholder left under done/" "tasks/done/0001-finished-task.md: done, and its Outcome still holds a placeholder" at "$work" "$PEAL" check
   OUTCOME="Built." put "$work" "done" 0001 finished-task
   check "check: a written Outcome" "0:" "$(at "$work" "$PEAL" check 2>&1; echo "$?:")"
+
+  # An idea copied out of the queue by hand and indented into the Outcome carries its own
+  # placeholder; quoted like that, it does not trip this task's placeholder check.
+  OUTCOME=$'Built.\n\nFiled by hand, filing having failed:\n\n  ---\n  ## Outcome\n\n  <!-- Written at close, replacing this comment. -->' \
+    put "$work" "done" 0001 finished-task
+  check "check: an indented, quoted placeholder passes" "0:" "$(at "$work" "$PEAL" check 2>&1; echo "$?:")"
 }
 
 cases() {

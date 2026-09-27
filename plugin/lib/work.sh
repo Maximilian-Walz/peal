@@ -15,7 +15,9 @@ PEAL_WORK_ROLES="planner implementer reviewer"
 #   CANDIDATE ... / MORE ...  peal offer's lines for POOL (current,unassigned); nothing
 #                           at all for an empty pool
 # Refused: an ID or POOL other than this worktree's own task, in a task's worktree; a
-# human task (owner: human), which only the human works: peal claim makes its worktree.
+# human task (owner: human), which only the human works: peal claim makes its worktree;
+# a worktree whose cached task text could not be read (an issue the write-access rule no
+# longer admits, most likely), read's reason or "could not read".
 peal_work() {
   local arg=${1-} task id path out status records
   [ $# -le 1 ] || { peal_err "work: [ID | POOL]"; return 2; }
@@ -46,9 +48,17 @@ peal_work() {
   esac
 }
 
-# _peal_work_here ID FILE -> the TASK, PLAN and MODEL lines of the task this worktree holds.
+# _peal_work_here ID FILE -> the TASK, PLAN and MODEL lines of the task this worktree
+# holds; refused, with read's reason (or "could not read") when the claim's cached copy
+# is empty (the storage could not read it: an issue the write-access rule no longer
+# admits, most likely).
 _peal_work_here() {
-  local id=$1 file=$2 plan model role
+  local id=$1 file=$2 plan model role err
+  if [ ! -s "$file" ]; then
+    err=$(peal_store_read "$id" 2>&1 >/dev/null)
+    if [ -n "$err" ]; then printf '%s\n' "$err" >&2; else peal_err "work: could not read task $id"; fi
+    return 2
+  fi
   printf 'TASK %s %s\n' "$id" "$file"
   plan=$(peal_fm_get "$file" plan 2>/dev/null)
   case $plan in

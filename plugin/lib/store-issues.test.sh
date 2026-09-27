@@ -164,6 +164,69 @@ issues_repo_label() {
   issue 3 "Labelled sized" --label tasks --label "size: M"
 }
 
+# admitted(): the write-access rule (or the filter label) on every read path of the
+# issues storage: read, claim, defer and work's cached copy.
+admission() {
+  local work wt out
+  issues_repo
+  issue 1 "Stranger's issue" --assoc NONE
+  issue 2 "Owner's issue"
+  check_refused "read: a stranger's issue, no label configured" \
+    "refused: issue 1 is no task: opened by someone without write access to acme/widgets; set storage.issues.label and label it, or file it anew yourself (peal idea)" \
+    peal read 1
+  check_refused "claim: the same refusal" \
+    "refused: issue 1 is no task: opened by someone without write access to acme/widgets; set storage.issues.label and label it, or file it anew yourself (peal idea)" \
+    peal claim 1
+  check "read: an owner's issue is admitted" "# 2 — Owner's issue" "$(peal read 2 2>&1 | grep '^# ')"
+  check "list: a stranger's unlabelled issue is no task" "2 free owner-s-issue -" "$(list 2>&1)"
+
+  # A filter label: a stranger's labelled issue is readable; an owner's unlabelled issue
+  # is refused as not labelled alone, without naming write access.
+  issues_repo_label
+  issue 4 "Stranger's labelled issue" --label tasks --assoc NONE
+  issue 5 "Owner's unlabelled issue"
+  issue 6 "Stranger's unlabelled issue" --assoc NONE
+  check "read: a labelled stranger's issue" "# 4 — Stranger's labelled issue" "$(peal read 4 2>&1 | grep '^# ')"
+  check_refused "read: an owner's unlabelled issue" \
+    "refused: issue 5 is no task: not labelled 'tasks'; labelling it 'tasks' or filing it anew yourself (peal idea) makes it a task" \
+    peal read 5
+  check_refused "claim: a stranger's unlabelled issue names both" \
+    "refused: issue 6 is no task: opened by someone without write access to acme/widgets and not labelled 'tasks'; labelling it 'tasks' or filing it anew yourself (peal idea) makes it a task" \
+    peal claim 6
+
+  # defer: the same refusal, once the issue is no longer admitted.
+  issues_repo
+  issue 6 "Claimable"
+  wt=$(peal claim 6 --print-path 2>/dev/null | tail -n 1)
+  gh_save issues 'map(if .number == 6 then .author_association = "NONE" else . end)'
+  check_fails "defer: refused when no longer admitted" 2 \
+    "refused: issue 6 is no task: opened by someone without write access to acme/widgets; set storage.issues.label and label it, or file it anew yourself (peal idea)" \
+    at "$wt" "$PEAL" defer --reason "no longer mine" --dry-run < <(cat "$(git -C "$wt" rev-parse --absolute-git-dir)/peal-task.md")
+
+  # work: a worktree whose cached copy can no longer be read (the label taken off after
+  # the claim, under a filter label) refuses with read's reason, never an empty task.
+  issues_repo_label
+  issue 7 "Claimable, labelled" --label tasks
+  wt=$(peal claim 7 --print-path 2>/dev/null | tail -n 1)
+  gh_save issues 'map(if .number == 7 then .labels = [] else . end)'
+  # The claim's own cached copy stays (a failed refresh keeps what it had, for a
+  # transient gh failure's sake); emptied here as if the cache had never been written,
+  # the condition _peal_work_here actually checks.
+  : >"$(git -C "$wt" rev-parse --absolute-git-dir)/peal-task.md"
+  check_fails "work: refused when the cache is empty" 2 \
+    "refused: issue 7 is no task: not labelled 'tasks'; labelling it 'tasks' or filing it anew yourself (peal idea) makes it a task" \
+    at "$wt" "$PEAL" work
+
+  # claim: read succeeds (the issue exists and is admitted) but the id is not in the
+  # list claim itself fetched (here, closed longer ago than PEAL_ISSUES_CLOSED keeps) —
+  # no refusal of read's to pass on, so the plan's fallback "no task N", not a silent exit.
+  issues_repo
+  issue 1 "Long closed" --closed
+  issue 2 "Recently closed" --closed
+  PEAL_ISSUES_CLOSED=1 check_refused "claim: no task once past the closed window" \
+    "no task 1" peal claim 1
+}
+
 expansion() {
   local work err
   issues_repo
@@ -541,9 +604,17 @@ Other claims:
   hook "$wt" post-tool-use '{}' >/dev/null
   check "budget: the text read once" "1" "$(calls 'GET repos/acme/widgets/issues/1$')"
 
-  # The idea queue on an issue's branch, flushed as a batch found in it.
+  # The idea queue on an issue's branch: it lives in this worktree's git directory, not
+  # the storage, so export and drop work the same as for task files, before the rest is
+  # flushed as a batch found in it.
+  out=$(at "$wt" "$PEAL" idea to-be-dropped < <(TITLE="Dropped idea" text) 2>&1)
+  check "idea: queued on an issue's branch" "0:queued to-be-dropped — milestone: -, plan: -, size: - — \"Dropped idea\"" "$?:$out"
   out=$(at "$wt" "$PEAL" idea some-new-idea < <(TITLE="Some new idea" text) 2>&1)
-  check "idea: queued on an issue's branch" "0:queued some-new-idea — milestone: -, plan: -, size: - — \"Some new idea\"" "$?:$out"
+  check "idea: a second one queued" "0:queued some-new-idea — milestone: -, plan: -, size: - — \"Some new idea\"" "$?:$out"
+  check "export: both, as markdown" "$(TITLE="Dropped idea" text)
+
+$(TITLE="Some new idea" text)" "$(at "$wt" "$PEAL" ideas --export)"
+  check "drop: one, by its position" "dropped to-be-dropped — \"Dropped idea\"" "$(at "$wt" "$PEAL" ideas --drop 1)"
   out=$(at "$wt" "$PEAL" ideas --flush 2>&1)
   check "ideas: flushed" "0:filed 3" "$?:${out%% https*}"
   check "ideas: found in the task" "Found while working on #1." \
@@ -707,6 +778,26 @@ merge() {
     peal create odd-thing < <(text "merge: always")
 }
 
+# branch_date_utc: a parked issue's "last <date>" detail is the UTC date of its branch's
+# last commit, not the date the harness's own time zone would give it
+# (peal_ref_date_utc).
+branch_date_utc() {
+  local work
+  issues_repo
+  issue 7 "Parked task" --label "in progress"
+  git -C "$work" worktree add -q -b issue/7 "$work-7" origin/main 2>/dev/null
+  GIT_COMMITTER_DATE='2026-03-01T23:30:00-05:00' git -C "$work-7" commit -q --allow-empty -m wip
+  git -C "$work" worktree remove "$work-7"
+  check "branch date: UTC, a later date than the commit's own zone" \
+    "7 parked parked-task 1 commit(s) ahead, last 2026-03-02" "$(list 7 2>&1)"
+
+  git -C "$work" worktree add -q "$work-7" issue/7 2>/dev/null
+  GIT_COMMITTER_DATE='2026-03-02T00:30:00+14:00' git -C "$work-7" commit -q --allow-empty -m wip2
+  git -C "$work" worktree remove "$work-7"
+  check "branch date: UTC, an earlier date than the commit's own zone" \
+    "7 parked parked-task 2 commit(s) ahead, last 2026-03-01" "$(list 7 2>&1)"
+}
+
 cases() {
   states
   expansion
@@ -719,9 +810,11 @@ cases() {
   merge
   writes
   claims
+  admission
   session
   commit_msg
   repo_of
+  branch_date_utc
 }
 
 for_each_awk cases
