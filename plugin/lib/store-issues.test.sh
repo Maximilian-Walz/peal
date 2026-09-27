@@ -707,6 +707,26 @@ merge() {
     peal create odd-thing < <(text "merge: always")
 }
 
+# branch_date_utc: a parked issue's "last <date>" detail is the UTC date of its branch's
+# last commit, not the date the harness's own time zone would give it
+# (peal_ref_date_utc).
+branch_date_utc() {
+  local work
+  issues_repo
+  issue 7 "Parked task" --label "in progress"
+  git -C "$work" worktree add -q -b issue/7 "$work-7" origin/main 2>/dev/null
+  GIT_COMMITTER_DATE='2026-03-01T23:30:00-05:00' git -C "$work-7" commit -q --allow-empty -m wip
+  git -C "$work" worktree remove "$work-7"
+  check "branch date: UTC, a later date than the commit's own zone" \
+    "7 parked parked-task 1 commit(s) ahead, last 2026-03-02" "$(list 7 2>&1)"
+
+  git -C "$work" worktree add -q "$work-7" issue/7 2>/dev/null
+  GIT_COMMITTER_DATE='2026-03-02T00:30:00+14:00' git -C "$work-7" commit -q --allow-empty -m wip2
+  git -C "$work" worktree remove "$work-7"
+  check "branch date: UTC, an earlier date than the commit's own zone" \
+    "7 parked parked-task 2 commit(s) ahead, last 2026-03-01" "$(list 7 2>&1)"
+}
+
 cases() {
   states
   expansion
@@ -722,6 +742,7 @@ cases() {
   session
   commit_msg
   repo_of
+  branch_date_utc
 }
 
 for_each_awk cases
