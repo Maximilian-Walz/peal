@@ -530,6 +530,8 @@ release:
   tag-prefix: v                 # release tags are <prefix>MAJOR.MINOR.PATCH
   wait-ci: false                # /peal:release waits for the workflow runs of the tag
   report: []                    # texts whose lines in those runs' logs the release reports
+  version-files: []             # files the release sets to its version before the tag,
+                                # each "PATH: FIELD" (a top-level field; JSON, TOML, YAML)
 decisions: false                # the decisions module, or its directory to turn it on
 stages: []                      # the setup stages peal init has done
 ```
@@ -593,8 +595,8 @@ access token or an app's) when the project sets one, else the workflow's
 main that requires checks it waits for a human; `PEAL_TOKEN` lets its checks run and
 auto-merge take it.
 
-The issues storage writes no task onto main: with the decisions module off, it warns
-when `main-writes` is set to anything but `auto`.
+The issues storage writes no task onto main: with the decisions module off and no
+`release.version-files`, it warns when `main-writes` is set to anything but `auto`.
 
 ## Git gates
 
@@ -617,7 +619,9 @@ settings read from the work tree) are in [docs/security.md](security.md).
   shape: `docs(tasks): file ...` only adds backlog task files; `docs(tasks): revise`,
   `defer`, `set milestone of`, `note on` modify exactly one, the subject's `[NNNN]`;
   `docs(tasks): retire` moves that one to `done/` under its name; with the decisions
-  module on, `docs(decisions): regenerate the index` changes the index alone. Nothing
+  module on, `docs(decisions): regenerate the index` changes the index alone;
+  `chore(release): <tag>` only modifies files of `release.version-files`, each byte for
+  byte what setting its field to the tag's version makes of its parent's. Nothing
   else, no rewrite of main, no deletion. A pull request merged on the server runs no client hook,
   and a write through a pull request pushes only its `peal/main-write-*` branch, which
   the gate leaves alone ([Writes onto main](#writes-onto-main)).
@@ -835,9 +839,25 @@ claims' command, so the release's steps are `peal ship ...`, each rerunnable on 
   issue, of the Outcome its first pull request's body holds), then the task (a link to
   its file at the tag on GitHub, or `#42`) and its pull requests. Once the tag exists,
   the notes are those of its range, whatever landed since.
+- **`peal ship bump VERSION`**, for a project with `release.version-files` (a plugin's
+  manifest, a package's version, a chart's `appVersion`), sets each listed file's field
+  to the version without the tag prefix (`0.2.0`, `0.2.0-rc.1`) on the remote's main
+  branch, in one commit `chore(release): <tag>` built as the storage's writes are
+  ([Writes onto main](#writes-onto-main)): pushed, or on a protected main through a
+  pull request, waited for until it merged (`PEAL_MAIN_WRITE_WAIT=merged`; status 3 when
+  it is still open after the budget: rerun once it merged). Each item is `"PATH:
+  FIELD"`, a top-level field only: JSON's at depth 1 of the top object, TOML's before
+  the first `[table]`, YAML's at column 0, holding a string on one line whose quoting is
+  kept (`lib/version-field.awk`, which the pre-push gate runs too). A path outside the
+  repository, a dotted field, a file missing, a field missing, there twice or not a
+  string are refused before anything is written; so is a version `tag` would refuse.
+  Files that hold the version already: `already at <version>`, nothing written. The
+  commit is a `chore`, so the notes leave it out.
 - **`peal ship tag VERSION`** tags the remote's main branch, annotated, and pushes the
-  tag. It refuses a tag that exists (here or on the remote; a release is never moved)
-  and a version not above the last release; a push that fails takes the tag back.
+  tag. It refuses a tag that exists (here or on the remote; a release is never moved), a
+  version not above the last release, and a file of `release.version-files` that does
+  not hold the version on main (run `peal ship bump`); a push that fails takes the tag
+  back.
 - **`peal ship publish VERSION`** creates the GitHub release with the notes (`gh release
   create --notes-file`), or brings an existing one up to date (`gh release edit`); on a
   remote not on GitHub the tag is the release.
@@ -849,7 +869,8 @@ claims' command, so the release's steps are `peal ship ...`, each rerunnable on 
   `WAIT:<why>` when the budget is spent.
 
 The command proposes, shows the notes, and asks "Release <version>?" in one
-`AskUserQuestion` (under Belfry, its inbox), then tags, publishes and waits.
+`AskUserQuestion` (under Belfry, its inbox), then sets the version files, tags,
+publishes and waits.
 
 ## Distribution
 

@@ -431,7 +431,20 @@ arg_cases() {
   cover ship
   each "ship SUB" "$WORK" ship @
   each "ship notes VERSION" "$WORK" ship notes @
+  each "ship bump VERSION" "$WORK" ship bump @
   each "ship tag VERSION" "$WORK" ship tag @
+  # Hostile items of release.version-files, as its path and as its field.
+  local i item what config
+  config=$(cat "$WORK/.peal/config.yml")
+  for ((i = 0; i < ${#H[@]}; i++)); do
+    for what in path field; do
+      if [ $what = path ]; then item="${H[i]}: version"; else item="plugin.json: ${H[i]}"; fi
+      printf '%s\nrelease:\n  version-files: [%s]\n' "$config" "'${item//\'/\'\'}'" >"$WORK/.peal/config.yml"
+      try "ship bump, a hostile version file's $what [${H_NAMES[i]}]" "$WORK" ship bump 9.0.0
+      try "ship tag, a hostile version file's $what [${H_NAMES[i]}]" "$WORK" ship tag 9.0.0
+    done
+  done
+  printf '%s\n' "$config" >"$WORK/.peal/config.yml"
   each "ship publish VERSION" "$WORK" ship publish @
   each "ship wait VERSION" "$WORK" ship wait @
 

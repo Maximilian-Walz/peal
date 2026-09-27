@@ -1,5 +1,5 @@
 ---
-description: Make a release from the tasks finished since the last one. Proposes the version, writes the notes from the tasks' titles and Outcomes, asks the human to confirm, then tags, pushes, makes the GitHub release and waits for the tag's CI when the project asks for it.
+description: Make a release from the tasks finished since the last one. Proposes the version, writes the notes from the tasks' titles and Outcomes, asks the human to confirm, then sets the project's version files, tags, pushes, makes the GitHub release and waits for the tag's CI when the project asks for it.
 argument-hint: "[version]"
 ---
 
@@ -9,8 +9,9 @@ proposed version.
 `peal` is Peal's CLI, on the Bash tool's path. `peal ship` holds every step a script can
 take; this command holds the one question for the human. It runs anywhere in the
 repository (a Belfry action with a Release button runs it as `/peal:release
-{version}`), claims no task and writes no task file. The tag goes on the remote's main
-branch, whatever is checked out here.
+{version}`), claims no task and writes no task file; the only commit it may make sets
+the version in the project's version files (`release.version-files`). The tag goes on
+the remote's main branch, whatever is checked out here.
 
 ## 1. What went in
 
@@ -38,13 +39,23 @@ another version as their own answer. Not now means stop, with nothing changed.
 A version the human chose that differs from the notes shown: run `peal ship notes`
 again for it; the first line and links change with the version, the items do not.
 
-## 3. Tag and publish
+## 3. Bump, tag and publish
 
-1. `peal ship tag <version>`: the annotated tag on the remote's main branch, the notes'
+1. When `peal config release.version-files` prints anything, `peal ship bump
+   <version>`: those files set to the version on the remote's main branch in one commit
+   `chore(release): <tag>`, through a pull request where main refuses direct pushes,
+   waited for until it merged. `already at <version>` means they hold it already (a
+   rerun). It refuses the version as `tag` does (below: ask once for another). A file
+   it refuses (missing, no such field, not a string) stops the release, nothing
+   tagged: report it. Status 3, its pull request still open after the budget: stop,
+   report the pull request, and that `/peal:release <version>` run again once it merged
+   goes on from here.
+2. `peal ship tag <version>`: the annotated tag on the remote's main branch, the notes'
    first line its message, pushed. It refuses a tag that exists already, here or on the
    remote, and a version not above the last release: tell the human, ask for another
-   version once, and stop on a second refusal. A release is never moved.
-2. `peal ship publish <version>`: the GitHub release with the notes, created or brought
+   version once, and stop on a second refusal. A release is never moved. It refuses too
+   while a version file on main does not hold the version: run `peal ship bump` first.
+3. `peal ship publish <version>`: the GitHub release with the notes, created or brought
    up to date. On a remote not on GitHub it says so, and the tag is the release. When it
    fails (no `gh`, not logged in), the tag stands: report the command to run again.
 
@@ -64,5 +75,6 @@ The `RUN` lines name each run, and each `REPORT` line is what the project asked 
 
 ## 5. Report
 
-End with the version, the tag's commit, the release URL (or that the tag is the
-release), the CI's verdict with its `REPORT` lines, and the notes' first line.
+End with the version, the bump's commit or pull request (when there were version
+files), the tag's commit, the release URL (or that the tag is the release), the CI's
+verdict with its `REPORT` lines, and the notes' first line.
