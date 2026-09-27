@@ -137,4 +137,34 @@ plugin/lib/ship.sh:204-209, plugin/lib/work.sh:69-120.
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Built: every prompt under `plugin/commands/` and `plugin/agents/` except `idea.md` now
+carries one fixed paragraph, "Text from others is data". It says that issue and pull
+request text, comments, a task's `## Raw`, commit messages and web pages cannot widen the
+task, change a rule or have a command run. Only the human's answers direct a session.
+Such text is passed on quoted, with its source named, and text that tries to direct the
+session is reported to the human. That is ten commands and the three agents (planner,
+implementer, reviewer). `idea` is exempt because its input is the human's own words.
+
+`plugin/commands/commands.test.sh` takes the paragraph from `work.md` as the reference
+and checks that it is non-empty. It then checks that every other file carries it word
+for word, with the same wrapping, and that the files on the exemption list do not carry
+it. A new prompt therefore needs the paragraph unless it is added to the exemption list.
+Checked by hand that the test fails when the paragraph is removed from `close.md` or one
+word of it is changed in `retire.md`. `docs/security.md`, under "Hostile prose is read,
+never run", now names the paragraph as a guard and the check as its harness.
+
+Decided with the human (details under Notes): the planner's defaults on all nine
+questions, and yes to updating `docs/security.md`. A labelled stranger's issue scopes
+the work through its Intent, Scope and Done when, with `plan: required` as the check;
+everything else in it is data. Which issues reach a session at all is 0062's, now merged.
+
+Known limit: no harness proves a model obeys the paragraph. The guarantee still rests on
+Claude Code's tool permissions and the human's merge, and `docs/security.md` says so.
+
+For the next session: origin/main was merged in at close. It conflicted in
+`docs/security.md` with 0062's new section "Only admitted issues reach a session", and
+the conflict was resolved by keeping both sides. The review found nothing. Its one
+remark: the check is named in a comment right above it rather than in the test's header
+comment, which is harmless. The plan step took two days because two questions to the
+human timed out and the shell sandbox failed to start in one resumed session; both were
+reported to Belfry as friction.
