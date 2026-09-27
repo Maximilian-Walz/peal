@@ -132,3 +132,43 @@ Ranges relied on:
 ---
 
 ## Outcome
+
+Built as planned (A to D). The 0069 twins came from a hand pull request
+(`chore/file-0069`), which the rival check never saw because it only looked at
+`peal/main-write-*` branches.
+
+- **Rivals** (`_peal_mw_rivals`, `plugin/lib/main-write.sh`): every open pull request
+  against main with a lower number whose head is in the repository itself
+  (`.head.repo.full_name == .base.repo.full_name`; the configured repository can fall
+  back to the literal `{owner}/{repo}`, so it is not used). Fork pull requests never
+  count, so a stranger cannot burn numbers. The rival heads are fetched to
+  `refs/remotes/<remote>/<head.ref>` and listed in `PEAL_MW_RIVALS`, which
+  `_peal_files_next_id` counts. That is what stops a rebuild from picking the same id
+  and looping. On the `pr` route the fetch also runs before the first build, but only
+  for writes that set `PEAL_MW_TAKEN` (filings). The `push` route still makes no `gh`
+  call.
+- **Check before Peal's own merge:** `_peal_mw_merge_self` runs the check again once
+  the checks are READY and before the `PUT`. When an id is taken it closes the pull
+  request and returns 5, and the existing loop rebuilds and opens "Replaces #N". Pull
+  requests that GitHub auto-merges are not checked again, as agreed; CI is their
+  backstop. The open-time check and the pre-merge check now share
+  `_peal_mw_taken`/`_peal_mw_taken_drop`.
+- **Lint:** `peal_check_ids` in `peal check` (task files only) prints
+  `peal: task id NNNN is used by A and B` for each duplicated id across backlog, doing
+  and done, and exits 2. `tools/lint.sh` runs the branch's `peal check` after
+  shellcheck. `.github/workflows/ci.yml` is unchanged: its `shellcheck` job already runs
+  `tools/lint.sh`, and keeping the job's name keeps any required-check setting valid.
+- **Harnesses:** in `main-write.test.sh`, `hand_race`, `split_race`, `merge_race` and
+  `fork`. `plugin/lib/fake-gh` gained `$FAKE_GH/on-check-runs`, a script run once at
+  the next check-runs read, so a rival can land while the checks are polled. In
+  `tasks.test.sh`, `duplicates`.
+- **Departure:** the "raced two-piece `--batch`" case is a `--part-of` split instead.
+  `PART1` only works in split mode (`task-check.awk` refuses it in a batch).
+- `docs/design.md`: the Races paragraph and the `peal check` bullet are updated.
+- **Merged origin/main** (0070's idea queue and action bumps) before closing. There were
+  no conflicts.
+
+**Next session:** a higher-numbered rival that merges first, a direct push racing an
+open hand pull request, and an auto-merged filing raced after it returned are all left
+to CI. So the CI `shellcheck` job must be a required check on main (a human step in
+the pull request). The review found nothing.
