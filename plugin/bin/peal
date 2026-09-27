@@ -266,6 +266,7 @@ cmd_check() {
   peal_ms_load || status=2
   peal_check_outcomes || status=2
   peal_check_names || status=2
+  peal_check_ids || status=2
   peal_check_cycles || status=2
   peal_decisions_check || status=2
   exit $status

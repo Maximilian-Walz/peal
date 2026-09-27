@@ -489,10 +489,31 @@ merge() {
 0003 free default-merge -" "$(list 2>/dev/null)"
 }
 
+# Two task files with one id, from filings that raced past each other: check names them.
+duplicates() {
+  local work
+  work=$(repo)
+  put "$work" backlog 0001 only-task
+  put "$work" backlog 0003 other-task
+  check "ids: none duplicated" ":0" "$(at "$work" "$PEAL" check 2>&1):$?"
+  put "$work" backlog 0002 a
+  OUTCOME="Done." put "$work" "done" 0002 b
+  check_refused "ids: backlog and done" "peal: task id 0002 is used by tasks/backlog/0002-a.md and tasks/done/0002-b.md" \
+    at "$work" "$PEAL" check
+  mkdir -p "$work/tasks/doing"
+  ID=0003 text >"$work/tasks/doing/0003-third.md"
+  put "$work" backlog 0003 another
+  check_refused "ids: three and two" "peal: task id 0002 is used by tasks/backlog/0002-a.md and tasks/done/0002-b.md
+peal: task id 0003 is used by tasks/backlog/0003-another.md, tasks/backlog/0003-other-task.md and tasks/doing/0003-third.md" \
+    at "$work" "$PEAL" check
+  check "ids: Peal's own tree" ":0" "$(cd "$PEAL_ROOT/.." && "$PEAL" check 2>&1):$?"
+}
+
 cases() {
   states
   expansion
   cycles
+  duplicates
   board
   overview
   priority
