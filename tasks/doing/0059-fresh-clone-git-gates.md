@@ -41,8 +41,6 @@ Filed as issue #59 (https://github.com/Maximilian-Walz/peal/issues/59) from an i
 
 So in a fresh clone of a project whose `.peal/config.yml` lists `guardrails` in `stages` (as this repository does), a session claims a task, works it, and only finds out at `/peal:close` or its first `peal commit` that the gates are missing. The README tells a human to run `.peal/peal hooks install` once per clone. An unattended worker (for example, a control plane's fresh clone of this repository) has no human to do that step, so the job stops mid-task.
 
-The human agreed the plan below on 2026-09-27. The session that agreed it could not record it: its sandbox failed to start, so no command ran. The next session commits this file with `peal record 0059 plan < tasks/doing/0059-fresh-clone-git-gates.md`, which sets `plan: agreed`, and builds. It does not plan again.
-
 The human's answers (2026-09-27):
 - A foreign `core.hooksPath`: warn only, naming `.peal/peal hooks install` (which chains). The automatic install never rewrites it. The decision is recorded in `docs/design.md` (Git gates) and in the Outcome.
 - The command: `.peal/peal hooks install` everywhere. Close and commit stay pure refusals, as the backstop.
