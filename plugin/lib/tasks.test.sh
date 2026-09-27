@@ -509,6 +509,25 @@ peal: task id 0003 is used by tasks/backlog/0003-another.md, tasks/backlog/0003-
   check "ids: Peal's own tree" ":0" "$(cd "$PEAL_ROOT/.." && "$PEAL" check 2>&1):$?"
 }
 
+# branch_date_utc: a parked branch's "last <date>" detail is the UTC date of its last
+# commit, not the date the harness's own time zone would give it (peal_ref_date_utc).
+branch_date_utc() {
+  local work
+  work=$(repo)
+  put "$work" backlog 0001 parked-task
+  git -C "$work" worktree add -q -b task/0001-parked-task "$work-0001" origin/main 2>/dev/null
+  GIT_COMMITTER_DATE='2026-03-01T23:30:00-05:00' git -C "$work-0001" commit -q --allow-empty -m wip
+  git -C "$work" worktree remove "$work-0001"
+  check "branch date: UTC, a later date than the commit's own zone" \
+    "0001 parked parked-task 1 commit(s) ahead, last 2026-03-02" "$(list 2>/dev/null)"
+
+  git -C "$work" worktree add -q "$work-0001" task/0001-parked-task 2>/dev/null
+  GIT_COMMITTER_DATE='2026-03-02T00:30:00+14:00' git -C "$work-0001" commit -q --allow-empty -m wip2
+  git -C "$work" worktree remove "$work-0001"
+  check "branch date: UTC, an earlier date than the commit's own zone" \
+    "0001 parked parked-task 2 commit(s) ahead, last 2026-03-01" "$(list 2>/dev/null)"
+}
+
 cases() {
   states
   expansion
@@ -520,6 +539,7 @@ cases() {
   owner
   touches
   merge
+  branch_date_utc
 }
 
 for_each_awk cases

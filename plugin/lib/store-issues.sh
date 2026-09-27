@@ -128,7 +128,7 @@ _peal_issues_claims() {
       printf '%s\tclaimed-live\twt:%s\t%s\t\n' "$id" "$wt" "$lb"
     elif [ -n "$lb" ] && [ -n "$base" ] && ahead=$(git rev-list --count "$base..refs/heads/$lb") && [ "$ahead" -gt 0 ]; then
       printf '%s\tparked\t%s commit(s) ahead, last %s\t%s\t\n' "$id" "$ahead" \
-        "$(git log -1 --format=%cd --date=short "refs/heads/$lb")" "$lb"
+        "$(peal_ref_date_utc "refs/heads/$lb")" "$lb"
     elif [ "$labelled" = 1 ]; then
       if [ -n "$rb" ]; then detail="remote:$PEAL_REMOTE"; else detail=labelled; fi
       printf '%s\tclaimed-live\t%s\t%s\t\n' "$id" "$detail" "issue/$id"
