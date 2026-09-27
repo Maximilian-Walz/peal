@@ -53,12 +53,16 @@ peal_idea() {
   return $status
 }
 
-# peal_ideas [--flush] -> the queued ideas, "slug<TAB>title" each; --flush files them all
-# as found in this branch's task, in one push where the storage can (a failure files
-# none), and takes off the queue exactly those filed; the storage's "filed ..." lines are
-# kept in the worktree's git directory too (peal-ideas-filed), for the pull request.
+# peal_ideas [--flush | --export | --drop N|--all] -> the queued ideas, "slug<TAB>title"
+# each; --export prints the queue as Markdown, the ideas' own texts in full, ready to be
+# read or quoted by hand when filing is not possible; --drop N (its 1-based position in
+# this listing) or --drop --all removes ideas from the queue, each announced as "dropped
+# slug — "title""; --flush files them all as found in this branch's task, in one push
+# where the storage can (a failure files none), and takes off the queue exactly those
+# filed; the storage's "filed ..." lines are kept in the worktree's git directory too
+# (peal-ideas-filed), for the pull request.
 peal_ideas() {
-  local queue task slugs out status filed
+  local queue task slugs out status filed which total
   queue=$(peal_idea_queue)
   case ${1-} in
     "")
@@ -66,6 +70,50 @@ peal_ideas() {
       awk '
         /^-----IDEA .*-----$/ { slug = substr($0, 11, length($0) - 15); want = 1; next }
         want && /^# / { t = $0; sub(/^# NNNN — /, "", t); print slug "\t" t; want = 0 }' "$queue"
+      ;;
+    --export)
+      [ -s "$queue" ] || return 0
+      awk '
+        /^-----IDEA .*-----$/ { if (n++) print ""; next }
+        { print }' "$queue"
+      ;;
+    --drop)
+      which=${2-}
+      case $which in
+        --all) ;;
+        '' | *[!0-9]* | 0) peal_err "ideas: --drop needs a number (1-based) or --all"; return 2 ;;
+      esac
+      if [ ! -s "$queue" ]; then
+        echo "no queued ideas"
+        return 0
+      fi
+      if [ "$which" != --all ]; then
+        total=$(grep -c '^-----IDEA .*-----$' "$queue")
+        if [ "$which" -gt "$total" ]; then
+          peal_err "ideas: no idea $which queued ($total queued)"
+          return 2
+        fi
+        awk -v which="$which" -v tmp="$queue.$$" '
+          function say() { if (drop) printf "dropped %s — \"%s\"\n", slug, title }
+          /^-----IDEA .*-----$/ {
+            say()
+            idx++; slug = substr($0, 11, length($0) - 15); title = ""
+            drop = (idx == which + 0)
+            if (!drop) print > tmp
+            next
+          }
+          { if (title == "" && /^# /) { title = $0; sub(/^# NNNN — /, "", title) }
+            if (!drop) print > tmp }
+          END { say() }' "$queue"
+        if [ -e "$queue.$$" ]; then mv -f "$queue.$$" "$queue"; else rm -f "$queue"; fi
+      else
+        awk '
+          function say() { if (slug != "") printf "dropped %s — \"%s\"\n", slug, title }
+          /^-----IDEA .*-----$/ { say(); slug = substr($0, 11, length($0) - 15); title = ""; next }
+          title == "" && /^# / { title = $0; sub(/^# NNNN — /, "", title) }
+          END { say() }' "$queue"
+        rm -f "$queue"
+      fi
       ;;
     --flush)
       if [ ! -s "$queue" ]; then
