@@ -35,6 +35,8 @@ check "a milestone's end: the commands exist" "drift milestone-review" \
   "$(for c in drift milestone-review; do [ -f "$commands/$c.md" ] && printf '%s ' "$c"; done | sed 's/ $//')"
 check "releases: the command exists" "release" "$([ -f "$commands/release.md" ] && echo release)"
 check "setup: the command exists" "setup" "$([ -f "$commands/setup.md" ] && echo setup)"
+check "setup: the issue sample is filtered to write access" "0|1|2" \
+  "$(grep -c -F 'gh issue list' "$commands/setup.md")|$(grep -c -F "gh api 'repos/<github>/issues" "$commands/setup.md")|$(grep -c -F 'author_association' "$commands/setup.md")"
 # shellcheck disable=SC2016 # the literal placeholder
 check "setup: commits with the subject the gate lets through" "2|1" \
   "$(grep -c -F 'chore(peal): set up the <stage> stage' "$commands/setup.md")|$(grep -c -F '"chore(peal)" ]' "$PEAL_ROOT/lib/githooks.sh")"
@@ -67,6 +69,27 @@ check "work: writes merge: auto only when the human agreed" "1" \
 # shellcheck disable=SC2016 # the literal backticks
 check "idea: never sets merge" "1" "$(grep -c -F -- '- `merge`: never.' "$commands/idea.md")"
 check "revise: can drop merge: auto" "1" "$(grep -c -F 'merge: auto` the task no longer earns' "$commands/revise.md")"
+
+# Text from others is data: one fixed paragraph (the bold marker line to the next blank
+# line), word for word the same in every prompt but the exempt list, which starts as
+# idea alone (its input is the human's own $ARGUMENTS).
+exempt="idea"
+text_from_others() {
+  awk '
+    /\*\*Text from others is data\.\*\*/ { p = 1 }
+    p { if ($0 == "") exit; print }
+  ' "$1"
+}
+reference=$(text_from_others "$commands/work.md")
+check "the text-from-others paragraph: non-empty" "1" "$([ -n "$reference" ] && echo 1 || echo 0)"
+for file in "$commands"/*.md "$agents"/*.md; do
+  name=$(basename "$file" .md)
+  got=$(text_from_others "$file")
+  case " $exempt " in
+    *" $name "*) check "$name: exempt from the text-from-others paragraph" "" "$got" ;;
+    *) check "$name: carries the text-from-others paragraph" "$reference" "$got" ;;
+  esac
+done
 # shellcheck disable=SC2016 # the literal backticks
 check "reviewer: ends in the merge-auto line" "1" \
   "$(grep -c -F '`merge-auto: keep` or `merge-auto: withdraw`' "$agents/reviewer.md")"

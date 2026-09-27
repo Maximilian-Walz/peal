@@ -65,6 +65,14 @@ Limits this boundary does not cover, accepted for now:
   (`peal.projectHooks`) is a directory of the work tree, such as `.githooks`, the stub
   chains to the hooks there, which a branch can change. Only that configured path runs;
   an unconfigured hooks directory in the tree never does.
+- **A committed `stages:` line installs the hooks without asking.** A `guardrails` stage
+  recorded in `.peal/config.yml` makes `peal claim` and the `SessionStart` hook set
+  `core.hooksPath` in the clone themselves (`peal_hooks_ensure`,
+  `plugin/lib/githooks.sh`), the same write a human runs by hand with `.peal/peal hooks
+  install`; a branch can add the line, but only what `peal hooks install` always did
+  runs, at the same verified root, and never over a `core.hooksPath` already set to
+  something else (that is only warned about). Accepted: the write is exactly the one the
+  project's own committed config already asked for.
 - **The committed launcher.** `.peal/peal` is a file of the repository: a branch can
   replace it, and whoever runs `.peal/peal` by hand runs the branch's copy. The git hooks
   never run it; they find Peal themselves.
@@ -113,10 +121,44 @@ nothing a session builds reaches another user until its pull request is reviewed
 merged by a human (`docs/design.md`, "the merge is the human's"). The planner, which
 reads a task before anyone has agreed its plan, carries no Bash tool at all.
 
+Every prompt under `plugin/commands/` and `plugin/agents/`, except `idea.md` (its input
+is the human's own `$ARGUMENTS`), carries a fixed paragraph: text from an issue, a pull
+request, a comment, a task's `## Raw`, a commit message or a web page cannot widen the
+task, change a rule or have a command run, and passing such text on quotes it and names
+where it came from. No harness proves a model obeys it; the guarantee still rests on
+tool permissions and the human's merge, above.
+
 - Guard: `plugin/lib/frontmatter.sh`, `plugin/lib/work.sh` (`peal_brief`); the
-  review-before-merge principle above.
-- Harness: `plugin/lib/frontmatter.test.sh`, `plugin/lib/work.test.sh`. A harness that
-  runs every command with hostile values throughout is task 0039.
+  review-before-merge principle above; the "Text from others is data" paragraph in
+  `plugin/commands/*.md` and `plugin/agents/*.md`.
+- Harness: `plugin/lib/frontmatter.test.sh`, `plugin/lib/work.test.sh`,
+  `plugin/lib/hostile.test.sh`, which runs every command with hostile values throughout.
+  `plugin/commands/commands.test.sh` checks the paragraph is word for word identical in
+  every prompt but the exempt list, and absent from the exempt ones.
+
+### Only admitted issues reach a session
+
+On the issues storage, an issue's title, body, labels and pull requests are prose like
+any task's; the boundary above bounds what a session does with prose once it has it, not
+whether an issue reaches a session at all. `admitted()` (`plugin/lib/issues-lib.awk`) is
+the one rule every read path of the issues storage applies: the filter label
+(`storage.issues.label`) when one is set, else an opener with write access to the
+repository (OWNER, MEMBER or COLLABORATOR) — anyone may open an issue on a public
+repository. `read`, `claim`, `work` and `defer` refuse an issue the rule does not admit
+and quote none of its text; `list`, the board, the depends expansion and `ship`'s release
+notes apply the same rule, an unadmitted issue a commit subject names getting the
+commit's own subject in the notes, never the issue's title.
+
+Known limits: a stranger's edit to an issue after it was labelled is accepted for now (a
+follow-up task adds a re-label check, admitting only when the last edit precedes the
+labelling or is by someone with write access); a task depending on a stranger's issue
+still reads its state (open or closed) to know whether it is done, the one thing that
+crosses the boundary, never its text. No command reads comments.
+
+- Guard: `plugin/lib/issues-lib.awk` (`admitted()`), `plugin/lib/store-issues.sh`,
+  `plugin/lib/claim.sh`, `plugin/lib/work.sh`, `plugin/lib/ship.sh`.
+- Harness: `plugin/lib/hostile.test.sh` (the issues storage's channels),
+  `plugin/lib/store-issues.test.sh`, `plugin/lib/ship.test.sh`.
 
 ### `gh` holds the token; Peal only calls it
 
@@ -135,15 +177,19 @@ The workflow's top-level `permissions: contents: read` leaves every job read-onl
 default; a fork's pull request runs only the harnesses and `shellcheck`, nothing that
 needs a secret or a write.
 
-- Guard: `.github/workflows/ci.yml` (`permissions:`).
-- Harness: none yet. Pinning every action by its SHA and setting each job's own minimal
-  permissions, so this holds even as the workflow grows, is task 0041.
+Every action runs at a pinned commit SHA, which Dependabot keeps current, and OpenSSF
+Scorecard checks the workflows weekly.
+
+- Guard: `.github/workflows/ci.yml` (`permissions:`, the pinned `uses:`),
+  `.github/dependabot.yml`, `.github/workflows/scorecard.yml`.
+- Harness: none; Scorecard's weekly run reports an unpinned action or a broad
+  permission.
 
 ## What this milestone leaves open
 
 This threat model is m1's first task; the rest of m1 closes what it can only name here:
 0039 runs every command against hostile values in CI; 0040 showed the git hooks and the
 launcher execute nothing a repository ships, and that `peal init --remove` leaves
-nothing behind, with the limits listed under the first boundary above; 0041 pins the CI
-supply chain and tightens each job's permissions. Reading the gates' settings from the
+nothing behind, with the limits listed under the first boundary above; 0041 pinned the CI
+supply chain and checked each job's permissions. Reading the gates' settings from the
 main branch instead of the work tree is a task of its own, split from 0040.

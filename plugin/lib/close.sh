@@ -102,7 +102,7 @@ peal_close_begin() {
   id=$(_peal_field "$task" 1)
   file=$(_peal_field "$task" 2)
   if ! peal_hooks_installed; then
-    peal_err "close begin: Peal's git hooks are not installed here, so nothing would gate the close's commits; run: peal hooks install"
+    peal_err "close begin: Peal's git hooks are not installed here, so nothing would gate the close's commits; run: .peal/peal hooks install"
     return 2
   fi
   tasks=$(peal_config_get tasks) || return 2
@@ -157,7 +157,7 @@ peal_close_begin() {
   esac
   ideas=$(peal_ideas)
   if [ -n "$ideas" ]; then
-    echo "NOTE: $(printf '%s\n' "$ideas" | wc -l | tr -d ' ') idea(s) queued on this branch, filed by finish:"
+    echo "NOTE: $(printf '%s\n' "$ideas" | wc -l | tr -d ' ') idea(s) queued on this branch, filed by finish (peal ideas --export to read them, --drop N or --all to drop one now):"
     printf '%s\n' "$ideas" | awk -F '\t' '{ print "  " $1 " — " $2 }'
   fi
   if [ "$(peal_fm_get "$file" merge 2>/dev/null)" = auto ]; then
@@ -460,7 +460,7 @@ peal_close_finish() {
     return 2
   fi
   if ! peal_hooks_installed; then
-    peal_err "close finish: Peal's git hooks are not installed here; run: peal hooks install"
+    peal_err "close finish: Peal's git hooks are not installed here; run: .peal/peal hooks install"
     return 2
   fi
   if [ -n "$decisions" ]; then

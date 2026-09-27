@@ -82,6 +82,35 @@ peal_hooks_installed() {
   [ "$(git config core.hooksPath)" = "$dir" ] && [ -x "$dir/commit-msg" ] && [ -x "$dir/pre-push" ]
 }
 
+# peal_hooks_ensure -> a fresh clone whose committed config records the `guardrails`
+# stage gets its git gates without a manual step: the caller's config must already be
+# loaded (peal_config_load). Silent and a no-op when `guardrails` is not in `stages`, or
+# the hooks are installed already. A `core.hooksPath` that already points elsewhere (not
+# a stale path to these stubs) is left alone: one warning on stderr, naming the install
+# that would chain to it, and nothing is installed. Otherwise `peal_hooks_install` runs,
+# and its `installed Peal's git hooks in …` line goes to stdout. A failed install (its
+# reason, if any, from `peal_hooks_install`'s own stderr) is reported on stderr with the
+# command to run. Always returns 0: a session's start or claim is never refused by this.
+peal_hooks_ensure() {
+  local stages dir prev out reason
+  stages=$(peal_config_get stages 2>/dev/null) || return 0
+  printf '%s\n' "$stages" | grep -qx guardrails || return 0
+  peal_hooks_installed && return 0
+  dir=$(_peal_hooks_dir 2>/dev/null) || return 0
+  prev=$(git config core.hooksPath 2>/dev/null) || prev=""
+  if [ -n "$prev" ] && [ "$prev" != "$dir" ]; then
+    peal_err "Peal's git hooks are not installed: core.hooksPath is $prev; to install them chained to it, run: .peal/peal hooks install"
+    return 0
+  fi
+  if out=$(peal_hooks_install 2>&1); then
+    printf '%s\n' "$out"
+  else
+    reason=${out#peal: }
+    peal_err "Peal's git hooks could not be installed (${reason:-see above}); run: .peal/peal hooks install"
+  fi
+  return 0
+}
+
 # _peal_gate_refuse HOOK MESSAGE [LINE...] -> the refusal on stderr; PEAL_GATE_FAIL set.
 _peal_gate_refuse() {
   local hook=$1

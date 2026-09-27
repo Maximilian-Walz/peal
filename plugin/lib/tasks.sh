@@ -134,6 +134,33 @@ peal_check_names() {
   return $status
 }
 
+# peal_check_ids -> a line on stderr per task id that more than one task file of this work
+# tree uses (backlog, doing and done together), naming them all, and status 2 if there is
+# one (task files only): two filings that raced past each other.
+peal_check_ids() {
+  local top tasks d file
+  [ "$(peal_config_get storage.kind)" = files ] || return 0
+  top=$(peal_project_root) || return 2
+  tasks=$(peal_config_get tasks) || return 2
+  tasks=${tasks%/}
+  for d in backlog doing "done"; do
+    for file in "$top/$tasks/$d"/[0-9][0-9][0-9][0-9]-*.md; do
+      [ -f "$file" ] || continue
+      printf '%s\t%s\n' "${file##*/}" "$tasks/$d/$(printf '%s' "${file##*/}" | LC_ALL=C tr -c '[:print:]' '?')"
+    done
+  done | LC_ALL=C sort | awk -F '\t' '
+    function flush(   i, s) {
+      if (n > 1) {
+        s = f[1]
+        for (i = 2; i < n; i++) s = s ", " f[i]
+        printf "peal: task id %s is used by %s and %s\n", id, s, f[n]
+        bad = 1
+      }
+    }
+    { k = substr($1, 1, 4); if (k != id) { flush(); id = k; n = 0 } f[++n] = $2 }
+    END { flush(); exit bad ? 2 : 0 }' >&2
+}
+
 # peal_check_cycles -> a line on stderr per depends cycle among the tasks not done, and
 # status 2 if there is one: for task files those of this work tree, for issues the
 # storage's.

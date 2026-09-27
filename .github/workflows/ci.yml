@@ -14,10 +14,30 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            harnesses: ""
+          - os: macos-latest
+            # Only what differs from Linux: bash 3.2, BSD tools, and a real file
+            # system. The full set already runs above, so a pull request is not
+            # waiting on macOS too. Trimmed or grown against the timings tools/test-all.sh
+            # prints for each harness.
+            #   plugin/templates/githook.test.sh, plugin/templates/launcher.test.sh:
+            #     they run in other people's repositories, and bash 3.2 broke them in 0040.
+            #   tools/install.test.sh
+            #   plugin/lib/githooks.test.sh
+            #   plugin/lib/frontmatter.test.sh: BSD awk and sed.
+            #   plugin/lib/store-files.test.sh: find, file names, and worktrees on APFS.
+            #   plugin/lib/hostile.test.sh: only self_test and awk_channels; arg_cases
+            #     and hook_cases run on Linux only.
+            harnesses: >-
+              plugin/templates/githook.test.sh plugin/templates/launcher.test.sh
+              tools/install.test.sh plugin/lib/githooks.test.sh
+              plugin/lib/frontmatter.test.sh plugin/lib/store-files.test.sh
+              plugin/lib/hostile.test.sh
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Every awk the harnesses can find is one they run under; Peal must work with
       # whichever a machine has. macOS brings its own BSD awk and bash 3.2.
       - name: Install the awks
@@ -26,16 +46,31 @@ jobs:
       - name: Install Claude Code
         if: runner.os == 'Linux'
         run: npm install -g @anthropic-ai/claude-code
-      - name: Run every harness
+      # The runner's PATH puts a newer Homebrew bash ahead of /bin/bash; the macOS job
+      # exists to exercise bash 3.2, so force it for every "bash" and "env bash" lookup.
+      - name: Force /bin/bash, log bash and the awks found
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p "$RUNNER_TEMP/bashshim"
+          ln -sf /bin/bash "$RUNNER_TEMP/bashshim/bash"
+          echo "$RUNNER_TEMP/bashshim" >>"$GITHUB_PATH"
+          /bin/bash --version | head -n 1
+          for awk in awk mawk gawk nawk original-awk; do
+            path=$(command -v "$awk") && echo "$awk: $path" || echo "$awk: not found"
+          done
+      - name: Run the harnesses
         env:
           PEAL_REQUIRE_CLAUDE: ${{ runner.os == 'Linux' && '1' || '' }}
           # The issues storage's harness runs its fake gh on jq, which both runners have.
           PEAL_REQUIRE_JQ: '1'
-        run: tools/test-all.sh
+          # macOS runs only these two groups of the hostile harness (see the matrix
+          # comment above); Linux runs all of them, coverage check included.
+          PEAL_HOSTILE_CASES: ${{ runner.os == 'macOS' && 'self_test awk_channels' || '' }}
+        run: tools/test-all.sh ${{ matrix.harnesses }}
 
   shellcheck:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: shellcheck --version
       - run: tools/lint.sh

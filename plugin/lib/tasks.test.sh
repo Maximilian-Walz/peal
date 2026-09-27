@@ -334,6 +334,13 @@ board() {
   printf '#!/bin/sh\necho called >&2\nexit 1\n' >"$bin/gh"
   check "list: gh only for a task awaiting merge" "0001 blocked odd-title needs:human" \
     "$(PATH="$bin:$PATH" at "$work" "$PEAL" list --state blocked 2>&1 | grep -v '^0003')"
+
+  # A fork's pull request, named like the task's branch, supplies no url: a stranger's
+  # branch of the same name proves nothing about this task.
+  printf '#!/bin/sh\nprintf "task/0003-merging-task\\t22\\tfalse\\thttps://example.com/pull/22\\ttrue\\n"\n' >"$bin/gh"
+  check "list: a fork's pull request supplies no url" "0003 awaiting-merge merging-task pr:unknown wt:$work-0003" \
+    "$(PATH="$bin:$PATH" at "$work" "$PEAL" list 0003 2>&1)"
+
   git -C "$work" worktree remove --force "$work-0003"
   git -C "$work" branch -q -D task/0003-merging-task
   git -C "$work" push -q origin --delete task/0003-merging-task 2>/dev/null
@@ -489,16 +496,57 @@ merge() {
 0003 free default-merge -" "$(list 2>/dev/null)"
 }
 
+# Two task files with one id, from filings that raced past each other: check names them.
+duplicates() {
+  local work
+  work=$(repo)
+  put "$work" backlog 0001 only-task
+  put "$work" backlog 0003 other-task
+  check "ids: none duplicated" ":0" "$(at "$work" "$PEAL" check 2>&1):$?"
+  put "$work" backlog 0002 a
+  OUTCOME="Done." put "$work" "done" 0002 b
+  check_refused "ids: backlog and done" "peal: task id 0002 is used by tasks/backlog/0002-a.md and tasks/done/0002-b.md" \
+    at "$work" "$PEAL" check
+  mkdir -p "$work/tasks/doing"
+  ID=0003 text >"$work/tasks/doing/0003-third.md"
+  put "$work" backlog 0003 another
+  check_refused "ids: three and two" "peal: task id 0002 is used by tasks/backlog/0002-a.md and tasks/done/0002-b.md
+peal: task id 0003 is used by tasks/backlog/0003-another.md, tasks/backlog/0003-other-task.md and tasks/doing/0003-third.md" \
+    at "$work" "$PEAL" check
+  check "ids: Peal's own tree" ":0" "$(cd "$PEAL_ROOT/.." && "$PEAL" check 2>&1):$?"
+}
+
+# branch_date_utc: a parked branch's "last <date>" detail is the UTC date of its last
+# commit, not the date the harness's own time zone would give it (peal_ref_date_utc).
+branch_date_utc() {
+  local work
+  work=$(repo)
+  put "$work" backlog 0001 parked-task
+  git -C "$work" worktree add -q -b task/0001-parked-task "$work-0001" origin/main 2>/dev/null
+  GIT_COMMITTER_DATE='2026-03-01T23:30:00-05:00' git -C "$work-0001" commit -q --allow-empty -m wip
+  git -C "$work" worktree remove "$work-0001"
+  check "branch date: UTC, a later date than the commit's own zone" \
+    "0001 parked parked-task 1 commit(s) ahead, last 2026-03-02" "$(list 2>/dev/null)"
+
+  git -C "$work" worktree add -q "$work-0001" task/0001-parked-task 2>/dev/null
+  GIT_COMMITTER_DATE='2026-03-02T00:30:00+14:00' git -C "$work-0001" commit -q --allow-empty -m wip2
+  git -C "$work" worktree remove "$work-0001"
+  check "branch date: UTC, an earlier date than the commit's own zone" \
+    "0001 parked parked-task 2 commit(s) ahead, last 2026-03-01" "$(list 2>/dev/null)"
+}
+
 cases() {
   states
   expansion
   cycles
+  duplicates
   board
   overview
   priority
   owner
   touches
   merge
+  branch_date_utc
 }
 
 for_each_awk cases

@@ -91,14 +91,17 @@ peal_turns_reset() {
   rm -f "$gitdir/peal-nudged"
 }
 
-# peal_session_start -> the SessionStart hook in a Peal project: the heartbeat; on a new
-# session (source startup or clear) the turn budget reset, a fetch and the reaping of
-# claims that are done with (peal_reap); then the orientation: the current milestone,
-# this worktree's task, the other claims and the open splits.
+# peal_session_start -> the SessionStart hook in a Peal project: a fresh clone whose
+# config records the `guardrails` stage gets its git gates (peal_hooks_ensure), named in
+# the orientation; the heartbeat; on a new session (source startup or clear) the turn
+# budget reset, a fetch and the reaping of claims that are done with (peal_reap); then
+# the orientation: the current milestone, this worktree's task, the other claims and the
+# open splits.
 peal_session_start() {
-  local source records milestones task refresh=""
+  local source records milestones task refresh="" hooks
   peal_hook_project || return 0
   peal_store_load 2>/dev/null || return 0
+  hooks=$(peal_hooks_ensure 2>&1)
   peal_heartbeat
   source=$(peal_hook_field source)
   case $source in
@@ -117,6 +120,7 @@ peal_session_start() {
   milestones=$(peal_store_milestones 2>/dev/null)
   task=$(PEAL_TASK_REFRESH=$refresh peal_session_task)
   echo "Peal:"
+  [ -z "$hooks" ] || printf '%s\n' "$hooks"
   printf '%s\n' "$milestones" | awk -F '\t' '
     !found && $3 == "current" { printf "Current milestone: %s, %s (%s)\n", $1, $2, $6; found = 1 }
     END { if (!found) print "Current milestone: none" }'

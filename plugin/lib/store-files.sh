@@ -159,7 +159,7 @@ _peal_files_claims() {
     elif [ -n "$lb" ] && [ -n "$wt" ]; then
       out="$out$id"$'\t'claimed-live$'\t'"wt:$wt"$'\t'"$lb"$'\n'
     elif [ -n "$lb" ] && ahead=$(git rev-list --count "$base..refs/heads/$lb") && [ "$ahead" -gt 0 ]; then
-      detail="$ahead commit(s) ahead, last $(git log -1 --format=%cd --date=short "refs/heads/$lb")"
+      detail="$ahead commit(s) ahead, last $(peal_ref_date_utc "refs/heads/$lb")"
       out="$out$id"$'\t'parked$'\t'"$detail"$'\t'"$lb"$'\n'
     elif [ -n "$rb" ]; then
       out="$out$id"$'\t'claimed-live$'\t'"remote:$PEAL_REMOTE"$'\t'"${lb:-$rb}"$'\n'
@@ -175,16 +175,18 @@ _peal_files_claims() {
 }
 
 # _peal_files_prs -> the claims on stdin, an awaiting-merge claim's pr:unknown replaced by
-# its open pull request from gh, "pr:#N <url>" and " draft" for a draft. Best effort: without
-# gh, or when it fails or takes over 10 seconds, the claims stay as they are, with a warning.
+# its open pull request from gh, "pr:#N <url>" and " draft" for a draft; a pull request
+# from a fork (a branch named like a task's, opened from elsewhere) supplies none. Best
+# effort: without gh, or when it fails or takes over 10 seconds, the claims stay as they
+# are, with a warning.
 _peal_files_prs() {
   local claims prs
   claims=$(cat)
   if ! command -v gh >/dev/null 2>&1; then
     peal_err "warning: gh not found; pull requests of tasks awaiting merge are unknown"
   else
-    set -- gh pr list --state open --limit 200 --json number,headRefName,isDraft,url \
-      --jq '.[] | [.headRefName, (.number|tostring), (.isDraft|tostring), .url] | @tsv'
+    set -- gh pr list --state open --limit 200 --json number,headRefName,isDraft,url,isCrossRepository \
+      --jq '.[] | [.headRefName, (.number|tostring), (.isDraft|tostring), .url, (.isCrossRepository|tostring)] | @tsv'
     if command -v timeout >/dev/null 2>&1; then set -- timeout 10 "$@"; fi
     if ! prs=$("$@" 2>/dev/null); then
       peal_err "warning: gh pr list failed; pull requests of tasks awaiting merge are unknown"
@@ -197,7 +199,7 @@ _peal_files_prs() {
       n = split(ENVIRON["PEAL_PRS"], rows, "\n")
       for (i = 1; i <= n; i++) {
         split(rows[i], f, "\t")
-        if (f[1] == "") continue
+        if (f[1] == "" || f[5] == "true") continue
         num[f[1]] = f[2]; url[f[1]] = f[4]; draft[f[1]] = (f[3] == "true")
       }
     }
@@ -274,13 +276,14 @@ _peal_files_milestones_at() {
 
 # _peal_files_next_id BASE -> one past the highest task number in BASE's task files, in
 # every task branch's name, local or on any remote, and in the task files of the main
-# writes' branches fetched (a filing's pull request not merged yet): a claimed number
-# stays taken.
+# writes' branches fetched and on the heads of the rival pull requests fetched
+# (PEAL_MW_RIVALS: a filing's pull request not merged yet, Peal's or a hand's): a claimed
+# number stays taken.
 _peal_files_next_id() {
   local ref
   {
     _peal_files_ids "$1"
-    for ref in $(git for-each-ref --format='%(refname)' "refs/remotes/$PEAL_REMOTE/$PEAL_MW_PREFIX*"); do
+    for ref in $(git for-each-ref --format='%(refname)' "refs/remotes/$PEAL_REMOTE/$PEAL_MW_PREFIX*") ${PEAL_MW_RIVALS-}; do
       _peal_files_ids "$ref"
     done
     git for-each-ref --format='%(refname)' "refs/heads/$PEAL_PREFIX*" "refs/remotes/*/$PEAL_PREFIX*" \
