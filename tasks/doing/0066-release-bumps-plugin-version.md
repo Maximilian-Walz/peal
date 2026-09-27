@@ -37,6 +37,7 @@ The human's answers while planning:
 - A bump PR still open past the budget: the release stops and reports it; rerunning `/peal:release <version>` finds the files at the version and tags.
 - The planner's other defaults, all accepted: items are `"PATH: FIELD"` strings; the value is the version without the tag prefix (`0.2.0`, `0.2.0-rc.1`); a separate `ship bump` step; subject `chore(release): <tag>`; tag main's tip after the merge, once the files hold the version; release.md and design.md reworded where they say the release writes nothing; `plugin/.claude-plugin/plugin.json` stays at 0.1.0 for the v0.2.0 release to bump; `.claude-plugin/marketplace.json` untouched; allowed with the issues storage (its `main-writes` warning reworded); the version checks of `tag` (above the last release) run in `bump` before any write.
 - Size L, model opus, merge default.
+- While building: the installed Peal (0.1.0) refuses the unknown key `release.version-files`, so the working line in `.peal/config.yml` would break every Peal command, here and on main. The human chose: 0066 closes without that line (only its commented default); after the merge the human refreshes the installed plugin by hand, and a small follow-up adds the line before the v0.2.0 release. Done when #2 moves to that follow-up.
 
 ## Plan
 
