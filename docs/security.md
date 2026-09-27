@@ -93,6 +93,26 @@ shape its subject claims. Rewriting or deleting main is refused outright.
 - Guard: `plugin/lib/githooks.sh` (`_peal_pre_push`).
 - Harness: `plugin/lib/githooks.test.sh`.
 
+### `peal create`'s stdin is data, filed byte for byte, never a shell word
+
+Belfry runs `tasks.commands.create` (`peal create --owner {owner} --title {title}`)
+itself, outside any session's sandbox, with the untrusted text an outsider's issue or
+comment produced on stdin. `{owner}` and `{title}` are the only pieces the contract fills
+into the command line, and both are checked before anything is written: `owner` must be
+`ai` or `human` or the call is refused, and `title` only ever feeds a slug (`peal_slugify`'s
+normalisation, at least two words) — neither reaches a shell, a filename outside the
+storage's own naming, or `eval`. The text itself never becomes a shell word either: it is
+read from stdin into a file and, apart from `NNNN` becoming the id it is given and
+`owner` set or dropped for the `--owner` flag, lands in the task file exactly as given,
+checked the same way any other filing is (`peal_task_check`) plus two rules narrower than
+a human's own `peal create`: a text that sets `merge` is refused (an untrusted filer
+cannot make its own task merge itself) and one that holds the `-----NEXT TASK-----`
+delimiter is refused (it may file only the one task it was asked to, never more).
+
+- Guard: `plugin/lib/backlog.sh` (`peal_create_filed`).
+- Harness: `plugin/lib/store-files.test.sh`, `plugin/lib/store-issues.test.sh`,
+  `plugin/lib/hostile.test.sh`.
+
 ### A commit must clear the project's own checks before it lands, even mid-branch
 
 Outside the fast paths for task files and decision entries, the `commit-msg` gate runs

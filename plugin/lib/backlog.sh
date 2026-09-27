@@ -98,6 +98,89 @@ peal_revise() {
   return $status
 }
 
+# peal_create_filed --owner OWNER --title TITLE -> Belfry's tasks.commands.create
+# contract: the task text on stdin filed as one task, above the storage (both
+# implementations). The slug is the first five words of TITLE, after the same
+# normalisation peal_slugify applies (fewer than two words refused); OWNER (ai or human)
+# is written into the frontmatter's owner field, the flag winning over whatever the text
+# itself set (owner: human kept or added for human, dropped for ai). Refused (status 2),
+# nothing written: an option other than --owner or --title, either missing or given
+# twice, OWNER not ai or human, a slug of one word, no text on stdin, or a text that sets
+# merge (only a human, editing the task itself, earns merge: auto) or holds the task
+# delimiter (one task at a time here). PEAL_MAIN_WRITE_BUDGET is capped to about 90s
+# unless the caller set it, so a caller waiting on this synchronously does not hang; an
+# open pull request at that cap still counts as filed (peal_main_write_written, status
+# 3). Prints the storage's own lines, then "filed: <id>" as the very last line.
+peal_create_filed() {
+  local owner="" title="" slug words tmp out status=0 id
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --owner)
+        [ $# -ge 2 ] || { peal_err "create: --owner needs ai or human"; return 2; }
+        [ -z "$owner" ] || { peal_err "create: --owner given twice"; return 2; }
+        owner=$2; shift ;;
+      --title)
+        [ $# -ge 2 ] || { peal_err "create: --title needs a title"; return 2; }
+        [ -z "$title" ] || { peal_err "create: --title given twice"; return 2; }
+        title=$2; shift ;;
+      *) peal_err "create: unknown argument $1"; return 2 ;;
+    esac
+    shift
+  done
+  case $owner in
+    ai | human) ;;
+    "") peal_err "create: --owner is required (ai or human)"; return 2 ;;
+    *) peal_err "create: owner must be ai or human, not '$owner'"; return 2 ;;
+  esac
+  [ -n "$title" ] || { peal_err "create: --title is required"; return 2; }
+  # The same normalisation peal_slugify does (lower-case, runs of anything but a-z0-9
+  # collapsed to one hyphen), the first five words kept before the word count is judged,
+  # so a long title is never refused for having too many.
+  slug=$(printf '%s' "$title" | tr '[:upper:]' '[:lower:]' \
+    | sed -e 's/[^a-z0-9][^a-z0-9]*/-/g' -e 's/^-*//' -e 's/-*$//' | cut -d- -f1-5)
+  words=$(printf '%s' "$slug" | awk -F- '{ print ($0 == "" ? 0 : NF) }')
+  if [ "$words" -lt 2 ]; then
+    peal_err "create: title '$title' makes a slug of $words word(s); a slug is at least two kebab-case words"
+    return 2
+  fi
+  tmp=$(mktemp) || return 2
+  cat >"$tmp"
+  if [ ! -s "$tmp" ]; then
+    peal_err "create: no text on stdin"
+    rm -f "$tmp"
+    return 2
+  fi
+  if grep -qF -- "$PEAL_TASK_DELIMITER" "$tmp"; then
+    peal_err "create: the text holds '$PEAL_TASK_DELIMITER'; one task at a time here"
+    rm -f "$tmp"
+    return 2
+  fi
+  if [ -n "$(peal_fm_get "$tmp" merge 2>/dev/null)" ]; then
+    peal_err "create: the text sets merge; only a human, editing the task itself, sets merge: auto"
+    rm -f "$tmp"
+    return 2
+  fi
+  if [ "$owner" = human ]; then
+    peal_fm_set "$tmp" owner human || status=2
+  else
+    peal_fm_unset "$tmp" owner || status=2
+  fi
+  if [ $status != 0 ]; then
+    rm -f "$tmp"
+    return 2
+  fi
+  : "${PEAL_MAIN_WRITE_BUDGET:=90}"
+  out=$(peal_store_create plain "" "$slug" <"$tmp")
+  status=$?
+  rm -f "$tmp"
+  [ -z "$out" ] || printf '%s\n' "$out"
+  if peal_main_write_written $status; then
+    id=$(awk 'NR == 1 { print $2; exit }' <<<"$out")
+    printf 'filed: %s\n' "$id"
+  fi
+  return $status
+}
+
 # _peal_backlog_context -> task-check.awk's CONTEXT from the storage: the settings', every
 # milestone and every task. Sets PEAL_RECORDS (the list records).
 _peal_backlog_context() {
