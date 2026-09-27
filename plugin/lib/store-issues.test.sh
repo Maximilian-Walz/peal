@@ -604,9 +604,17 @@ Other claims:
   hook "$wt" post-tool-use '{}' >/dev/null
   check "budget: the text read once" "1" "$(calls 'GET repos/acme/widgets/issues/1$')"
 
-  # The idea queue on an issue's branch, flushed as a batch found in it.
+  # The idea queue on an issue's branch: it lives in this worktree's git directory, not
+  # the storage, so export and drop work the same as for task files, before the rest is
+  # flushed as a batch found in it.
+  out=$(at "$wt" "$PEAL" idea to-be-dropped < <(TITLE="Dropped idea" text) 2>&1)
+  check "idea: queued on an issue's branch" "0:queued to-be-dropped — milestone: -, plan: -, size: - — \"Dropped idea\"" "$?:$out"
   out=$(at "$wt" "$PEAL" idea some-new-idea < <(TITLE="Some new idea" text) 2>&1)
-  check "idea: queued on an issue's branch" "0:queued some-new-idea — milestone: -, plan: -, size: - — \"Some new idea\"" "$?:$out"
+  check "idea: a second one queued" "0:queued some-new-idea — milestone: -, plan: -, size: - — \"Some new idea\"" "$?:$out"
+  check "export: both, as markdown" "$(TITLE="Dropped idea" text)
+
+$(TITLE="Some new idea" text)" "$(at "$wt" "$PEAL" ideas --export)"
+  check "drop: one, by its position" "dropped to-be-dropped — \"Dropped idea\"" "$(at "$wt" "$PEAL" ideas --drop 1)"
   out=$(at "$wt" "$PEAL" ideas --flush 2>&1)
   check "ideas: flushed" "0:filed 3" "$?:${out%% https*}"
   check "ideas: found in the task" "Found while working on #1." \
@@ -770,6 +778,26 @@ merge() {
     peal create odd-thing < <(text "merge: always")
 }
 
+# branch_date_utc: a parked issue's "last <date>" detail is the UTC date of its branch's
+# last commit, not the date the harness's own time zone would give it
+# (peal_ref_date_utc).
+branch_date_utc() {
+  local work
+  issues_repo
+  issue 7 "Parked task" --label "in progress"
+  git -C "$work" worktree add -q -b issue/7 "$work-7" origin/main 2>/dev/null
+  GIT_COMMITTER_DATE='2026-03-01T23:30:00-05:00' git -C "$work-7" commit -q --allow-empty -m wip
+  git -C "$work" worktree remove "$work-7"
+  check "branch date: UTC, a later date than the commit's own zone" \
+    "7 parked parked-task 1 commit(s) ahead, last 2026-03-02" "$(list 7 2>&1)"
+
+  git -C "$work" worktree add -q "$work-7" issue/7 2>/dev/null
+  GIT_COMMITTER_DATE='2026-03-02T00:30:00+14:00' git -C "$work-7" commit -q --allow-empty -m wip2
+  git -C "$work" worktree remove "$work-7"
+  check "branch date: UTC, an earlier date than the commit's own zone" \
+    "7 parked parked-task 2 commit(s) ahead, last 2026-03-01" "$(list 7 2>&1)"
+}
+
 cases() {
   states
   expansion
@@ -786,6 +814,7 @@ cases() {
   session
   commit_msg
   repo_of
+  branch_date_utc
 }
 
 for_each_awk cases

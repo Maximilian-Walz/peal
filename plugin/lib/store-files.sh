@@ -159,7 +159,7 @@ _peal_files_claims() {
     elif [ -n "$lb" ] && [ -n "$wt" ]; then
       out="$out$id"$'\t'claimed-live$'\t'"wt:$wt"$'\t'"$lb"$'\n'
     elif [ -n "$lb" ] && ahead=$(git rev-list --count "$base..refs/heads/$lb") && [ "$ahead" -gt 0 ]; then
-      detail="$ahead commit(s) ahead, last $(git log -1 --format=%cd --date=short "refs/heads/$lb")"
+      detail="$ahead commit(s) ahead, last $(peal_ref_date_utc "refs/heads/$lb")"
       out="$out$id"$'\t'parked$'\t'"$detail"$'\t'"$lb"$'\n'
     elif [ -n "$rb" ]; then
       out="$out$id"$'\t'claimed-live$'\t'"remote:$PEAL_REMOTE"$'\t'"${lb:-$rb}"$'\n'
