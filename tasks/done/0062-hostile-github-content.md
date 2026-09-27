@@ -197,4 +197,7 @@ state; each has a harness case. The awk fix was verified under mawk, nawk and bu
 awk in the build sandbox; gawk runs in CI.
 
 After the fixes, origin/main (with 0040 and 0061) was merged in. `tools/test-all.sh`
-passed all 26 harnesses, and `tools/lint.sh` was clean.
+passed all 26 harnesses, and `tools/lint.sh` was clean. A later merge (0041, 0057, 0070)
+was checked with the issues, files, tasks, ship, claim, work and commands tests; CI runs
+the rest. The first attempt at this close was called off because the per-command
+sandbox had left empty mount-point files in the worktree, which finish refuses.
