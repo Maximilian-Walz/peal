@@ -121,3 +121,22 @@ Ranges relied on:
 
 ## Outcome
 
+**What was built.** A fresh clone whose committed `.peal/config.yml` lists `guardrails` in `stages` now gets Peal's git gates when work starts, instead of being refused at close or at its first `peal commit`.
+
+- **The helper:** `peal_hooks_ensure` in `plugin/lib/githooks.sh`. It does nothing without the stage or when the hooks are installed already. Otherwise it runs `peal_hooks_install`. It always returns 0.
+- **Claim:** `peal_claim` calls it once, before any worktree or claim commit. The success line goes to stdout, ahead of the path, so `--print-path` still ends with the path. A warning or failure goes to stderr.
+- **Session start:** `peal_session_start` calls it and puts its line (success, warning or failure) directly after `Peal:`.
+- **Close and commit:** they still refuse without the hooks, as the backstop, and now name `.peal/peal hooks install`.
+- **Docs:** updated in `docs/design.md`, `README.md`, `docs/security.md` (the new trust edge), `plugin/commands/setup.md` and the usage text in `plugin/bin/peal`.
+- **Tests:** a `gates()` case group in each of `claim.test.sh` and `session.test.sh`.
+
+**Decided, and why.**
+- **A foreign `core.hooksPath` gets a warning only; nothing is installed on top of it.** The human decided this on 2026-09-27, and it is recorded in the Git gates section of `docs/design.md`. Tools like husky reset `core.hooksPath` on their own install, so auto-chaining would have Peal and them overwrite each other every session. Silently re-pointing a human's hooks path is also surprising. The explicit `.peal/peal hooks install` still chains.
+- **Close and commit do not try the install themselves.**
+- **Auto-install from a committed config line is accepted,** and documented in `docs/security.md`.
+
+**Found in review, and fixed.** At SessionStart, the warning and the failure line first went to stderr, which a hook that exits 0 never shows to the session. So the unattended worker this task is for would still have learnt of a problem only at close. The fix captures `2>&1` at session start, and the session harness now checks stdout only. The rule for future callers of `peal_hooks_ensure`: a CLI caller (claim) may split stdout and stderr, but a hook caller must put everything in stdout.
+
+**Left.** `CLAUDE.md`'s rule "Each clone installs the git gates once" now describes only the fallback. The idea `update-claude-md-hooks-line` is filed for it, rather than editing the project's rules here.
+
+**For the next session.** The build was first committed by two `wip: session-end autosave` commits, which skip the commit gate's checks. The later fix commit went through the gate, and every harness plus `tools/lint.sh` was run on the merged tree.
