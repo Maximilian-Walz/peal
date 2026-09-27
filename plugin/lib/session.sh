@@ -101,7 +101,7 @@ peal_session_start() {
   local source records milestones task refresh="" hooks
   peal_hook_project || return 0
   peal_store_load 2>/dev/null || return 0
-  hooks=$(peal_hooks_ensure)
+  hooks=$(peal_hooks_ensure 2>&1)
   peal_heartbeat
   source=$(peal_hook_field source)
   case $source in

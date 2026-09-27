@@ -348,8 +348,10 @@ Derived from refs and the main branch on the remote, never from the calling work
   session touched it lately.
 - **SessionStart**: a fresh clone whose config records the `guardrails` stage gets its
   git gates here too (`peal_hooks_ensure`, [Git gates](#git-gates)), its line directly
-  after `Peal:`; a foreign `core.hooksPath` or a failed install only warns, naming the
-  command, and nothing is installed. This covers a session that never claims. Then, on a
+  after `Peal:`, in the orientation itself rather than on stderr (a hook's stderr never
+  reaches the session): a foreign `core.hooksPath` or a failed install only warns and
+  installs nothing, but names the command in that same orientation line so the session
+  still sees it. This covers a session that never claims. Then, on a
   new session (`startup`, `clear`) the turn budget restarts, the remote is fetched and
   every claim under the worktrees directory that `release` would let go is reaped (a
   deferred one only once idle); a landed one kept for uncommitted or unpushed work says

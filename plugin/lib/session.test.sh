@@ -20,6 +20,15 @@ hook() {
   printf '%s:%s' "$?" "$out"
 }
 
+# hook_stdout DIR NAME JSON -> like hook, but stdout only, stderr dropped: what a
+# SessionStart hook's caller actually shows the session, since a hook's stderr never
+# reaches it. Cases that must land in the orientation, not only on stderr, use this.
+hook_stdout() {
+  local out
+  out=$(cd "$1" && "$PEAL" hook "$2" <<<"$3" 2>/dev/null)
+  printf '%s:%s' "$?" "$out"
+}
+
 # peal_repo -> repo, with a committed .peal/config.yml of small size tiers.
 peal_repo() {
   local work
@@ -172,19 +181,24 @@ Task: none in this worktree. /peal:work claims one into a worktree of its own." 
   check "gates: no guardrails stage, no line" "0" "$(printf '%s\n' "$out" | grep -c 'git hooks')"
   check "gates: no guardrails stage, core.hooksPath stays unset" "" "$(git -C "$work" config core.hooksPath)"
 
-  # A foreign core.hooksPath: the warning, naming the command, left unchanged.
+  # A foreign core.hooksPath: the warning, naming the command, left unchanged, in the
+  # stdout orientation (not only on stderr, which a SessionStart hook's caller drops).
   work=$(guarded_repo)
   git -C "$work" config core.hooksPath custom-hooks
-  out=$(hook "$work" session-start '{"source":"startup"}')
-  check "gates: a foreign core.hooksPath warns, names the command" "1" \
-    "$(printf '%s\n' "$out" | grep -c "core.hooksPath is custom-hooks.*\\.peal/peal hooks install")"
+  out=$(hook_stdout "$work" session-start '{"source":"startup"}')
+  check "gates: a foreign core.hooksPath warns, right after Peal:" \
+    "0:Peal:
+peal: Peal's git hooks are not installed: core.hooksPath is custom-hooks; to install them chained to it, run: .peal/peal hooks install
+Current milestone: m1, Milestone m1 (docs/milestones/m1.md)
+Task: none in this worktree. /peal:work claims one into a worktree of its own." "$out"
   check "gates: a foreign core.hooksPath is left alone" "custom-hooks" "$(git -C "$work" config core.hooksPath)"
 
-  # A forced failure: the common directory's peal/ blocked by a plain file.
+  # A forced failure: the common directory's peal/ blocked by a plain file. The command
+  # must reach stdout too, not only stderr.
   work=$(guarded_repo)
   : >"$work/.git/peal"
-  out=$(hook "$work" session-start '{"source":"startup"}')
-  check "gates: a failure exits 0, names the command" "0:1" \
+  out=$(hook_stdout "$work" session-start '{"source":"startup"}')
+  check "gates: a failure exits 0, names the command, in stdout" "0:1" \
     "${out%%:*}:$(printf '%s\n' "$out" | grep -c "could not be installed.*\\.peal/peal hooks install")"
 }
 
