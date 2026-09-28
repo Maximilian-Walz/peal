@@ -77,4 +77,14 @@ Ranges: plugin/lib/commit.sh:1-80, plugin/lib/commit.test.sh:1-81, plugin/bin/pe
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+`peal commit SUBJECT PATH...` now commits exactly the named paths: after `git add -- PATHS` it commits with `git commit -- PATHS` (git's `--only`), so anything else already in the index stays staged and out of the commit, which is how 0057's sandbox placeholder files rode along. Git runs the hooks of such a commit on a temporary index of HEAD plus the named paths, so the commit-msg gate's `_peal_staged` needed no change to judge only the committed paths (githooks.test.sh already covered that mechanism; commit.test.sh now covers it through `peal commit`). The "nothing staged" check and the new-backlog-file refusal look only at the named paths too; the backlog filter is an awk step over the named paths' additions, because a second pathspec would OR rather than AND.
+
+Named paths now resolve from the caller's directory, as git's do: the prefix from `git rev-parse --show-prefix` is taken before the `cd` to the project root and put before each relative path; absolute paths pass unchanged. The human chose to fix this here rather than document it. The one internal caller with paths, `peal_store_record` (store-files.sh), passes root-relative paths from the root, so it is unaffected.
+
+`peal commit` without paths is unchanged (`git add -A`, whole index), as the human decided. Git's refusal of a partial commit during a merge surfaces through the existing "the commit was refused (above)" path. The help text, `docs/design.md` and the implementer's instructions describe the new behaviour.
+
+Verification: commit.test.sh 105/0 under every awk here (new cases: other staged file kept out and still staged, gate scoped to the named path, unchanged named path refused, backlog file staged but unnamed left alone, deletion as a named path, subdirectory and absolute paths); hostile, githooks, store-files, close, backlog and claim harnesses green; shellcheck clean. The store-issues, work, review and ship harnesses were not seen finishing locally; CI runs them.
+
+Left for later: restoring the index when the gate refuses a no-path `peal commit` (its `git add -A` stays staged, the way 0057's placeholders got in first), filed as an idea. The Notes' "Related: 0075" most likely means 0087 (sandbox mount placeholders); 0075 is network-fails-fast.
+
+The reviewer found nothing to act on.
