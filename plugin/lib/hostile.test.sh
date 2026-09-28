@@ -592,6 +592,14 @@ arg_cases() {
   git -C "$WORK" checkout -q -- . 2>/dev/null
   git -C "$WORK" clean -q -fd -- .peal .claude .belfry.yml 2>/dev/null
 
+  cover migrate
+  each "migrate SUB" "$WORK" migrate @
+  each "migrate headers --parked P" "$WORK" migrate headers --parked @
+  each "migrate headers --open P" "$WORK" migrate headers --open @
+  each "migrate headers --none P" "$WORK" migrate headers --none @
+  each "migrate milestones --parked P" "$WORK" migrate milestones --parked @
+  each "migrate milestones --open P" "$WORK" migrate milestones --open @
+
   cover create
   with_input "$(ID=NNNN text "milestone: m1" "size: S")" each "create SLUG" "$WORK" create @
   with_input "$(ID=NNNN text "milestone: m1" "size: S")" each "create --part-of ID" "$WORK" create --part-of @ some-piece
