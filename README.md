@@ -32,8 +32,9 @@ marketplace source before running `peal init`, or edit it in afterwards:
 ```
 
 **Status:** being built; the plugin installs, its CLI lists, offers, claims, files,
-revises and retires tasks and gates commits and pushes, its session hooks orient a
-session, keep its budget and autosave its work, `/peal:work` claims, plans and builds
+revises and retires tasks, gates commits and pushes, and diagnoses its own installation
+with `peal doctor`, its session hooks orient a session, keep its budget and autosave its
+work, `/peal:work` claims, plans and builds
 a task with the planner and implementer subagents, `/peal:idea`, `/peal:split`,
 `/peal:defer`, `/peal:revise` and `/peal:retire` keep the backlog, `/peal:close`
 reviews a task and opens its pull request, `/peal:milestone-review` closes a milestone
@@ -82,9 +83,10 @@ with one plugin, `peal`, in `plugin/`:
   a milestone's end (`review.sh`: the review's brief, the state change), the optional
   decision records (`decisions.sh`: reserve, check, index, publish, brief), releases
   (`ship.sh`: the proposal, the notes, the version files, the tag, the GitHub release, the wait), writes
-  onto the main branch (`main-write.sh`), and a project's setup in stages and the survey `/peal:setup` decides from (`init.sh`,
+  onto the main branch (`main-write.sh`), a project's setup in stages and the survey `/peal:setup` decides from (`init.sh`,
   with `config-block.awk` and `settings-json.awk` editing the config and Claude Code's
-  settings as text);
+  settings as text), and what is broken in a project's installation, one fix per problem
+  (`doctor.sh`);
 - `plugin/commands/`, the plugin's Claude Code commands (`/peal:work`, `/peal:idea`,
   `/peal:split`, `/peal:defer`, `/peal:revise`, `/peal:retire`, `/peal:close`,
   `/peal:milestone-review`, `/peal:drift`, `/peal:release`, `/peal:setup`), and
