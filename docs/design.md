@@ -217,7 +217,7 @@ The backlog commands call the storage only, through the `peal` CLI:
 
 | Reference piece | Verdict | Notes |
 |---|---|---|
-| SessionStart orientation | moves | current milestone, this worktree's task, other claims, open splits. A project adds its own lines with its own hook; Claude Code runs both. |
+| SessionStart orientation | moves | current milestone, this worktree's task, other claims, open splits, `/peal:next`'s hint. A project adds its own lines with its own hook; Claude Code runs both. |
 | SessionStart worktree reaping | moves | landed, clean, pushed and idle worktrees are removed; the tip is kept under `refs/reaped/`. |
 | turn budget | moves | nudges at the task's size tier. |
 | Stop close guard | moves | silent unless a close is in progress; then refuses an empty Outcome and uncommitted or unpushed work. |
@@ -374,7 +374,9 @@ Derived from refs and the main branch on the remote, never from the calling work
   every claim under the worktrees directory that `release` would let go is reaped (a
   deferred one only once idle); a landed one kept for uncommitted or unpushed work says
   so. Then the orientation: the current milestone, this worktree's task, the other
-  claims, the open splits.
+  claims, the open splits, and, outside a task's worktree, `/peal:next`'s hint when it
+  has a suggestion (reusing this same list and these same milestones; no second read, no
+  fetch, no `gh`).
 - **PostToolUse**: the heartbeat that keeps a worktree from being reaped, and the turn
   budget: the main session's tool calls in a task's worktree are counted, and at the
   task's size tier (M while unsized) the session is nudged once to close or split.
@@ -487,8 +489,9 @@ What the states mean to Peal:
 
 The reference's pools map onto this: its current milestone is the `current` one,
 "unassigned" is no milestone, "later" is a `parked` milestone, and its "process" pool,
-claimed only by name, is an `open` milestone. Its "any" pool held only the recurring drift
-check, which becomes `/peal:drift`.
+claimed only by name, is an `open` milestone. Its "any" pool, never offered, becomes its
+own `parked` milestone rather than folding into "later": it held more than the recurring
+drift check (which becomes `/peal:drift`), and a migration keeps what else was on it.
 
 Every milestone has a review task, `depends: [milestone]`, whose session runs
 `/peal:milestone-review`. The same command runs without a task, as a Belfry action with
@@ -566,6 +569,8 @@ release:
                                 # each "PATH: FIELD" (a top-level field; JSON, TOML, YAML)
 decisions: false                # the decisions module, or its directory to turn it on
 stages: []                      # the setup stages peal init has done
+declined: {}                    # /peal:next's declines, {item: [DATE]}, one per item;
+                                # blocks it for 90 days from DATE
 ```
 
 Conventions with no setting: the `backlog`/`doing`/`done` directories, `NNNN-slug.md`
@@ -1017,6 +1022,21 @@ so a fresh clone runs the stage again itself, at the start of the work rather th
 waiting for a human's `/peal:setup guardrails` or `.peal/peal hooks install`
 (`peal_hooks_ensure`, [Git gates](#git-gates)).
 
+**`/peal:next [all | ITEM]`** finds the rest once `tasks` is set up: `peal next` reads
+the stages recorded, the backlog and its history (tasks done, splits, deferrals), the
+milestones and one local read of the main branch's git history (never Belfry), and
+prints the one next thing with the best evidence for it, in fixed order (the stages of
+`peal init`, then the review task a current milestone is missing) — `guardrails` once a
+task is done or a commit on main carries no task id, `milestones` at ten tasks done or
+eight open, `belfry` at five done, `review-task` once the current milestone has none —
+with why this repository would profit and how to try it, and up to three runners-up. The
+human accepts (`/peal:setup <stage>` runs), declines (`declined.<item>: [DATE]` in
+`.peal/config.yml`, committed like a setup, not suggested again for 90 days unless asked
+by name with `/peal:next <item>`), or asks for more; nothing changes unasked. `all` also
+shows what is currently declined. The SessionStart orientation carries a one-line hint
+when there is a suggestion and the session is outside a task's worktree; `/peal:next`
+says more.
+
 ### `peal doctor`
 
 When Peal does not work in a project, nobody should have to guess why. `peal doctor
@@ -1070,14 +1090,16 @@ its own task-file process, such as the reference:
 
 1. **Install** the plugin: `peal init --stage tasks` and `--stage guardrails`, keeping
    the existing `tasks/` layout and template.
-2. **Convert headers.** `peal migrate headers` rewrites each task's `key: value` header
-   into a frontmatter block: space- or comma-separated `depends` and `needs` become YAML
-   lists, trailing comments are dropped, the pools map to milestones (a numbered milestone
-   to its id, "unassigned" to no field, "later" to a `parked` milestone, "process" to an
-   `open` one). It prints anything it cannot convert.
-3. **Convert milestones.** `peal migrate milestones` adds frontmatter to each milestone
-   doc, the newest `current`, earlier ones `done`, and creates the `parked` and `open`
-   milestones the pools needed.
+2. **Convert headers.** `peal migrate headers [--parked P,...] [--open P,...] [--none
+   P,...]` rewrites each task's `key: value` header into a frontmatter block: space- or
+   comma-separated `depends` and `needs` become YAML lists, trailing comments are
+   dropped, a numbered milestone becomes its id, a pool named in `--none` drops the
+   field, one named in `--parked` or `--open` stays as that id (the reference: `--none
+   unassigned --parked later,any --open process`). It prints anything it cannot convert.
+3. **Convert milestones.** `peal migrate milestones [--parked P,...] [--open P,...]`
+   adds frontmatter to each numbered milestone doc, the highest number `current`, earlier
+   ones `done`, and creates a milestone for every `--parked` and `--open` pool that has
+   no file yet.
 4. **Move project settings into config:** plan paths, reviewer skip paths, context
    documents, commit areas, checks (the build and test gate), PR sections.
 5. **Replace the generic scripts, commands, subagents and hooks with Peal's,** keeping
@@ -1085,7 +1107,10 @@ its own task-file process, such as the reference:
    moving project rules for the reviewer and planner into `.peal/`.
 6. **Point `.belfry.yml`** at the launcher (the `belfry` stage writes Peal's).
 
-All of it lands as one task, one PR, in the project itself.
+All of it lands as one task, one PR, in the project itself. See
+[`docs/migrating.md`](migrating.md) for the full walkthrough: which pieces a project
+keeps, one-line invocations for its own pool names, and where its checks, context
+documents, PR sections and reviewer/planner rules go in `.peal/`.
 
 ## Building Peal
 

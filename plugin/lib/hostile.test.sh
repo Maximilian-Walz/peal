@@ -566,6 +566,10 @@ arg_cases() {
   cover overview; each "overview ARG" "$WORK" overview @
   each "read ID" "$WORK" read @
 
+  cover next
+  each "next ARG" "$WORK" next @
+  each "next --decline ITEM" "$WORK" next --decline @
+
   cover frontmatter
   local fm=tasks/backlog/0001-plain-task.md
   each "frontmatter check FILE" "$WORK" frontmatter check @
@@ -591,6 +595,14 @@ arg_cases() {
   ALLOW=()
   git -C "$WORK" checkout -q -- . 2>/dev/null
   git -C "$WORK" clean -q -fd -- .peal .claude .belfry.yml 2>/dev/null
+
+  cover migrate
+  each "migrate SUB" "$WORK" migrate @
+  each "migrate headers --parked P" "$WORK" migrate headers --parked @
+  each "migrate headers --open P" "$WORK" migrate headers --open @
+  each "migrate headers --none P" "$WORK" migrate headers --none @
+  each "migrate milestones --parked P" "$WORK" migrate milestones --parked @
+  each "migrate milestones --open P" "$WORK" migrate milestones --open @
 
   cover create
   with_input "$(ID=NNNN text "milestone: m1" "size: S")" each "create SLUG" "$WORK" create @

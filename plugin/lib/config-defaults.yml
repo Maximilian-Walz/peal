@@ -43,3 +43,5 @@ release:
                                 # "PATH: FIELD", a top-level field of a JSON, TOML or YAML file
 decisions: false                # the decisions module, or its directory to turn it on
 stages: []                      # the setup stages peal init has done (lib/init.sh)
+declined: {}                    # /peal:next's declines, {item: [DATE]}, one per item
+                                # (lib/next.sh); blocks it for 90 days from DATE

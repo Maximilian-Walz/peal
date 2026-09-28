@@ -61,6 +61,10 @@ peal_ssh_batch_mode
 . "$PEAL_ROOT/lib/ship.sh"
 # shellcheck source=../lib/init.sh
 . "$PEAL_ROOT/lib/init.sh"
+# shellcheck source=../lib/next.sh
+. "$PEAL_ROOT/lib/next.sh"
+# shellcheck source=../lib/migrate.sh
+. "$PEAL_ROOT/lib/migrate.sh"
 
 usage() {
   cat <<'EOF'
@@ -80,6 +84,31 @@ usage: peal <command> [args]
                                 the stages set up, the GitHub repository, its open
                                 issues and milestones, commits closing issues, README,
                                 TODO lists, CI, and the storage to recommend
+  next [--all | ITEM]           what to adopt next (lib/next.sh): SUGGEST item try
+                                evidence, up to three ALSO lines, or NONE; --all also
+                                shows DECLINED item date lines; an ITEM is offered
+                                regardless of the catalogue or a decline
+  next --decline ITEM           declined.ITEM set to today in .peal/config.yml,
+                                blocking it for 90 days; refused without the file
+  migrate headers [--parked P,...] [--open P,...] [--none P,...]
+                                a project's own task headers rewritten into frontmatter,
+                                in place: depends and needs into flow lists, a trailing
+                                comment dropped, milestone numbers into mNN, a pool name
+                                in --none dropped, one in --parked or --open kept as its
+                                id (docs/design.md, "Migrating an existing project"); a
+                                file already in frontmatter is left alone, so a second
+                                run is a no-op; what it cannot convert is named on
+                                stderr, that file untouched; status 1 if anything was
+                                reported, 0 otherwise; never commits
+  migrate milestones [--parked P,...] [--open P,...]
+                                frontmatter added to every numbered milestone doc that
+                                has none (id from its file name's digits, the highest
+                                number current, the rest done, order the number), and a
+                                P.md made for every --parked or --open pool without a
+                                file; refused (status 2) rather than make a second
+                                current; a doc with no number, or a milestone id a task
+                                uses with no file, reported on stderr, status 1; safe to
+                                run again; never commits
   check                         report what is not valid: the milestone files, a task
                                 file under done/ without an Outcome, a task file
                                 whose slug is not kebab-case, a depends cycle
@@ -391,6 +420,17 @@ reason_args() {
   fi
 }
 
+cmd_migrate() {
+  need 1 "$@"
+  local sub=$1
+  shift
+  case $sub in
+    headers) peal_migrate_headers "$@" ;;
+    milestones) peal_migrate_milestones "$@" ;;
+    *) usage >&2; exit 2 ;;
+  esac
+}
+
 cmd_create() {
   need 1 "$@"
   case $1 in
@@ -399,6 +439,13 @@ cmd_create() {
     --owner | --title | --origin) peal_create_filed "$@" ;;
     -*) usage >&2; exit 2 ;;
     *) [ $# -eq 1 ] || { usage >&2; exit 2; }; peal_store_create plain "" "$1" ;;
+  esac
+}
+
+cmd_next() {
+  case ${1-} in
+    --decline) need 2 "$@"; peal_next_decline "$2" ;;
+    *) peal_next "$@" ;;
   esac
 }
 
@@ -425,6 +472,7 @@ main() {
       esac
       ;;
     init) peal_init "$@" ;;
+    migrate) peal_config_load || exit 2; cmd_migrate "$@" ;;
     githook) need 1 "$@"; peal_githook "$@" ;;
     commit) peal_config_load || exit 2; peal_commit "$@" ;;
     milestones) cmd_milestones "$@" ;;
@@ -433,6 +481,7 @@ main() {
     overview) with_store peal_overview "$@" ;;
     read) [ $# -eq 1 ] || { usage >&2; exit 2; }; with_id "$1" peal_store_read "$1" ;;
     create) with_store cmd_create "$@" ;;
+    next) with_store cmd_next "$@" ;;
     idea) need 1 "$@"; with_store peal_idea "$@" ;;
     ideas) with_store peal_ideas "$@" ;;
     revise) reason_args revise "$@"; with_id "$PEAL_ID" peal_revise "$PEAL_ID" "$PEAL_REASON" "$PEAL_DRY" ;;
