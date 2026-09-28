@@ -274,8 +274,9 @@ INPUT=$NOINPUT
 cover() { COVERED="$COVERED$1 "; }
 
 # try LABEL CWD ARG... -> peal ARG... run in CWD with INPUT on stdin, judged; a problem
-# fails the check, unless KNOWN lists "LABEL:problem kind" in full (the label may itself
-# hold spaces, so KNOWN is matched whole, not cut at its first space). Counts every call
+# fails the check, unless KNOWN lists "LABEL:problem kind" in full (LABEL may itself hold
+# spaces and colons, e.g. "issues: list", so a KNOWN entry is matched here as the whole
+# string "$label:$kind", never cut at a space or a colon of its own). Counts every call
 # toward TRIES; with PEAL_HOSTILE_SHARD set, only the tries that land in this shard
 # (round-robin by call order) actually run assess, and RAN_LABELS records which did.
 try() {
@@ -761,9 +762,11 @@ fi
 [ -n "${PEAL_HOSTILE_CASES-}" ] || coverage
 # A KNOWN entry only counts against this shard when one of its tries actually ran here
 # (RAN_LABELS); a shard that never ran a known finding's label has nothing to report.
+# ${known%:*} takes the label up to the LAST colon: kind never holds one, but a label can
+# ("issues: list"), so %% (the first colon) would cut the label short.
 for known in ${KNOWN[@]+"${KNOWN[@]}"}; do
   case $RAN_LABELS in
-    *$'\n'"${known%%:*}"$'\n'*)
+    *$'\n'"${known%:*}"$'\n'*)
       case $KNOWN_HIT in
         *"$known"*) ;;
         *) check "KNOWN still found: $known" "found" "fixed, or no longer run: take it off KNOWN" ;;
