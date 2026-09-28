@@ -2,6 +2,7 @@
 milestone:
 plan: skipped
 depends: [0074]
+priority: high
 ---
 
 # 0082 — Peal's own `.belfry.yml` gets the `create:` key
@@ -32,6 +33,8 @@ depends: [0074]
 after #264 is deployed."
 
 ## Notes
+
+Revised 2026-09-28: priority high: goes into Peal's next patch release (daily-use fixes after m1)
 
 - Wait for Belfry's release after its #264 to be deployed before merging this: before
   that, its server refuses the contract with the new key and keeps the last valid one.
