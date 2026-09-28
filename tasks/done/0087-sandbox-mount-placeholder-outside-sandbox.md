@@ -104,4 +104,43 @@ tasks/done/0084-char-device-everywhere.md:23-34 and 61-198.
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Decided, not filtered. A path that a sandbox's `/dev/null` mount leaves behind looks like
+an ordinary empty regular file once it is seen from outside that sandbox. Peal treats it as
+an untracked file like any other: it counts as work, and the session-end autosave commits
+it. The remedy is git's own, `.gitignore` or the clone-local `.git/info/exclude`. Either
+covers status, `add -A` and worktree remove without any Peal code. The human chose "the
+cleanest version" and confirmed it meant this option.
+
+Rejected alternatives:
+- **An empty-file heuristic.** It would also hide `.gitkeep` and `__init__.py`.
+- **A marker left by the sandbox.** No such marker exists, and Peal never needs Belfry.
+- **A known-path filter (empty + read-only + fixed name list).** It would copy Claude
+  Code's internal deny list, which changes between versions, so it is not generic.
+
+Where the decision is written down:
+- the SessionEnd bullet in `docs/design.md`,
+- the `peal_status_porcelain` doc comment in `plugin/lib/common.sh`,
+- this Outcome.
+
+No filter code changed.
+
+Built:
+- **A pinning test** in `plugin/lib/common.test.sh`. An empty `.mcp.json` with mode 444
+  still shows as `?? .mcp.json` in `peal_status_porcelain`, and `peal_untracked_devices`
+  does not list it. The common tests pass: 29 passed, 0 failed.
+- **A root `.gitignore` for Peal's own repository**, which the human asked for in this
+  task. It holds the 22 names 912623c (0057) had to untrack, each anchored to the root. A
+  comment says where they come from. I checked each name with `git ls-files`: no tracked
+  file sits at or under any of them. In this worktree, `git status` no longer lists the
+  live sandbox mounts.
+
+For the next session:
+- Other projects that run Peal in a sandbox need the same ignore entries. The docs suggest
+  them, and Peal deliberately does not write them itself (the human's answer).
+- `tools/lint.sh` prints "Permission denied" on stderr when it runs inside a sandbox,
+  because `find` and `head` hit the live mounts. The exit code stays 0. This was already
+  the case before this task.
+- Empty directories left behind (`.vscode/`, `.claude/commands/` as directories) are
+  harmless, because git never lists an empty directory.
+
+The review found nothing.
