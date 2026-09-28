@@ -337,6 +337,11 @@ recommend files" "$(peal init --survey)"
   git -C "$work" add -f .env
   check "survey: a tracked file is not listed" "local-files config.local.yaml" "$(survey local-files)"
   git -C "$work" rm -q --cached .env
+  printf 'deps/\n' >>"$work/.gitignore"
+  mkdir -p "$work/deps/pkg"
+  printf 'x\n' >"$work/deps/pkg/.env.example"
+  check "survey: an ignored directory is not walked" "local-files .env,config.local.yaml" "$(survey local-files)"
+  rm -r "$work/deps"
   rm "$work/.env" "$work/notes.txt" "$work/values.local.yaml" "$work/config.local.yaml" "$work/.gitignore"
   mkdir -p "$work/docs" "$work/.github/workflows" "$work/tasks"
   printf 'x\n' >"$work/TODO.md"

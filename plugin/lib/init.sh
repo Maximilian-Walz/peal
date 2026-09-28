@@ -587,7 +587,7 @@ peal_init_survey() {
   found=()
   while IFS= read -r f; do
     case ${f##*/} in .env* | *.local.*) found+=("$f") ;; esac
-  done < <(git ls-files --others --ignored --exclude-standard 2>/dev/null | LC_ALL=C sort)
+  done < <(git ls-files --others --ignored --exclude-standard --directory 2>/dev/null | LC_ALL=C sort)
   echo "local-files $(_peal_init_list ${found[@]+"${found[@]:0:5}"})"
 
   tasks=$(peal_config_get tasks) || return 2
