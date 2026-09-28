@@ -118,7 +118,7 @@ budget() {
 }
 
 autosave() {
-  local work wt
+  local work wt before
   work=$(peal_repo)
   put "$work" backlog 0001 saved-task
   (cd "$work" && "$PEAL" claim 0001) >/dev/null 2>&1
@@ -126,14 +126,24 @@ autosave() {
   remote_tip() { git -C "$work" ls-remote origin refs/heads/task/0001-saved-task | cut -f1; }
 
   echo draft >"$wt/draft.txt"
+  # An untracked symlink to /dev/null (a sandbox's /dev/null mount) sits beside it: real
+  # work, and something that is not.
+  ln -s /dev/null "$wt/dev-null"
   check "autosave: a clear is no end" "0:" "$(hook "$wt" session-end '{"reason":"clear"}')"
   check "autosave: a subagent's end is not the session's" "0:" "$(hook "$wt" session-end '{"reason":"other","agent_id":"a1"}')"
-  check "autosave: nothing so far" "?? draft.txt" "$(git -C "$wt" status --porcelain)"
+  check "autosave: nothing so far, raw git lists both (the control)" "?? dev-null
+?? draft.txt" "$(git -C "$wt" status --porcelain)"
 
   check "autosave: silent" "0:" "$(hook "$wt" session-end '{"reason":"prompt_input_exit"}')"
   check "autosave: committed" "wip: session-end autosave [0001]" "$(git -C "$wt" log -1 --format=%s)"
-  check "autosave: clean" "" "$(git -C "$wt" status --porcelain)"
+  check "autosave: the link never staged" "" "$(git -C "$wt" ls-files dev-null)"
+  check "autosave: the link still there, raw status, nothing else" "?? dev-null" "$(git -C "$wt" status --porcelain)"
   check "autosave: pushed" "$(git -C "$wt" rev-parse HEAD)" "$(remote_tip)"
+
+  # Only the link left: no work to autosave, so no commit at all.
+  before=$(git -C "$wt" rev-parse HEAD)
+  check "autosave: only the link, silent" "0:" "$(hook "$wt" session-end '{"reason":"logout"}')"
+  check "autosave: HEAD unchanged, no commit made" "$before" "$(git -C "$wt" rev-parse HEAD)"
 
   # Clean but unpushed: pushed.
   git -C "$wt" commit -q --allow-empty -m "wip: local"

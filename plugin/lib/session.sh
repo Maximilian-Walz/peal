@@ -204,7 +204,7 @@ peal_turn_budget() {
 # pushed, so no work stays on one machine only. What git says goes to the worktree's
 # git directory, peal-session-end.log.
 peal_session_end() {
-  local reason task id gitdir branch remote log
+  local reason task id gitdir branch remote log devices=() dev
   reason=$(peal_hook_field reason)
   [ -z "$(peal_hook_field agent_id)" ] || return 0
   case $reason in logout | prompt_input_exit | other) ;; *) return 0 ;; esac
@@ -218,8 +218,14 @@ peal_session_end() {
   remote=$(peal_config_get remote)
   {
     date -u +%Y-%m-%dT%H:%M:%SZ
-    if [ -n "$(git status --porcelain)" ]; then
-      git add -A && git commit -q -m "wip: session-end autosave [$id]" \
+    if [ -n "$(peal_status_porcelain)" ]; then
+      # An untracked character device (a sandbox's /dev/null mount) is not work, but
+      # git's add_to_index refuses to add one outright; left in a plain `git add -A` it
+      # would stage nothing at all. Excluded explicitly, the real work still gets staged.
+      while IFS= read -r dev; do
+        [ -n "$dev" ] && devices+=(":(exclude,top,literal)$dev")
+      done < <(peal_untracked_devices)
+      git add -A -- . ${devices[@]+"${devices[@]}"} && git commit -q -m "wip: session-end autosave [$id]" \
         -m "Committed by Peal when the session ended ($reason), with whatever was in flight."
     fi
     if git rev-parse -q --verify "$branch@{upstream}" >/dev/null; then

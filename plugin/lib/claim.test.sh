@@ -300,6 +300,11 @@ release() {
   git -C "$wt" push -q 2>/dev/null
   check "release: nothing removed so far" "1" "$([ -d "$wt" ] && echo 1)"
 
+  # An untracked symlink to /dev/null does not count as dirty.
+  ln -s /dev/null "$wt/dev-null"
+  check "release: raw git lists the link as untracked (the control)" "?? dev-null" \
+    "$(git -C "$wt" status --porcelain | grep dev-null)"
+
   out=$(peal release 0001 2>&1)
   check "release" "0:released 0001 task/0001-done-work, tip kept as refs/reaped/0001-done-work" "$?:$out"
   check "release: the worktree gone" "0" "$([ -e "$wt" ] && echo 1 || echo 0)"
@@ -323,6 +328,9 @@ reap() {
   for t in 0001-reaped-one 0002-dirty-one 0003-unpushed-one 0004-live-one 0006-gone-one; do
     land "$work" "${t%%-*}" "${t#*-}"
   done
+  # An untracked symlink to /dev/null does not keep an otherwise-clean, landed claim from
+  # being reaped.
+  ln -s /dev/null "$dir/0001-reaped-one/dev-null"
   echo x >"$dir/0002-dirty-one/x"
   git -C "$dir/0003-unpushed-one" commit -q --allow-empty -m "wip: more"
   : >"$(admin "$dir/0004-live-one")/peal-heartbeat"

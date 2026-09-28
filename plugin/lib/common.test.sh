@@ -147,11 +147,16 @@ git_try_ssh_cases() {
 }
 
 # status_porcelain_cases -> an untracked regular file counts, as git status always did;
-# an untracked character device does not.
+# an untracked symlink to /dev/null, what a sandbox's device mount looks like to git and to
+# [ -c ] alike (git lists only regular files, symlinks and directories as untracked, so a
+# real mknod device never reaches this code path; the symlink exercises the same [ -c ]
+# branch without needing the privilege mknod does), does not, from the repository's top or
+# from a subdirectory, and with an explicit pathspec.
 status_porcelain_cases() {
   local dir
   dir=$(scratch_dir)/repo
   git init -q "$dir"
+  mkdir "$dir/sub"
   echo one >"$dir/tracked.txt"
   git -C "$dir" add tracked.txt
   git -C "$dir" commit -q -m first
@@ -164,15 +169,24 @@ status_porcelain_cases() {
   check "status: pathspecs pass through" "" \
     "$(cd "$dir" && peal_status_porcelain -- ":(exclude)untracked.txt" ":(exclude)tracked.txt")"
 
-  if mknod "$dir/dev-null" c 1 3 2>/dev/null; then
-    check "status: an untracked character device does not count" "" \
-      "$(cd "$dir" && peal_status_porcelain | grep '?? dev-null')"
-    check "status: everything else still shown alongside it" "1" \
-      "$(cd "$dir" && peal_status_porcelain | grep -c '?? untracked.txt')"
-    rm -f "$dir/dev-null"
-  else
-    echo "common.test.sh: mknod needs a privilege this machine will not give; the character-device case skipped" >&2
-  fi
+  ln -s /dev/null "$dir/dev-null"
+  check "status: raw git lists the link as untracked (the control)" "?? dev-null" \
+    "$(cd "$dir" && git status --porcelain | grep dev-null)"
+  check "status: an untracked symlink to a device does not count" "" \
+    "$(cd "$dir" && peal_status_porcelain | grep '?? dev-null')"
+  check "status: everything else still shown alongside it" "1" \
+    "$(cd "$dir" && peal_status_porcelain | grep -c '?? untracked.txt')"
+  check "status: filtered from a subdirectory too" "" \
+    "$(cd "$dir/sub" && peal_status_porcelain | grep dev-null)"
+  ln -s /dev/null "$dir/sub/dev-null"
+  check "status: raw git lists a link inside a subdirectory too (--untracked-files=all)" "?? sub/dev-null" \
+    "$(cd "$dir" && git status --porcelain --untracked-files=all | grep sub/dev-null)"
+  check "status: filtered there too, with --untracked-files=all" "" \
+    "$(cd "$dir" && peal_status_porcelain --untracked-files=all | grep dev-null)"
+  check "status: peal_untracked_devices names both links, no real file" \
+    "dev-null
+sub/dev-null" "$(cd "$dir" && peal_untracked_devices | sort)"
+  rm -f "$dir/dev-null" "$dir/sub/dev-null"
 }
 
 git_try_cases

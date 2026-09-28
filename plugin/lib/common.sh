@@ -44,17 +44,41 @@ peal_refuse() {
 
 # peal_status_porcelain ARGS... -> `git status --porcelain ARGS...`, with an untracked
 # character device left out: a sandbox's /dev/null mounted over a protected path shows up
-# in the work tree that way, not as work anyone did.
+# in the work tree that way, not as work anyone did. An untracked symlink to a device is
+# filtered too (it resolves through [ -c ] the same way). git's porcelain paths are
+# root-relative regardless of the caller's directory, so they are resolved against the
+# work tree's top before the test: called from any directory, not just the top, this
+# still gives the right answer.
 peal_status_porcelain() {
-  local line path
+  local top line path
+  top=$(git rev-parse --show-toplevel) || return 1
   git status --porcelain "$@" | while IFS= read -r line; do
     case $line in
       '??'*)
         path=${line#???}
-        [ -c "$path" ] && continue
+        [ -c "$top/$path" ] && continue
         ;;
     esac
     printf '%s\n' "$line"
+  done
+}
+
+# peal_untracked_devices -> root-relative paths of untracked character devices, one per
+# line: what peal_status_porcelain leaves out, for a caller that must exclude them from a
+# `git add -A` rather than just ignore them in a status listing (git's add_to_index
+# refuses a device outright, which would stage nothing at all). -z / NUL-separated so a
+# quoted path is not misread; each null-terminated record with no rename arrow is one
+# untracked path.
+peal_untracked_devices() {
+  local top rec path
+  top=$(git rev-parse --show-toplevel) || return 1
+  git status --porcelain -z --untracked-files=all | while IFS= read -r -d '' rec; do
+    case $rec in
+      '??'*)
+        path=${rec#???}
+        [ -c "$top/$path" ] && printf '%s\n' "$path"
+        ;;
+    esac
   done
 }
 
