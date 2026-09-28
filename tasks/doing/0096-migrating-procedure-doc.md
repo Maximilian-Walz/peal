@@ -17,7 +17,19 @@ sections and reviewer/planner rules move into `.peal/`.
 
 ## Scope
 
+- `docs/migrating.md`: the whole migration procedure, which pieces a project keeps, the
+  converters' one-line invocation with a project's own pool names, replacing the old
+  template with Peal's, and how checks, context documents, PR sections and
+  reviewer/planner rules move into `.peal/`.
+- Links to it from `docs/design.md` "Migrating an existing project", `README.md` and
+  `plugin/commands/setup.md`.
+
 ## Done when
+
+- `docs/migrating.md` exists and every fact in it matches `plugin/lib/migrate.sh`,
+  `plugin/lib/config-defaults.yml` and `docs/design.md`.
+- `docs/design.md`, `README.md` and `plugin/commands/setup.md` link to it.
+- `tools/lint.sh` passes.
 
 ## Raw
 
