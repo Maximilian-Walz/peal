@@ -43,32 +43,33 @@ catalogue() {
   local work
 
   # guardrails: not recorded, and the fixture's own "root" commit on main has no [ID];
-  # review-task also qualifies (m1 is current, no review task), ranked after it.
+  # review-task also qualifies (m1 is current, no review task), ranked after it (last).
   work=$(next_repo)
   check "catalogue: guardrails from an untagged commit, review-task also" \
     "0:SUGGEST guardrails /peal:setup guardrails 0 done, 2 untagged
 ALSO review-task /peal:setup milestones m1 current, no review task" "$(next "$work")"
 
   # milestones: guardrails already recorded (excluded); 10 done tasks meet its threshold
-  # (evidence carries the count); review-task and belfry both also qualify, ranked after.
+  # (evidence carries the count); belfry and review-task both also qualify, ranked after
+  # it in the catalogue's order (the stages of peal init, then review-task last).
   work=$(next_repo)
   printf 'stages: [tasks, guardrails]\n' >"$work/.peal/config.yml"
   publish "$work"
   for i in 0001 0002 0003 0004 0005 0006 0007 0008 0009 0010; do put "$work" "done" "$i" "task-$i"; done
   check "catalogue: milestones at the threshold, with the count in the evidence" \
     "0:SUGGEST milestones /peal:setup milestones 10 done, 0 open
-ALSO review-task /peal:setup milestones m1 current, no review task
-ALSO belfry /peal:setup belfry 10 done" "$(next "$work")"
+ALSO belfry /peal:setup belfry 10 done
+ALSO review-task /peal:setup milestones m1 current, no review task" "$(next "$work")"
 
-  # review-task over belfry: guardrails and milestones both recorded (excluded); belfry
-  # not recorded and past its threshold, but review-task ranks first.
+  # belfry over review-task: guardrails and milestones both recorded (excluded); belfry
+  # not recorded and past its threshold, ranked before review-task, the catalogue's last.
   work=$(next_repo)
   printf 'stages: [tasks, guardrails, milestones]\n' >"$work/.peal/config.yml"
   publish "$work"
   for i in 0001 0002 0003 0004 0005; do put "$work" "done" "$i" "task-$i"; done
-  check "catalogue: review-task ranks over belfry" \
-    "0:SUGGEST review-task /peal:setup milestones m1 current, no review task
-ALSO belfry /peal:setup belfry 5 done" "$(next "$work")"
+  check "catalogue: belfry ranks over review-task" \
+    "0:SUGGEST belfry /peal:setup belfry 5 done
+ALSO review-task /peal:setup milestones m1 current, no review task" "$(next "$work")"
 
   # NONE: every stage recorded, and m1's review task filed.
   work=$(next_repo)
@@ -119,12 +120,12 @@ declined() {
   for i in 0001 0002 0003 0004 0005 0006 0007 0008 0009 0010; do put "$work" "done" "$i" "task-$i"; done
   PEAL_TODAY=2026-01-01 next "$work" --decline milestones >/dev/null
   check "decline: blocks it at day 89, belfry offered instead" \
-    "0:SUGGEST review-task /peal:setup milestones m1 current, no review task
-ALSO belfry /peal:setup belfry 10 done" "$(PEAL_TODAY=2026-03-31 next "$work")"
+    "0:SUGGEST belfry /peal:setup belfry 10 done
+ALSO review-task /peal:setup milestones m1 current, no review task" "$(PEAL_TODAY=2026-03-31 next "$work")"
   check "decline: free again at day 90" \
     "0:SUGGEST milestones /peal:setup milestones 10 done, 0 open
-ALSO review-task /peal:setup milestones m1 current, no review task
-ALSO belfry /peal:setup belfry 10 done" "$(PEAL_TODAY=2026-04-01 next "$work")"
+ALSO belfry /peal:setup belfry 10 done
+ALSO review-task /peal:setup milestones m1 current, no review task" "$(PEAL_TODAY=2026-04-01 next "$work")"
   check "decline: --all still shows it declined while blocked" "1" \
     "$(PEAL_TODAY=2026-03-31 next "$work" --all | grep -c '^DECLINED milestones 2026-01-01$')"
   check "decline: an item asked for by name ignores the decline" "0:SUGGEST milestones /peal:setup milestones 10 done, 0 open" \
