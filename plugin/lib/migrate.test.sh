@@ -67,6 +67,24 @@ headers() {
   check "empty fields dropped" "$(printf -- '---\nmilestone: m01\n---\n\n# 0005 — Empty fields\n## Intent')" \
     "$(cat "$dir/tasks/backlog/0005-empty-fields.md")"
 
+  # An empty value with only a trailing comment is dropped like any other empty field,
+  # for a scalar key and for depends; a comment after a tab is dropped too.
+  dir=$(project)
+  printf '# 0016 — Comment-only values\n\nsize:   # S, M or L\ndepends: # none yet\nplan: required\n\n## Intent\n' \
+    >"$dir/tasks/backlog/0016-comment-only-values.md"
+  pl "$dir" migrate headers >/dev/null
+  check "comment-only value dropped: scalar and depends" \
+    "$(printf -- '---\nplan: required\n---\n\n# 0016 — Comment-only values\n## Intent')" \
+    "$(cat "$dir/tasks/backlog/0016-comment-only-values.md")"
+
+  dir=$(project)
+  printf '# 0017 — Tab before comment\n\nsize: M\t# S, M or L\nplan: required\n\n## Intent\n' \
+    >"$dir/tasks/backlog/0017-tab-before-comment.md"
+  pl "$dir" migrate headers >/dev/null
+  check "tab before comment dropped" \
+    "$(printf -- '---\nsize: M\nplan: required\n---\n\n# 0017 — Tab before comment\n## Intent')" \
+    "$(cat "$dir/tasks/backlog/0017-tab-before-comment.md")"
+
   # milestone: a number, a --none pool (dropped), a --parked and an --open pool (kept as ids).
   dir=$(project)
   printf '# 0006 — None pool\n\nmilestone: unassigned\n\n## Intent\n' >"$dir/tasks/backlog/0006-none-pool.md"

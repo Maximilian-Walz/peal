@@ -38,6 +38,21 @@ function known_key(k) {
          k == "part-of" || k == "needs" || k == "model"
 }
 
+# drop_comment(v) -> v with a trailing " # ..." or "\t# ..." comment dropped, and one
+# that starts at the very beginning of v (nothing before the #) dropped whole; v is
+# expected already trimmed of leading and trailing [ \t]. index(), not a regex
+# alternation on ^, so this reads the same under mawk, nawk and a system awk.
+function drop_comment(v,    sp, tab, j) {
+  if (v ~ /^#/) return ""
+  sp = index(v, " #")
+  tab = index(v, "\t#")
+  if (sp && tab) j = (sp < tab ? sp : tab)
+  else j = sp ? sp : tab
+  if (j) v = substr(v, 1, j - 1)
+  sub(/[ \t]+$/, "", v)
+  return v
+}
+
 # render(key, value) -> the frontmatter line for key: value, value already resolved
 # (milestone mapped, list split); "" values were dropped by the caller.
 function render(key, value,    n, items, clean, j, cnt) {
@@ -77,9 +92,7 @@ END {
     key = substr(s, 1, RLENGTH - 1)
     rest = substr(s, RLENGTH + 1)
     sub(/^[ \t]+/, "", rest)
-    j = index(rest, " #")
-    if (j) rest = substr(rest, 1, j - 1)
-    sub(/[ \t]+$/, "", rest)
+    rest = drop_comment(rest)
 
     if (!known_key(key)) { problem(i, "unknown key " key); continue }
     if (rest == "") continue
