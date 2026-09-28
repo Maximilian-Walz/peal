@@ -26,6 +26,10 @@ through `peal milestone-state`, nothing else.
 
 ## Notes
 
+- The human, asked "Close m1?" with the review's summary: close it.
+- The human, on the queued idea `gate-settings-from-main` (composed for m1, which is
+  done before this task's close files it): file it with no milestone.
+
 ---
 
 ## Outcome
