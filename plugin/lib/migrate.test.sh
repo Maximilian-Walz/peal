@@ -85,6 +85,35 @@ headers() {
   check "key: value under a heading untouched" "model: art/some/path.md" "$(grep '^model:' "$dir/tasks/backlog/0009-model-in-notes.md")"
   check "only one frontmatter field" "size: S" "$(sed -n 2p "$dir/tasks/backlog/0009-model-in-notes.md")"
 
+  # A real task can carry a prose paragraph right under its header, with no "## "
+  # heading before it: the header still ends at the first blank line after its key:
+  # value lines, and everything from there on, prose included, is body, byte-for-byte.
+  dir=$(project)
+  printf '# 0020 — Prose under header\n\nmilestone: 01\nsize: S\n\nBatch (decision 0034): this task absorbed something else, deleted from backlog on\nthis branch. Its Intent is reproduced below so nothing filed is lost.\n\n## Scope\n\nStuff.\n' \
+    >"$dir/tasks/backlog/0020-prose-under-header.md"
+  out=$(pl "$dir" migrate headers 2>&1)
+  check "prose under header: exit 0, nothing reported" "0:" "$?:$out"
+  check "prose under header: byte-exact" \
+    "$(printf -- '---\nmilestone: m01\nsize: S\n---\n\n# 0020 — Prose under header\nBatch (decision 0034): this task absorbed something else, deleted from backlog on\nthis branch. Its Intent is reproduced below so nothing filed is lost.\n\n## Scope\n\nStuff.')" \
+    "$(cat "$dir/tasks/backlog/0020-prose-under-header.md")"
+
+  # A header with no key: value lines at all: the header is empty, and the body (a "##
+  # " heading here) starts right after the title's leading blank line.
+  dir=$(project)
+  printf '# 0021 — No fields\n\n## Intent\n\nWhy.\n' >"$dir/tasks/backlog/0021-no-fields.md"
+  pl "$dir" migrate headers >/dev/null
+  check "no fields: byte-exact" "$(printf -- '---\n---\n\n# 0021 — No fields\n## Intent\n\nWhy.')" \
+    "$(cat "$dir/tasks/backlog/0021-no-fields.md")"
+
+  # A prose line with no blank line before it, mixed into the key: value lines, still
+  # leaves the header unconverted (it is a problem, not the start of the body).
+  dir=$(project)
+  printf '# 0022 — Prose mixed in\n\nmilestone: 01\nplain text right after a key\nsize: S\n\n## Intent\n' \
+    >"$dir/tasks/backlog/0022-prose-mixed-in.md"
+  cp "$dir/tasks/backlog/0022-prose-mixed-in.md" "$dir/before-mixed.md"
+  check_fails "prose mixed into the header: exit 1, reported" 1 "not a key: value line" pl "$dir" migrate headers
+  check "prose mixed into the header: file untouched" "$(cat "$dir/before-mixed.md")" "$(cat "$dir/tasks/backlog/0022-prose-mixed-in.md")"
+
   # TEMPLATE.md and a non-numbered file are skipped silently.
   dir=$(project)
   printf 'not a task\n' >"$dir/tasks/backlog/TEMPLATE.md"
