@@ -217,7 +217,7 @@ The backlog commands call the storage only, through the `peal` CLI:
 
 | Reference piece | Verdict | Notes |
 |---|---|---|
-| SessionStart orientation | moves | current milestone, this worktree's task, other claims, open splits. A project adds its own lines with its own hook; Claude Code runs both. |
+| SessionStart orientation | moves | current milestone, this worktree's task, other claims, open splits, `/peal:next`'s hint. A project adds its own lines with its own hook; Claude Code runs both. |
 | SessionStart worktree reaping | moves | landed, clean, pushed and idle worktrees are removed; the tip is kept under `refs/reaped/`. |
 | turn budget | moves | nudges at the task's size tier. |
 | Stop close guard | moves | silent unless a close is in progress; then refuses an empty Outcome and uncommitted or unpushed work. |
@@ -374,7 +374,9 @@ Derived from refs and the main branch on the remote, never from the calling work
   every claim under the worktrees directory that `release` would let go is reaped (a
   deferred one only once idle); a landed one kept for uncommitted or unpushed work says
   so. Then the orientation: the current milestone, this worktree's task, the other
-  claims, the open splits.
+  claims, the open splits, and, outside a task's worktree, `/peal:next`'s hint when it
+  has a suggestion (reusing this same list and these same milestones; no second read, no
+  fetch, no `gh`).
 - **PostToolUse**: the heartbeat that keeps a worktree from being reaped, and the turn
   budget: the main session's tool calls in a task's worktree are counted, and at the
   task's size tier (M while unsized) the session is nudged once to close or split.
@@ -563,6 +565,8 @@ release:
                                 # each "PATH: FIELD" (a top-level field; JSON, TOML, YAML)
 decisions: false                # the decisions module, or its directory to turn it on
 stages: []                      # the setup stages peal init has done
+declined: {}                    # /peal:next's declines, {item: [DATE]}, one per item;
+                                # blocks it for 90 days from DATE
 ```
 
 Conventions with no setting: the `backlog`/`doing`/`done` directories, `NNNN-slug.md`
@@ -1013,6 +1017,21 @@ committed config says the project wants the hooks; `core.hooksPath` is each clon
 so a fresh clone runs the stage again itself, at the start of the work rather than
 waiting for a human's `/peal:setup guardrails` or `.peal/peal hooks install`
 (`peal_hooks_ensure`, [Git gates](#git-gates)).
+
+**`/peal:next [all | ITEM]`** finds the rest once `tasks` is set up: `peal next` reads
+the stages recorded, the backlog and its history (tasks done, splits, deferrals), the
+milestones and one local read of the main branch's git history (never Belfry), and
+prints the one next thing with the best evidence for it, in fixed order (the stages of
+`peal init`, then the review task a current milestone is missing) — `guardrails` once a
+task is done or a commit on main carries no task id, `milestones` at ten tasks done or
+eight open, `review-task` once the current milestone has none, `belfry` at five done —
+with why this repository would profit and how to try it, and up to three runners-up. The
+human accepts (`/peal:setup <stage>` runs), declines (`declined.<item>: [DATE]` in
+`.peal/config.yml`, committed like a setup, not suggested again for 90 days unless asked
+by name with `/peal:next <item>`), or asks for more; nothing changes unasked. `all` also
+shows what is currently declined. The SessionStart orientation carries a one-line hint
+when there is a suggestion and the session is outside a task's worktree; `/peal:next`
+says more.
 
 ## Migrating an existing project
 

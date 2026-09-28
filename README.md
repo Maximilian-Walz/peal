@@ -39,7 +39,7 @@ a task with the planner and implementer subagents, `/peal:idea`, `/peal:split`,
 reviews a task and opens its pull request, `/peal:milestone-review` closes a milestone
 once the human agrees, `/peal:drift` files what the documents and the repository
 disagree on, `/peal:release` makes a release from the tasks finished since the last, `/peal:setup`
-sets a project up in stages from inside your session, on `peal init`, which writes them and takes them back, and the optional decisions module keeps a project's decision records. See
+sets a project up in stages from inside your session, on `peal init`, which writes them and takes them back, `/peal:next` suggests the one next stage to adopt with the evidence for it, and the optional decisions module keeps a project's decision records. See
 [docs/design.md](docs/design.md), the [milestones](docs/milestones/) and the backlog in
 [tasks/](tasks/).
 
@@ -82,12 +82,13 @@ with one plugin, `peal`, in `plugin/`:
   a milestone's end (`review.sh`: the review's brief, the state change), the optional
   decision records (`decisions.sh`: reserve, check, index, publish, brief), releases
   (`ship.sh`: the proposal, the notes, the version files, the tag, the GitHub release, the wait), writes
-  onto the main branch (`main-write.sh`), and a project's setup in stages and the survey `/peal:setup` decides from (`init.sh`,
+  onto the main branch (`main-write.sh`), a project's setup in stages and the survey `/peal:setup` decides from (`init.sh`,
   with `config-block.awk` and `settings-json.awk` editing the config and Claude Code's
-  settings as text);
+  settings as text), and what to adopt next, with the `declined:` bookkeeping (`next.sh`);
 - `plugin/commands/`, the plugin's Claude Code commands (`/peal:work`, `/peal:idea`,
   `/peal:split`, `/peal:defer`, `/peal:revise`, `/peal:retire`, `/peal:close`,
-  `/peal:milestone-review`, `/peal:drift`, `/peal:release`, `/peal:setup`), and
+  `/peal:milestone-review`, `/peal:drift`, `/peal:release`, `/peal:setup`,
+  `/peal:next`), and
   `plugin/agents/`, its subagents (`planner`, `implementer`, `reviewer`);
 - `plugin/hooks/`, the plugin's Claude Code hooks;
 - `plugin/templates/`: `launcher`, the `.peal/peal` a project commits; `githook`, the
