@@ -19,5 +19,8 @@ Rules:
   runs the installed plugin (from `main`), never this checkout's `plugin/`: a branch
   cannot change the gates it is checked by. Try a branch's CLI with
   `PEAL_ROOT=$PWD/plugin plugin/bin/peal ...`.
-- Each clone installs the git gates once: `.peal/peal hooks install`.
+- A fresh clone installs the git gates itself, at the first `peal claim` or session
+  start (`peal_hooks_ensure`, `plugin/lib/githooks.sh`, task 0059); `.peal/peal hooks
+  install` is the fallback for a foreign `core.hooksPath` or a failed automatic
+  install.
 - Prefer deleting to deprecating. There are no users yet.
