@@ -17,7 +17,7 @@ scripts, hooks, documents) before touching anything. Each reference piece is mar
 - **moves, with an extension point** — Peal supplies the generic half and calls into
   the project for the rest (the reviewer's and planner's rules, the checks a commit or a
   close must pass, a pull request's extra prose sections, the milestone review's own
-  steps). These move into `.peal/`, step 4 below.
+  steps). These move into `.peal/`, step 5 below.
 - **stays** — project-specific tooling Peal never absorbs: an engine layering guard,
   a code-health counter, screenshot or render scripts, a byte-budget guard, `.belfry.yml`.
   Nothing here changes; a "moves, with an extension point" row is how it keeps reaching
@@ -25,7 +25,7 @@ scripts, hooks, documents) before touching anything. Each reference piece is mar
 - **dropped** — superseded by a Peal mechanism (a claim gate replaced by the worktree
   check).
 
-Make this call once, before step 5 deletes anything: a script marked "stays" keeps
+Make this call once, before step 6 deletes anything: a script marked "stays" keeps
 running exactly as it does today; only its trigger (a hook, a command) may need to call
 it from a Peal extension point instead of the piece it replaces.
 
