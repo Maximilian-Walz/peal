@@ -237,6 +237,19 @@ hint() {
   check "hint: silent inside a task's worktree" "0" \
     "$(hook "$wt" session-start '{"source":"startup"}' | grep -c '^Next to adopt:')"
 
+  # State A: stages: [tasks] only, 12 done, no milestones stage. guardrails wins (the
+  # catalogue's order: the stages of peal init, then review-task last). Declining it
+  # leaves milestones (12 done meets its threshold), the next in that order.
+  work=$(peal_repo)
+  printf 'stages: [tasks]\n' >>"$work/.peal/config.yml"
+  publish "$work" >/dev/null 2>&1
+  for i in 0001 0002 0003 0004 0005 0006 0007 0008 0009 0010 0011 0012; do put "$work" "done" "$i" "task-$i"; done
+  check "hint: state A, names guardrails" "1" \
+    "$(hook "$work" session-start '{"source":"startup"}' | grep -c '^Next to adopt: guardrails')"
+  at "$work" "$PEAL" next --decline guardrails >/dev/null 2>&1
+  check "hint: state A, guardrails declined, names milestones" "1" \
+    "$(hook "$work" session-start '{"source":"startup"}' | grep -c '^Next to adopt: milestones')"
+
   # Everything this task's catalogue knows is set up, and m1's review task is filed: NONE.
   work=$(peal_repo)
   printf 'stages: [tasks, guardrails, milestones, belfry]\n' >>"$work/.peal/config.yml"

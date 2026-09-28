@@ -8,6 +8,8 @@ set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/test-lib.sh"
 # shellcheck source=task-fixtures.sh
 . "$PEAL_ROOT/lib/task-fixtures.sh"
+# shellcheck source=issue-fixtures.sh
+. "$PEAL_ROOT/lib/issue-fixtures.sh"
 
 # next DIR ARGS... -> `peal next ARGS...` run in DIR; status:output.
 next() {
@@ -165,10 +167,23 @@ ALSO review-task /peal:setup milestones m1 current, no review task" "$(PEAL_TODA
     at "$work" "$PEAL" next
 }
 
+# issues -> the catalogue through the issues storage (fake-gh), skipped without jq: closed
+# issues count as done the same way, ranking belfry over the review task it also finds.
+issues() {
+  command -v jq >/dev/null 2>&1 || return 0
+  local i
+  ISSUES_CONFIG=$'stages: [tasks, guardrails, milestones]\n' issues_repo
+  for i in 1 2 3 4 5; do issue "$i" "closed work $i" --closed; done
+  check "issues: belfry through the issues storage, review-task also (closed = done)" \
+    "0:SUGGEST belfry /peal:setup belfry 5 done
+ALSO review-task /peal:setup milestones m1 current, no review task" "$(next "$work")"
+}
+
 cases() {
   catalogue
   declined
   no_config
+  issues
 }
 
 for_each_awk cases
