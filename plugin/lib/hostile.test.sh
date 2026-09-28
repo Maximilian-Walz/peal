@@ -566,6 +566,10 @@ arg_cases() {
   cover overview; each "overview ARG" "$WORK" overview @
   each "read ID" "$WORK" read @
 
+  cover next
+  each "next ARG" "$WORK" next @
+  each "next --decline ITEM" "$WORK" next --decline @
+
   cover frontmatter
   local fm=tasks/backlog/0001-plain-task.md
   each "frontmatter check FILE" "$WORK" frontmatter check @
