@@ -130,13 +130,18 @@ peal_session_start() {
   else
     echo "Task: none in this worktree. /peal:work claims one into a worktree of its own."
   fi
-  [ -n "$records" ] || return 0
-  printf '%s\n' "$records" | awk -F '\t' -v own="$(_peal_field "$task" 1)" '
-    $1 != own && ($2 == "claimed-live" || $2 == "parked" || $2 == "awaiting-merge") {
-      if (!n++) print "Other claims:"
-      print "  " $1, $2, $4 ($3 == "" ? "" : " " $3)
-    }'
-  printf '%s\n' "$records" | _peal_open_splits
+  if [ -n "$records" ]; then
+    printf '%s\n' "$records" | awk -F '\t' -v own="$(_peal_field "$task" 1)" '
+      $1 != own && ($2 == "claimed-live" || $2 == "parked" || $2 == "awaiting-merge") {
+        if (!n++) print "Other claims:"
+        print "  " $1, $2, $4 ($3 == "" ? "" : " " $3)
+      }'
+    printf '%s\n' "$records" | _peal_open_splits
+  fi
+  if [ -z "$task" ] && { [ "$source" = startup ] || [ "$source" = clear ]; }; then
+    peal_next_hint "$records" "$milestones" 2>/dev/null
+  fi
+  return 0
 }
 
 # _peal_open_splits -> for the list records on stdin, each split with a piece not done:
