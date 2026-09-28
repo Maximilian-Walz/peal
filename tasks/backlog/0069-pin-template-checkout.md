@@ -2,6 +2,7 @@
 plan: required
 touches: [plugin/templates/decisions.yml]
 priority: high
+milestone: m2
 ---
 
 # 0069 — Pin actions/checkout in the decisions workflow template
