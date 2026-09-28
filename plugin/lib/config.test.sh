@@ -42,6 +42,7 @@ release.report: []
 release.version-files: []
 decisions: false
 stages: []
+declined: {}
 EOF
 }
 
