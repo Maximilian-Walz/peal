@@ -11,7 +11,8 @@ in order.
 
 **Getting started:** install the plugin, then run `/peal:setup` in a Claude Code
 session in your repository. It looks at the repository, asks where your tasks should
-live, and writes the setup as one commit for you to review.
+live, and writes the setup as one commit for you to review. Already running your own
+task-file process? See [docs/migrating.md](docs/migrating.md) for the migration.
 
 Installing adds this to your `.claude/settings.json` (`peal init` writes it for you):
 

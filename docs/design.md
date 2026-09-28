@@ -1062,7 +1062,10 @@ its own task-file process, such as the reference:
    moving project rules for the reviewer and planner into `.peal/`.
 6. **Point `.belfry.yml`** at the launcher (the `belfry` stage writes Peal's).
 
-All of it lands as one task, one PR, in the project itself.
+All of it lands as one task, one PR, in the project itself. See
+[`docs/migrating.md`](migrating.md) for the full walkthrough: which pieces a project
+keeps, one-line invocations for its own pool names, and where its checks, context
+documents, PR sections and reviewer/planner rules go in `.peal/`.
 
 ## Building Peal
 
