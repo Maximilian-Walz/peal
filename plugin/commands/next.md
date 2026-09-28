@@ -90,9 +90,12 @@ anything either.
   found, or `docs/decisions` when it found none. Show that line as the change to
   `.peal/config.yml`, then run `peal decision check` against `<dir>` before writing
   anything (it reads the `decisions` setting, so run it as if the line were already
-  there, e.g. by trying the write and being ready to undo it). A failure: show what it
-  found, make no change, and propose a fresh `docs/decisions` instead (empty, so the
-  check always passes there). On success, branch and commit it as below.
+  there, e.g. by trying the write and being ready to undo it). Note for the human that
+  against a directory that does not exist yet the check passes but prints `warning: could
+  not open directory`, which is expected. A failure: show what it found and make no
+  change. Then propose a fresh `docs/decisions` only when that directory is missing or
+  empty (the check always passes there); otherwise say that no clean directory exists,
+  write nothing, and let the human name one. On success, branch and commit it as below.
   `templates/decisions.yml` is the workflow that regenerates the index after a merge;
   name it as a file for the human to copy, never write it yourself.
 - `reviewer`: show a stub `.peal/reviewer.md` (a line or two: "The project's rules for
