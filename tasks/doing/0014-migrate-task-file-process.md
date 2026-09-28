@@ -61,6 +61,12 @@ The human's answers while planning:
 - "State for state" compares done/free/blocked; claim states need branches a copy lacks.
 - Touching `hostile.test.sh` and `docs/design.md` beyond the original Scope: allowed.
 
+The human's answer during the build: a few real task files carry a prose paragraph right
+under the `key: value` block, with no `## ` heading before it. The header ends at the
+first blank line after its `key: value` lines (comment-only continuation lines count as
+header); what follows, prose included, is body and stays byte-for-byte. `migrate headers`
+then runs clean (exit 0) over the whole reference copy.
+
 ## Plan
 
 **`peal migrate headers [--parked P,...] [--open P,...] [--none P,...]`**
