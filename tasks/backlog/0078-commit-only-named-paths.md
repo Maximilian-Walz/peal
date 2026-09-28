@@ -2,6 +2,7 @@
 plan: required
 touches: [plugin/lib/commit.sh]
 priority: high
+milestone: m2
 ---
 
 # 0078 — `peal commit` with paths commits only those paths
