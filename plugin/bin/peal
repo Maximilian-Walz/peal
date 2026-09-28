@@ -45,6 +45,8 @@ peal_ssh_batch_mode
 . "$PEAL_ROOT/lib/git-guard.sh"
 # shellcheck source=../lib/claim.sh
 . "$PEAL_ROOT/lib/claim.sh"
+# shellcheck source=../lib/doctor.sh
+. "$PEAL_ROOT/lib/doctor.sh"
 # shellcheck source=../lib/work.sh
 . "$PEAL_ROOT/lib/work.sh"
 # shellcheck source=../lib/backlog.sh
@@ -83,6 +85,18 @@ usage: peal <command> [args]
                                 whose slug is not kebab-case, a depends cycle
                                 among the tasks not done, and with the decisions
                                 module on, what peal decision check reports
+  doctor [CHECK...]             what is broken in this project's Peal, one sentence and
+                                one fix per problem (lib/doctor.sh): config (the
+                                effective settings and their values), version (.peal/peal
+                                against the launcher template, then the installed Peal
+                                against this session's), hooks (the git gates, when
+                                guardrails is a stage), gh (gh and its login, for the
+                                issues storage), claims (a claim that could be released,
+                                landed dirty or unpushed, or a prunable worktree), belfry
+                                (.belfry.yml's list, board and offer commands answering);
+                                ok/FAIL/skip lines, a fix under each FAIL, then
+                                "doctor: N problem(s)"; exit 0 healthy, 1 problems, 2
+                                usage, outside a git repository, or without .peal/
   config [KEY]                  print the effective settings, or one of them
   frontmatter check FILE        refuse a frontmatter outside Peal's YAML subset
   frontmatter keys FILE         print its keys
@@ -399,6 +413,7 @@ main() {
     --version | version) peal_version ;;
     -h | --help | help) usage ;;
     check) cmd_check "$@" ;;
+    doctor) peal_doctor "$@" ;;
     config) cmd_config "$@" ;;
     frontmatter) cmd_frontmatter "$@" ;;
     hook) cmd_hook "$@" ;;
