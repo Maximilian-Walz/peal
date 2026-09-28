@@ -107,6 +107,15 @@ Agreed with the human at planning (2026-09-28):
 - Peal's own repository will start hinting (decisions or drift). That is fine;
   no declines are recorded for it.
 
+Agreed with the human at close, after the review (2026-09-28):
+
+- Accepting `drift` writes a stub `.peal/drift.md` that lists the documents `/peal:drift`
+  would suggest. The stub is shown first and committed as `chore(peal): drift`; then
+  `/peal:drift` runs once.
+- When the ADR directory found fails `peal decision check`, the fallback proposes
+  `docs/decisions` only if that directory is missing or empty. Otherwise the flow says
+  that no clean directory exists, writes nothing, and lets the human name one.
+
 ## Plan
 
 **Engine (`plugin/lib/next.sh`).**
