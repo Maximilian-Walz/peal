@@ -252,6 +252,63 @@ $wt" "$?:$out"
   check_refused "resume: a stale branch" "holds nothing beyond main" peal claim 0002
 }
 
+worktree_setup() {
+  local work wt wt2 out prim rc
+  work=$(repo)
+  prim=$(cd "$work" && pwd -P)
+  put "$work" backlog 0001 set-up-task
+  put "$work" backlog 0002 second-task
+  put "$work" backlog 0003 parked-task
+  put "$work" backlog 0004 empty-task
+  mkdir -p "$work/.peal"
+  wt=$(dirname "$work")/work-wt/0001-set-up-task
+
+  # Set: run once in the new worktree, PEAL_PRIMARY the primary checkout.
+  cat >"$work/.peal/config.yml" <<'CFG'
+worktree-setup: 'echo run >>"$PEAL_PRIMARY/setup.count"; pwd -P >"$PEAL_PRIMARY/setup.cwd"; echo "$PEAL_PRIMARY" >"$PEAL_PRIMARY/setup.primary"'
+CFG
+  out=$(peal claim 0001 --print-path 2>/dev/null)
+  check "setup: claimed, the path last" "0:$wt" "$?:$(printf '%s\n' "$out" | tail -n 1)"
+  check "setup: ran in the worktree" "$wt" "$(cat "$work/setup.cwd")"
+  check "setup: PEAL_PRIMARY" "$prim" "$(cat "$work/setup.primary")"
+  peal claim 0001 >/dev/null 2>&1
+  check "setup: not again on a re-claim" "1" "$(wc -l <"$work/setup.count" | tr -d ' ')"
+
+  # A failing command fails the claim and removes nothing.
+  cat >"$work/.peal/config.yml" <<'CFG'
+worktree-setup: 'echo broken >&2; exit 3'
+CFG
+  wt2=$(dirname "$work")/work-wt/0002-second-task
+  out=$(peal claim 0002 --print-path 2>"$work/setup.err")
+  rc=$?
+  
+  check "setup: failed, status 2, no path" "2:claimed 0002 task/0002-second-task $wt2" "$rc:$out"
+  check "setup: its output on stderr" "1" "$(grep -c '^broken$' "$work/setup.err")"
+  check "setup: the failure said" "1" "$(grep -c 'task 0002 is claimed at .*worktree-setup failed (status 3)' "$work/setup.err")"
+  check "setup: worktree and branches stay" "1:1:refs/heads/task/0002-second-task" \
+    "$([ -d "$wt2" ] && echo 1):$(git -C "$work" branch --list 'task/0002-*' | wc -l | tr -d ' '):$(on_remote task/0002-second-task)"
+  check "setup: claimed-live" "0002 claimed-live second-task wt:$wt2" "$(state_of 0002)"
+  check "setup: the other task untouched" "0001 claimed-live set-up-task wt:$wt" "$(state_of 0001)"
+
+  # --next stops at the failure.
+  out=$(peal claim --next --print-path 2>/dev/null)
+  rc=$?
+  check "setup: --next stops, no path line" "2:0:0004 free" \
+    "$rc:$(printf '%s\n' "$out" | grep -c "^$(dirname "$work")/work-wt/0003-parked-task$"):$(state_of 0004 | cut -d' ' -f1,2)"
+
+  # Empty: nothing runs.
+  printf 'worktree-setup: ""\n' >"$work/.peal/config.yml"
+  rm -f "$work/setup.count"
+  peal claim 0004 >/dev/null 2>&1
+  check "setup: empty runs nothing" "0" "$([ -e "$work/setup.count" ] && echo 1 || echo 0)"
+
+  # A resumed parked claim runs it.
+  git -C "$work" worktree remove "$(dirname "$work")/work-wt/0003-parked-task"
+  printf '%s\n' "worktree-setup: 'echo run >>\"\$PEAL_PRIMARY/setup.count\"'" >"$work/.peal/config.yml"
+  out=$(peal claim 0003 2>&1)
+  check "setup: resumed" "0:1" "$?:$(wc -l <"$work/setup.count" | tr -d ' ')"
+}
+
 overlap() {
   local work other out
   work=$(repo)
@@ -448,6 +505,7 @@ cases() {
   claim
   race
   resume
+  worktree_setup
   overlap
   release
   reap

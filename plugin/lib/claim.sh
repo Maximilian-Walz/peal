@@ -158,6 +158,8 @@ peal_offer() {
 # path as the last line. Status 1 when --next finds nothing to claim. A fresh clone whose
 # config records the `guardrails` stage gets its git gates first (peal_hooks_ensure): its
 # success line on stdout, before anything else; a warning or a failed install on stderr.
+# A new worktree (claimed or resumed) runs the worktree-setup setting once, with
+# PEAL_PRIMARY the primary checkout's path; a failure is status 2, the claim stays.
 peal_claim() {
   local id="" next=0 pool="" print=0 candidates cand status
   while [ $# -gt 0 ]; do
@@ -251,6 +253,7 @@ _peal_claim_one() {
   status=$?
   [ $status = 0 ] || return $status
   _peal_claim_started "$PEAL_CLAIM_PATH"
+  _peal_claim_setup "$id" "$PEAL_CLAIM_PATH" || return $?
   _peal_claim_overlap "$id" "$records"
   [ "$print" = 0 ] || printf '%s\n' "$PEAL_CLAIM_PATH"
 }
@@ -261,6 +264,23 @@ _peal_claim_started() {
   gitdir=$(git -C "$1" rev-parse --absolute-git-dir 2>/dev/null) || return 0
   printf '0\n' >"$gitdir/peal-turns"
   rm -f "$gitdir/peal-nudged"
+}
+
+# _peal_claim_setup ID WT -> the worktree-setting command, if set, run once in the new
+# worktree WT with PEAL_PRIMARY the primary checkout's path; its output goes to stderr. A
+# failure is status 2 and rolls nothing back: the claim and its worktree stay.
+_peal_claim_setup() {
+  local cmd primary status
+  cmd=$(peal_config_get worktree-setup) || return 2
+  [ -n "$cmd" ] || return 0
+  primary=$(git worktree list --porcelain | awk '!f && /^worktree / { print substr($0, 10); f = 1 }')
+  echo "claim: running worktree-setup in $2" >&2
+  # shellcheck disable=SC2046 # the names of the variables to unset
+  (cd "$2" && unset $(compgen -v GIT_) && PEAL_PRIMARY=$primary bash -c "$cmd") </dev/null >&2
+  status=$?
+  [ $status = 0 ] && return 0
+  peal_err "claim: task $1 is claimed at $2, but worktree-setup failed (status $status); the claim and its worktree stay: fix it and run it there by hand, or release the claim"
+  return 2
 }
 
 # _peal_scope_paths FILE -> the `backticked` words of FILE's Scope section that look like

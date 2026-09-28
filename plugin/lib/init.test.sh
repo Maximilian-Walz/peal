@@ -322,11 +322,22 @@ readme README.md
 todo -
 todo-marks 0
 ci -
+local-files -
 taskdir -
 belfry -
 recommend files" "$(peal init --survey)"
   check "survey: writes nothing" "" "$(git -C "$work" status --porcelain)"
 
+  printf '.env\nconfig.local.yaml\nnotes.txt\n' >"$work/.gitignore"
+  printf 'x\n' >"$work/.env"
+  printf 'x\n' >"$work/config.local.yaml"
+  printf 'x\n' >"$work/notes.txt"
+  printf 'x\n' >"$work/values.local.yaml"
+  check "survey: local files" "local-files .env,config.local.yaml" "$(survey local-files)"
+  git -C "$work" add -f .env
+  check "survey: a tracked file is not listed" "local-files config.local.yaml" "$(survey local-files)"
+  git -C "$work" rm -q --cached .env
+  rm "$work/.env" "$work/notes.txt" "$work/values.local.yaml" "$work/config.local.yaml" "$work/.gitignore"
   mkdir -p "$work/docs" "$work/.github/workflows" "$work/tasks"
   printf 'x\n' >"$work/TODO.md"
   printf 'x\n' >"$work/docs/todo.txt"

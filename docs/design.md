@@ -348,7 +348,10 @@ Derived from refs and the main branch on the remote, never from the calling work
   from the remote's main into `{worktrees}/NNNN-slug`, moves the file to `doing/` in one
   commit (`docs(tasks): claim NNNN slug [NNNN]`) and pushes the branch: a push that loses
   to another claim takes everything back. A task claimed on this machine prints its
-  worktree again; a parked claim gets its worktree back and is pushed. `--print-path`
+  worktree again; a parked claim gets its worktree back and is pushed. A new worktree
+  (claimed or resumed) runs the `worktree-setup` command, if set, once, with its output
+  on stderr; a failure is status 2 and rolls nothing back: the claim and its worktree
+  stay, and the message says to fix it and run the command there by hand. `--print-path`
   makes the worktree's path the last line. `--next [POOL]` claims the offer's best
   candidate for POOL (`current,unassigned`), the next one when a claim loses its race.
   A human task is claimed by its id like any other; `/peal:work` refuses it.
@@ -539,6 +542,8 @@ tasks: tasks                    # holds backlog/, doing/, done/ and TEMPLATE.md
 milestones: docs/milestones
 branch-prefix: task/
 worktrees: ../{repo}-wt         # each claim is {worktrees}/NNNN-slug
+worktree-setup: ""              # a command run once in each new worktree, PEAL_PRIMARY the
+                                # primary checkout's path
 sizes: {S: 60, M: 120, L: 200}  # tool calls; the turn budget nudges at the tier
 plan:
   required-paths: []            # a task touching one of these gets plan: required
@@ -577,6 +582,18 @@ Conventions with no setting: the `backlog`/`doing`/`done` directories, `NNNN-slu
 names, one task per branch and PR, the task sections, the commit subject grammar
 `<type>(<area>): <what> [NNNN]`, which pushes may reach main directly, and the close
 sequence. A setting exists only where two real projects would differ.
+
+`worktree-setup` gives a task worktree the local files the project's commands need
+(`.env`, `*.local.yaml`), which git does not carry. The common case links them from the
+primary checkout:
+
+```yaml
+worktree-setup: 'for f in .env values.local.yaml; do ln -sf "$PEAL_PRIMARY/$f" "$f"; done'
+```
+
+It runs in the new worktree with the primary checkout's path in `PEAL_PRIMARY`, after
+the git gates are ensured and before the scope-overlap warning; it has no timeout. It is
+a command taken from the checkout's config, like `checks.commit` ([Security](security.md)).
 
 ## Writes onto main
 
@@ -998,7 +1015,7 @@ commands know what is there.
 `peal init --survey` writes nothing: it prints, a `key value` line each, what the
 conversation decides from: the stages set up and the next one, the storage, the branch,
 the GitHub repository with its open issues and milestones, the recent commits that close
-an issue, the README, TODO lists and marks, the CI files, a tasks directory already
+an issue, the README, TODO lists and marks, the CI files, ignored files that look local (`local-files`), a tasks directory already
 there, whose `.belfry.yml` is there, and the storage to recommend (the one set up; else
 `issues` for a GitHub project that already works from issues, so nothing moves; else
 `files`).

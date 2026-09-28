@@ -517,6 +517,8 @@ _peal_init_list() {
 #   todo        TODO lists (files named todo, at the top or in docs/), - for none
 #   todo-marks  TODO and FIXME marks in the tracked files
 #   ci          the CI configuration files, - for none
+#   local-files ignored files present here that look local (.env*, *.local.*), at most 5,
+#               - for none
 #   taskdir     the tasks directory before the tasks stage and how many files it holds
 #   belfry      .belfry.yml: peal (the one peal init writes), other, or -
 #   recommend   the storage to recommend: the one set up; else issues when the project
@@ -582,6 +584,11 @@ peal_init_survey() {
     [ -f "$f" ] && found+=("$f")
   done
   echo "ci $(_peal_init_list ${found[@]+"${found[@]}"})"
+  found=()
+  while IFS= read -r f; do
+    case ${f##*/} in .env* | *.local.*) found+=("$f") ;; esac
+  done < <(git ls-files --others --ignored --exclude-standard 2>/dev/null | LC_ALL=C sort)
+  echo "local-files $(_peal_init_list ${found[@]+"${found[@]:0:5}"})"
 
   tasks=$(peal_config_get tasks) || return 2
   tasks=${tasks%/}

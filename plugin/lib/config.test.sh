@@ -19,6 +19,7 @@ tasks: tasks
 milestones: docs/milestones
 branch-prefix: task/
 worktrees: ../{repo}-wt
+worktree-setup:
 sizes.S: 60
 sizes.M: 120
 sizes.L: 200
@@ -74,6 +75,11 @@ cases() {
   check "get: group" "$(printf 'S: 30\nM: 120\nL: 200')" "$(cfg sizes)"
   check "get: open map" "$(printf 'kind: [bug, feature]\narea:')" "$(cfg task.fields)"
   check_refused "get: unknown" "unknown setting nope" cfg nope
+  # shellcheck disable=SC2016 # the text of a variable, not an expansion
+  cmd='ln -s "$PEAL_PRIMARY/.env" .env'
+  write "worktree-setup: $cmd\n"
+  check "get: worktree-setup" "$cmd" "$(cfg worktree-setup)"
+  check_refused "get: worktree-setups is unknown" "unknown setting worktree-setups" cfg worktree-setups
 
   refused() {
     write "$2"
