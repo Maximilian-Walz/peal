@@ -128,3 +128,72 @@ docs/milestones/m1.md:16-24.
 ---
 
 ## Outcome
+
+The Linux side of CI now runs on parallel runners and takes 7m25s instead of 34m40s:
+PR run 36400885058, from the run's start to the gate going green. The PR's first run,
+36399839580, took 6m49s. The required check names are unchanged.
+
+**What was built**
+- `plugin/lib/hostile.test.sh` gains `PEAL_HOSTILE_SHARD=K/N`.
+  - `try()` counts every call and, when sharded, runs only every Nth try (round-robin
+    by call order).
+  - Group bodies, `cover` and the direct checks run in every shard, so each shard's
+    coverage check is complete on its own and no job has to combine results.
+  - Every run prints `hostile shard K/N: ran X of T tries` (serial runs as `1/1`) and
+    fails when X is 0.
+  - Malformed values exit 2 before anything runs.
+  - With the knob unset, a run behaves exactly as before, including macOS's
+    `PEAL_HOSTILE_CASES`.
+- KNOWN matching, fixed as the human asked:
+  - `try()` compares a KNOWN entry whole. It used to cut the entry at its first space,
+    and labels contain spaces.
+  - The final "KNOWN still found" loop cuts the label at the last colon, since labels
+    such as `issues: list` contain colons (reviewer's finding).
+  - In a full run it checks every entry. Only a sharded run (N>1) skips entries whose
+    label it did not run.
+- `.github/workflows/ci.yml`:
+  - The `harnesses` job is now macOS only, still named `harnesses (macos-latest)`.
+  - A new `linux` matrix has 4 hostile shards and 3 shards balanced by measured
+    seconds: a = close, frontmatter, git-guard; b = store-issues, decisions,
+    milestones; c = store-files, work, backlog, githooks.
+  - A `rest` shard runs every `*.test.sh` the others don't name. It reads a/b/c's lists
+    by YAML alias, so there is no second copy (reviewer's finding), and it prints its
+    list. On CI it ran 16 harnesses: 1 + 3 + 3 + 4 + 16 = all 27.
+  - The gate job `harnesses (ubuntu-latest)` has `needs: linux` and `if: always()`, and
+    fails unless every shard succeeded.
+
+**How it was checked**
+- Locally with mawk:
+  - A serial run found T=1496, and shards 1/2 and 2/2 ran 748 + 748.
+  - Shard 1/4 ran 374. Every run passed.
+- The full serial run under every local awk passed: 1784 tries, 1820 checks.
+- On CI, a temporary commit replaced shards a/b/c's command with `false`. The gate
+  concluded `failure`, not skipped, and the commit was then reverted: the `wip:` commit
+  and its revert stay in the branch's history.
+
+**Timings (run 36400885058)**
+- Hostile shards: 2m36s to 5m20s.
+- Shards a, b, c and rest: 5m33s to 7m13s.
+- macOS: 8m20s, unchanged.
+- The longest Linux shard is now c, a non-hostile one. To go faster, rebalance a/b/c and
+  rest, or add a shard. Hostile's N is one number in ci.yml.
+
+**Not checked on CI**
+- The CI log lines showing the hostile shards' X adding up to T were not read: the
+  sandbox cannot fetch Actions logs (friction reported). The sums were checked locally.
+
+**Decisions** (human's answers, in Notes)
+- The required check becomes a gate job.
+- Per-try slicing's state drift inside a group is accepted and documented in the
+  harness's header.
+- Fewer than 10 minutes was the target. N=4 was the implementer's choice within the
+  agreed 4-6.
+
+**Idea filed at close**
+- `test-all-parallel-mode`: a `-j` flag for local `tools/test-all.sh` runs, which are
+  still serial, about 35 minutes.
+
+### Reviewer findings not acted on
+
+- "Done when line 1 not met yet": met since the review, 7m25s on run 36400885058, as
+  above.
