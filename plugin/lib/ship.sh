@@ -38,8 +38,8 @@ _peal_ship_settings() {
   # The remote's own URL, not what a local insteadOf makes of it.
   [ -n "$PEAL_GH_REPO" ] \
     || PEAL_GH_REPO=$(peal_github_repo_of "$(git config --get "remote.$PEAL_REMOTE.url")") || PEAL_GH_REPO=""
-  if ! git fetch -q --tags "$PEAL_REMOTE" 2>/dev/null; then
-    peal_err "could not fetch $PEAL_REMOTE"
+  if ! peal_git_try git fetch -q --tags "$PEAL_REMOTE"; then
+    peal_err "could not fetch $PEAL_REMOTE${PEAL_GIT_ERR:+: $PEAL_GIT_ERR}"
     return 2
   fi
   git rev-parse -q --verify "refs/remotes/$PEAL_REMOTE/$PEAL_MAIN^{commit}" >/dev/null || {
@@ -532,9 +532,9 @@ peal_ship_tag() {
   [ $status = 0 ] || return 2
   sha=$(git rev-parse "$PEAL_REMOTE/$PEAL_MAIN") || return 2
   git tag -a -m "$msg" "$tag" "$sha" || { peal_err "ship tag: could not tag $tag"; return 2; }
-  if ! git push -q "$PEAL_REMOTE" "refs/tags/$tag" 2>/dev/null; then
+  if ! peal_git_try git push -q "$PEAL_REMOTE" "refs/tags/$tag"; then
     git tag -d "$tag" >/dev/null
-    peal_err "ship tag: could not push $tag to $PEAL_REMOTE; taken back"
+    peal_err "ship tag: could not push $tag to $PEAL_REMOTE${PEAL_GIT_ERR:+ ($PEAL_GIT_ERR)}; taken back"
     return 2
   fi
   echo "tagged $tag at $(git rev-parse --short "$sha") ($PEAL_REMOTE/$PEAL_MAIN), pushed: $msg"
@@ -579,7 +579,9 @@ peal_ship_publish() {
   _peal_ship_range "$tag"
   PEAL_SHIP_TAG=$tag
   if _peal_ship_items "$dir" && _peal_ship_notes "$tag" "$dir/items" >"$dir/notes"; then
-    if gh release view "$tag" -R "$PEAL_GH_REPO" --json url --jq .url >/dev/null 2>&1; then
+    set -- gh release view "$tag" -R "$PEAL_GH_REPO" --json url --jq .url
+    if command -v timeout >/dev/null 2>&1; then set -- timeout 60 "$@"; fi
+    if "$@" >/dev/null 2>&1; then
       if url=$(_peal_ship_gh release edit "$tag" -R "$PEAL_GH_REPO" --title "$tag" --notes-file "$dir/notes"); then
         echo "updated the release $tag: $url"
       else

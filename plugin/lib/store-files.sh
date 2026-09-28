@@ -39,9 +39,9 @@ _peal_files_fetch() {
     peal_err "no remote named $PEAL_REMOTE (setting remote)"
     return 2
   fi
-  if ! git fetch -q "$PEAL_REMOTE" "$PEAL_MAIN" 2>/dev/null \
+  if ! peal_git_try git fetch -q "$PEAL_REMOTE" "$PEAL_MAIN" \
       || ! git rev-parse --verify -q "refs/remotes/$PEAL_REMOTE/$PEAL_MAIN" >/dev/null; then
-    peal_err "could not fetch $PEAL_REMOTE/$PEAL_MAIN"
+    peal_err "could not fetch $PEAL_REMOTE/$PEAL_MAIN${PEAL_GIT_ERR:+: $PEAL_GIT_ERR}"
     return 2
   fi
 }
@@ -222,8 +222,8 @@ peal_store_list() {
     shift
   done
   _peal_files_settings || return 2
-  if [ $fetch = 1 ] && ! git fetch -q "$PEAL_REMOTE" 2>/dev/null; then
-    peal_err "warning: could not fetch $PEAL_REMOTE; reading what is known here"
+  if [ $fetch = 1 ] && ! peal_git_try git fetch -q "$PEAL_REMOTE"; then
+    peal_err "warning: could not fetch $PEAL_REMOTE${PEAL_GIT_ERR:+ ($PEAL_GIT_ERR)}; reading what is known here"
   fi
   base=$(_peal_files_base) || return 2
   tmp=$(mktemp -d) || return 2
@@ -945,8 +945,8 @@ _peal_files_resume() {
   else
     ahead=1
   fi
-  if [ "$ahead" -gt 0 ] && ! git -C "$wt" push -q -u "$PEAL_REMOTE" "$branch" 2>/dev/null; then
-    peal_err "warning: resumed $branch, but could not push it; until it is pushed, the claim holds on this machine only"
+  if [ "$ahead" -gt 0 ] && ! peal_git_try git -C "$wt" push -q -u "$PEAL_REMOTE" "$branch"; then
+    peal_err "warning: resumed $branch, but could not push it${PEAL_GIT_ERR:+ ($PEAL_GIT_ERR)}; until it is pushed, the claim holds on this machine only"
   fi
   PEAL_CLAIM_PATH=$(cd "$wt" && pwd -P)
   echo "resumed $id $branch $PEAL_CLAIM_PATH"

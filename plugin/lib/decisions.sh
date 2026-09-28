@@ -106,9 +106,9 @@ peal_decision_reserve() {
     peal_err "decision reserve: this is $PEAL_MAIN; reserve on the branch that adds the entry, which its pull request brings in"
     return 2
   fi
-  if ! git fetch -q "$PEAL_REMOTE" "$PEAL_MAIN" 2>/dev/null \
+  if ! peal_git_try git fetch -q "$PEAL_REMOTE" "$PEAL_MAIN" \
       || ! git rev-parse -q --verify "refs/remotes/$PEAL_REMOTE/$PEAL_MAIN" >/dev/null; then
-    peal_err "decision reserve: could not fetch $PEAL_REMOTE/$PEAL_MAIN; nothing reserved"
+    peal_err "decision reserve: could not fetch $PEAL_REMOTE/$PEAL_MAIN${PEAL_GIT_ERR:+: $PEAL_GIT_ERR}; nothing reserved"
     return 2
   fi
   today=$(date -u +%Y-%m-%d)
@@ -214,8 +214,8 @@ _peal_dec_reserved() {
   local name=$1 branch=$2 num ref held subject marker
   num=${name:0:4}
   ref=refs/decisions/$num
-  held=$(git ls-remote "$PEAL_REMOTE" "$ref" 2>/dev/null) || {
-    peal_err "decisions: $PEAL_DEC_DIR/$name: could not ask $PEAL_REMOTE for $ref"
+  held=$(peal_git_try git ls-remote "$PEAL_REMOTE" "$ref") || {
+    peal_err "decisions: $PEAL_DEC_DIR/$name: could not ask $PEAL_REMOTE for $ref${PEAL_GIT_ERR:+: $PEAL_GIT_ERR}"
     return 3
   }
   held=$(printf '%s\n' "$held" | cut -f1)
@@ -223,8 +223,8 @@ _peal_dec_reserved() {
     peal_err "decisions: $PEAL_DEC_DIR/$name: $num is reserved by no one ($ref is not on $PEAL_REMOTE). Numbers come from peal decision reserve SLUG: reserve one and rename the entry."
     return 1
   fi
-  if ! git cat-file -e "$held^{commit}" 2>/dev/null && ! git fetch -q "$PEAL_REMOTE" "$ref" 2>/dev/null; then
-    peal_err "decisions: $PEAL_DEC_DIR/$name: could not fetch $ref from $PEAL_REMOTE"
+  if ! git cat-file -e "$held^{commit}" 2>/dev/null && ! peal_git_try git fetch -q "$PEAL_REMOTE" "$ref"; then
+    peal_err "decisions: $PEAL_DEC_DIR/$name: could not fetch $ref from $PEAL_REMOTE${PEAL_GIT_ERR:+: $PEAL_GIT_ERR}"
     return 3
   fi
   subject=$(git show -s --format=%s "$held" 2>/dev/null)
@@ -276,8 +276,8 @@ _peal_dec_check() {
 _peal_dec_check_here() {
   PEAL_REMOTE=$(peal_config_get remote) || return 2
   PEAL_MAIN=$(peal_config_get main) || return 2
-  git fetch -q "$PEAL_REMOTE" "$PEAL_MAIN" 2>/dev/null \
-    || peal_err "warning: could not fetch $PEAL_REMOTE/$PEAL_MAIN; comparing with what is known here"
+  peal_git_try git fetch -q "$PEAL_REMOTE" "$PEAL_MAIN" \
+    || peal_err "warning: could not fetch $PEAL_REMOTE/$PEAL_MAIN${PEAL_GIT_ERR:+ ($PEAL_GIT_ERR)}; comparing with what is known here"
   peal_branch_base "$1" || return 2
   _peal_dec_check "$PEAL_BASE"
 }
@@ -359,9 +359,9 @@ peal_decision_publish() {
   _peal_dec_on publish || return 2
   PEAL_REMOTE=$(peal_config_get remote) || return 2
   PEAL_MAIN=$(peal_config_get main) || return 2
-  if ! git fetch -q "$PEAL_REMOTE" "$PEAL_MAIN" 2>/dev/null \
+  if ! peal_git_try git fetch -q "$PEAL_REMOTE" "$PEAL_MAIN" \
       || ! git rev-parse -q --verify "refs/remotes/$PEAL_REMOTE/$PEAL_MAIN" >/dev/null; then
-    peal_err "decision publish: could not fetch $PEAL_REMOTE/$PEAL_MAIN"
+    peal_err "decision publish: could not fetch $PEAL_REMOTE/$PEAL_MAIN${PEAL_GIT_ERR:+: $PEAL_GIT_ERR}"
     return 2
   fi
   peal_push_main _peal_dec_build_index "decision publish"
