@@ -41,3 +41,19 @@ gates once') rather than editing it."
 Revised 2026-09-28: priority high: goes into Peal's next patch release (daily-use fixes after m1)
 
 None beyond the Raw section.
+
+---
+
+## Outcome
+
+Rewrote the `CLAUDE.md` bullet that said "Each clone installs the git gates once:
+`.peal/peal hooks install`." It now says a fresh clone installs its git gates itself, at
+the first `peal claim` or session start (`peal_hooks_ensure` in `plugin/lib/githooks.sh`,
+task 0059), and that `.peal/peal hooks install` is the fallback for a foreign
+`core.hooksPath` or a failed automatic install. The wording follows the already-accurate
+phrasing in README.md and docs/security.md, and was checked against `peal_hooks_ensure`:
+it runs only when the config records the `guardrails` stage (Peal's own config does), it
+warns instead of overwriting a foreign `core.hooksPath`, and both failure messages name
+`.peal/peal hooks install`.
+
+The review found nothing. No ideas were filed; the next session needs nothing from this one.
