@@ -735,8 +735,11 @@ coverage() {
 # coverage() check (below, when PEAL_HOSTILE_CASES is unset) passes on its own; there is
 # no cross-job aggregation. Slicing mid-group means a shard's repository state can drift
 # from what a full serial run would leave a try seeing, since a skipped try's write never
-# happens in this shard; a local serial run still covers today's exact sequence. Composes
-# with PEAL_HOSTILE_CASES and PEAL_TEST_AWK unchanged.
+# happens in this shard; a local serial run still covers today's exact sequence. With N=1
+# (unset or 1/1) a not-hit KNOWN entry always fails, as before sharding existed; with N>1
+# it only fails in the shard whose RAN_LABELS actually ran that label, so the other
+# shards don't each report the same known finding as newly missing. Composes with
+# PEAL_HOSTILE_CASES and PEAL_TEST_AWK unchanged.
 cases=${PEAL_HOSTILE_CASES:-self_test awk_channels issues_channels arg_cases hook_cases}
 # run_group NAME CMD... -> CMD, if NAME is one of the groups to run.
 run_group() {
@@ -760,18 +763,20 @@ else
   run_group hook_cases for_each_awk hook_cases
 fi
 [ -n "${PEAL_HOSTILE_CASES-}" ] || coverage
-# A KNOWN entry only counts against this shard when one of its tries actually ran here
-# (RAN_LABELS); a shard that never ran a known finding's label has nothing to report.
-# ${known%:*} takes the label up to the LAST colon: kind never holds one, but a label can
-# ("issues: list"), so %% (the first colon) would cut the label short.
+# A KNOWN entry not hit fails, unless this is a shard (N>1) that never ran its label
+# (RAN_LABELS); with N=1 (unset or 1/1, a full run) every entry is checked regardless,
+# today's behaviour unchanged. ${known%:*} takes the label up to the LAST colon: kind
+# never holds one, but a label can ("issues: list"), so %% (first colon) would cut it.
 for known in ${KNOWN[@]+"${KNOWN[@]}"}; do
-  case $RAN_LABELS in
-    *$'\n'"${known%:*}"$'\n'*)
-      case $KNOWN_HIT in
-        *"$known"*) ;;
-        *) check "KNOWN still found: $known" "found" "fixed, or no longer run: take it off KNOWN" ;;
-      esac
-      ;;
+  if [ "$SHARD_N" -gt 1 ]; then
+    case $RAN_LABELS in
+      *$'\n'"${known%:*}"$'\n'*) ;;
+      *) continue ;;
+    esac
+  fi
+  case $KNOWN_HIT in
+    *"$known"*) ;;
+    *) check "KNOWN still found: $known" "found" "fixed, or no longer run: take it off KNOWN" ;;
   esac
 done
 printf 'hostile shard %s/%s: ran %d of %d tries\n' "$SHARD_K" "$SHARD_N" "$RAN" "$TRIES"
