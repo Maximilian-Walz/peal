@@ -351,6 +351,17 @@ appVersion: '"'0.2.0'"'' "$(at_version v0.2.0)"
   check "protected: still open" "3|not merged yet: pull request #2 https://github.com/acme/widgets/pull/2, open, not merged; run peal ship bump v0.3.0 again once it merged, then peal ship tag v0.3.0" \
     "$?|$(tail -n 1 <<<"$out")"
   check_refused "protected: no tag before the merge" "does not hold 0.3.0; peal ship bump v0.3.0 first" peal ship tag 0.3.0
+
+  # A rerun while that pull request is still open finds it (by its title, among the
+  # main-write branches) and waits for it instead of opening a second one.
+  out=$(PEAL_MAIN_WRITE_INTERVAL=1 PEAL_MAIN_WRITE_BUDGET=0 peal ship bump 0.3.0 2>&1)
+  check "protected: rerun before the merge, still open" "3|not merged yet: pull request #2 https://github.com/acme/widgets/pull/2, open, not merged; run peal ship bump v0.3.0 again once it merged, then peal ship tag v0.3.0" \
+    "$?|$(tail -n 1 <<<"$out")"
+  check "protected: rerun finds the same pull request open already" "1" \
+    "$(grep -c 'pull request #2 .*is open already' <<<"$out")"
+  check "protected: rerun opens no second pull request" "1|2" \
+    "$(gh_get '[.[] | select(.state == "open")] | length' pulls)|$(grep -c '^POST repos/acme/widgets/pulls$' "$FAKE_GH/log")"
+
   echo '{"merge_method": "squash"}' | at "$work" gh api --method PUT repos/acme/widgets/pulls/2/merge --input - >/dev/null
   out=$(peal ship bump 0.3.0 2>&1)
   check "protected: rerun after the merge" "0:already at 0.3.0: plugin.json pkg/Cargo.toml chart.yaml" "$?:$out"

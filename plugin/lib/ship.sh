@@ -465,7 +465,9 @@ peal_ship_notes() {
 
 # peal_ship_bump VERSION -> each file of release.version-files set to VERSION (without
 # the tag prefix) on the remote's main branch, in one commit "chore(release): <tag>"; on
-# a main that refuses direct pushes through a pull request, waited for until it merged.
+# a main that refuses direct pushes through a pull request, waited for until it merged. A
+# rerun before it merged finds that pull request open already (peal_push_main's REUSE)
+# and waits for it instead of opening a second one.
 # Nothing when every file holds the version already. Refused as peal ship tag refuses
 # the version, and for a file missing, or with no top-level field holding a string: main
 # unchanged. Status 3 when the pull request is still open after the budget
@@ -485,7 +487,7 @@ peal_ship_bump() {
   PEAL_SHIP_VERSION=${tag#"$PEAL_PREFIX"} PEAL_SHIP_TAG=$tag
   dir=$(mktemp -d) || return 2
   PEAL_SHIP_DIR=$dir
-  PEAL_MAIN_WRITE_WAIT=merged peal_push_main _peal_ship_bump_build "ship bump" || status=$?
+  PEAL_MAIN_WRITE_WAIT=merged peal_push_main _peal_ship_bump_build "ship bump" "chore(release): $tag" || status=$?
   files=$(cut -f2 "$dir/changed" | paste -s -d ' ' -)
   rm -rf "$dir"
   case $status in

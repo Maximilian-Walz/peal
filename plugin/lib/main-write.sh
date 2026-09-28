@@ -72,6 +72,21 @@ _peal_mw_rivals() {
   return 0
 }
 
+# _peal_mw_find_reuse REPO SUBJECT -> status 0 when an open pull request of a main-write
+# branch into PEAL_MAIN already holds SUBJECT as its title (the lowest number, when
+# somehow more than one does): PEAL_MW_PR, PEAL_MW_URL and PEAL_MW_REUSE_BRANCH (its head
+# ref) set from it; 1 without jq, gh, or such a pull request.
+_peal_mw_find_reuse() {
+  local repo=$1 subject=$2 body row
+  body=$(peal_gh "repos/$repo/pulls?state=open&per_page=100" 2>/dev/null) || return 1
+  row=$(jq -r --arg base "$PEAL_MAIN" --arg prefix "$PEAL_MW_PREFIX" --arg subject "$subject" '
+      [.[] | select(.base.ref == $base and (.head.ref | startswith($prefix)) and .title == $subject)]
+      | sort_by(.number) | .[0] // empty
+      | [(.number | tostring), .html_url, .head.ref] | @tsv' <<<"$body" 2>/dev/null) || return 1
+  [ -n "$row" ] || return 1
+  IFS=$'\t' read -r PEAL_MW_PR PEAL_MW_URL PEAL_MW_REUSE_BRANCH <<<"$row"
+}
+
 # _peal_mw_taken REPO -> status 0 when PEAL_MW_TAKEN finds what PEAL_MW_PR wrote taken on
 # the newest main or by a rival numbered below it, both fetched first.
 _peal_mw_taken() {
@@ -87,23 +102,48 @@ _peal_mw_taken_drop() {
   _peal_mw_drop "$1" "$PEAL_MW_PR" "$2"
 }
 
-# peal_push_main BUILD [COMMAND] -> BUILD BASE run on the remote's main and its result
-# written there, again on a new main when the push loses a race (PEAL_PUSH_ATTEMPTS, 5).
-# BUILD sets PEAL_TREE and PEAL_SUBJECT, or refuses with a status of its own (2, or 3 and
-# 4 for its callers), passed through. COMMAND names the peal command writing, for a pull
-# request's body. A push that fails for another reason is not retried: status 1; under
-# main-writes auto a refusal by the remote switches to a pull request (_peal_mw_pr).
+# peal_push_main BUILD [COMMAND] [REUSE] -> BUILD BASE run on the remote's main and its
+# result written there, again on a new main when the push loses a race
+# (PEAL_PUSH_ATTEMPTS, 5). BUILD sets PEAL_TREE and PEAL_SUBJECT, or refuses with a
+# status of its own (2, or 3 and 4 for its callers), passed through. COMMAND names the
+# peal command writing, for a pull request's body. A push that fails for another reason
+# is not retried: status 1; under main-writes auto a refusal by the remote switches to a
+# pull request (_peal_mw_pr).
 # PEAL_MW_TAKEN, when set, names a function REF... telling whether what the build wrote
 # is taken at one of the REFs meanwhile (a filing's numbers): the pull request route then
 # fetches the rival pull requests before the first build, checks again once the pull
 # request is open and before Peal merges it, and builds again when it is taken. Afterwards PEAL_MW_PR, PEAL_MW_URL and PEAL_MW_STATE (merged, auto, open)
 # describe the pull request, if one was made: peal_main_write_report.
+# REUSE, given, is a subject: before building, the pull request route looks for an
+# already open pull request of its own main-write branches with that title and, found,
+# manages it instead of opening another (_peal_mw_pr_manage, the same as one just
+# opened): a rerun before the earlier one merged waits for it instead of duplicating it.
 peal_push_main() {
-  local build=$1 command=${2-} attempt=1 max=${PEAL_PUSH_ATTEMPTS:-5} route base sha new err status replaces=""
+  local build=$1 command=${2-} reuse=${3-} attempt=1 max=${PEAL_PUSH_ATTEMPTS:-5} route base sha new err status replaces="" repo branch node
   PEAL_MW_PR="" PEAL_MW_URL="" PEAL_MW_STATE="" PEAL_MW_RIVALS=""
   route=$(_peal_mw_route) || return 2
   err=$(mktemp) || return 2
   [ "$route" != pr ] || _peal_mw_fetch_branches
+  if [ "$route" = pr ] && [ -n "$reuse" ] && repo=$(peal_github_repo) && _peal_mw_find_reuse "$repo" "$reuse"; then
+    branch=$PEAL_MW_REUSE_BRANCH
+    git fetch -q "$PEAL_REMOTE" "+refs/heads/$branch:refs/remotes/$PEAL_REMOTE/$branch" 2>/dev/null
+    sha=$(git rev-parse -q --verify "refs/remotes/$PEAL_REMOTE/$branch") || sha=""
+    node=$(peal_gh "repos/$repo/pulls/$PEAL_MW_PR" --jq .node_id 2>/dev/null) || node=""
+    if [ -n "$sha" ] && [ -n "$node" ]; then
+      PEAL_MW_STATE=open
+      peal_err "pull request #$PEAL_MW_PR $PEAL_MW_URL is open already; waiting for it"
+      _peal_mw_pr_manage "$repo" "$branch" "$sha" "$node"
+      status=$?
+      if [ $status != 5 ]; then
+        rm -f "$err"
+        return $status
+      fi
+      replaces=$PEAL_MW_PR
+      PEAL_MW_PR="" PEAL_MW_URL="" PEAL_MW_STATE=""
+      attempt=$((attempt + 1))
+      git fetch -q "$PEAL_REMOTE" "$PEAL_MAIN" 2>/dev/null
+    fi
+  fi
   while :; do
     base=$(git rev-parse --verify -q "refs/remotes/$PEAL_REMOTE/$PEAL_MAIN") || {
       peal_err "$PEAL_REMOTE/$PEAL_MAIN is gone"; rm -f "$err"; return 2; }
@@ -171,14 +211,10 @@ _peal_mw_body() {
 }
 
 # _peal_mw_pr SHA COMMAND REPLACES -> commit SHA (on the main fetched) written through a
-# pull request: pushed to $PEAL_MW_PREFIX<short sha>, opened, and merged by auto-merge
-# (squash), else by Peal once its checks pass (_peal_mw_merge_self). Status 0 when merged
-# or auto-merge is on (PEAL_MAIN_WRITE_WAIT=merged waits for the merge then), 5 when it
-# was closed to be built again (its number taken by an earlier one, or it conflicts), 3
-# when it is still open after PEAL_MAIN_WRITE_BUDGET, 1 when it cannot open or its checks
-# fail, 2 without the settings.
+# pull request: pushed to $PEAL_MW_PREFIX<short sha>, opened, and managed
+# (_peal_mw_pr_manage) to merged or open. Status 2 without the settings.
 _peal_mw_pr() {
-  local sha=$1 command=$2 replaces=$3 branch repo out node mergeable e
+  local sha=$1 command=$2 replaces=$3 branch repo out node e
   branch=$PEAL_MW_PREFIX$(git rev-parse --short "$sha")
   repo=$(peal_github_repo) || return 2
   e=$(mktemp) || return 2
@@ -202,6 +238,17 @@ _peal_mw_pr() {
   PEAL_MW_STATE=open
   [ "$(peal_config_get main-writes)" != auto ] || git config peal.mainWrites pr
   peal_err "opened pull request #$PEAL_MW_PR $PEAL_MW_URL${replaces:+ (replaces #$replaces)}"
+  _peal_mw_pr_manage "$repo" "$branch" "$sha" "$node"
+}
+
+# _peal_mw_pr_manage REPO BRANCH SHA NODE -> PEAL_MW_PR (already open, node its node id)
+# merged by auto-merge (squash), else by Peal once its checks pass (_peal_mw_merge_self).
+# Status 0 when merged or auto-merge is on (PEAL_MAIN_WRITE_WAIT=merged waits for the
+# merge then), 5 when it was closed to be built again (its number taken by an earlier
+# one, or it conflicts), 3 when it is still open after PEAL_MAIN_WRITE_BUDGET, 1 when its
+# checks fail.
+_peal_mw_pr_manage() {
+  local repo=$1 branch=$2 sha=$3 node=$4 mergeable e
 
   # Built on the same main, an earlier pull request may hold what this one does: the
   # lower number wins, this one is built again.
