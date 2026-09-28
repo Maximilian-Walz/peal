@@ -65,7 +65,7 @@ tasks:
     claim: .peal/peal claim {task} --print-path
     start: /peal:work {task}
     idea: /peal:idea {idea}
-    create: .peal/peal create --owner {owner} --title {title}
+    create: .peal/peal create --owner {owner} --title {title} --origin {origin}
     board: .peal/peal board
     milestone: .peal/peal milestone-state {id} {state} --reason {reason}
     retire: .peal/peal retire {task} --reason {reason}
@@ -89,17 +89,21 @@ actions:
   worktree, so a re-run Belfry job continues where the last one stopped. The last line is
   the worktree path.
 - `board` prints one JSON object per task (`id`, `state`, `slug`, `title`, `milestone`,
-  `depends`, `part_of`, `size`, `plan`, `needs`, `priority`, `owner`, `touches`, `merge`,
-  `pr`, `path`, `ref`, and `cycle`, the list detail's cycle, which the contract lets a
-  board add; each but `id` and `state` only when set, so a normal priority, an AI's task
-  and the project's default merge are no field), and one
-  `{"milestone":{...}}` line per milestone, exactly the shapes of Belfry's contract.
-- `create --owner OWNER --title TITLE` is `tasks.commands.create`: the task's text on
-  stdin filed as one task (`peal create` does, 0061), `OWNER` (`ai` or `human`, the flag
-  winning over the text's own) written into the frontmatter, the slug the first five
-  words of `TITLE`. Belfry runs it itself, outside a session's sandbox (which has neither
-  `gh`'s login nor SSH keys), so it never hangs there; it ends with `filed: <id>` as its
-  last line, the shape Belfry's contract reads back.
+  `depends`, `part_of`, `size`, `plan`, `needs`, `priority`, `owner`, `origin`, `touches`,
+  `merge`, `pr`, `path`, `ref`, and `cycle`, the list detail's cycle, which the contract
+  lets a board add; each but `id` and `state` only when set, so a normal priority, an
+  AI's task, a task the project wrote itself and the project's default merge are no
+  field), and one `{"milestone":{...}}` line per milestone, exactly the shapes of
+  Belfry's contract.
+- `create --owner OWNER --title TITLE [--origin outsider|writer]` is
+  `tasks.commands.create`: the task's text on stdin filed as one task (`peal create`
+  does, 0061), `OWNER` (`ai` or `human`, the flag winning over the text's own) written
+  into the frontmatter, `ORIGIN` `outsider` written into its `origin` field when the text
+  came from outside the project (`writer`, or `--origin` left out: no field, as before
+  0083), the slug the first five words of `TITLE`. Belfry runs it itself, outside a
+  session's sandbox (which has neither `gh`'s login nor SSH keys), so it never hangs
+  there; it ends with `filed: <id>` as its last line, the shape Belfry's contract reads
+  back.
 - `/peal:work NNNN` notices it is already inside NNNN's worktree (the branch is the task's
   branch and `tasks/doing/` holds its file) and skips its own claim. It does not read any
   Belfry variable: the same check serves a human who opened a session in the worktree by
@@ -287,6 +291,7 @@ Peal's fields, all optional:
 | `release-note` | `none` leaves the task out of the release notes. |
 | `priority` | `urgent`, `high`, `normal` or `low`; absent means normal. Orders the offer within a milestone, never across milestones; `/peal:idea` sets it only when the idea says so plainly, `/peal:revise` changes it. The board carries it, `peal overview` marks urgent `!` and high `↑`. |
 | `owner` | `ai` or `human`; absent means ai. A human task is work only the human can deliver: the offer never offers it and `/peal:work` refuses it, while `peal claim` still makes its worktree for the human (or Belfry's Start). A `depends` on it waits until it is done, like any other; the `human` keyword, by contrast, never resolves by itself. The board, the list and `peal overview` carry it. |
+| `origin` | `outsider`; absent means the task's text is the project's own (`writer`). Written only by `peal create`'s `--origin outsider` (Belfry's `tasks.commands.create`, for a task filed from an outsider's issue or comment), never by `/peal:idea` or a human's own `peal create`. The board carries it; files only (the issues backend has no label for it). |
 | `merge` | `auto`; absent means the project's default. The human agreed that the task's pull request may merge itself once its checks are green, as Belfry's merge rules can require. The planner may recommend it for small, low-risk work; `/peal:work` writes it only when the human agrees the plan, `/peal:idea` never, `/peal:revise` can remove it. When the review finds the diff larger or riskier than that plan, its report ends `merge-auto: withdraw` and `peal close finish` removes the field and says so in the pull request's body. The board carries it. |
 | `touches` | a list of paths, directories or globs (`*`, `?`, `[...]` within a directory, `**` across) the task will likely change, relative to the repository's root; no entry absolute or holding a comma, and on issues none making a label over GitHub's 50 characters. The planner writes it when the human agrees the plan; `/peal:idea` only when the idea names the files plainly. The board carries it, so a scheduler like Belfry does not start two tasks on the same files side by side. A hint: a wrong one costs a missed parallel slot, nothing more. |
 
@@ -375,7 +380,10 @@ Derived from refs and the main branch on the remote, never from the calling work
   task's size tier (M while unsized) the session is nudged once to close or split.
 - **SessionEnd**: when the main session ends (`logout`, `prompt_input_exit`, `other`) in a
   task's worktree, uncommitted work is committed as `wip: session-end autosave [NNNN]` and
-  the branch pushed.
+  the branch pushed. A sandbox's device mount is left out of that (`peal_status_porcelain`,
+  `peal_untracked_devices`); seen from outside the sandbox, the same path is an ordinary
+  empty regular file, and the autosave commits it like any other untracked file (0087) —
+  the remedy is git's own `.gitignore` or clone-local `.git/info/exclude`, not Peal code.
 
 The heartbeat, the turn count and the autosave's log live in the worktree's git
 directory, where no commit sees them.

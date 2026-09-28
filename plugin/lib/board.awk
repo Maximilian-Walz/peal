@@ -3,7 +3,9 @@
 # (url for an issue, path for a file), and for a task on a depends cycle the cycle as its
 # list detail shows it ("cycle":"0042 → 0043 → 0042"). No ref: the contract's ref
 # locates a file not on the main branch yet, and every task's file is there from its
-# filing on.
+# filing on. origin carries through when the frontmatter has it (Belfry's tasks.commands.
+# create wrote it); without it the mark is inert, as for a task filed before origin
+# existed or on the issues backend, which carries none.
 #
 #   awk -F '\t' -f json.awk -f board.awk
 
@@ -21,6 +23,7 @@
   if ($17 != "") line = line ",\"owner\":" json_str($17)
   if ($18 != "") line = line ",\"touches\":" json_list($18)
   if ($19 != "") line = line ",\"merge\":" json_str($19)
+  if ($20 != "") line = line ",\"origin\":" json_str($20)
   if ($2 == "blocked" && (c = index($3, " cycle: ")) > 0) line = line ",\"cycle\":" json_str(substr($3, c + 8))
   if ($14 != "") line = line ",\"pr\":" json_str($14)
   if ($15 != "") line = line ",\"url\":" json_str($15)

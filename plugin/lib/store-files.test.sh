@@ -104,7 +104,18 @@ filed: 0004" "$?:$out"
   check "belfry create: owner human in the file" "owner: human" \
     "$(on_main "$work" tasks/backlog/0005-second-belfry-task-here-now.md | grep '^owner:')"
 
-  # Refused, nothing filed: numbering picks up right after 0005 once one succeeds.
+  # 0083: --origin outsider writes origin: outsider; --origin writer, or no --origin (the
+  # first two filings above), writes nothing.
+  out=$(text "milestone: m1" | peal create --owner ai --title "Origin outsider belfry task" --origin outsider 2>&1)
+  check "belfry create: origin outsider, status and id" "0:filed: 0006" "$?:$(printf '%s\n' "$out" | tail -n 1)"
+  check "belfry create: origin outsider in the file" "origin: outsider" \
+    "$(on_main "$work" tasks/backlog/0006-origin-outsider-belfry-task.md | grep '^origin:')"
+  out=$(text "milestone: m1" | peal create --owner ai --title "Origin writer belfry task" --origin writer 2>&1)
+  check "belfry create: origin writer, status and id" "0:filed: 0007" "$?:$(printf '%s\n' "$out" | tail -n 1)"
+  check "belfry create: origin writer writes nothing" "0" \
+    "$(on_main "$work" tasks/backlog/0007-origin-writer-belfry-task.md | grep -c '^origin:')"
+
+  # Refused, nothing filed: numbering picks up right after 0007 once one succeeds.
   check_refused "belfry create: owner not ai or human" "owner must be ai or human, not 'robot'" \
     peal create --owner robot --title "Some words here now" < <(text)
   check_refused "belfry create: no --title" "--title is required" peal create --owner ai < <(text)
@@ -115,23 +126,29 @@ filed: 0004" "$?:$out"
     peal create --owner ai --title "Some other words now" < <(text "merge: auto")
   check_refused "belfry create: holds the delimiter" "holds '-----NEXT TASK-----'" \
     peal create --owner ai --title "Some more words now" < <(printf '%s\n-----NEXT TASK-----\n%s\n' "$(text)" "$(text)")
+  check_refused "belfry create: origin not outsider or writer" "origin must be outsider or writer, not 'contributor'" \
+    peal create --owner ai --title "Some other words again" --origin contributor < <(text)
+  check_refused "belfry create: origin given twice" "origin given twice" \
+    peal create --owner ai --title "Some more words again" --origin outsider --origin writer < <(text)
 
   # A hostile-looking title is a title, never another option: --title takes the very
   # next argument, whatever it looks like.
   out=$(text "milestone: m1" | peal create --owner ai --title "-dashed title words here" 2>&1)
-  check "belfry create: a title starting with -" "0:filed 0006 tasks/backlog/0006-dashed-title-words-here.md — milestone: m1, plan: -, size: - — \"Title of 0006\"
-filed: 0006" "$?:$out"
+  check "belfry create: a title starting with -" "0:filed 0008 tasks/backlog/0008-dashed-title-words-here.md — milestone: m1, plan: -, size: - — \"Title of 0008\"
+filed: 0008" "$?:$out"
   out=$(TITLE='--batch 0001 more words' text "milestone: m1" | peal create --owner ai --title "--batch 0001 more words" 2>&1)
-  check "belfry create: a title that looks like an option" "0:filed 0007 tasks/backlog/0007-batch-0001-more-words.md — milestone: m1, plan: -, size: - — \"--batch 0001 more words\"
-filed: 0007" "$?:$out"
+  check "belfry create: a title that looks like an option" "0:filed 0009 tasks/backlog/0009-batch-0001-more-words.md — milestone: m1, plan: -, size: - — \"--batch 0001 more words\"
+filed: 0009" "$?:$out"
 
   check "belfry create: nothing filed on a refusal, numbering unbroken" "0001-existing-one.md
 0002-existing-two.md
 0003-existing-three.md
 0004-model-the-crate-for-level.md
 0005-second-belfry-task-here-now.md
-0006-dashed-title-words-here.md
-0007-batch-0001-more-words.md" "$(ids_on_main)"
+0006-origin-outsider-belfry-task.md
+0007-origin-writer-belfry-task.md
+0008-dashed-title-words-here.md
+0009-batch-0001-more-words.md" "$(ids_on_main)"
 }
 
 # create_belfry_pr -> the belfry create form through a pull request (lib/main-write.sh

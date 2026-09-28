@@ -10,7 +10,10 @@
 # state one of awaiting-merge, claimed-live, parked. Out comes the store's list record
 # (lib/store.sh):
 #
-#   id  state  detail  slug  title  milestone  depends  part-of  size  plan  needs  path  ref  pr  url  priority  owner  touches  merge
+#   id  state  detail  slug  title  milestone  depends  part-of  size  plan  needs  path  ref  pr  url  priority  owner  touches  merge  origin
+#
+# A TASKS record with no origin column (17 fields, the issues backend's shape) reads as
+# origin empty: the issues backend carries no origin.
 #
 # The state, first match wins: done (the file is under done/), the claim's state, blocked
 # (a depends entry is not done yet), free. The detail: for a free task its milestone ("-"
@@ -156,7 +159,7 @@ FILENAME == ARGV[1] {
   } else order[++n] = id
   dir[id] = $2; slug[id] = $4; title[id] = $5; ms[id] = $6; deps[id] = $7
   partof[id] = $8; size[id] = $9; plan[id] = $10; needs[id] = $11; path[id] = $12; url[id] = $13
-  prio[id] = $14; owner[id] = $15; touches[id] = $16; merge[id] = $17
+  prio[id] = $14; owner[id] = $15; touches[id] = $16; merge[id] = $17; origin[id] = $18
 }
 
 END {
@@ -204,17 +207,17 @@ END {
         state = "free"
         detail = ms[id] == "" ? "-" : ms[id]
         # The split a free task belongs to: its own, if it has pieces, else its parent's.
-        origin = (id in pieces) ? id : ((id in parent) ? parent[id] : "")
-        if (origin != "") {
-          np = split(pieces[origin], pc, ",")
-          dn = done(origin) ? 1 : 0
+        splitof = (id in pieces) ? id : ((id in parent) ? parent[id] : "")
+        if (splitof != "") {
+          np = split(pieces[splitof], pc, ",")
+          dn = done(splitof) ? 1 : 0
           for (k = 1; k <= np; k++) if (done(pc[k])) dn++
-          detail = detail " split:" origin " " dn "/" (np + 1)
+          detail = detail " split:" splitof " " dn "/" (np + 1)
         }
       }
     }
-    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", id, state, detail,
+    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", id, state, detail,
       slug[id], title[id], ms[id], deps[id], partof[id], size[id], plan[id], needs[id],
-      path[id], cref[id], cpr[id], url[id], prio[id], owner[id], touches[id], merge[id]
+      path[id], cref[id], cpr[id], url[id], prio[id], owner[id], touches[id], merge[id], origin[id]
   }
 }

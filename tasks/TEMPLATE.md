@@ -22,6 +22,9 @@ depends: []
              plan is agreed; the close withdraws it if the review finds the diff riskier.
   owner      ai or human; none is ai. A human task is work only the human can deliver:
              never offered, and /peal:work refuses it.
+  origin     outsider; none means the task's own text (written by the project). Set only
+             by Belfry's tasks.commands.create (peal create --origin outsider), never by
+             hand.
   priority   urgent, high, normal or low; none is normal. Orders the offer within a
              milestone, never across milestones.
   breaking   true when the task breaks something users rely on: the next release is major.

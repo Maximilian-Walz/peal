@@ -98,22 +98,26 @@ peal_revise() {
   return $status
 }
 
-# peal_create_filed --owner OWNER --title TITLE -> Belfry's tasks.commands.create
-# contract: the task text on stdin filed as one task, above the storage (both
-# implementations). The slug is the first five words of TITLE, after the same
-# normalisation peal_slugify applies (fewer than two words refused); OWNER (ai or human)
-# is written into the frontmatter's owner field, the flag winning over whatever the text
-# itself set (owner: human kept or added for human, dropped for ai). Refused (status 2),
-# nothing written: an option other than --owner or --title, either missing or given
-# twice, OWNER not ai or human, a slug of one word, no text on stdin, or a text that sets
-# merge (only a human, editing the task itself, earns merge: auto) or holds the task
-# delimiter (one task at a time here). PEAL_MAIN_WRITE_BUDGET is capped to about 90s
-# unless the caller set it, so a caller waiting on this synchronously does not hang; an
-# open pull request at that cap still counts as filed, status 0 like a merged one (the
-# storage's own status 3 would read as "not filed, retry" to a caller and file it twice).
-# Prints the storage's own lines, then "filed: <id>" as the very last line.
+# peal_create_filed --owner OWNER --title TITLE [--origin outsider|writer] -> Belfry's
+# tasks.commands.create contract: the task text on stdin filed as one task, above the
+# storage (both implementations). The slug is the first five words of TITLE, after the
+# same normalisation peal_slugify applies (fewer than two words refused); OWNER (ai or
+# human) is written into the frontmatter's owner field, the flag winning over whatever
+# the text itself set (owner: human kept or added for human, dropped for ai). ORIGIN
+# outsider writes origin: outsider, marking the text as one Belfry's contract says came
+# from outside the project; writer, or --origin left out, leaves the field out (absent,
+# as today: the text is the project's own). Refused (status 2), nothing written: an
+# option other than --owner, --title or --origin, either --owner or --title missing or
+# given twice, --origin given twice, OWNER not ai or human, ORIGIN not outsider or
+# writer, a slug of one word, no text on stdin, or a text that sets merge (only a human,
+# editing the task itself, earns merge: auto) or holds the task delimiter (one task at a
+# time here). PEAL_MAIN_WRITE_BUDGET is capped to about 90s unless the caller set it, so
+# a caller waiting on this synchronously does not hang; an open pull request at that cap
+# still counts as filed, status 0 like a merged one (the storage's own status 3 would
+# read as "not filed, retry" to a caller and file it twice). Prints the storage's own
+# lines, then "filed: <id>" as the very last line.
 peal_create_filed() {
-  local owner="" title="" slug words tmp outfile out status=0 id
+  local owner="" title="" origin="" origin_given="" slug words tmp outfile out status=0 id
   while [ $# -gt 0 ]; do
     case $1 in
       --owner)
@@ -124,6 +128,10 @@ peal_create_filed() {
         [ $# -ge 2 ] || { peal_err "create: --title needs a title"; return 2; }
         [ -z "$title" ] || { peal_err "create: --title given twice"; return 2; }
         title=$2; shift ;;
+      --origin)
+        [ $# -ge 2 ] || { peal_err "create: --origin needs outsider or writer"; return 2; }
+        [ -z "$origin_given" ] || { peal_err "create: --origin given twice"; return 2; }
+        origin=$2; origin_given=1; shift ;;
       *) peal_err "create: unknown argument $1"; return 2 ;;
     esac
     shift
@@ -132,6 +140,10 @@ peal_create_filed() {
     ai | human) ;;
     "") peal_err "create: --owner is required (ai or human)"; return 2 ;;
     *) peal_err "create: owner must be ai or human, not '$owner'"; return 2 ;;
+  esac
+  case $origin in
+    outsider | writer | "") ;;
+    *) peal_err "create: origin must be outsider or writer, not '$origin'"; return 2 ;;
   esac
   [ -n "$title" ] || { peal_err "create: --title is required"; return 2; }
   # _peal_slug_normalise (task-text.sh): the same normalisation peal_slugify does, the
@@ -164,6 +176,11 @@ peal_create_filed() {
     peal_fm_set "$tmp" owner human || status=2
   else
     peal_fm_unset "$tmp" owner || status=2
+  fi
+  if [ "$origin" = outsider ]; then
+    peal_fm_set "$tmp" origin outsider || status=2
+  else
+    peal_fm_unset "$tmp" origin || status=2
   fi
   if [ $status != 0 ]; then
     rm -f "$tmp"

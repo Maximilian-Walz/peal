@@ -496,6 +496,26 @@ merge() {
 0003 free default-merge -" "$(list 2>/dev/null)"
 }
 
+# origin: outsider in the board only (0083); any other word warned about and read as
+# writer, like today's absent field.
+origin() {
+  local work err
+  work=$(repo)
+  put "$work" backlog 0001 outsider-task "origin: outsider"
+  put "$work" backlog 0002 odd-origin "origin: contributor"
+  put "$work" backlog 0003 writer-task
+  check "origin: board" '{"id":"0001","state":"free","slug":"outsider-task","title":"Title of 0001","origin":"outsider","path":"tasks/backlog/0001-outsider-task.md"}
+{"id":"0002","state":"free","slug":"odd-origin","title":"Title of 0002","path":"tasks/backlog/0002-odd-origin.md"}
+{"id":"0003","state":"free","slug":"writer-task","title":"Title of 0003","path":"tasks/backlog/0003-writer-task.md"}' \
+    "$(at "$work" "$PEAL" board --no-pr 2>/dev/null | grep -v '^{"milestone"')"
+  err=$(list 2>&1 >/dev/null)
+  check "origin: an unknown word is writer, with a warning" \
+    "peal: warning: tasks/backlog/0002-odd-origin.md: origin: 'contributor' is not outsider; read as writer" "$err"
+  check "origin: not in the list" "0001 free outsider-task -
+0002 free odd-origin -
+0003 free writer-task -" "$(list 2>/dev/null)"
+}
+
 # Two task files with one id, from filings that raced past each other: check names them.
 duplicates() {
   local work
@@ -546,6 +566,7 @@ cases() {
   owner
   touches
   merge
+  origin
   branch_date_utc
 }
 

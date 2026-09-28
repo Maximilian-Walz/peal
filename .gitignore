@@ -1,0 +1,30 @@
+# A sandbox's /dev/null mount over a protected path (0087). Inside the sandbox git sees a
+# character device, which peal_status_porcelain already filters (0084). Once the sandbox
+# is gone — a plain host process, or this same worktree later — the same path is an
+# ordinary empty regular file, and nothing tells it apart from a real one someone added on
+# purpose. Rather than guess, these are the paths a sandbox has actually mounted over, from
+# the untracked list of 912623c (0057), anchored to the repository root so an unrelated
+# file of the same name elsewhere (e.g. under a subproject) is unaffected. A tracked file
+# is never hidden by this: check `git ls-files` before adding a name.
+/.bash_profile
+/.bashrc
+/.claude/agents
+/.claude/commands
+/.claude/hooks
+/.claude/launch.json
+/.claude/loop.md
+/.claude/output-styles
+/.claude/routines
+/.claude/scheduled_tasks.json
+/.claude/settings.local.json
+/.claude/skills
+/.claude/workflows
+/.gitconfig
+/.gitmodules
+/.idea
+/.mcp.json
+/.profile
+/.ripgreprc
+/.vscode
+/.zprofile
+/.zshrc
