@@ -8,10 +8,12 @@ on:
 permissions:
   contents: read
 
-# A newer push to the same pull request, or to main, makes the older run moot.
+# A newer push to the same pull request makes the older run moot. Never on main: a
+# later push there may skip its harnesses (a task file), which must not cancel the
+# only full run of the code change before it.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # Whether anything the harnesses test changed. Task files, milestone texts and a

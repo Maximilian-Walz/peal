@@ -16,7 +16,8 @@ yes() { echo harnesses=true; exit 0; }
 case $base in '' | *[!0]*) ;; *) yes ;; esac # empty, or 000…: nothing to compare with
 [ -n "$base" ] || yes
 git cat-file -e "$base^{commit}" 2>/dev/null || yes
-files=$(git diff --name-only "$base" "$head") || yes
+# --no-renames: a file moved from code into tasks/ lists its old path too.
+files=$(git diff --no-renames --name-only "$base" "$head") || yes
 
 while IFS= read -r f; do
   [ -n "$f" ] || continue
@@ -24,8 +25,9 @@ while IFS= read -r f; do
     tasks/* | docs/milestones/*) continue ;;
     plugin/.claude-plugin/plugin.json)
       # Only lines setting "version" may change.
-      changed=$(git diff -U0 "$base" "$head" -- "$f" | grep -E '^[-+]' | grep -Ev '^(\+\+\+|---) ') || yes
-      if printf '%s\n' "$changed" | grep -Evq '^[-+][[:space:]]*"version":[[:space:]]*"[^"]*",?[[:space:]]*$'; then
+      # As strict as peal_version (plugin/bin/peal) reads it: spaces only, not empty.
+      changed=$(git diff --no-renames -U0 "$base" "$head" -- "$f" | grep -E '^[-+]' | grep -Ev '^(\+\+\+|---) ') || yes
+      if printf '%s\n' "$changed" | grep -Evq '^[-+] *"version": *"[^"]+", *$'; then
         yes
       fi
       ;;

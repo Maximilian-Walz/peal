@@ -52,6 +52,18 @@ mkdir -p "$dir/tasks-x" && printf 'x\n' >"$dir/tasks-x/f"
 check "a look-alike of tasks/: run" harnesses=true "$(verdict lookalike)"
 reset
 
+git -C "$dir" mv plugin/lib/a.sh tasks/a.sh
+check "code moved into tasks/: run" harnesses=true "$(verdict move)"
+reset
+
+sed -i.bak 's/"0.1.0"/""/' "$dir/plugin/.claude-plugin/plugin.json" && rm "$dir/plugin/.claude-plugin/plugin.json.bak"
+check "an emptied version: run" harnesses=true "$(verdict empty-version)"
+reset
+
+sed -i.bak 's/^  "version": "0.1.0"/\t"version": "0.2.0"/' "$dir/plugin/.claude-plugin/plugin.json" && rm "$dir/plugin/.claude-plugin/plugin.json.bak"
+check "a version line indented with a tab: run" harnesses=true "$(verdict tab)"
+reset
+
 check "no base (a new branch): run" harnesses=true "$(cd "$dir" && bash "$REPO/tools/ci-changes.sh" "" HEAD)"
 check "an all-zero base (a push that created the branch): run" harnesses=true \
   "$(cd "$dir" && bash "$REPO/tools/ci-changes.sh" 0000000000000000000000000000000000000000 HEAD)"
