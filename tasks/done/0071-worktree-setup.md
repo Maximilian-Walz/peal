@@ -95,3 +95,19 @@ Ranges: tasks/doing/0071-worktree-setup.md:1-45, docs/design.md:335-359, docs/de
 ---
 
 ## Outcome
+
+Built as planned: `worktree-setup: <command>` (default empty) in `plugin/lib/config-defaults.yml`.
+- **Where it runs.** `_peal_claim_setup` in `plugin/lib/claim.sh` runs it from `_peal_claim_one`, right after `peal_store_claim` and `_peal_claim_started` and before the scope-overlap warning. That is above both storages, so files and issues behave the same.
+- **How it runs.** In the new worktree, `GIT_*` unset, stdin closed, `PEAL_PRIMARY` set to the primary checkout (the first entry of `git worktree list --porcelain`), and all its output on stderr. `--print-path`'s stdout contract is untouched.
+- **When it runs.** Once, after a fresh claim and after a resumed parked claim. Never again on "claimed here already": the human chose no retry marker (A2).
+- **Failure.** Status 2, the command's output, and `claim: task N is claimed at WT, but worktree-setup failed …`. Nothing rolls back (branch pushed, worktree kept), and `--next` stops there. On failure stdout still carries the store's `claimed N branch path` line, which is printed before the setup runs, but no bare path line.
+- **Survey.** `peal init --survey` prints `local-files`: ignored files present in the checkout whose basename matches `.env*` or `*.local.*`, at most 5. `/peal:setup` names the setting in its report while it is unset, and never writes it.
+- **Docs.** `docs/design.md` has the key, the claim sentence, a symlink example (`for f in .env values.local.yaml; do ln -sf "$PEAL_PRIMARY/$f" "$f"; done`) and the survey line. `docs/security.md` lists the command under Limits, the same class as `checks.commit` (A6).
+
+Found at close and fixed: the survey walked every ignored directory (`git ls-files --others --ignored` without `--directory`). That is slow under a large `node_modules` and lists files like `deps/pkg/.env.example`. It now passes `--directory`, and a test covers it.
+
+Tested in the files storage only (A8). The issues storage runs the same code path above the store, but no harness exercises it. Belfry's matching hook for worktrees it creates itself is Belfry's, and not in this repository.
+
+### Reviewer findings not acted on
+
+- `_peal_claim_setup` repeats `peal_worktrees_dir`'s one-line awk that finds the primary checkout (`plugin/lib/claim.sh`). Two copies in one file of an idiom used throughout the code base, which the agreed plan named; a helper adds nothing yet.
