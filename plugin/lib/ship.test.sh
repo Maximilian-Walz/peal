@@ -425,8 +425,34 @@ PROPOSE v0.1.1 patch" "$(peal ship propose 2>&1 | tail -n 2)"
     "$(peal ship notes 9.9.9 2>&1 | grep -c 'Attacker title')|$(peal ship notes 9.9.9 2>&1 | grep -c 'Hostile outcome text')"
 }
 
+# issues_relabel: with a filter label, a labelled closed issue its own author (no write
+# access) renamed after the labelling gets the commit's subject, never its title (the
+# re-label check, one batched GraphQL call); one renamed before the labelling keeps its
+# own; a failed call refuses them all.
+issues_relabel() {
+  local work
+  ISSUES_CONFIG='    label: tasks
+' issues_repo
+  issue 1 "Renamed afterwards" --closed --label tasks --assoc NONE \
+    --labelled-at 2026-02-01T00:00:00Z --renamed-at 2026-03-01T00:00:00Z author
+  issue 2 "Renamed before" --closed --label tasks --assoc NONE \
+    --renamed-at 2026-01-01T00:00:00Z author --labelled-at 2026-02-01T00:00:00Z
+  commit "feat: the safe subject [1] (#10)"
+  commit "feat: the second subject [2] (#11)"
+  : >"$FAKE_GH/log"
+  check "issues, labelled: propose" "ITEM feature 1 #10 the safe subject
+ITEM feature 2 #11 Renamed before" "$(peal ship propose 2>&1 | grep '^ITEM')"
+  check "issues, labelled: one graphql call" "1" "$(grep -c 'POST graphql' "$FAKE_GH/log")"
+  check "issues, labelled: notes" "0|1|1" "$(peal ship notes 9.9.9 2>&1 | grep -c 'Renamed afterwards')|$(peal ship notes 9.9.9 2>&1 | grep -c 'the safe subject')|$(peal ship notes 9.9.9 2>&1 | grep -c 'Renamed before')"
+  printf 'POST graphql' >"$FAKE_GH/fail"
+  check "issues, labelled: a failed call refuses them all" "ITEM feature 1 #10 the safe subject
+ITEM feature 2 #11 the second subject" "$(peal ship propose 2>/dev/null | grep '^ITEM')"
+  rm -f "$FAKE_GH/fail"
+}
+
 for_each_awk files
 for_each_awk bump
 for_each_awk bump_protected
 for_each_awk issues
+for_each_awk issues_relabel
 finish

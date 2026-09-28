@@ -1,12 +1,16 @@
 # Issues -> one task record per issue, the fields task-state.awk reads, with two more.
 #
-#   awk -F '\t' -v label=<filter label> -v claimed=<claim label> \
+#   awk -F '\t' -v label=<filter label> -v claimed=<claim label> -v edits=<EDITS> \
 #     -f issues-lib.awk -f issues-scan.awk LISTED EXTRA
 #
 # LISTED and EXTRA hold issues as issues-lib.awk describes them. LISTED are the tasks:
 # without a filter label only those opened by someone with write access count (anyone
-# may open an issue on a public repository). EXTRA are issues only named by a task's
-# depends or part-of, read to know whether they are done. The record:
+# may open an issue on a public repository); with one, only those carrying it whose
+# line in EDITS (the re-label check's, issues-lib.awk's edit_row_admitted()) admits
+# them: no edit after the labelling by someone without write access. A labelled issue
+# with no line in EDITS is left out (fail closed). EXTRA are issues only named by a
+# task's depends or part-of, read to know whether they are done, their edits unchecked.
+# The record:
 #
 #   id  dir  -  slug  title  milestone  depends  part-of  size  plan  needs  path  url  labelled  extra  priority  owner  touches  merge
 #
@@ -17,6 +21,11 @@
 # owner human for an issue labelled "owner: human", empty for ai; touches from the labels
 # "touches: <path>"; merge auto for an issue labelled "merge: auto", empty otherwise.
 
+BEGIN {
+  if (label != "" && edits != "")
+    while ((getline line < edits) > 0) { split(line, e, "\t"); edit_row[e[1]] = line }
+}
+
 FNR == 1 { extra = FILENAME == ARGV[2] }
 
 $0 == "" || ($1 in seen) { next }
@@ -24,6 +33,7 @@ $0 == "" || ($1 in seen) { next }
 {
   id = $1
   if (!extra && !admitted($6, $5, label)) next
+  if (!extra && label != "" && !((id in edit_row) && edit_row_admitted(edit_row[id], $6))) next
   seen[id] = 1
   title = tsv_unescape($3)
   gsub(/[\t\r\n]/, " ", title)

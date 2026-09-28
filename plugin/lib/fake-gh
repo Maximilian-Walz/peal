@@ -10,8 +10,10 @@
 # is applied with jq, as gh applies its own. A pull request's merge (PUT pulls/N/merge,
 # a squash) and a branch's deletion (DELETE git/refs/heads/B) act on the bare repository
 # $FAKE_GH/remote; `gh api graphql` knows the mutation enablePullRequestAutoMerge, refused
-# while $FAKE_GH/no-auto-merge exists, and the re-label check's edits query (an issue's
-# timelineItems), answered from an issue's own optional fields: created_at (default
+# while $FAKE_GH/no-auto-merge exists, and the re-label check's edits query (the
+# timelineItems of each issue it names, one alias "iN: issue(number: N)" per issue, all
+# in one answer; an issue that does not exist fails the call), answered from an issue's
+# own optional fields: created_at (default
 # 2000-01-01T00:00:00Z), author_login (default "author"), last_edited_at, editor,
 # labeled_events ({at, label}, one per labelling) and renamed_events ({at, by}, one per
 # rename). A pull request opens unmergeable while
@@ -177,19 +179,23 @@ if [ "$path" = graphql ]; then
       out '{"data":{"enablePullRequestAutoMerge":{"clientMutationId":null}}}'
       ;;
     *timelineItems*)
-      n=$(field number)
-      row=$(jq -c --argjson n "$n" '.[] | select(.number == $n)' "$FAKE_GH/issues.json")
-      [ -n "$row" ] || { printf 'GraphQL: Could not resolve to an Issue with the number of %s.\n' "$n" >&2; exit 1; }
-      jq -c '{data: {repository: {issue: {
-          createdAt: (.created_at // "2000-01-01T00:00:00Z"),
-          author: {login: (.author_login // "author")},
-          lastEditedAt: (.last_edited_at // null),
-          editor: (if .editor then {login: .editor} else null end),
-          timelineItems: {nodes: (
-            [(.labeled_events // [])[] | {__typename: "LabeledEvent", createdAt: .at, label: {name: .label}}]
-            + [(.renamed_events // [])[] | {__typename: "RenamedTitleEvent", createdAt: .at, actor: {login: .by}}]
-          )}
-        }}}}' <<<"$row"
+      nums=$(field query | grep -oE 'i[0-9]+: issue\(number: [0-9]+\)' | sed -E 's/^i([0-9]+): issue\(number: ([0-9]+)\)$/\1 \2/' \
+        | awk '$1 != $2 { exit 1 } { print $1 }') || die "graphql: an alias iN that is not issue(number: N)"
+      [ -n "$nums" ] || die "graphql: an edits query naming no issue"
+      ns=$(printf '%s\n' "$nums" | jq -s -c .)
+      n=$(jq -r --argjson ns "$ns" '[.[].number] as $have | [$ns[] | select(IN($have[]) | not)] | first // empty' "$FAKE_GH/issues.json")
+      [ -z "$n" ] || { printf 'GraphQL: Could not resolve to an Issue with the number of %s.\n' "$n" >&2; exit 1; }
+      out "$(jq -c --argjson ns "$ns" '{data: {repository: (
+          [.[] | select(.number | IN($ns[])) | {key: ("i" + (.number | tostring)), value: {
+            createdAt: (.created_at // "2000-01-01T00:00:00Z"),
+            author: {login: (.author_login // "author")},
+            lastEditedAt: (.last_edited_at // null),
+            editor: (if .editor then {login: .editor} else null end),
+            timelineItems: {nodes: (
+              [(.labeled_events // [])[] | {__typename: "LabeledEvent", createdAt: .at, label: {name: .label}}]
+              + [(.renamed_events // [])[] | {__typename: "RenamedTitleEvent", createdAt: .at, actor: {login: .by}}]
+            )}
+          }}] | from_entries)}}' "$FAKE_GH/issues.json")"
       ;;
     *) die "graphql: only enablePullRequestAutoMerge and the re-label check's edits query are faked" ;;
   esac

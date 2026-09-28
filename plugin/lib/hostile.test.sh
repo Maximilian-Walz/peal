@@ -437,7 +437,8 @@ awk_channels() {
 # issue only named by another's depends or part-of, whose state alone crosses the
 # boundary) runs on outsider text too; then, in a second repository with a filter label
 # configured, a labelled issue edited afterwards by its own author (no write access),
-# claimed and deferred too (0076's re-label check). Every case: nothing runs, nothing is
+# claimed and deferred too, and a closed one renamed afterwards that a commit names
+# (0076's re-label check, on the listing and the release notes since 0085). Every case: nothing runs, nothing is
 # written outside, the outsider's marker reaches no output, and no command reads
 # comments.
 issues_channels() {
@@ -516,7 +517,20 @@ issues_channels() {
     } else . end)' --arg t "Edited \$(touch $CANARY/title89) OUTSIDER-TEXT" \
     --arg b "Body \$(touch $CANARY/body89) OUTSIDER-TEXT"
 
+  # Closed and named by a commit on main, its title renamed by its own author after the
+  # labelling: the release notes must use the commit's subject.
+  issue 10 "Relabel-rename task, closed" --closed --label tasks --assoc NONE \
+    --labelled-at 2029-01-01T00:00:00Z --renamed-at 2030-01-01T00:00:00Z author
+  gh_save issues 'map(if .number == 10 then . + {title: $t} else . end)' --arg t "Renamed \$(touch $CANARY/title10) OUTSIDER-TEXT"
+  git -C "$WORK" commit -q --no-verify --allow-empty -m "feat: a safe subject [10]"
+  git -C "$WORK" push -q origin main 2>/dev/null
+
   MARKER=OUTSIDER-TEXT
+  try "issues: list, edited after labelling" "$WORK" list
+  try "issues: board, edited after labelling" "$WORK" board
+  try "issues: overview, edited after labelling" "$WORK" overview
+  try "issues: offer, edited after labelling" "$WORK" offer current,unassigned
+  try "issues: ship notes, renamed after labelling" "$WORK" ship notes 0.1.0
   try "issues: read 9, edited after labelling" "$WORK" read 9
   try "issues: claim 9, edited after labelling" "$WORK" claim 9
   try "issues: work 9, edited after labelling" "$WORK" work 9

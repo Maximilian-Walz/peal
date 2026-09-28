@@ -96,6 +96,16 @@ function edit_admitted(labelled_at, author, assoc, edited_at, editor, renamed_at
   return ok
 }
 
+# edit_row_admitted(row, assoc) -> edit_admitted() for row, one line of the re-label
+# check's edits (store-issues.sh's _peal_issues_edits_batch: number, labelled_at, author,
+# edited_at, editor, renamed_at, renamer, tab-separated), of an issue whose
+# author_association is assoc. The listing (issues-scan.awk), the single-issue reads and
+# ship's release notes join on it.
+function edit_row_admitted(row, assoc,    e) {
+  split(row, e, "\t")
+  return edit_admitted(e[2], e[3], assoc, e[4], e[5], e[6], e[7])
+}
+
 # add_item(list, v) -> the comma list with v appended, once.
 function add_item(list, v) {
   if (index("," list ",", "," v ",")) return list
