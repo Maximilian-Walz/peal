@@ -60,5 +60,32 @@ Revised 2026-09-28: priority high: goes into Peal's next patch release (daily-us
 
 ## Outcome
 
-<!-- Written at close, replacing this comment: what was built, what was decided, what was
-     found and left (each a new task), and what the next session needs to know. -->
+Built: `peal create` takes `--origin outsider|writer`, the `{origin}` placeholder Belfry's
+contract now passes to `tasks.commands.create`. `outsider` writes `origin: outsider` into
+the filed task's frontmatter the way `owner` is written; `writer` or no `--origin` writes
+nothing (missing means writer, as the contract reads it); any other word, or the option
+twice, is refused before anything is filed. `task-check.awk` allows `origin` (empty or
+`outsider`); the files backend's read pipeline (`task-scan.awk` → `task-state.awk` →
+`board.awk`) carries it, and `peal board` emits `"origin":"outsider"` only when set, so the
+mark reaches Belfry, which treats the task as external. `peal init --stage belfry` writes
+`--origin {origin}` on the create line, and init's harness allows `{origin}` beside
+`{owner}` and `{title}`. A local `origin` in `task-state.awk`'s split logic became
+`splitof`, since `origin` now names an array. `docs/design.md`, `docs/security.md` and both
+task templates document the flag, the key and the board field. Harnesses: store-files
+(outsider written; writer and none absent; bad word and repeat refused), tasks (board
+carries it), hostile (argument fuzz), init.
+
+Decided: the field is the frontmatter key `origin`, not a project field, because the
+contract's board field has that name and meaning. It is carried by the files backend only.
+The issues backend accepts the option but does not turn it into the `origin: outsider`
+label yet. Belfry has no create command for `github-issues`, so that path cannot be reached
+through Belfry today. The idea `issues-backend-origin-dropped` is filed for it.
+
+Left: this repository's own `.belfry.yml` (its create line came from 0082, merged in here)
+stays without `--origin {origin}`. `.peal/peal` runs the installed release, which would
+refuse the option. The idea `own-belfry-yml-origin` is filed to add it once a release
+ships 0083.
+
+Next session: the task was blocked until Belfry's contract documented `{origin}`; it now
+does (see Notes). The implementer ran the touched harnesses and lint, all green. The full
+`tools/test-all.sh` was not run to the end here; CI runs it.
