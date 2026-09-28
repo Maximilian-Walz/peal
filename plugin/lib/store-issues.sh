@@ -194,21 +194,82 @@ _peal_issues_text() {
     -f "$PEAL_ROOT/lib/issues-lib.awk" -f "$PEAL_ROOT/lib/issues-text.awk"
 }
 
-# _peal_issues_admitted ROW -> status 0 when the write-access rule or the filter label
-# admits ROW (an issue as PEAL_ISSUES_ROW reads it); PEAL_LABEL must be set
-# (_peal_issues_settings). The one rule every read path of the issues storage applies.
-_peal_issues_admitted() {
-  # shellcheck disable=SC2016 # awk's own $ fields, not the shell's
-  printf '%s\n' "$1" | awk -F '\t' -v label="$PEAL_LABEL" -f "$PEAL_ROOT/lib/issues-lib.awk" \
-    -f <(printf '%s\n' '{ exit !admitted($6, $5, label) }')
+# _peal_issues_edits N -> "labelled_at<TAB>author<TAB>edited_at<TAB>editor<TAB>renamed_at
+# <TAB>renamer" of issue N, one GraphQL call (owner/name split from PEAL_REPO):
+# labelled_at the latest 'labeled' timeline event of PEAL_LABEL, or the issue's
+# createdAt when none is found (fail closed: a re-label always moves it forward); editor
+# and renamer empty for no edit or rename. Status 2 if the call or its answer cannot be
+# read.
+_peal_issues_edits() {
+  local id=$1 owner=${PEAL_REPO%%/*} name=${PEAL_REPO#*/} json
+  # shellcheck disable=SC2016 # GraphQL's own $variables, not the shell's
+  json=$(peal_gh graphql -f query='
+    query($owner: String!, $name: String!, $number: Int!) {
+      repository(owner: $owner, name: $name) {
+        issue(number: $number) {
+          createdAt
+          author { login }
+          lastEditedAt
+          editor { login }
+          timelineItems(last: 100, itemTypes: [LABELED_EVENT, RENAMED_TITLE_EVENT]) {
+            nodes {
+              __typename
+              ... on LabeledEvent { createdAt label { name } }
+              ... on RenamedTitleEvent { createdAt actor { login } }
+            }
+          }
+        }
+      }
+    }' -f owner="$owner" -f name="$name" -F number="$id") || return 2
+  printf '%s\n' "$json" | jq -r --arg label "$PEAL_LABEL" '
+    .data.repository.issue as $i
+    | ([$i.timelineItems.nodes[] | select(.__typename == "LabeledEvent" and .label.name == $label)]
+        | sort_by(.createdAt) | last | .createdAt) as $labelled
+    | ([$i.timelineItems.nodes[] | select(.__typename == "RenamedTitleEvent")]
+        | sort_by(.createdAt) | last) as $rename
+    | [($labelled // $i.createdAt), ($i.author.login // ""), ($i.lastEditedAt // ""),
+       ($i.editor.login // ""), ($rename.createdAt // ""), ($rename.actor.login // "")] | @tsv'
 }
 
-# _peal_issues_refuse ID ROW -> the message that refuses ID: opened by someone without
-# write access to PEAL_REPO, not labelled PEAL_LABEL, or both when a label is set and the
-# opener also lacks write access; an owner's unlabelled issue is refused as not labelled
-# alone. Quotes none of the issue's own text.
+# _peal_issues_admitted ROW [N] -> status 0 when ROW (an issue as PEAL_ISSUES_ROW reads
+# it) is admitted: the write-access rule or the filter label, as ever; then, with a
+# label and N (the issue's number) given, no edit later than the label's own labelling
+# (_peal_issues_edits, issues-lib.awk's edit_admitted()) unless it is by someone with
+# write access. Status 1 when refused for the write-access/label reason, PEAL_ADMIT_EDIT
+# left 0; status 1 with PEAL_ADMIT_EDIT set to 1 when refused for the edit reason
+# instead (_peal_issues_refuse reads it); status 2 with PEAL_ADMIT_ERR set to why when
+# the edit data could not be read.
+_peal_issues_admitted() {
+  local row=$1 id=${2-} edits
+  PEAL_ADMIT_EDIT=0
+  PEAL_ADMIT_ERR=""
+  # shellcheck disable=SC2016 # awk's own $ fields, not the shell's
+  printf '%s\n' "$row" | awk -F '\t' -v label="$PEAL_LABEL" -f "$PEAL_ROOT/lib/issues-lib.awk" \
+    -f <(printf '%s\n' '{ exit !admitted($6, $5, label) }') || return 1
+  if [ -n "$PEAL_LABEL" ] && [ -n "$id" ]; then
+    edits=$(_peal_issues_edits "$id") || { PEAL_ADMIT_ERR="could not read issue $id's edits"; return 2; }
+    # shellcheck disable=SC2016 # awk's own $ fields, not the shell's
+    if ! printf '%s\t%s\n' "$edits" "$(_peal_field "$row" 6)" | awk -F '\t' -f "$PEAL_ROOT/lib/issues-lib.awk" \
+        -f <(printf '%s\n' '{ exit !edit_admitted($1, $2, $7, $3, $4, $5, $6) }'); then
+      PEAL_ADMIT_EDIT=1
+      return 1
+    fi
+  fi
+  return 0
+}
+
+# _peal_issues_refuse ID ROW -> the message that refuses ID: an edit later than the
+# labelling by someone without write access when PEAL_ADMIT_EDIT (_peal_issues_admitted)
+# is 1; otherwise opened by someone without write access to PEAL_REPO, not labelled
+# PEAL_LABEL, or both when a label is set and the opener also lacks write access; an
+# owner's unlabelled issue is refused as not labelled alone. Quotes none of the issue's
+# own text, nor who edited it.
 _peal_issues_refuse() {
   local id=$1 row=$2 assoc why
+  if [ "${PEAL_ADMIT_EDIT:-0}" = 1 ]; then
+    peal_err "refused: issue $id is no task: edited after it was labelled '$PEAL_LABEL' by someone without write access to $PEAL_REPO; read the edit, then take the label '$PEAL_LABEL' off and add it again to make it a task"
+    return
+  fi
   assoc=$(_peal_field "$row" 6)
   if [ -z "$PEAL_LABEL" ]; then
     peal_err "refused: issue $id is no task: opened by someone without write access to $PEAL_REPO; set storage.issues.label and label it, or file it anew yourself (peal idea)"
@@ -221,6 +282,23 @@ _peal_issues_refuse() {
   peal_err "refused: issue $id is no task: $why; labelling it '$PEAL_LABEL' or filing it anew yourself (peal idea) makes it a task"
 }
 
+# _peal_issues_check_admitted ID ROW -> status 0 when ROW is admitted; otherwise the
+# refusal reported (a bad edit read as its own message, else _peal_issues_refuse) and
+# status 2, for the single-issue paths (read, claim, revise, defer) that hold a fresh ROW
+# already.
+_peal_issues_check_admitted() {
+  local id=$1 row=$2 status
+  _peal_issues_admitted "$row" "$id"
+  status=$?
+  if [ $status = 2 ]; then
+    peal_err "$PEAL_ADMIT_ERR"
+    return 2
+  elif [ $status != 0 ]; then
+    _peal_issues_refuse "$id" "$row"
+    return 2
+  fi
+}
+
 peal_store_read() {
   local row
   if ! [[ "${1-}" =~ ^[0-9]+$ ]]; then
@@ -229,7 +307,7 @@ peal_store_read() {
   fi
   _peal_issues_settings || return 2
   row=$(_peal_issues_issue "$1") || { peal_err "no task $1"; return 2; }
-  _peal_issues_admitted "$row" || { _peal_issues_refuse "$1" "$row"; return 2; }
+  _peal_issues_check_admitted "$1" "$row" || return 2
   _peal_issues_text "$row"
 }
 
@@ -534,6 +612,10 @@ peal_store_edit() {
     rm -rf "$tmp"
     return 2
   fi
+  if ! _peal_issues_check_admitted "$id" "$row"; then
+    rm -rf "$tmp"
+    return 2
+  fi
   if [ "$(_peal_field "$row" 2)" != open ]; then
     peal_err "revise: issue $id is closed"
     rm -rf "$tmp"
@@ -597,7 +679,7 @@ peal_store_defer() {
     return 2
   fi
   row=$(_peal_issues_issue "$id") || return 2
-  _peal_issues_admitted "$row" || { _peal_issues_refuse "$id" "$row"; return 2; }
+  _peal_issues_check_admitted "$id" "$row" || return 2
   if [ "$(_peal_field "$row" 2)" != open ]; then
     peal_err "defer: issue $id is closed"
     return 2
@@ -739,10 +821,13 @@ _peal_issues_label_claim() {
 # remote's, else a new one from the remote's main) and the label "in progress". One line
 # "claimed ID BRANCH PATH" or "resumed ID BRANCH PATH", PEAL_CLAIM_PATH the worktree. The
 # issue's text is kept in the worktree's git directory for the session hooks. Status 2
-# for anything refused or failed, taken back.
+# for anything refused or failed, taken back; an issue the write-access rule (or an edit
+# since it was labelled) no longer admits refuses the same way read does.
 peal_store_claim() {
-  local id=$1 dir branch wt err how=claimed gitdir
+  local id=$1 dir branch wt err how=claimed gitdir row
   _peal_issues_settings || return 2
+  row=$(_peal_issues_issue "$id") || return 2
+  _peal_issues_check_admitted "$id" "$row" || return 2
   dir=$(peal_worktrees_dir) || return 2
   branch=issue/$id wt=$dir/issue-$id
   if [ -e "$wt" ]; then
