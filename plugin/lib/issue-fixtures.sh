@@ -49,29 +49,41 @@ milestone() {
     --arg n "$1" --arg t "$2" --arg s "$3" --arg d "$4" --arg desc "$5"
 }
 
-# issue NUMBER TITLE [--closed | --not-planned] [--label L]... [--milestone M]
-# [--body TEXT] [--assoc ASSOCIATION] -> an issue on the fake GitHub, opened by its owner
-# unless --assoc says otherwise.
+# issue NUMBER TITLE [--closed | --not-planned] [--label L]... [--labelled-at T]...
+# [--milestone M] [--body TEXT] [--assoc ASSOCIATION] [--edited-at T BY]
+# [--renamed-at T BY]... -> an issue on the fake GitHub, opened by its owner (login
+# "author") unless --assoc says otherwise. --labelled-at T records a labelling of the
+# most recent --label at time T; --edited-at and --renamed-at, the re-label check's
+# GraphQL edits query (lib/fake-gh): BY is the editor's or renamer's login ("author" for
+# the issue's own opener, so its write access is --assoc's).
 issue() {
-  local n=$1 title=$2 state=open reason="" labels="[]" ms="" body="" assoc=OWNER
+  local n=$1 title=$2 state=open reason="" labels="[]" ms="" body="" assoc=OWNER \
+    lastlabel="" labelled="[]" edited_at="" editor="" renamed="[]"
   shift 2
   while [ $# -gt 0 ]; do
     case $1 in
       --closed) state=closed reason=completed ;;
       --not-planned) state=closed reason=not_planned ;;
-      --label) labels=$(jq -c --arg l "$2" '. + [{name: $l}]' <<<"$labels"); shift ;;
+      --label) labels=$(jq -c --arg l "$2" '. + [{name: $l}]' <<<"$labels"); lastlabel=$2; shift ;;
+      --labelled-at) labelled=$(jq -c --arg t "$2" --arg l "$lastlabel" '. + [{at: $t, label: $l}]' <<<"$labelled"); shift ;;
       --milestone) ms=$2; shift ;;
       --body) body=$2; shift ;;
       --assoc) assoc=$2; shift ;;
+      --edited-at) edited_at=$2; editor=$3; shift 2 ;;
+      --renamed-at) renamed=$(jq -c --arg t "$2" --arg b "$3" '. + [{at: $t, by: $b}]' <<<"$renamed"); shift 2 ;;
     esac
     shift
   done
   gh_save issues '. + [{number: ($n | tonumber), title: $t, state: $s,
       state_reason: (if $r == "" then null else $r end), body: $b, labels: $l,
       author_association: $a, html_url: ("https://github.com/acme/widgets/issues/" + $n),
-      milestone: (if $m == "" then null else ($ms[0][] | select(.title == $m) | {number, title}) end)}]' \
+      milestone: (if $m == "" then null else ($ms[0][] | select(.title == $m) | {number, title}) end),
+      author_login: "author", labeled_events: $lb,
+      last_edited_at: (if $e == "" then null else $e end), editor: (if $e == "" then null else $ed end),
+      renamed_events: $rn}]' \
     --arg n "$n" --arg t "$title" --arg s "$state" --arg r "$reason" --arg b "$body" \
-    --argjson l "$labels" --arg a "$assoc" --arg m "$ms" --slurpfile ms "$FAKE_GH/milestones.json"
+    --argjson l "$labels" --arg a "$assoc" --arg m "$ms" --slurpfile ms "$FAKE_GH/milestones.json" \
+    --argjson lb "$labelled" --arg e "$edited_at" --arg ed "$editor" --argjson rn "$renamed"
 }
 
 # pr NUMBER BODY [--draft] [--fork ASSOCIATION] [--closed] -> a pull request on the fake

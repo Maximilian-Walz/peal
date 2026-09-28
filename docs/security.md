@@ -169,13 +169,27 @@ and quote none of its text; `list`, the board, the depends expansion and `ship`'
 notes apply the same rule, an unadmitted issue a commit subject names getting the
 commit's own subject in the notes, never the issue's title.
 
-Known limits: a stranger's edit to an issue after it was labelled is accepted for now (a
-follow-up task adds a re-label check, admitting only when the last edit precedes the
-labelling or is by someone with write access); a task depending on a stranger's issue
-still reads its state (open or closed) to know whether it is done, the one thing that
-crosses the boundary, never its text. No command reads comments.
+Labelling (or write access) alone is not the end of it: on every single-issue path
+(`read`, `claim`, `work`, `revise`, `close` and the session's cached copy — `defer`
+included), an edit later than the issue's own labelling of the filter label (one
+GraphQL call, `_peal_issues_edits`) is admitted only when it is by someone with write
+access — a non-author editor is inferred one already, since GitHub lets only a
+collaborator edit someone else's issue, so only the author's own later edit is checked
+against their association; a missing edit event or a failed call refuses, never admits.
+A stranger who labelled their own issue cannot, then, slip a task's real text in after
+the maintainer looked away; re-labelling (taking the filter label off and on again) is
+how a maintainer re-admits an edit once they have read it. `list`, the board, the depends
+expansion and `ship`'s release notes stay on the coarser rule above (a narrower known
+limit: their title, in the listing or a release note, may show an edit made after
+labelling, though claiming still refuses it, and no body ever does); no extra `gh` call
+is made without a filter label configured.
 
-- Guard: `plugin/lib/issues-lib.awk` (`admitted()`), `plugin/lib/store-issues.sh`,
+A task depending on a stranger's issue still reads its state (open or closed) to know
+whether it is done, the one thing that crosses the boundary, never its text. No command
+reads comments.
+
+- Guard: `plugin/lib/issues-lib.awk` (`admitted()`, `edit_admitted()`),
+  `plugin/lib/store-issues.sh` (`_peal_issues_admitted`, `_peal_issues_edits`),
   `plugin/lib/claim.sh`, `plugin/lib/work.sh`, `plugin/lib/ship.sh`.
 - Harness: `plugin/lib/hostile.test.sh` (the issues storage's channels),
   `plugin/lib/store-issues.test.sh`, `plugin/lib/ship.test.sh`.

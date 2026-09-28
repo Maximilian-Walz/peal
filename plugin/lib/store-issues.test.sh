@@ -227,6 +227,97 @@ admission() {
     "no task 1" peal claim 1
 }
 
+# edit_admitted(): the re-label check on top of admitted() (0076): a labelled issue (or
+# one opened by someone with write access) edited afterwards by someone without write
+# access is refused the same way, on every single-issue path; read directly, the rest
+# through their own refusal.
+edit_admission() {
+  local work wt
+  issues_repo_label
+  issue 10 "Edited before labelling" --label tasks --assoc NONE \
+    --labelled-at 2026-02-01T00:00:00Z --edited-at 2026-01-01T00:00:00Z author
+  check "read: an edit before the labelling is admitted" "# 10 — Edited before labelling" \
+    "$(peal read 10 2>&1 | grep '^# ')"
+
+  issue 11 "Edited after labelling" --label tasks --assoc NONE \
+    --labelled-at 2026-02-01T00:00:00Z --edited-at 2026-03-01T00:00:00Z author
+  check_refused "read: a stranger's own edit after labelling is refused" \
+    "refused: issue 11 is no task: edited after it was labelled 'tasks' by someone without write access to acme/widgets; read the edit, then take the label 'tasks' off and add it again to make it a task" \
+    peal read 11
+  check_refused "claim: the same refusal" \
+    "refused: issue 11 is no task: edited after it was labelled 'tasks' by someone without write access to acme/widgets; read the edit, then take the label 'tasks' off and add it again to make it a task" \
+    peal claim 11
+  check_refused "revise: the same refusal, unclaimed" \
+    "refused: issue 11 is no task: edited after it was labelled 'tasks' by someone without write access to acme/widgets; read the edit, then take the label 'tasks' off and add it again to make it a task" \
+    peal revise 11 --reason x --dry-run
+  check "list: a labelled issue edited after stays listed (the narrower, known limit)" \
+    "1" "$(list 2>&1 | grep -c '^11 ')"
+
+  issue 12 "Renamed after labelling" --label tasks --assoc NONE \
+    --labelled-at 2026-02-01T00:00:00Z --renamed-at 2026-03-01T00:00:00Z author
+  check_refused "read: a stranger's own rename after labelling is refused" \
+    "refused: issue 12 is no task: edited after it was labelled 'tasks' by someone without write access to acme/widgets; read the edit, then take the label 'tasks' off and add it again to make it a task" \
+    peal read 12
+
+  issue 13 "Maintainer edited after labelling" --label tasks --assoc NONE \
+    --labelled-at 2026-02-01T00:00:00Z --edited-at 2026-03-01T00:00:00Z maintainer
+  check "read: a non-author's edit is inferred a writer's, admitted" "# 13 — Maintainer edited after labelling" \
+    "$(peal read 13 2>&1 | grep '^# ')"
+
+  issue 14 "Owner edited their own issue" --label tasks --assoc OWNER \
+    --labelled-at 2026-02-01T00:00:00Z --edited-at 2026-03-01T00:00:00Z author
+  check "read: the owner's own edit after labelling is admitted" "# 14 — Owner edited their own issue" \
+    "$(peal read 14 2>&1 | grep '^# ')"
+
+  issue 15 "Re-labelled after the edit" --label tasks --assoc NONE \
+    --edited-at 2026-01-01T00:00:00Z author --labelled-at 2026-02-01T00:00:00Z
+  check "read: a re-label after the edit is admitted" "# 15 — Re-labelled after the edit" \
+    "$(peal read 15 2>&1 | grep '^# ')"
+
+  # Another label's own events (even a later one) never count: only the filter label's.
+  issue 16 "Another label's events ignored" --label tasks --labelled-at 2026-01-01T00:00:00Z \
+    --label "in progress" --labelled-at 2026-05-01T00:00:00Z --assoc NONE \
+    --edited-at 2026-03-01T00:00:00Z author
+  check_refused "read: another label's later event has no effect" \
+    "refused: issue 16 is no task: edited after it was labelled 'tasks' by someone without write access to acme/widgets; read the edit, then take the label 'tasks' off and add it again to make it a task" \
+    peal read 16
+
+  # No labelled event of the filter label found: fails closed to the issue's createdAt.
+  issue 17 "No labelled event, edited" --label tasks --assoc NONE --edited-at 2026-01-01T00:00:00Z author
+  check_refused "read: no labelled event found refuses (fails closed)" \
+    "refused: issue 17 is no task: edited after it was labelled 'tasks' by someone without write access to acme/widgets; read the edit, then take the label 'tasks' off and add it again to make it a task" \
+    peal read 17
+
+  # No filter label configured: the base rule alone, no extra gh call.
+  issues_repo
+  issue 1 "Owner's issue"
+  check "read: no label configured, admitted" "# 1 — Owner's issue" "$(peal read 1 2>&1 | grep '^# ')"
+  check "no label configured: no graphql call" "0" "$(calls 'POST graphql')"
+
+  # A failing GraphQL call refuses, status 2, quoting no text.
+  issues_repo_label
+  issue 18 "Whatever" --label tasks --assoc NONE
+  printf 'POST graphql' >"$FAKE_GH/fail"
+  check_fails "read: a failing graphql call" 2 "could not read issue 18's edits" peal read 18
+  rm -f "$FAKE_GH/fail"
+
+  # defer and work: the same refusal once a claimed, labelled issue is edited afterwards.
+  issue 21 "Claimable, labelled" --label tasks --assoc NONE
+  wt=$(peal claim 21 --print-path 2>/dev/null | tail -n 1)
+  gh_save issues 'map(if .number == 21 then . + {last_edited_at: "2026-01-01T00:00:00Z", editor: "author"} else . end)'
+  check_fails "defer: refused once a labelled issue is edited afterwards" 2 \
+    "refused: issue 21 is no task: edited after it was labelled 'tasks' by someone without write access to acme/widgets; read the edit, then take the label 'tasks' off and add it again to make it a task" \
+    at "$wt" "$PEAL" defer --reason "no longer mine" --dry-run < <(cat "$(git -C "$wt" rev-parse --absolute-git-dir)/peal-task.md")
+
+  issue 22 "Claimable, labelled, for work" --label tasks --assoc NONE
+  wt=$(peal claim 22 --print-path 2>/dev/null | tail -n 1)
+  gh_save issues 'map(if .number == 22 then . + {last_edited_at: "2026-01-01T00:00:00Z", editor: "author"} else . end)'
+  : >"$(git -C "$wt" rev-parse --absolute-git-dir)/peal-task.md"
+  check_fails "work: refused once a labelled issue is edited afterwards" 2 \
+    "refused: issue 22 is no task: edited after it was labelled 'tasks' by someone without write access to acme/widgets; read the edit, then take the label 'tasks' off and add it again to make it a task" \
+    at "$wt" "$PEAL" work
+}
+
 expansion() {
   local work err
   issues_repo
@@ -818,6 +909,7 @@ cases() {
   writes
   claims
   admission
+  edit_admission
   session
   commit_msg
   repo_of

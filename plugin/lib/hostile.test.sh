@@ -407,14 +407,17 @@ awk_channels() {
 # with hostile bodies; an outsider's comment; an admitted (owner's) issue depending on
 # and part of a stranger's, so the depends extras path (store-issues.sh's own read of an
 # issue only named by another's depends or part-of, whose state alone crosses the
-# boundary) runs on outsider text too. Every case: nothing runs, nothing is written
-# outside, the outsider's marker reaches no output, and no command reads comments.
+# boundary) runs on outsider text too; then, in a second repository with a filter label
+# configured, a labelled issue edited afterwards by its own author (no write access),
+# claimed and deferred too (0076's re-label check). Every case: nothing runs, nothing is
+# written outside, the outsider's marker reaches no output, and no command reads
+# comments.
 issues_channels() {
   if ! command -v jq >/dev/null 2>&1; then
     NOTES="${NOTES}note: no jq here, which the issues storage's fake gh needs; issues_channels skipped"$'\n'
     return
   fi
-  local fakebin fakegh id
+  local fakebin fakegh id wt
   INPUT=$NOINPUT
   hostile_repo
   printf 'decisions: docs/decisions\nstorage:\n  kind: issues\n  issues:\n    repo: acme/widgets\n' >"$WORK/.peal/config.yml"
@@ -462,6 +465,44 @@ issues_channels() {
   MARKER=""
 
   check "issues: no command reads comments" "0" "$(grep -c '^GET.*comments' "$fakegh/log" 2>/dev/null)"
+
+  # The re-label check (0076): a filter label admits an issue; its own author (no write
+  # access) editing it afterwards refuses it the same way, on every single-issue path,
+  # never showing the edit's hostile title or body. A fresh repository, its label
+  # configured, so the base rule (unlabelled, above) is out of the way.
+  hostile_repo
+  printf 'decisions: docs/decisions\nstorage:\n  kind: issues\n  issues:\n    repo: acme/widgets\n    label: tasks\n' >"$WORK/.peal/config.yml"
+  git -C "$WORK" add -A
+  git -C "$WORK" commit -q -m "wip: issues storage, labelled"
+  git -C "$WORK" push -q origin main 2>/dev/null
+  fake_github "$WORK"
+  fakegh=$FAKE_GH
+  fakebin=$(dirname "$WORK")/bin
+  PATHPREFIX="$fakebin:$STUBS"
+
+  issue 8 "Relabel-edit task, claimed" --label tasks --assoc NONE
+  wt=$(cd "$WORK" && PATH="$PATHPREFIX:$PATH" TMPDIR="$REPO/tmp" "$PEAL" claim 8 --print-path 2>/dev/null | tail -n 1)
+  issue 9 "Relabel-edit task, unclaimed" --label tasks --assoc NONE
+  gh_save issues 'map(if .number == 8 or .number == 9 then . + {
+      title: $t, body: $b, editor: "author", last_edited_at: "2030-01-01T00:00:00Z"
+    } else . end)' --arg t "Edited \$(touch $CANARY/title89) OUTSIDER-TEXT" \
+    --arg b "Body \$(touch $CANARY/body89) OUTSIDER-TEXT"
+
+  MARKER=OUTSIDER-TEXT
+  try "issues: read 9, edited after labelling" "$WORK" read 9
+  try "issues: claim 9, edited after labelling" "$WORK" claim 9
+  try "issues: work 9, edited after labelling" "$WORK" work 9
+  try "issues: revise 9 --dry-run, edited after labelling" "$WORK" revise 9 --reason x --dry-run
+  if [ -n "$wt" ] && [ -d "$wt" ]; then
+    try "issues: work in the claim, edited after labelling" "$wt" work
+    cat "$(git -C "$wt" rev-parse --absolute-git-dir)/peal-task.md" >"$BASE/input-defer8" 2>/dev/null || : >"$BASE/input-defer8"
+    INPUT=$BASE/input-defer8
+    try "issues: defer 8, edited after labelling" "$wt" defer --reason x --dry-run
+    INPUT=$NOINPUT
+  else
+    check "issues: claim 8 for the defer channel" "a worktree" "${wt:-nothing}"
+  fi
+  MARKER=""
 
   ALLOW=()
   PATHPREFIX=$STUBS

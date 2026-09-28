@@ -73,6 +73,29 @@ function admitted(assoc, labels, label,    n, ls, j) {
   return assoc == "OWNER" || assoc == "MEMBER" || assoc == "COLLABORATOR"
 }
 
+# edit_writer(author, assoc, who) -> 1 when who (an editor or renamer's login, "" for a
+# ghost) may be trusted with write access: GitHub lets only a collaborator edit someone
+# else's issue, so a non-author who is inferred a writer without a permission call; the
+# author themself counts only with assoc OWNER, MEMBER or COLLABORATOR.
+function edit_writer(author, assoc, who) {
+  if (who == "") return 0
+  if (who == author) return assoc == "OWNER" || assoc == "MEMBER" || assoc == "COLLABORATOR"
+  return 1
+}
+
+# edit_admitted(labelled_at, author, assoc, edited_at, editor, renamed_at, renamer) -> 1
+# when no edit is later than labelled_at (ISO-8601 Z timestamps, comparable as strings):
+# the last body edit (edited_at/editor) and the latest title rename (renamed_at/renamer)
+# each admitted by edit_writer when later than labelled_at, otherwise ignored. A stranger
+# who edits an already-labelled issue afterwards (an author without write access, since a
+# non-author editor is inferred a writer already) is the one case this refuses.
+function edit_admitted(labelled_at, author, assoc, edited_at, editor, renamed_at, renamer,    ok) {
+  ok = 1
+  if (edited_at != "" && edited_at > labelled_at) ok = ok && edit_writer(author, assoc, editor)
+  if (renamed_at != "" && renamed_at > labelled_at) ok = ok && edit_writer(author, assoc, renamer)
+  return ok
+}
+
 # add_item(list, v) -> the comma list with v appended, once.
 function add_item(list, v) {
   if (index("," list ",", "," v ",")) return list

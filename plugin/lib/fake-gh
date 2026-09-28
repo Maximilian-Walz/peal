@@ -10,7 +10,11 @@
 # is applied with jq, as gh applies its own. A pull request's merge (PUT pulls/N/merge,
 # a squash) and a branch's deletion (DELETE git/refs/heads/B) act on the bare repository
 # $FAKE_GH/remote; `gh api graphql` knows the mutation enablePullRequestAutoMerge, refused
-# while $FAKE_GH/no-auto-merge exists. A pull request opens unmergeable while
+# while $FAKE_GH/no-auto-merge exists, and the re-label check's edits query (an issue's
+# timelineItems), answered from an issue's own optional fields: created_at (default
+# 2000-01-01T00:00:00Z), author_login (default "author"), last_edited_at, editor,
+# labeled_events ({at, label}, one per labelling) and renamed_events ({at, by}, one per
+# rename). A pull request opens unmergeable while
 # $FAKE_GH/unmergeable exists. $FAKE_GH/checks-pending, when it exists, holds N: the next
 # N reads of a commit's check runs find one still running, every later one a completed
 # run, failed while $FAKE_GH/checks-fail exists; $FAKE_GH/on-check-runs, when it exists,
@@ -172,7 +176,22 @@ if [ "$path" = graphql ]; then
       save pulls 'map(if .node_id == $id then . + {auto_merge: {merge_method: "squash"}} else . end)' --arg id "$id"
       out '{"data":{"enablePullRequestAutoMerge":{"clientMutationId":null}}}'
       ;;
-    *) die "graphql: only enablePullRequestAutoMerge is faked" ;;
+    *timelineItems*)
+      n=$(field number)
+      row=$(jq -c --argjson n "$n" '.[] | select(.number == $n)' "$FAKE_GH/issues.json")
+      [ -n "$row" ] || { printf 'GraphQL: Could not resolve to an Issue with the number of %s.\n' "$n" >&2; exit 1; }
+      jq -c '{data: {repository: {issue: {
+          createdAt: (.created_at // "2000-01-01T00:00:00Z"),
+          author: {login: (.author_login // "author")},
+          lastEditedAt: (.last_edited_at // null),
+          editor: (if .editor then {login: .editor} else null end),
+          timelineItems: {nodes: (
+            [(.labeled_events // [])[] | {__typename: "LabeledEvent", createdAt: .at, label: {name: .label}}]
+            + [(.renamed_events // [])[] | {__typename: "RenamedTitleEvent", createdAt: .at, actor: {login: .by}}]
+          )}
+        }}}}' <<<"$row"
+      ;;
+    *) die "graphql: only enablePullRequestAutoMerge and the re-label check's edits query are faked" ;;
   esac
   exit 0
 fi
