@@ -479,8 +479,9 @@ What the states mean to Peal:
 
 The reference's pools map onto this: its current milestone is the `current` one,
 "unassigned" is no milestone, "later" is a `parked` milestone, and its "process" pool,
-claimed only by name, is an `open` milestone. Its "any" pool held only the recurring drift
-check, which becomes `/peal:drift`.
+claimed only by name, is an `open` milestone. Its "any" pool, never offered, becomes its
+own `parked` milestone rather than folding into "later": it held more than the recurring
+drift check (which becomes `/peal:drift`), and a migration keeps what else was on it.
 
 Every milestone has a review task, `depends: [milestone]`, whose session runs
 `/peal:milestone-review`. The same command runs without a task, as a Belfry action with
@@ -1017,14 +1018,16 @@ its own task-file process, such as the reference:
 
 1. **Install** the plugin: `peal init --stage tasks` and `--stage guardrails`, keeping
    the existing `tasks/` layout and template.
-2. **Convert headers.** `peal migrate headers` rewrites each task's `key: value` header
-   into a frontmatter block: space- or comma-separated `depends` and `needs` become YAML
-   lists, trailing comments are dropped, the pools map to milestones (a numbered milestone
-   to its id, "unassigned" to no field, "later" to a `parked` milestone, "process" to an
-   `open` one). It prints anything it cannot convert.
-3. **Convert milestones.** `peal migrate milestones` adds frontmatter to each milestone
-   doc, the newest `current`, earlier ones `done`, and creates the `parked` and `open`
-   milestones the pools needed.
+2. **Convert headers.** `peal migrate headers [--parked P,...] [--open P,...] [--none
+   P,...]` rewrites each task's `key: value` header into a frontmatter block: space- or
+   comma-separated `depends` and `needs` become YAML lists, trailing comments are
+   dropped, a numbered milestone becomes its id, a pool named in `--none` drops the
+   field, one named in `--parked` or `--open` stays as that id (the reference: `--none
+   unassigned --parked later,any --open process`). It prints anything it cannot convert.
+3. **Convert milestones.** `peal migrate milestones [--parked P,...] [--open P,...]`
+   adds frontmatter to each numbered milestone doc, the highest number `current`, earlier
+   ones `done`, and creates a milestone for every `--parked` and `--open` pool that has
+   no file yet.
 4. **Move project settings into config:** plan paths, reviewer skip paths, context
    documents, commit areas, checks (the build and test gate), PR sections.
 5. **Replace the generic scripts, commands, subagents and hooks with Peal's,** keeping
