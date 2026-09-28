@@ -1,6 +1,8 @@
 ---
 plan: required
 touches: [plugin/commands/setup.md]
+milestone: m2
+depends: [0030]
 ---
 
 # 0058 — /peal:setup ends by pointing at /peal:next, once it exists
@@ -27,6 +29,8 @@ This cannot start before `/peal:next` exists: task 0030, a task file, not an ope
 Filed as issue #58 (https://github.com/Maximilian-Walz/peal/issues/58) from an idea a session had; its text is carried over into the sections above.
 
 ## Notes
+
+Deferred 2026-09-28 after a claim: stale claim: its session stopped; given back so auto mode picks it up again
 
 `/peal:setup` (`plugin/commands/setup.md`) names the next stage itself in two places:
 
