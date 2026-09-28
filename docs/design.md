@@ -707,9 +707,9 @@ fix, never the first word on it.
   Otherwise each `checks.commit` item runs when the
   commit touches its paths: `"src/ *.cs: dotnet test"` runs on a change under `src/` or to
   a `.cs` file, an item without paths always. Git's own subjects (merge, revert, fixup)
-  pass the grammar; a merge still pays the checks. The id is required on a branch starting
-  with `branch-prefix` only: on any other named branch (a hotfix, a pin, an ad-hoc job) a
-  subject without `[NNNN]` passes, and `checks.commit` still runs. `peal commit` still
+  pass the grammar; a merge still pays the checks. The id is required on a task's branch only
+  (the storage says which: `task/NNNN-slug` for files, `issue/N` for issues): on any other
+  named branch (a hotfix, a pin, an ad-hoc job) a subject without `[NNNN]` passes, and `checks.commit` still runs. `peal commit` still
   refuses the main branch, so such work goes on a branch of its own, then a pull request.
 - **`peal commit SUBJECT [--body TEXT | --body-file FILE] [PATH...]`** stages, commits and
   reports in one call. With PATHs, resolved from the caller's directory as git's own are,

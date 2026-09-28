@@ -347,6 +347,14 @@ commit_msg() {
   check_fails "off a task branch: checks.commit runs" 1 "exit 4 failed" commit "fix: a hotfix"
   check "off a task branch: ...the first one ran" "ran" "$(cat "$mark")"
   rm -f "$work/.peal/config.yml"
+  # The storage says what a task's branch is: issue/N under the issues storage.
+  printf 'storage:\n  kind: issues\n' >"$work/.peal/config.yml"
+  git -C "$work" checkout -q -b issue/7
+  check_fails "issues storage: issue/N needs an id" 1 "does not end with its task id" commit "fix: a thing"
+  check "issues storage: issue/N with an id" "0" "$(commit "fix: a thing [7]" 2>/dev/null; echo $?)"
+  check "issues storage: task/ is no task's branch" "0" \
+    "$(git -C "$work" checkout -q -b task/0009-x 2>/dev/null; commit "fix: a hotfix" 2>/dev/null; echo $?)"
+  rm -f "$work/.peal/config.yml"
   git -C "$work" checkout -q task/0001-some-task
   check "subject: wip" "0" "$(commit "wip: half a thing" 2>/dev/null; echo $?)"
   check "subject: wip with an area" "0" "$(commit "wip(sim): half a thing" 2>/dev/null; echo $?)"
