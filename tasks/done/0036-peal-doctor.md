@@ -133,3 +133,46 @@ plugin/templates/launcher.test.sh.
 
 ## Outcome
 
+Built `peal doctor [CHECK...]` (`plugin/lib/doctor.sh`, wired into `plugin/bin/peal`). It
+runs six checks in order: config, version, hooks, gh, claims, belfry. It prints `ok`,
+`FAIL` (followed by `  fix: ...`) or `skip` per check, ends with `doctor: N problem(s)`,
+and exits 0 when healthy, 1 on any problem, 2 for an unknown check, outside a git
+repository, or without `.peal/`. Every planning question took the planner's default
+(`## Notes`, A1-A12). The design lives in docs/design.md, subsection "`peal doctor`" after
+"Setting up a project"; the README lists `doctor.sh`.
+
+Things a later session should know:
+
+- **Belfry's contract is run with care.** Only `list`, `board` and `offer` are ever run, and
+  only when their words (split by `shell-words.awk`, never `bash -c`) are literally
+  `.peal/peal list|board|offer ...`. The launcher is run (with `PEAL_ROOT` unset) only
+  when it is byte-identical to the template; otherwise the running `$PEAL_ROOT/bin/peal`
+  is run with the same arguments. Anything else is skipped and not run, so a project's own
+  wrapper command goes unchecked, by the human's choice (A6). Only the top-level `tasks:`
+  block of `.belfry.yml` is parsed, because yaml-parse.awk refuses a whole file with
+  sections outside Peal's subset.
+- **The config value checks live in doctor only.** `peal_config_load` and `peal check`
+  still accept, for example, `storage.kind: nope`. Moving the checks into the loader
+  would be a task of its own.
+- **Doctor never fetches.** A claim that landed on the remote but was never fetched here
+  passes silently.
+- **CI runs selected checks.** A bare `peal doctor` in CI fails, because there is no plugin
+  cache, no hooks and no gh login there. CI should name what it wants, e.g. `peal doctor
+  config belfry`.
+- `plugin/lib/fake-gh` answers `gh auth status` (it fails when `$FAKE_GH/no-auth` exists).
+- The harness, `plugin/lib/doctor.test.sh`, has 159 checks across three awks: one healthy
+  case per storage, every broken case of the plan, and the structural cases.
+  `tools/lint.sh` is clean.
+- origin/main (`/peal:next`) was merged in. The README and design.md conflicts were
+  resolved by keeping both sides. A config with `declined.<item>: [DATE]` passes
+  `peal doctor config`.
+
+The smoke run on this repository found real drift. The committed `.peal/peal` is behind
+the template, and the local hook stubs are older; an idea to refresh them is queued
+("Refresh this repository's committed launcher and hook stubs"). It also found task
+0030's claim ready to release, which is only local state on this machine.
+
+The review found no code problems. Its one finding, that `## Notes` did not explain the
+departures from the plan (the `fake-gh` handler, the `tasks:`-only parse, the config
+captured through a temp file), is fixed in the Notes, and `touches` now includes
+`plugin/lib/fake-gh`.
