@@ -49,6 +49,17 @@ catalogue() {
     "0:SUGGEST guardrails /peal:setup guardrails 0 done, 2 untagged
 ALSO review-task /peal:setup milestones m1 current, no review task" "$(next "$work")"
 
+  # State A: stages: [tasks] only, 12 done, no milestones. guardrails wins (12 done, and
+  # the fixture's own untagged commits); milestones, belfry and review-task all also
+  # qualify and fill the three ALSO lines, milestones' evidence carrying the count.
+  work=$(next_repo)
+  for i in 0001 0002 0003 0004 0005 0006 0007 0008 0009 0010 0011 0012; do put "$work" "done" "$i" "task-$i"; done
+  check "catalogue: state A, guardrails wins, milestones also with its count" \
+    "0:SUGGEST guardrails /peal:setup guardrails 12 done, 14 untagged
+ALSO milestones /peal:setup milestones 12 done, 0 open
+ALSO belfry /peal:setup belfry 12 done
+ALSO review-task /peal:setup milestones m1 current, no review task" "$(next "$work")"
+
   # milestones: guardrails already recorded (excluded); 10 done tasks meet its threshold
   # (evidence carries the count); belfry and review-task both also qualify, ranked after
   # it in the catalogue's order (the stages of peal init, then review-task last).
