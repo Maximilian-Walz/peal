@@ -175,6 +175,34 @@ _peal_next_untagged() {
   printf '%s\n' "${n:-0}"
 }
 
+# peal_next_hint RECORDS MILESTONES -> the SessionStart hint line ("Next to adopt: ..."),
+# reusing RECORDS and MILESTONES session_start already gathered (no second list, no
+# fetch, no gh) plus one local git log for guardrails' evidence. Nothing (status 0) for
+# NONE, an item currently declined, or any problem (a malformed declined date included),
+# so the hook is never held up by this; shown even without stages: recorded.
+peal_next_hint() {
+  local records=$1 milestones=$2 stages declined today untagged line item try prefix evidence
+  stages=$(peal_config_get stages 2>/dev/null) || return 0
+  declined=$(_peal_next_declined 2>/dev/null) || return 0
+  today=${PEAL_TODAY:-$(date -u +%Y-%m-%d)}
+  untagged=$(_peal_next_untagged 2>/dev/null)
+  line=$(peal_next_core "$records" "$milestones" "$stages" "$declined" "$untagged" "$today" 2>/dev/null | head -n 1)
+  case $line in
+    "SUGGEST "*) ;;
+    *) return 0 ;;
+  esac
+  item=$(printf '%s\n' "$line" | awk '{ print $2 }')
+  try=$(_peal_next_try "$item")
+  prefix="SUGGEST $item $try"
+  evidence=${line#"$prefix"}
+  evidence=${evidence# }
+  if [ -n "$evidence" ]; then
+    printf 'Next to adopt: %s, %s. For the human: /peal:next says more; nothing changes unasked.\n' "$item" "$evidence"
+  else
+    printf 'Next to adopt: %s. For the human: /peal:next says more; nothing changes unasked.\n' "$item"
+  fi
+}
+
 # peal_next [--all | ITEM] -> peal_next_core on the facts gathered here: the list
 # (--no-pr), the milestones, the config's stages and declined:, and, once the tasks stage
 # is recorded, one local git log for guardrails' evidence.
