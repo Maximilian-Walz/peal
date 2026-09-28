@@ -426,7 +426,7 @@ tasks:
     claim: .peal/peal claim {task} --print-path
     start: /peal:work {task}
     idea: /peal:idea {idea}
-    create: .peal/peal create --owner {owner} --title {title}
+    create: .peal/peal create --owner {owner} --title {title} --origin {origin}
     board: .peal/peal board
     milestone: .peal/peal milestone-state {id} {state} --reason {reason}
     retire: .peal/peal retire {task} --reason {reason}

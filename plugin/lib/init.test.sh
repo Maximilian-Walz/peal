@@ -94,11 +94,11 @@ skipped the check: belfry check is not available yet" "$out"
   check "belfry: the commands backend" "  backend: commands
     list: .peal/peal list
     start: /peal:work {task}
-    create: .peal/peal create --owner {owner} --title {title}
+    create: .peal/peal create --owner {owner} --title {title} --origin {origin}
     milestone: .peal/peal milestone-state {id} {state} --reason {reason}" \
     "$(grep -E '^  backend|list:|start:|create:|milestone:' "$work/.belfry.yml")"
-  check "belfry: create's only placeholders are owner and title" "" \
-    "$(grep '^    create:' "$work/.belfry.yml" | grep -o '{[^}]*}' | grep -v -e '^{owner}$' -e '^{title}$')"
+  check "belfry: create's only placeholders are owner, title and origin" "" \
+    "$(grep '^    create:' "$work/.belfry.yml" | grep -o '{[^}]*}' | grep -v -e '^{owner}$' -e '^{title}$' -e '^{origin}$')"
   check "belfry: the actions are suggestions" "# actions:" "$(grep 'actions:' "$work/.belfry.yml")"
   check "all stages recorded, in order" "tasks
 guardrails

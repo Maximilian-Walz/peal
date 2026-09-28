@@ -7,7 +7,7 @@
 # file is skipped, one whose slug is not kebab-case a-z and 0-9 with a warning. The
 # record, tab-separated (lists joined with commas):
 #
-#   id  dir  -  slug  title  milestone  depends  part-of  size  plan  needs  path  url  priority  owner  touches  merge
+#   id  dir  -  slug  title  milestone  depends  part-of  size  plan  needs  path  url  priority  owner  touches  merge  origin
 #
 # dir stands where task-state.awk's state goes and "-" where its detail does; url, a
 # task's page on a host, is empty for a file; priority is urgent, high or low, empty for
@@ -15,7 +15,10 @@
 # for a human task, empty for ai (a word Peal does not know is warned about and read as
 # ai); touches the paths and globs the task will likely change; merge auto for a task the
 # human agreed may merge itself, empty for the project's default (a word Peal does not
-# know is warned about and read as the default). The title
+# know is warned about and read as the default); origin outsider for a task filed from
+# text that came from outside the project (Belfry's tasks.commands.create, {origin}),
+# empty for writer (a word Peal does not know is warned about and read as writer). The
+# title
 # is the first "# " heading after the frontmatter, without its "NNNN — " prefix. A file
 # whose frontmatter leaves Peal's subset is warned about and listed without fields; a
 # depends entry that is no task id, milestone or human is warned about and dropped. One
@@ -84,6 +87,11 @@ function flush(    rel, m, nrec, recs, j, f, key, kind, value, n, lst) {
     v["merge"] = ""
   }
 
+  if (v["origin"] !~ /^(outsider)?$/) {
+    printf "peal: warning: %s: origin: '%s' is not outsider; read as writer\n", rel, v["origin"] > "/dev/stderr"
+    v["origin"] = ""
+  }
+
   title = ""
   for (j = body; j <= count; j++) if (lines[j] ~ /^# /) { title = substr(lines[j], 3); break }
   sub(/^ +/, "", title); sub(/[ \r]+$/, "", title)
@@ -93,9 +101,9 @@ function flush(    rel, m, nrec, recs, j, f, key, kind, value, n, lst) {
   }
   gsub(/\t/, " ", title)
 
-  printf "%s\t%s\t-\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t\t%s\t%s\t%s\t%s\n", id, dir, slug, title,
+  printf "%s\t%s\t-\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t\t%s\t%s\t%s\t%s\t%s\n", id, dir, slug, title,
     v["milestone"], v["depends"], v["part-of"], v["size"], v["plan"], v["needs"], rel, v["priority"],
-    v["owner"], v["touches"], v["merge"]
+    v["owner"], v["touches"], v["merge"], v["origin"]
 }
 
 BEGIN { mode = "frontmatter" }
