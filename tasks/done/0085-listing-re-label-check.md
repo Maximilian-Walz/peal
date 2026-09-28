@@ -128,4 +128,39 @@ Ranges:
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Built as planned. With a filter label configured, `_peal_issues_scan` fetches the edits of
+every listed issue (open and closed) through `_peal_issues_edits_batch`, one GraphQL call
+per chunk of 100. The call is one alias per issue, `iN: issue(number: N) { ...edits }`,
+and each number must match `^[1-9][0-9]{0,9}$` before it enters the query text.
+`issues-scan.awk` reads the result through `-v edits=` and leaves out any listed issue
+that has no edits row or fails `edit_admitted`, joined through the new
+`edit_row_admitted(row, assoc)` in `issues-lib.awk`. So list, board, overview and offer
+no longer show a title an outsider edited after the labelling. Issues named only by
+depends or part-of are still unchecked. A failed batch makes `peal_store_list` return 2.
+Without a label, no call is made.
+
+Ship's `_peal_ship_issue_items` now reads every row first, then runs one batch over the
+admitted, labelled, closed ids. It sources `store-issues.sh` when the function is not
+defined. A refused issue, or every issue when the call fails, gets its commit's subject.
+
+Departures from the plan:
+- `_peal_issues_edits` is deleted rather than kept as a batch of one.
+  `_peal_issues_admitted` calls the batch directly.
+- The query uses a GraphQL fragment.
+- The number check is stricter than planned.
+- `_peal_issues_unclaimed` (claim, defer, revise, set-milestone, retire) now falls back
+  to `peal_store_read "$id"` before saying "no task N", as claim already did. Without
+  it, an issue the listing now hides would read as "no task N" instead of 0076's
+  refusal. Side effects, found by the review and accepted: any issue the listing leaves
+  out, including an unlabelled one, now gets read's refusal instead of "no task N", and
+  that not-found path costs an extra REST call (plus a GraphQL call with a label).
+
+For the next session:
+- The fake gh ignores `--paginate` and cuts listings at `per_page`. That is why the
+  150-issue test is 100 open plus 50 closed.
+- Carried over from 0076: only the last 100 labeled or renamed events of an issue are
+  read.
+- `docs/security.md` no longer lists the listing limit, and `docs/design.md` says the
+  check holds on the listing too.
+- Planning note: this session's first planner got no brief (a prompt-passing slip in the
+  session, not a Peal fault). It read the same facts from the repository.
