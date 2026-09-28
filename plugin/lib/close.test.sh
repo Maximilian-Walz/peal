@@ -361,23 +361,25 @@ push_skip_cases() {
   check "push skip: the pull request still just the one, updated" "1" "$(prs)"
 }
 
-# char_device_cases -> an untracked character device (what a sandbox's /dev/null mounted
-# over a protected path looks like to git, not work anyone did) is not counted as
-# uncommitted, by the Stop hook or close finish. Skipped where this machine will not let
-# an unprivileged mknod make one (most CI runners): the assertion needs a real one, not a
-# stand-in device git would treat differently.
+# char_device_cases -> an untracked symlink to /dev/null (what a sandbox's /dev/null mount
+# over a protected path looks like to git and to [ -c ] alike; git lists only regular
+# files, symlinks and directories as untracked, so a real mknod device never reaches this
+# code path, and the symlink exercises it without needing mknod's privilege) is not
+# counted as uncommitted, by the Stop hook or close finish.
 char_device_cases() {
   local dev
   new_repo
   ready 1 first-task
+  [ $kind = files ] || git -C "$wt" push -q -u origin issue/1 2>/dev/null
   build
   begin >/dev/null
   outcome "Built a.txt."
+  [ $kind = issues ] || git -C "$wt" commit -q -am "docs(tasks): outcome [$(id 1)]"
+  git -C "$wt" push -q
   dev=$wt/dev-null
-  if ! mknod "$dev" c 1 3 2>/dev/null; then
-    echo "close.test.sh: mknod needs a privilege this machine will not give; char-device cases skipped" >&2
-    return 0
-  fi
+  ln -s /dev/null "$dev"
+  check "char device: raw git lists it as untracked (the control)" "?? dev-null" \
+    "$(git -C "$wt" status --porcelain | grep dev-null)"
   check "char device: stop stays silent" "0:" "$(stop)"
   check "char device: finish is not refused for it" "0" "$(close_finish >/dev/null 2>&1; echo $?)"
   rm -f "$dev"
@@ -675,6 +677,11 @@ verify_cases() {
   check "verify: conflicts" "BLOCKED:conflicts 1" "$(verdict)"
   pull mergeable true
   check "verify: green" "READY 0" "$(verdict)"
+  ln -s /dev/null "$wt/dev-null"
+  check "verify: raw git lists the link as untracked (the control)" "?? dev-null" \
+    "$(git -C "$wt" status --porcelain | grep dev-null)"
+  check "verify: still READY with the link present" "READY 0" "$(verdict)"
+  rm -f "$wt/dev-null"
   pull state '"closed"'
   check "verify: closed unmerged" "READY:pr-closed 0" "$(verdict)"
   pull merged true

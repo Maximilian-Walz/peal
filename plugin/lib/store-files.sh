@@ -564,7 +564,7 @@ _peal_files_no_work() {
     peal_err "defer: $branch holds no claim commit beyond $PEAL_REMOTE/$PEAL_MAIN"
     return 2
   fi
-  dirty=$(git status --porcelain --untracked-files=all | cut -c4- | grep -v -x -F -- "$doing")
+  dirty=$(peal_status_porcelain --untracked-files=all | cut -c4- | grep -v -x -F -- "$doing")
   if [ -n "$dirty" ]; then
     peal_err "defer: uncommitted changes besides $doing, which would go with the claim:"
     printf '%s\n' "$dirty" | sed 's/^/  /' >&2
@@ -958,7 +958,7 @@ _peal_files_resume() {
 # holds nothing the local one does not. One line "released ID BRANCH, tip kept as REF".
 # Whether a claim may end is not the storage's to judge; the caller has (lib/claim.sh).
 peal_store_release() {
-  local id=$1 branch wt name tip
+  local id=$1 branch wt name tip dev
   _peal_files_settings || return 2
   if ! branch=$(_peal_files_local_branch "$id"); then
     peal_err "release: no local branch of task $id"
@@ -973,9 +973,17 @@ peal_store_release() {
   wt=$(git worktree list --porcelain | awk -v b="branch refs/heads/$branch" '
     /^worktree / { path = substr($0, 10) }
     !f && $0 == b { print path; f = 1 }')
-  if [ -n "$wt" ] && ! git worktree remove "$wt"; then
-    peal_err "release: git worktree remove refused $wt; the tip is kept, nothing else removed"
-    return 2
+  if [ -n "$wt" ]; then
+    # An untracked character device (a sandbox's /dev/null mount) is not work, but git's
+    # own worktree remove refuses on any untracked path with no way to tell it apart from
+    # one that is; the whole worktree is going regardless, so it is deleted first.
+    while IFS= read -r dev; do
+      [ -n "$dev" ] && rm -f -- "$wt/$dev"
+    done < <(cd "$wt" && peal_untracked_devices 2>/dev/null)
+    if ! git worktree remove "$wt"; then
+      peal_err "release: git worktree remove refused $wt; the tip is kept, nothing else removed"
+      return 2
+    fi
   fi
   git branch -q -D "$branch" || return 2
   if git rev-parse -q --verify "refs/remotes/$PEAL_REMOTE/$branch" >/dev/null; then

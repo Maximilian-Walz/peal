@@ -651,7 +651,7 @@ peal_close_verify() {
   [ "$branch" != "$main" ] || { echo "BLOCKED:on-main"; return 1; }
   gitdir=$(_peal_close_gitdir)
   [ ! -f "$gitdir/$PEAL_CLOSE_SENTINEL" ] || { echo "BLOCKED:close-unfinished"; return 1; }
-  [ -z "$(git status --porcelain)" ] || { echo "BLOCKED:uncommitted"; return 1; }
+  [ -z "$(peal_status_porcelain)" ] || { echo "BLOCKED:uncommitted"; return 1; }
   git rev-parse -q --verify "$branch@{upstream}" >/dev/null || { echo "BLOCKED:no-upstream"; return 1; }
   ahead=$(git rev-list --count "$branch@{upstream}..$branch")
   [ "$ahead" = 0 ] || { echo "BLOCKED:unpushed"; return 1; }

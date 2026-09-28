@@ -49,6 +49,21 @@ files() {
   check_refused "defer: uncommitted beside the task" "uncommitted changes besides tasks/doing/0001-deferred-task.md" \
     in_wt defer --reason x < <(ID=0001 text "milestone: m1")
   rm "$wt/scratch.txt"
+
+  # An untracked symlink to /dev/null (a sandbox's /dev/null mount, to git and to [ -c ]
+  # alike) is not counted as uncommitted work; a real file alongside it still is, and the
+  # list of what is uncommitted names only the real file.
+  ln -s /dev/null "$wt/dev-null"
+  check "defer: raw git lists the link as untracked (the control)" "?? dev-null" \
+    "$(git -C "$wt" status --porcelain | grep dev-null)"
+  check "defer --dry-run: not refused for the link alone" "0" \
+    "$(in_wt defer --reason x --dry-run < <(ID=0001 text "milestone: m1") >/dev/null 2>&1; echo $?)"
+  echo scratch >"$wt/scratch.txt"
+  out=$(in_wt defer --reason x < <(ID=0001 text "milestone: m1") 2>&1 >/dev/null)
+  check "defer: still refused for a real file, listing it" "1" "$(printf '%s\n' "$out" | grep -c '^  scratch.txt$')"
+  check "defer: the link left out of the list" "0" "$(printf '%s\n' "$out" | grep -c dev-null)"
+  rm "$wt/scratch.txt" "$wt/dev-null"
+
   git -C "$work" push -q origin "$(git -C "$work" commit-tree -p task/0001-deferred-task -m more "task/0001-deferred-task^{tree}"):refs/heads/task/0001-deferred-task" 2>/dev/null
   git -C "$wt" fetch -q origin
   check_refused "defer: the remote branch holds more" "origin/task/0001-deferred-task holds commits this worktree does not have" \
@@ -169,6 +184,20 @@ issues() {
   echo x >"$wt/x.txt"
   check_refused "issues defer: uncommitted" "uncommitted changes, which would go with the claim" in_wt defer --reason x < <(in_wt read 1)
   rm "$wt/x.txt"
+
+  # An untracked symlink to /dev/null is not counted as uncommitted; a real file alongside
+  # it still is, and the printed list names only the real file.
+  ln -s /dev/null "$wt/dev-null"
+  check "issues defer: raw git lists the link as untracked (the control)" "?? dev-null" \
+    "$(git -C "$wt" status --porcelain | grep dev-null)"
+  check "issues defer --dry-run: not refused for the link alone" "0" \
+    "$(in_wt defer --reason x --dry-run < <(in_wt read 1) >/dev/null 2>&1; echo $?)"
+  echo x >"$wt/x.txt"
+  out=$(in_wt defer --reason x < <(in_wt read 1) 2>&1 >/dev/null)
+  check "issues defer: still refused for a real file, listing it" "1" "$(printf '%s\n' "$out" | grep -c '^  x.txt$')"
+  check "issues defer: the link left out of the list" "0" "$(printf '%s\n' "$out" | grep -c dev-null)"
+  rm "$wt/x.txt" "$wt/dev-null"
+
   check_refused "issues defer: Raw" "the Raw section changed" in_wt defer --reason x < <(in_wt read 1 | sed 's/^## Raw$/## Raw\n\nmore/')
   check_refused "issues defer: parked" "milestone m3 is parked" in_wt defer --reason x < <(in_wt read 1 | sed 's/^milestone: m1$/milestone: m3/')
 
@@ -183,8 +212,11 @@ next, from outside this worktree: peal release 1" "$?:$out"
   check "issues defer: the body" "Depends on #2" "$(gh_get '.[] | select(.number == 1) | .body' | head -n 1)"
   check "issues defer: the reason" "Deferred $today after a claim: needs 2" "$(gh_get '.[] | select(.issue == 1) | .body' comments)"
   check_refused "issues release: from inside" "it is the worktree this runs in" in_wt release 1
+  # An untracked symlink to /dev/null left in the worktree does not keep git's own
+  # worktree remove from going through: it is not work, so it is cleared with the rest.
+  ln -s /dev/null "$wt/dev-null"
   out=$(peal release 1 2>&1)
-  check "issues release a deferred claim" "0:released 1 issue/1, tip kept as refs/reaped/issue-1" "$?:$out"
+  check "issues release a deferred claim, the link in its worktree no obstacle" "0:released 1 issue/1, tip kept as refs/reaped/issue-1" "$?:$out"
   check "issues release: the label off" "" "$(labels 1)"
   check "issues release: blocked" "1 blocked deferred-one needs:2" "$(peal list 1 2>&1)"
 

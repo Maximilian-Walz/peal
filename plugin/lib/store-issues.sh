@@ -678,7 +678,7 @@ peal_store_edit() {
 # work), its remote branch holding more, anything uncommitted, a closed issue, and the
 # checks of a revise but "no change".
 peal_store_defer() {
-  local id=$1 reason=$2 text=$3 dry=${4-} base work tmp row status=0 note
+  local id=$1 reason=$2 text=$3 dry=${4-} base work tmp row status=0 note dirty
   [ -n "$reason" ] || { peal_err "defer: give a reason"; return 2; }
   _peal_issues_settings || return 2
   if [ "$(peal_store_branch_task)" != "$id" ]; then
@@ -700,9 +700,10 @@ peal_store_defer() {
     peal_err "defer: $PEAL_REMOTE/issue/$id holds commits this worktree does not have"
     return 2
   fi
-  if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
+  dirty=$(peal_status_porcelain --untracked-files=all)
+  if [ -n "$dirty" ]; then
     peal_err "defer: uncommitted changes, which would go with the claim:"
-    git status --porcelain --untracked-files=all | cut -c4- | sed 's/^/  /' >&2
+    printf '%s\n' "$dirty" | cut -c4- | sed 's/^/  /' >&2
     return 2
   fi
   row=$(_peal_issues_issue "$id") || return 2
@@ -900,7 +901,7 @@ peal_store_claim() {
 # tip kept as refs/reaped/issue-ID, the worktree and the local branch removed, the
 # remote's branch too when it holds nothing more), and the label taken off an open issue.
 peal_store_release() {
-  local id=$1 branch=issue/$1 name=issue-$1 wt tip labels
+  local id=$1 branch=issue/$1 name=issue-$1 wt tip labels dev
   _peal_issues_settings || return 2
   if ! git rev-parse -q --verify "refs/heads/$branch" >/dev/null; then
     peal_err "release: no local branch of task $id"
@@ -912,9 +913,17 @@ peal_store_release() {
     return 2
   fi
   wt=$(peal_store_claim_worktrees | awk -F '\t' -v id="$id" '$1 == id { print $3; exit }')
-  if [ -n "$wt" ] && ! git worktree remove "$wt"; then
-    peal_err "release: git worktree remove refused $wt; the tip is kept, nothing else removed"
-    return 2
+  if [ -n "$wt" ]; then
+    # An untracked character device (a sandbox's /dev/null mount) is not work, but git's
+    # own worktree remove refuses on any untracked path with no way to tell it apart from
+    # one that is; the whole worktree is going regardless, so it is deleted first.
+    while IFS= read -r dev; do
+      [ -n "$dev" ] && rm -f -- "$wt/$dev"
+    done < <(cd "$wt" && peal_untracked_devices 2>/dev/null)
+    if ! git worktree remove "$wt"; then
+      peal_err "release: git worktree remove refused $wt; the tip is kept, nothing else removed"
+      return 2
+    fi
   fi
   git branch -q -D "$branch" || return 2
   if git rev-parse -q --verify "refs/remotes/$PEAL_REMOTE/$branch" >/dev/null; then

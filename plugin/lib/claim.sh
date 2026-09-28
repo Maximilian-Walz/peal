@@ -339,7 +339,7 @@ peal_release_verdict() {
   fi
   if peal_deferred "$path"; then echo deferred; return; fi
   if [ "$state" != "done" ]; then echo not-landed; return; fi
-  if [ -n "$path" ] && [ -d "$path" ] && [ -n "$(git -C "$path" status --porcelain 2>/dev/null)" ]; then
+  if [ -n "$path" ] && [ -d "$path" ] && [ -n "$(cd "$path" && peal_status_porcelain 2>/dev/null)" ]; then
     echo dirty
     return
   fi
