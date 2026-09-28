@@ -351,11 +351,39 @@ appVersion: '"'0.2.0'"'' "$(at_version v0.2.0)"
   check "protected: still open" "3|not merged yet: pull request #2 https://github.com/acme/widgets/pull/2, open, not merged; run peal ship bump v0.3.0 again once it merged, then peal ship tag v0.3.0" \
     "$?|$(tail -n 1 <<<"$out")"
   check_refused "protected: no tag before the merge" "does not hold 0.3.0; peal ship bump v0.3.0 first" peal ship tag 0.3.0
+
+  # A rerun while that pull request is still open finds it (by its title, among the
+  # main-write branches) and waits for it instead of opening a second one.
+  out=$(PEAL_MAIN_WRITE_INTERVAL=1 PEAL_MAIN_WRITE_BUDGET=0 peal ship bump 0.3.0 2>&1)
+  check "protected: rerun before the merge, still open" "3|not merged yet: pull request #2 https://github.com/acme/widgets/pull/2, open, not merged; run peal ship bump v0.3.0 again once it merged, then peal ship tag v0.3.0" \
+    "$?|$(tail -n 1 <<<"$out")"
+  check "protected: rerun finds the same pull request open already" "1" \
+    "$(grep -c 'pull request #2 .*is open already' <<<"$out")"
+  check "protected: rerun opens no second pull request" "1|2" \
+    "$(gh_get '[.[] | select(.state == "open")] | length' pulls)|$(grep -c '^POST repos/acme/widgets/pulls$' "$FAKE_GH/log")"
+
   echo '{"merge_method": "squash"}' | at "$work" gh api --method PUT repos/acme/widgets/pulls/2/merge --input - >/dev/null
   out=$(peal ship bump 0.3.0 2>&1)
   check "protected: rerun after the merge" "0:already at 0.3.0: plugin.json pkg/Cargo.toml chart.yaml" "$?:$out"
   out=$(peal ship tag 0.3.0 2>&1)
   check "protected: tagged after the merge" "0|chore(release): v0.3.0 (#2)" "$?|$(git -C "$work" log -1 --format=%s 'v0.3.0^{commit}')"
+
+  # A fork's pull request, even one naming a main-write branch and this bump's own
+  # title, is never reused: its branch is not in the repository itself (the same test a
+  # rival passes, docs/design.md's Races), so a stranger could not have Peal enable
+  # auto-merge, with the maintainer's credentials, by copying a branch name and title.
+  echo 0 >"$FAKE_GH/checks-pending"
+  gh_save pulls '. + [{number: 99, node_id: "PR_99", title: "chore(release): v0.4.0",
+      state: "open", mergeable: true, html_url: "https://github.com/acme/widgets/pull/99",
+      head: {ref: "peal/main-write-deadbeef", repo: {full_name: "someone/widgets"}},
+      base: {ref: "main", repo: {full_name: "acme/widgets"}}}]'
+  out=$(PEAL_MAIN_WRITE_INTERVAL=0 peal ship bump 0.4.0 2>&1)
+  check "protected: a fork's pull request is not reused, a real one merged" "0|0" \
+    "$?|$(grep -c 'is open already' <<<"$out")"
+  check "protected: a fork's pull request is left alone" "99|open" \
+    "$(gh_get '.[] | select(.number == 99) | .number' pulls)|$(gh_get '.[] | select(.number == 99) | .state' pulls)"
+  check "protected: only the fork's pull request is left open" "1" \
+    "$(gh_get '[.[] | select(.state == "open")] | length' pulls)"
 }
 
 issues() {
