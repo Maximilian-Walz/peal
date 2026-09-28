@@ -59,6 +59,8 @@ peal_ssh_batch_mode
 . "$PEAL_ROOT/lib/ship.sh"
 # shellcheck source=../lib/init.sh
 . "$PEAL_ROOT/lib/init.sh"
+# shellcheck source=../lib/next.sh
+. "$PEAL_ROOT/lib/next.sh"
 
 usage() {
   cat <<'EOF'
@@ -78,6 +80,12 @@ usage: peal <command> [args]
                                 the stages set up, the GitHub repository, its open
                                 issues and milestones, commits closing issues, README,
                                 TODO lists, CI, and the storage to recommend
+  next [--all | ITEM]           what to adopt next (lib/next.sh): SUGGEST item try
+                                evidence, up to three ALSO lines, or NONE; --all also
+                                shows DECLINED item date lines; an ITEM is offered
+                                regardless of the catalogue or a decline
+  next --decline ITEM           declined.ITEM set to today in .peal/config.yml,
+                                blocking it for 90 days; refused without the file
   check                         report what is not valid: the milestone files, a task
                                 file under done/ without an Outcome, a task file
                                 whose slug is not kebab-case, a depends cycle
@@ -388,6 +396,13 @@ cmd_create() {
   esac
 }
 
+cmd_next() {
+  case ${1-} in
+    --decline) need 2 "$@"; peal_next_decline "$2" ;;
+    *) peal_next "$@" ;;
+  esac
+}
+
 main() {
   if [ $# -eq 0 ]; then
     usage >&2
@@ -418,6 +433,7 @@ main() {
     overview) with_store peal_overview "$@" ;;
     read) [ $# -eq 1 ] || { usage >&2; exit 2; }; with_id "$1" peal_store_read "$1" ;;
     create) with_store cmd_create "$@" ;;
+    next) with_store cmd_next "$@" ;;
     idea) need 1 "$@"; with_store peal_idea "$@" ;;
     ideas) with_store peal_ideas "$@" ;;
     revise) reason_args revise "$@"; with_id "$PEAL_ID" peal_revise "$PEAL_ID" "$PEAL_REASON" "$PEAL_DRY" ;;
