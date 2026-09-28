@@ -133,4 +133,71 @@ docs/milestones/m1.md:1-25; git's `dir.c` (`treat_path`), `read-cache.c`
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Every place Peal decides whether a worktree holds uncommitted work now ignores an
+untracked character device, the shape a sandbox's `/dev/null` mount over a protected path
+takes in `git status`. That covers `close verify`, the files and issues defer checks, the
+release/reaper dirty verdict in `claim.sh`, and the session-end autosave.
+
+**What was built**
+- `peal_status_porcelain` (`common.sh`) resolves git's root-relative porcelain paths
+  against `git rev-parse --show-toplevel`. Before this it tested them relative to the
+  current directory, so it was silently wrong anywhere but the top. Its comment says that
+  an untracked symlink to a device is filtered too.
+- New `peal_untracked_devices` (`common.sh`) lists untracked devices by exact path. It
+  uses `-z` and `--untracked-files=all`, and is Bash 3.2 safe. Two places use it:
+  - The session-end autosave. It excludes each device from `git add -A` through
+    `:(exclude,top,literal)` pathspecs, and its guard makes no commit when only a device
+    is there. This matters: git's `add_to_index` refuses a device, and `git add` then
+    stages nothing at all, so a sandboxed autosave used to save none of the work in
+    flight.
+  - Both storages' `peal_store_release`, which deletes a worktree's untracked devices
+    just before `git worktree remove`.
+- The `mknod` fixtures are deleted. Git never lists a real `mknod` device as untracked
+  (`dir.c` `treat_path` lists only regular files, symlinks and directories), so those
+  cases were vacuous even where they ran. A symlink to `/dev/null` replaces them. Git
+  lists it with `??` and `[ -c ]` sees a device, which is exactly how the sandbox mount
+  looks. Every case also checks, as a control, that raw git lists the link.
+
+**Departures from the plan, both reviewed and kept**
+- Release and reap: `git worktree remove` (deliberately without `--force`) refuses any
+  untracked path. The verdict fix in `claim.sh` alone did not make them succeed. So both
+  storages delete the devices first, only paths `peal_untracked_devices` reports, and
+  only for a worktree that is being removed anyway. `rm` does not follow the link. On a
+  real bind mount `rm` fails, and the removal refuses as before.
+- `close.test.sh` `char_device_cases` had never run past the `mknod` skip, and its setup
+  was wrong: the Outcome edit was left uncommitted, and for the issues storage the
+  branch was never pushed. It now commits and pushes first, as `stop_cases` does.
+- One case added beyond the plan: issues-storage release with the link, in
+  `backlog.test.sh`, because `claim.test.sh` is files-only.
+
+**Tests.** Each code edit was reverted once, and a named case failed each time:
+- the root-relative resolution → common "status: filtered from a subdirectory too"
+- `peal_untracked_devices` → session "autosave: the link never staged"
+- `close.sh` → close "verify: still READY with the link present"
+- `store-files.sh` defer → backlog "defer --dry-run: not refused for the link alone"
+- `store-files.sh` release → claim "release" / "reap: landed, clean, pushed, idle ones go"
+- `store-issues.sh` defer → backlog "issues defer --dry-run: not refused for the link alone"
+- `store-issues.sh` release → backlog "issues release a deferred claim, the link in its
+  worktree no obstacle"
+- `claim.sh` → claim "reap: landed, clean, pushed, idle ones go; the others stay"
+- `session.sh` → session "autosave: the link never staged"
+
+Results: common 27/0, close 855/0, backlog 225/0, claim 255/0, session 120/0, and
+`tools/lint.sh` clean. `tools/test-all.sh` did not finish within this session's
+foreground timeout; CI runs it.
+
+**Left, by the human's choice**
+- Seen from outside the sandbox, or once the mount is gone, the mount point is an
+  ordinary empty regular file. Nothing can tell it from real work: release still says
+  dirty, and an autosave there would commit it. Filed as an idea
+  (sandbox-mount-placeholder-outside-sandbox).
+- A device inside an untracked directory still counts wherever a check runs without
+  `--untracked-files=all` (git shows `?? dir/`). The sandbox mounts seen so far are files
+  at known paths.
+- Paths that git quotes are not matched by `peal_status_porcelain`.
+- macOS is checked by the CI run.
+
+### Reviewer findings not acted on
+- The four-line "delete devices before worktree remove" block is repeated in both
+  storages' `peal_store_release`. Kept: each storage owns its release, and the shared
+  part, `peal_untracked_devices`, is already a common helper.
