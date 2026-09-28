@@ -2,6 +2,7 @@
 plan: skipped
 size: S
 priority: high
+milestone: m2
 ---
 
 # 0079 — CLAUDE.md's "each clone installs the git gates once" line is now only the fallback
