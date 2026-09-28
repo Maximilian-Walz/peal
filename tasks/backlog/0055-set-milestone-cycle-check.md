@@ -29,6 +29,8 @@ Filed as issue #55 (https://github.com/Maximilian-Walz/peal/issues/55) from an i
 
 ## Notes
 
+Deferred 2026-09-28 after a claim: stale claim: its session stopped; given back so auto mode picks it up again
+
 #26 refuses a depends cycle wherever a task text is filed, revised or deferred (`docs/design.md`, "A depends cycle is refused"). The check is `peal_cycle_check` in `plugin/lib/tasks.sh`. `_peal_cycle_row` builds a changed row (id, milestone, depends, part-of) and `peal_cycle_check` swaps it into the store's list records. It refuses with exit 1 only when the changed task lies on a cycle it was not on before. The callers today:
 
 - `peal_cycle_check_create`: file and split (`store-files.sh`, `store-issues.sh`)
@@ -40,6 +42,26 @@ Filed as issue #55 (https://github.com/Maximilian-Walz/peal/issues/55) from an i
 - `plugin/lib/store-issues.sh`: it checks the same things, then PATCHes the issue's milestone.
 
 A milestone change can still close a cycle, because the read model expands the `milestone` keyword in `depends` to every other task of that milestone. For example, take two tasks that both have `depends: [milestone]`, such as two review tasks. Moving one into the other's milestone makes each wait on the other. Every task on that cycle then stays blocked for ever. Only `list`/`board`/`peal check` show it afterwards, as a cycle made by hand. `/peal:milestone-review` tells the agent to use `peal set-milestone`, so this path is a normal one.
+
+Proposed plan, not yet agreed (2026-09-26). The planning session's questions timed out twice, so the plan went to the human as a human task for review:
+
+- `plugin/lib/tasks.sh`: new `peal_cycle_check_milestone VERB ID M [RECORDS]`. It takes the task's own list record with only the milestone replaced (M, or empty) and depends/part-of kept, then calls `peal_cycle_check`.
+- `store-issues.sh` `peal_store_set_milestone`: run it with `PEAL_RECORDS` before the PATCH.
+- `store-files.sh`: `_peal_files_rewrite` gets an optional CHECK argument, run after `_peal_files_unclaimed` and before `peal_push_main`. set-milestone passes `_peal_files_check_milestone`.
+- Tests in `cycles()` of both test files:
+  - two `depends: [milestone]` tasks moved into one milestone are refused, and nothing is pushed or changed;
+  - a move that closes no cycle goes through;
+  - a task already on the hand-made cycle goes through.
+- `docs/design.md` "A depends cycle is refused" names set-milestone; add it to touches. `plugin/bin/peal` needs no change.
+- Size S, model default, merge default.
+- Open questions, each with its proposed default:
+  - record-based row rather than text-based for files;
+  - keep the per-task "already on a cycle" rule;
+  - check even when clearing;
+  - no re-check on a push retry;
+  - refusal order: milestone, task state, cycle, "already";
+  - no edit to milestone-review.md or store.sh (named in the Outcome as a follow-up);
+  - the issue test count at line 596 goes from 4 to 6.
 
 ---
 
