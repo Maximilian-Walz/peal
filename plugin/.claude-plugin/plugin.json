@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "peal",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Tasks as Markdown files with YAML frontmatter, claimed into their own branch and worktree, planned, implemented and closed as pull requests, grouped by milestones.",
   "author": {
     "name": "Maximilian Walz"
