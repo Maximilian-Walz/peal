@@ -165,3 +165,51 @@ plugin/commands/commands.test.sh:17-44, 84-103; plugin/lib/init.test.sh:1-48;
 
 ## Outcome
 
+Built `peal next` and `/peal:next`, the `declined:` bookkeeping and a SessionStart hint.
+The features within the stages (decisions, drift, releases, reviewer settings) were split
+into 0097, part-of 0030, which extends the same catalogue.
+
+- **Engine, `plugin/lib/next.sh`.** A pure core over the storage's list records, the
+  milestones and the config applies the catalogue in a fixed order: `tasks` (no
+  `stages:`: only `SUGGEST tasks /peal:setup`), then guardrails, milestones, belfry,
+  review-task. It prints `SUGGEST`, up to three `ALSO`, `DECLINED` lines, or `NONE`.
+  Evidence is counts and ids only, never stored text. The human settled the order at
+  close: the `peal init` order, then review-task. The Plan had review-task before belfry.
+- **Declines.** `peal next --decline ITEM` writes `declined: {ITEM: [YYYY-MM-DD]}`
+  through `config-block.awk`; a repeat refreshes the date. An item is suggested again
+  from day 90, UTC. The civil-date arithmetic is plain bash, because mawk and busybox awk
+  lack `mktime`. `PEAL_TODAY` pins today for the harness. Unknown items warn; a malformed
+  date is status 2. `--all` and `peal next ITEM` ignore declines.
+  `config-defaults.yml` gains `declined: {}`, an open map, so `config-merge.awk` is
+  unchanged.
+- **`/peal:next`** asks try it / not for this project / tell me more. A yes runs
+  `/peal:setup <stage>` (review-task through `/peal:setup milestones`). A decline commits
+  like setup does (`peal/next-decline-<item>` from main).
+- **SessionStart hint.** `peal_session_start` runs the core on the records, milestones
+  and config it already holds, only on startup/clear and outside a task's worktree. It
+  prints one last line, `Next to adopt: ...`, and is silent on `NONE`, declines and
+  errors. The harness shows it adds no `gh` call against a silent baseline on the issues
+  storage.
+- **By hand** (`PEAL_ROOT=$PWD/plugin plugin/bin/peal next`, three scratch repos):
+  - state A (`stages: [tasks]`, 12 done): `SUGGEST guardrails`, `ALSO` milestones, belfry,
+    review-task.
+  - state B (tasks, guardrails, milestones; 5 done; a current milestone without a review
+    task): `SUGGEST belfry`, `ALSO review-task`.
+  - state C (every stage, review task filed): `NONE`.
+
+  Declining milestones on A removed exactly that line. The Plan expected
+  `SUGGEST milestones` for A, which no fixed order could give while guardrails is
+  missing.
+- **Harnesses:** next.test.sh 78, session.test.sh 153, commands.test.sh 111 and
+  init.test.sh 264, all passing; `tools/lint.sh` clean.
+- **For the next session.** Peal's own repository records all four stages and has m2's
+  review task, so this task gives it no hint; 0097's feature checks may start hinting
+  here. This repository's committed `.peal/config.yml` comment block does not list
+  `declined:` among the defaults. That block is static text from its last `peal init`,
+  and nothing needs it.
+
+### Reviewer findings not acted on
+
+None: the ranking went to the human (above), and the untested state A, the gh-call test
+without a baseline and the missing issues and state-A hint cases were fixed on the
+branch.
