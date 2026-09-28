@@ -1,6 +1,7 @@
 ---
 plan: required
 touches: [plugin/templates/decisions.yml]
+priority: high
 ---
 
 # 0069 — Pin actions/checkout in the decisions workflow template
@@ -21,6 +22,8 @@ pin current.
 > Pin actions/checkout by SHA in plugin/templates/decisions.yml, the workflow template Peal hands to projects: once copied into a project's .github/workflows, that project's Dependabot keeps the pin current. Found closing 0041, which pinned only Peal's own CI.
 
 ## Notes
+
+Deferred 2026-09-28 after a claim: stale claim: its session stopped; given back so auto mode picks it up again
 
 - Nothing in Peal's own repository keeps the template's pin current (Dependabot scans
   only `.github/workflows/`): does the pin go stale in the template between releases, and
