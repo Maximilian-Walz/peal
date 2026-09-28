@@ -336,6 +336,26 @@ commit_msg() {
   check_fails "subject: no id" 1 "does not end with its task id" commit "feat: a thing"
   check_fails "subject: not a number" 1 "does not end with its task id" commit "feat: a thing [12a]"
   check_fails "subject: the id not last" 1 "does not end with its task id" commit "feat: [0001] a thing"
+  git -C "$work" checkout -q -b fix/hotfix
+  check "off a task branch: no id passes" "0" "$(commit "fix: a hotfix" 2>/dev/null; echo $?)"
+  check "off a task branch: an id passes" "0" "$(commit "fix: a hotfix [0001]" 2>/dev/null; echo $?)"
+  check_fails "off a task branch: malformed" 1 "the subject is not" commit "a hotfix"
+  check_fails "off a task branch: unknown type" 1 "the subject is not" commit "feature: a hotfix"
+  mkdir -p "$work/.peal"
+  mark=$(scratch_dir)/offran
+  printf 'checks:\n  commit:\n    - "echo ran >>%s"\n    - "exit 4"\n' "$mark" >"$work/.peal/config.yml"
+  check_fails "off a task branch: checks.commit runs" 1 "exit 4 failed" commit "fix: a hotfix"
+  check "off a task branch: ...the first one ran" "ran" "$(cat "$mark")"
+  rm -f "$work/.peal/config.yml"
+  # The storage says what a task's branch is: issue/N under the issues storage.
+  printf 'storage:\n  kind: issues\n' >"$work/.peal/config.yml"
+  git -C "$work" checkout -q -b issue/7
+  check_fails "issues storage: issue/N needs an id" 1 "does not end with its task id" commit "fix: a thing"
+  check "issues storage: issue/N with an id" "0" "$(commit "fix: a thing [7]" 2>/dev/null; echo $?)"
+  check "issues storage: task/ is no task's branch" "0" \
+    "$(git -C "$work" checkout -q -b task/0009-x 2>/dev/null; commit "fix: a hotfix" 2>/dev/null; echo $?)"
+  rm -f "$work/.peal/config.yml"
+  git -C "$work" checkout -q task/0001-some-task
   check "subject: wip" "0" "$(commit "wip: half a thing" 2>/dev/null; echo $?)"
   check "subject: wip with an area" "0" "$(commit "wip(sim): half a thing" 2>/dev/null; echo $?)"
   check "subject: wip says so" "commit-msg: a wip commit; the checks are skipped. Say what is in flight in the task's Outcome." \

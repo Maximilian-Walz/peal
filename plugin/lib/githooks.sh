@@ -351,7 +351,7 @@ _peal_pre_push_release() {
 # The subject: <type>(<area>): <what> [NNNN], type one of PEAL_COMMIT_TYPES, the area one
 # of commit.areas (required when there are any; `tasks` is always one, and `decisions`
 # with the decisions module on), NNNN the task's id (a task file's four digits, an
-# issue's number).
+# issue's number), required on a task's branch and optional on any other named branch.
 # Git's own subjects pass as they are (Revert, fixup!, squash!, amend!); a merge's is not
 # checked, but its diff pays the checks. Two fast paths skip the checks:
 #   wip: ... / wip(<area>): ...   honest work in progress, no task id needed;
@@ -374,6 +374,18 @@ _peal_subject() {
 # _peal_staged -> every path the commit changes, both sides of a rename.
 _peal_staged() {
   git diff --cached --name-only --no-renames
+}
+
+# _peal_off_task_branch -> 0 on a named branch that is no task's: work that is not a
+# task, whose subject needs no id. The storage says what a task's branch is (task/NNNN-slug
+# for files, issue/N for issues). A detached HEAD, or settings that do not load, count as a
+# task's branch. In a subshell, so the storage's functions stay out of the gate.
+_peal_off_task_branch() {
+  git symbolic-ref -q HEAD >/dev/null || return 1
+  (
+    peal_store_load 2>/dev/null || exit 1
+    ! peal_store_branch_task >/dev/null
+  )
 }
 
 _peal_commit_msg() {
@@ -411,7 +423,7 @@ _peal_commit_msg() {
         "areas: $(printf '%s\n' "$areas" tasks ${decisions:+decisions} | tr '\n' ' ')"
       return 1
     fi
-    if ! [[ "$what" =~ ^(.*[^ ])\ \[[0-9]+\]$ ]]; then
+    if ! [[ "$what" =~ ^(.*[^ ])\ \[[0-9]+\]$ ]] && ! _peal_off_task_branch; then
       _peal_gate_refuse commit-msg "the subject does not end with its task id, as in \"feat(x): what [0042]\"" \
         "subject: $subject"
       return 1
