@@ -2,6 +2,7 @@
 plan: required
 priority: high
 touches: [.github/workflows/ci.yml, tools/ci-changes.sh, tools/ci-changes.test.sh]
+milestone: m2
 ---
 
 # 0092 — CI skips the harnesses for pull requests that change only task files and docs

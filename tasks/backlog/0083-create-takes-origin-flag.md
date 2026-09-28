@@ -1,5 +1,5 @@
 ---
-milestone:
+milestone: m2
 plan: skipped
 depends: []
 priority: high
