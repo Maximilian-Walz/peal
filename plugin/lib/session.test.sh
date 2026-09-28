@@ -250,11 +250,14 @@ hint() {
   check "hint: state A, guardrails declined, names milestones" "1" \
     "$(hook "$work" session-start '{"source":"startup"}' | grep -c '^Next to adopt: milestones')"
 
-  # Everything this task's catalogue knows is set up, and m1's review task is filed: NONE.
+  # Everything this task's catalogue knows is set up, m1's review task is filed, and
+  # .peal/review.md already there (m0, the fixture's own milestone, is otherwise always
+  # done, so review-steps would fire): NONE.
   work=$(peal_repo)
   printf 'stages: [tasks, guardrails, milestones, belfry]\n' >>"$work/.peal/config.yml"
   publish "$work" >/dev/null 2>&1
   put "$work" backlog 0001 review-m1 "milestone: m1" "depends: [milestone]"
+  : >"$work/.peal/review.md"
   check "hint: silent once nothing is left" "0" \
     "$(hook "$work" session-start '{"source":"startup"}' | grep -c '^Next to adopt:')"
 
@@ -276,6 +279,7 @@ Task: none in this worktree. /peal:work claims one into a worktree of its own." 
   # Equal gh call counts prove the hint itself, on or off, costs none of its own.
   command -v jq >/dev/null 2>&1 || return 0
   ISSUES_CONFIG=$'stages: [tasks, guardrails, milestones, belfry]\n' issues_repo
+  : >"$work/.peal/review.md"
   : >"$FAKE_GH/log"
   out=$(hook "$work" session-start '{"source":"startup"}')
   n1=$(wc -l <"$FAKE_GH/log" | tr -d ' ')
