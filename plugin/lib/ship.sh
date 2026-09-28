@@ -277,15 +277,30 @@ _peal_ship_admitted() {
     -f <(printf '%s\n' 'BEGIN { exit !admitted(assoc, labels, label) }')
 }
 
+# _peal_ship_edits_admitted ID ASSOC EDITS -> status 0 when EDITS (the re-label
+# check's lines, lib/store-issues.sh's _peal_issues_edits_batch) admits issue ID, whose
+# author_association is ASSOC: no edit after the filter label's labelling by someone
+# without write access. No line for ID refuses (fail closed).
+_peal_ship_edits_admitted() {
+  # shellcheck disable=SC2016 # awk's own $ fields, not the shell's
+  awk -F '\t' -v id="$1" -v assoc="$2" -f "$PEAL_ROOT/lib/issues-lib.awk" \
+    -f <(printf '%s\n' '$1 == id { ok = edit_row_admitted($0, assoc) } END { exit !ok }') "$3"
+}
+
 # _peal_ship_issue_items DIR -> DIR/items for the issues the range's subjects name that
 # are closed as completed. An issue the write-access rule does not admit (a commit
-# subject naming one that was never really a claimed task) gets the commit's own subject
-# in place of its title, never the issue's own text; a pull request's Outcome is read
-# only from one opened by the repository itself or by someone with write access.
+# subject naming one that was never really a claimed task), or with a filter label one
+# edited after its labelling by someone without write access (the re-label check, one
+# batched read over those issues; a failed read refuses them all), gets the commit's own
+# subject in place of its title, never the issue's own text; a pull request's Outcome is
+# read only from one opened by the repository itself or by someone with write access.
 _peal_ship_issue_items() {
   local dir=$1 id row state reason title labels ispr assoc prs kind first sentence subject trusted samerepo prassoc
   [ -n "$PEAL_GH_REPO" ] || { peal_err "no GitHub repository: set storage.issues.repo"; return 2; }
   awk -F '\t' '$4 ~ /^[0-9]+$/ && !seen[$4]++ { print $4 }' "$dir/commits" >"$dir/ids"
+  : >"$dir/issues"
+  : >"$dir/checked"
+  : >"$dir/edits"
   while IFS= read -r id; do
     row=$(peal_gh "repos/$PEAL_GH_REPO/issues/$id" \
       --jq '[.state, (.state_reason // ""), .title, ([.labels[].name] | join(",")), (if .pull_request then "pr" else "" end), (.author_association // "")] | join("\u001f")' </dev/null 2>/dev/null) \
@@ -294,7 +309,18 @@ _peal_ship_issue_items() {
     IFS=$'\x1f' read -r state reason title labels ispr assoc <<<"$row"
     [ "$reason" != not_planned ] || echo "$id" >>"$dir/dropped"
     if [ "$state" != closed ] || [ "$reason" = not_planned ] || [ -n "$ispr" ]; then continue; fi
-    if ! _peal_ship_admitted "$assoc" "$labels"; then
+    printf '%s\x1f%s\n' "$id" "$row" >>"$dir/issues"
+    [ -z "${PEAL_LABEL-}" ] || ! _peal_ship_admitted "$assoc" "$labels" || echo "$id" >>"$dir/checked"
+  done <"$dir/ids"
+  if [ -s "$dir/checked" ]; then
+    # shellcheck source=store-issues.sh
+    declare -F _peal_issues_edits_batch >/dev/null || . "$PEAL_ROOT/lib/store-issues.sh"
+    # shellcheck disable=SC2046 # one issue number per word
+    PEAL_REPO=$PEAL_GH_REPO _peal_issues_edits_batch $(cat "$dir/checked") >"$dir/edits" </dev/null || : >"$dir/edits"
+  fi
+  while IFS=$'\x1f' read -r id state reason title labels ispr assoc; do
+    if ! _peal_ship_admitted "$assoc" "$labels" \
+        || { [ -n "${PEAL_LABEL-}" ] && ! _peal_ship_edits_admitted "$id" "$assoc" "$dir/edits"; }; then
       subject=$(awk -F '\t' -v id="$id" '$4 == id { print $6; exit }' "$dir/commits")
       title=${subject:-"issue $id"}
     fi
@@ -322,7 +348,7 @@ _peal_ship_issue_items() {
       fi
     fi
     printf '%s\t%s\t%s\t%s\t%s\t\n' "$kind" "$id" "$prs" "$title" "$sentence" >>"$dir/items"
-  done <"$dir/ids"
+  done <"$dir/issues"
 }
 
 # _peal_ship_bump ITEMS -> major, minor, patch or none: what the items not left out call

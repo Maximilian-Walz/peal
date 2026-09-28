@@ -747,9 +747,11 @@ awaiting merge. `admitted()` (`plugin/lib/issues-lib.awk`) is this one rule, and
 read path applies it, not only the listing: `read`, `claim`, `work` and `defer` refuse an
 issue it does not admit, quoting none of its text (`docs/security.md`, "Only admitted
 issues reach a session"; `plugin/lib/hostile.test.sh` holds the issues storage's channels
-to it too). On every single-issue path, `edit_admitted()` also refuses an issue edited
-later than its own labelling by someone without write access, so a stranger cannot slip a
-task's real text in after a maintainer's label.
+to it too). With a filter label, `edit_admitted()` also refuses an issue edited later
+than its own labelling by someone without write access, so a stranger cannot slip a
+task's real text in after a maintainer's label: on every single-issue path, on the
+listing (such an issue is left out, as an unadmitted one is; one batched GraphQL call per
+100 listed issues) and in `ship`'s release notes.
 
 **States of an issue:** `done` when closed; `awaiting-merge` while such an open PR says
 `Fixes #N` (closes, resolves, ...); `claimed-live` when `issue/N` has a worktree here or

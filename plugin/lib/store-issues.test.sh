@@ -229,8 +229,9 @@ admission() {
 
 # edit_admitted(): the re-label check on top of admitted() (0076): a labelled issue (or
 # one opened by someone with write access) edited afterwards by someone without write
-# access is refused the same way, on every single-issue path; read directly, the rest
-# through their own refusal.
+# access is refused the same way, on every single-issue path, read directly, the rest
+# through their own refusal; and left out of the listing (list, board, offer), open or
+# closed, from batched GraphQL calls of up to 100 issues each.
 edit_admission() {
   local work wt
   issues_repo_label
@@ -250,8 +251,6 @@ edit_admission() {
   check_refused "revise: the same refusal, unclaimed" \
     "refused: issue 11 is no task: edited after it was labelled 'tasks' by someone without write access to acme/widgets; read the edit, then take the label 'tasks' off and add it again to make it a task" \
     peal revise 11 --reason x --dry-run
-  check "list: a labelled issue edited after stays listed (the narrower, known limit)" \
-    "1" "$(list 2>&1 | grep -c '^11 ')"
 
   issue 12 "Renamed after labelling" --label tasks --assoc NONE \
     --labelled-at 2026-02-01T00:00:00Z --renamed-at 2026-03-01T00:00:00Z author
@@ -288,18 +287,52 @@ edit_admission() {
     "refused: issue 17 is no task: edited after it was labelled 'tasks' by someone without write access to acme/widgets; read the edit, then take the label 'tasks' off and add it again to make it a task" \
     peal read 17
 
+  # The listing: what a single read refuses is left out of list, board and offer, as an
+  # unadmitted issue is; one batched call for them all.
+  issue 19 "Closed, renamed after labelling" --closed --label tasks --assoc NONE \
+    --labelled-at 2026-02-01T00:00:00Z --renamed-at 2026-03-01T00:00:00Z author
+  issue 20 "Closed, edited before labelling" --closed --label tasks --assoc NONE \
+    --labelled-at 2026-02-01T00:00:00Z --edited-at 2026-01-01T00:00:00Z author
+  : >"$FAKE_GH/log"
+  out=$(list 2>&1)
+  check "list: the admitted issues, open and closed" "2 3 10 13 14 15 20" "$(cut -d ' ' -f1 <<<"$out" | paste -s -d ' ' -)"
+  check "list: one batched graphql call" "1" "$(calls 'POST graphql')"
+  check "list: no edited title shown" "0" "$(grep -c 'after labelling\|No labelled event' <<<"$out")"
+  out=$(peal board 2>&1)
+  check "board: no edited title shown" "0|1" "$(grep -c 'Edited after\|Renamed after\|No labelled event\|Another label' <<<"$out")|$(grep -c 'Maintainer edited after labelling' <<<"$out")"
+  out=$(peal offer current,unassigned --top 20 2>&1)
+  check "offer: only admitted issues offered" "2 3 10 13 14 15" \
+    "$(awk '$1 == "CANDIDATE" { print $2 }' <<<"$out" | sort -n | paste -s -d ' ' -)"
+
+  # A failing GraphQL call fails the listing, status 2, quoting no issue text; and
+  # refuses a single read.
+  printf 'POST graphql' >"$FAKE_GH/fail"
+  check_fails "list: a failing graphql call" 2 "gh api graphql failed: gh: HTTP 502: failing on purpose (POST graphql)" list
+  check "list: its message names no issue" "0" "$(list 2>&1 | grep -c 'labelling\|Edited\|Renamed')"
+  issue 18 "Whatever" --label tasks --assoc NONE
+  check_fails "read: a failing graphql call" 2 "could not read issue 18's edits" peal read 18
+  rm -f "$FAKE_GH/fail"
+
+  # 150 labelled issues (the fake lists 100 open and 100 closed at most): two calls, of
+  # 100 and of 50.
+  issues_repo_label
+  gh_save issues '[range(1; 151) as $n | {number: $n, title: ("Bulk " + ($n | tostring)),
+      state: (if $n <= 100 then "open" else "closed" end), state_reason: (if $n <= 100 then null else "completed" end),
+      body: "", labels: [{name: "tasks"}], author_association: "NONE", milestone: null,
+      html_url: ("https://github.com/acme/widgets/issues/" + ($n | tostring)), author_login: "author",
+      labeled_events: [], renamed_events: []}]'
+  : >"$FAKE_GH/log"
+  check "list: 150 labelled issues listed" "150" "$(list 2>/dev/null | grep -c '^[0-9]')"
+  check "list: 150 labelled issues, two graphql calls" "2" "$(calls 'POST graphql')"
+
   # No filter label configured: the base rule alone, no extra gh call.
   issues_repo
   issue 1 "Owner's issue"
   check "read: no label configured, admitted" "# 1 — Owner's issue" "$(peal read 1 2>&1 | grep '^# ')"
+  list >/dev/null 2>&1
+  peal board >/dev/null 2>&1
   check "no label configured: no graphql call" "0" "$(calls 'POST graphql')"
-
-  # A failing GraphQL call refuses, status 2, quoting no text.
   issues_repo_label
-  issue 18 "Whatever" --label tasks --assoc NONE
-  printf 'POST graphql' >"$FAKE_GH/fail"
-  check_fails "read: a failing graphql call" 2 "could not read issue 18's edits" peal read 18
-  rm -f "$FAKE_GH/fail"
 
   # defer and work: the same refusal once a claimed, labelled issue is edited afterwards.
   issue 21 "Claimable, labelled" --label tasks --assoc NONE

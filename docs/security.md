@@ -169,28 +169,34 @@ and quote none of its text; `list`, the board, the depends expansion and `ship`'
 notes apply the same rule, an unadmitted issue a commit subject names getting the
 commit's own subject in the notes, never the issue's title.
 
-Labelling (or write access) alone is not the end of it: on every single-issue path
-(`read`, `claim`, `work`, `revise`, `close` and the session's cached copy — `defer`
-included), an edit later than the issue's own labelling of the filter label (one
-GraphQL call, `_peal_issues_edits`) is admitted only when it is by someone with write
-access — a non-author editor is inferred one already, since GitHub lets only a
-collaborator edit someone else's issue, so only the author's own later edit is checked
-against their association; a missing edit event or a failed call refuses, never admits.
-A stranger who labelled their own issue cannot, then, slip a task's real text in after
-the maintainer looked away; re-labelling (taking the filter label off and on again) is
-how a maintainer re-admits an edit once they have read it. `list`, the board, the depends
-expansion and `ship`'s release notes stay on the coarser rule above (a narrower known
-limit: their title, in the listing or a release note, may show an edit made after
-labelling, though claiming still refuses it, and no body ever does); no extra `gh` call
-is made without a filter label configured.
+Labelling (or write access) alone is not the end of it: with a filter label configured,
+an edit later than the issue's own labelling of the filter label is admitted only when it
+is by someone with write access — a non-author editor is inferred one already, since
+GitHub lets only a collaborator edit someone else's issue, so only the author's own later
+edit is checked against their association; a missing edit event or a failed call refuses,
+never admits. The check holds on every single-issue path (`read`, `claim`, `work`,
+`revise`, `close` and the session's cached copy — `defer` included) and on the listing:
+`list`, the board, the overview and `offer` leave out every listed issue, open or closed,
+that it refuses, as they leave out an unadmitted one, and fail (status 2) when the edits
+cannot be read; `ship`'s release notes give such an issue the commit's own subject, as
+for an unadmitted one, and do the same for all of them when the edits cannot be read. The
+edits come from one batched GraphQL call per 100 issues (`_peal_issues_edits_batch`,
+only the last 100 labelled and renamed events of each read). A stranger who labelled
+their own issue cannot, then, slip a task's real text in after the maintainer looked
+away; re-labelling (taking the filter label off and on again) is how a maintainer
+re-admits an edit once they have read it. An issue only named by a task's depends or
+part-of is not checked: only its state is used (below). No extra `gh` call is made
+without a filter label configured.
 
 A task depending on a stranger's issue still reads its state (open or closed) to know
 whether it is done, the one thing that crosses the boundary, never its text. No command
 reads comments.
 
-- Guard: `plugin/lib/issues-lib.awk` (`admitted()`, `edit_admitted()`),
-  `plugin/lib/store-issues.sh` (`_peal_issues_admitted`, `_peal_issues_edits`),
-  `plugin/lib/claim.sh`, `plugin/lib/work.sh`, `plugin/lib/ship.sh`.
+- Guard: `plugin/lib/issues-lib.awk` (`admitted()`, `edit_admitted()`,
+  `edit_row_admitted()`), `plugin/lib/issues-scan.awk`, `plugin/lib/store-issues.sh`
+  (`_peal_issues_admitted`, `_peal_issues_edits_batch`, `_peal_issues_scan`),
+  `plugin/lib/claim.sh`, `plugin/lib/work.sh`, `plugin/lib/ship.sh`
+  (`_peal_ship_issue_items`).
 - Harness: `plugin/lib/hostile.test.sh` (the issues storage's channels),
   `plugin/lib/store-issues.test.sh`, `plugin/lib/ship.test.sh`.
 

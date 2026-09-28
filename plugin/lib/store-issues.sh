@@ -20,7 +20,8 @@
 #   blocked, free   as for every storage (lib/task-state.awk)
 #
 # The tasks are the open issues and the 100 closed most recently, with the filter label
-# (storage.issues.label) when one is set, else those opened by someone with write
+# (storage.issues.label) when one is set, less any edited after its labelling by someone
+# without write access (the re-label check), else those opened by someone with write
 # access; an issue a task depends on beyond those is read on its own.
 
 PEAL_ISSUES_CLAIMED="in progress"
@@ -71,10 +72,17 @@ _peal_issues_prs() {
 }
 
 # _peal_issues_scan DIR -> DIR/scan: issues-scan.awk's records for the tasks and the
-# issues their depends and part-of name, by id.
+# issues their depends and part-of name, by id. With a filter label, DIR/edits: the
+# re-label check's edits of every listed issue, open and closed (a failed read fails
+# the scan, status 2).
 _peal_issues_scan() {
   local dir=$1 n
   _peal_issues_listed >"$dir/listed" || return 2
+  : >"$dir/edits"
+  if [ -n "$PEAL_LABEL" ]; then
+    # shellcheck disable=SC2046 # one issue number per word
+    _peal_issues_edits_batch $(cut -f1 "$dir/listed" | grep -E '^[0-9]+$' | sort -un) >"$dir/edits" || return 2
+  fi
   : >"$dir/extra"
   _peal_issues_scan_awk "$dir"
   # What a task names but the listing left out: an older closed issue, most likely.
@@ -86,8 +94,8 @@ _peal_issues_scan() {
 }
 
 _peal_issues_scan_awk() {
-  awk -F '\t' -v label="$PEAL_LABEL" -v claimed="$PEAL_ISSUES_CLAIMED" -f "$PEAL_ROOT/lib/issues-lib.awk" \
-    -f "$PEAL_ROOT/lib/issues-scan.awk" "$1/listed" "$1/extra" | LC_ALL=C sort -t "$(printf '\t')" -k1,1n >"$1/scan"
+  awk -F '\t' -v label="$PEAL_LABEL" -v claimed="$PEAL_ISSUES_CLAIMED" -v edits="$1/edits" \
+    -f "$PEAL_ROOT/lib/issues-lib.awk" -f "$PEAL_ROOT/lib/issues-scan.awk" "$1/listed" "$1/extra" | LC_ALL=C sort -t "$(printf '\t')" -k1,1n >"$1/scan"
 }
 
 # _peal_issues_base -> the remote's main branch, else the local one; status 1 if neither.
@@ -194,47 +202,63 @@ _peal_issues_text() {
     -f "$PEAL_ROOT/lib/issues-lib.awk" -f "$PEAL_ROOT/lib/issues-text.awk"
 }
 
-# _peal_issues_edits N -> "labelled_at<TAB>author<TAB>edited_at<TAB>editor<TAB>renamed_at
-# <TAB>renamer" of issue N, one GraphQL call (owner/name split from PEAL_REPO):
-# labelled_at the latest 'labeled' timeline event of PEAL_LABEL, or the issue's
+# _peal_issues_edits_batch N... -> "number<TAB>labelled_at<TAB>author<TAB>edited_at<TAB>
+# editor<TAB>renamed_at<TAB>renamer" per issue N of PEAL_REPO, one GraphQL call per 100
+# numbers (an alias iN per issue, owner and name as variables; each N checked to be a
+# number before it enters the query's text): labelled_at the latest 'labeled' timeline
+# event of PEAL_LABEL among the last 100 labelled and renamed events, or the issue's
 # createdAt when none is found (fail closed: a re-label always moves it forward); editor
-# and renamer empty for no edit or rename. Status 2 if the call or its answer cannot be
-# read.
-_peal_issues_edits() {
-  local id=$1 owner=${PEAL_REPO%%/*} name=${PEAL_REPO#*/} json
-  # shellcheck disable=SC2016 # GraphQL's own $variables, not the shell's
-  json=$(peal_gh graphql -f query='
-    query($owner: String!, $name: String!, $number: Int!) {
-      repository(owner: $owner, name: $name) {
-        issue(number: $number) {
-          createdAt
-          author { login }
-          lastEditedAt
-          editor { login }
-          timelineItems(last: 100, itemTypes: [LABELED_EVENT, RENAMED_TITLE_EVENT]) {
-            nodes {
-              __typename
-              ... on LabeledEvent { createdAt label { name } }
-              ... on RenamedTitleEvent { createdAt actor { login } }
-            }
-          }
+# and renamer empty for no edit or rename. An issue GitHub answers no data for has no
+# line. No N, no call. Status 2 if a call or its answer cannot be read.
+_peal_issues_edits_batch() {
+  local owner=${PEAL_REPO%%/*} name=${PEAL_REPO#*/} aliases count json
+  while [ $# -gt 0 ]; do
+    aliases="" count=0
+    while [ $# -gt 0 ] && [ $count -lt 100 ]; do
+      [[ "$1" =~ ^[1-9][0-9]{0,9}$ ]] || { peal_err "the re-label check: not an issue number"; return 2; }
+      aliases="$aliases
+        i$1: issue(number: $1) { ...edits }"
+      count=$((count + 1))
+      shift
+    done
+    # shellcheck disable=SC2016 # GraphQL's own $variables, not the shell's
+    json=$(peal_gh graphql -f query='
+      query($owner: String!, $name: String!) {
+        repository(owner: $owner, name: $name) {'"$aliases"'
         }
       }
-    }' -f owner="$owner" -f name="$name" -F number="$id") || return 2
-  printf '%s\n' "$json" | jq -r --arg label "$PEAL_LABEL" '
-    .data.repository.issue as $i
-    | ([$i.timelineItems.nodes[] | select(.__typename == "LabeledEvent" and .label.name == $label)]
-        | sort_by(.createdAt) | last | .createdAt) as $labelled
-    | ([$i.timelineItems.nodes[] | select(.__typename == "RenamedTitleEvent")]
-        | sort_by(.createdAt) | last) as $rename
-    | [($labelled // $i.createdAt), ($i.author.login // ""), ($i.lastEditedAt // ""),
-       ($i.editor.login // ""), ($rename.createdAt // ""), ($rename.actor.login // "")] | @tsv'
+      fragment edits on Issue {
+        createdAt
+        author { login }
+        lastEditedAt
+        editor { login }
+        timelineItems(last: 100, itemTypes: [LABELED_EVENT, RENAMED_TITLE_EVENT]) {
+          nodes {
+            __typename
+            ... on LabeledEvent { createdAt label { name } }
+            ... on RenamedTitleEvent { createdAt actor { login } }
+          }
+        }
+      }' -f owner="$owner" -f name="$name") || return 2
+    printf '%s\n' "$json" | jq -r --arg label "$PEAL_LABEL" '
+      .data.repository | to_entries[] | select(.value != null)
+      | (.key | ltrimstr("i")) as $n | .value as $i
+      | ([$i.timelineItems.nodes[] | select(.__typename == "LabeledEvent" and .label.name == $label)]
+          | sort_by(.createdAt) | last | .createdAt) as $labelled
+      | ([$i.timelineItems.nodes[] | select(.__typename == "RenamedTitleEvent")]
+          | sort_by(.createdAt) | last) as $rename
+      | [$n, ($labelled // $i.createdAt), ($i.author.login // ""), ($i.lastEditedAt // ""),
+         ($i.editor.login // ""), ($rename.createdAt // ""), ($rename.actor.login // "")] | @tsv' || {
+      peal_err "the re-label check: could not read GitHub's answer"
+      return 2
+    }
+  done
 }
 
 # _peal_issues_admitted ROW [N] -> status 0 when ROW (an issue as PEAL_ISSUES_ROW reads
 # it) is admitted: the write-access rule or the filter label, as ever; then, with a
 # label and N (the issue's number) given, no edit later than the label's own labelling
-# (_peal_issues_edits, issues-lib.awk's edit_admitted()) unless it is by someone with
+# (_peal_issues_edits_batch, issues-lib.awk's edit_row_admitted()) unless it is by someone with
 # write access. Status 1 when refused for the write-access/label reason, PEAL_ADMIT_EDIT
 # left 0; status 1 with PEAL_ADMIT_EDIT set to 1 when refused for the edit reason
 # instead (_peal_issues_refuse reads it); status 2 with PEAL_ADMIT_ERR set to why when
@@ -247,10 +271,11 @@ _peal_issues_admitted() {
   printf '%s\n' "$row" | awk -F '\t' -v label="$PEAL_LABEL" -f "$PEAL_ROOT/lib/issues-lib.awk" \
     -f <(printf '%s\n' '{ exit !admitted($6, $5, label) }') || return 1
   if [ -n "$PEAL_LABEL" ] && [ -n "$id" ]; then
-    edits=$(_peal_issues_edits "$id") || { PEAL_ADMIT_ERR="could not read issue $id's edits"; return 2; }
+    edits=$(_peal_issues_edits_batch "$id") || { PEAL_ADMIT_ERR="could not read issue $id's edits"; return 2; }
+    # No line for the issue: refused, as fail closed.
     # shellcheck disable=SC2016 # awk's own $ fields, not the shell's
-    if ! printf '%s\t%s\n' "$edits" "$(_peal_field "$row" 6)" | awk -F '\t' -f "$PEAL_ROOT/lib/issues-lib.awk" \
-        -f <(printf '%s\n' '{ exit !edit_admitted($1, $2, $7, $3, $4, $5, $6) }'); then
+    if ! printf '%s\n' "$edits" | awk -F '\t' -v id="$id" -v assoc="$(_peal_field "$row" 6)" \
+        -f "$PEAL_ROOT/lib/issues-lib.awk" -f <(printf '%s\n' '$1 == id { ok = edit_row_admitted($0, assoc) } END { exit !ok }'); then
       PEAL_ADMIT_EDIT=1
       return 1
     fi
@@ -523,7 +548,9 @@ _peal_issues_unclaimed() {
   PEAL_RECORDS=$(peal_store_list --fetch) || return 2
   PEAL_RECORD=$(printf '%s\n' "$PEAL_RECORDS" | awk -F '\t' -v id="$id" '$1 == id')
   if [ -z "$PEAL_RECORD" ]; then
-    peal_err "$verb: no task $id"
+    # Read's own refusal when it has one (an issue the listing leaves out as unadmitted
+    # or edited after its labelling), else none.
+    peal_store_read "$id" >/dev/null && peal_err "$verb: no task $id"
     return 2
   fi
   state=$(_peal_field "$PEAL_RECORD" 2)
