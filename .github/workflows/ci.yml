@@ -8,32 +8,56 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same pull request makes the older run moot. Never on main: a
+# later push there may skip its harnesses (a task file), which must not cancel the
+# only full run of the code change before it.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  harnesses:
-    name: harnesses (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            # Only what differs from Linux: bash 3.2, BSD tools, and a real file
-            # system. The full set runs on Linux (the "linux" job below), so a pull
-            # request is not waiting on macOS too. Trimmed or grown against the timings
-            # tools/test-all.sh prints for each harness.
-            #   plugin/templates/githook.test.sh, plugin/templates/launcher.test.sh:
-            #     they run in other people's repositories, and bash 3.2 broke them in 0040.
-            #   tools/install.test.sh
-            #   plugin/lib/githooks.test.sh
-            #   plugin/lib/frontmatter.test.sh: BSD awk and sed.
-            #   plugin/lib/store-files.test.sh: find, file names, and worktrees on APFS.
-            #   plugin/lib/hostile.test.sh: only self_test and awk_channels; arg_cases
-            #     and hook_cases run on Linux only.
-            harnesses: >-
-              plugin/templates/githook.test.sh plugin/templates/launcher.test.sh
-              tools/install.test.sh plugin/lib/githooks.test.sh
-              plugin/lib/frontmatter.test.sh plugin/lib/store-files.test.sh
-              plugin/lib/hostile.test.sh
-    runs-on: ${{ matrix.os }}
+  # Whether anything the harnesses test changed. Task files, milestone texts and a
+  # release's version bump do not: for those the harness jobs skip, and a skipped
+  # required check counts as passed. Anything else, or any doubt (no base to compare
+  # with, a failed diff), runs them all.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      harnesses: ${{ steps.decide.outputs.harnesses }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: decide
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: tools/ci-changes.sh "$BASE" HEAD >>"$GITHUB_OUTPUT"
+
+  # Only what differs from Linux: bash 3.2, BSD tools, and a real file system. Not a
+  # matrix: a skipped job reports under its own name, which must be the required
+  # check's, "harnesses (macos-latest)"; a skipped matrix job would not.
+  harnesses-macos:
+    name: harnesses (macos-latest)
+    needs: changes
+    if: needs.changes.outputs.harnesses == 'true'
+    runs-on: macos-latest
+    env:
+      # The full set runs on Linux (the "linux" job below), so a pull request is not
+      # waiting on macOS too. Trimmed or grown against the timings tools/test-all.sh
+      # prints for each harness.
+      #   plugin/templates/githook.test.sh, plugin/templates/launcher.test.sh:
+      #     they run in other people's repositories, and bash 3.2 broke them in 0040.
+      #   tools/install.test.sh
+      #   plugin/lib/githooks.test.sh
+      #   plugin/lib/frontmatter.test.sh: BSD awk and sed.
+      #   plugin/lib/store-files.test.sh: find, file names, and worktrees on APFS.
+      #   plugin/lib/hostile.test.sh: only self_test and awk_channels; arg_cases
+      #     and hook_cases run on Linux only.
+      HARNESSES: >-
+        plugin/templates/githook.test.sh plugin/templates/launcher.test.sh
+        tools/install.test.sh plugin/lib/githooks.test.sh
+        plugin/lib/frontmatter.test.sh plugin/lib/store-files.test.sh
+        plugin/lib/hostile.test.sh
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # The runner's PATH puts a newer Homebrew bash ahead of /bin/bash; this job exists
@@ -51,10 +75,10 @@ jobs:
         env:
           # The issues storage's harness runs its fake gh on jq, which both runners have.
           PEAL_REQUIRE_JQ: '1'
-          # Only these two groups of the hostile harness (see the matrix comment above);
+          # Only these two groups of the hostile harness (see the job's comment above);
           # the Linux job below runs all of them, coverage check included.
           PEAL_HOSTILE_CASES: 'self_test awk_channels'
-        run: tools/test-all.sh ${{ matrix.harnesses }}
+        run: tools/test-all.sh $HARNESSES
 
   # Every hostile.test.sh case that used to run serially in "harnesses (ubuntu-latest)"
   # now runs across these shards instead: 4 that each take a slice of hostile.test.sh
@@ -65,6 +89,8 @@ jobs:
   # tools/test-all.sh makes with no arguments.
   linux:
     name: linux (${{ matrix.shard }})
+    needs: changes
+    if: needs.changes.outputs.harnesses == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -139,15 +165,24 @@ jobs:
   # The required check "harnesses (ubuntu-latest)" is now this gate over the shards
   # above, not a single job: always() is essential, since a skipped required check
   # counts as passing, and fail-fast: false on "linux" means one shard's failure must
-  # not be masked by another shard still running.
+  # not be masked by another shard still running. It passes when every shard passed,
+  # or when "changes" decided, and succeeded in deciding, that none had to run.
   harnesses-linux:
     name: harnesses (ubuntu-latest)
-    needs: linux
+    needs: [changes, linux]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Every Linux shard passed
-        run: '[ "${{ needs.linux.result }}" = success ]'
+      - name: Every Linux shard passed, or none had to run
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          HARNESSES: ${{ needs.changes.outputs.harnesses }}
+          LINUX: ${{ needs.linux.result }}
+        run: |
+          [ "$LINUX" = success ] && exit 0
+          [ "$CHANGES" = success ] && [ "$HARNESSES" = false ] && [ "$LINUX" = skipped ] && exit 0
+          echo "changes: $CHANGES (harnesses: $HARNESSES), linux: $LINUX" >&2
+          exit 1
 
   shellcheck:
     runs-on: ubuntu-latest
