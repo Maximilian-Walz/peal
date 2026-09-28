@@ -22,9 +22,10 @@ Rules:
 
 - **Commit as you go** with `peal commit "<type>(<area>): <what> [NNNN]" [PATH...]`,
   types `feat fix test refactor docs chore`, NNNN the task's id, so that a restarted
-  implementer resumes from the branch. Each commit runs the project's checks; a refused
-  commit is a failing check to fix, never one to go around. Leave the tree clean before
-  you hand back.
+  implementer resumes from the branch. With PATHs, only those are committed; anything
+  else staged stays staged for a later commit. Each commit runs the project's checks; a
+  refused commit is a failing check to fix, never one to go around. Leave the tree clean
+  before you hand back.
 - **Never close.** Do not run `/peal:close`, do not write `## Outcome`, do not move the
   task file, do not push to the main branch, do not open a pull request. Do not write
   decision entries or their index either: a decision the work calls for goes under

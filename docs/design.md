@@ -684,8 +684,11 @@ fix, never the first word on it.
   a `.cs` file, an item without paths always. Git's own subjects (merge, revert, fixup)
   pass the grammar; a merge still pays the checks.
 - **`peal commit SUBJECT [--body TEXT | --body-file FILE] [PATH...]`** stages, commits and
-  reports in one call; refused on the main branch, without the hooks installed, and for a
-  new backlog file (those are filed onto main).
+  reports in one call. With PATHs, resolved from the caller's directory as git's own are,
+  only those are committed (`git commit --`); anything else already staged stays staged,
+  out of the commit. Without any, everything staged is committed. Refused on the main
+  branch, without the hooks installed, and for a new backlog file among what is committed
+  (those are filed onto main).
 - **The git guard**, a PreToolUse hook on Bash, refuses in a Peal repository a commit on
   the main branch, a gate bypass (`--no-verify`, `commit -n`, `core.hooksPath` changed or
   set inline, `GIT_CONFIG_*` around a git call) and a push to main. It parses the git

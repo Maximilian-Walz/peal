@@ -114,8 +114,9 @@ Git gates (lib/githooks.sh):
   hooks uninstall               Peal's git hooks removed, core.hooksPath put back
   githook NAME ARGS...          run the gate of git hook NAME (pre-push, commit-msg)
   commit SUBJECT [--body TEXT | --body-file FILE] [PATH...]
-                                stage PATHs (or everything), commit, report; refused on
-                                the main branch
+                                PATHs, relative to the current directory, staged and
+                                committed on their own, the rest of the index left staged
+                                (everything, without any); refused on the main branch
 
 Tasks live in the storage the setting storage.kind names: files, task files on the main
 branch (ids 0042), or issues, the repository's GitHub issues (ids 42).
