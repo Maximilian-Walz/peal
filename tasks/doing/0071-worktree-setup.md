@@ -38,6 +38,15 @@ for the worktrees it creates itself.
 
 ## Notes
 
+Proposed plan, NOT agreed (planner, 2026-09-28; the human could not be asked because Belfry's inbox returned 503):
+- Key `worktree-setup: ""` in plugin/lib/config-defaults.yml; `_peal_claim_setup WT` in plugin/lib/claim.sh, called from `_peal_claim_one` after `peal_store_claim` succeeds (covers both storages; the "claimed here already" path returns before it).
+- Runs `(cd WT && unset GIT_* && PEAL_PRIMARY=<primary> bash -c "$cmd") </dev/null`, with its output sent to stderr. The primary checkout is the first entry of `git worktree list --porcelain`.
+- On failure: status 2, no path line, and nothing rolled back (branch pushed, worktree kept); the message says to run the command by hand. `--next` stops.
+- `peal init --survey` gets a `local-files` line (ignored files present in the checkout matching `.env*` or `*.local.*`, at most 5); plugin/commands/setup.md mentions the key in its report while it is unset; docs/design.md gets the key, the claim sentence and a symlink example; docs/security.md gets an entry under Limits.
+- Tests in claim.test.sh (runs with the variable set; not run on a second claim; failure keeps everything; empty setting; resumed parked claim; `--next` stops), init.test.sh (survey), config.test.sh (the key).
+- Size M, model default, merge default.
+- Open questions, each with its default: A1 run on a resumed parked claim (yes); A2 retry marker `peal-setup-done` (no, as literally specified); A3 exit status (2); A4 names (`worktree-setup`, `PEAL_PRIMARY`, no other variables); A5 output to stderr, shown on success; A6 security (accept like `checks.commit`, add an entry under Limits in docs/security.md); A7 local-looking files (present ignored files matching `.env*` or `*.local.*`, cap 5); A8 an issues-storage test (no); A9 `/peal:setup` mentions it in its report in any stage, never writes it; A10 runs after the hooks are ensured, before the overlap warning; A11 no timeout; A12 "removes nothing else" = no rollback at all.
+
 
 ---
 
