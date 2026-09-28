@@ -570,6 +570,8 @@ arg_cases() {
   each "next ARG" "$WORK" next @
   each "next --decline ITEM" "$WORK" next --decline @
 
+  cover doctor; each "doctor CHECK" "$WORK" doctor @
+
   cover frontmatter
   local fm=tasks/backlog/0001-plain-task.md
   each "frontmatter check FILE" "$WORK" frontmatter check @
