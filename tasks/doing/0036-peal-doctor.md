@@ -2,7 +2,7 @@
 milestone: m2
 plan: required
 size: M
-touches: [plugin/lib/doctor.sh, plugin/lib/doctor.test.sh, plugin/bin/peal, docs/design.md, README.md]
+touches: [plugin/lib/doctor.sh, plugin/lib/doctor.test.sh, plugin/lib/fake-gh, plugin/bin/peal, docs/design.md, README.md]
 ---
 
 # 0036 — peal doctor: what is broken, one fix per problem
@@ -53,6 +53,17 @@ Planning answers from the human (all took the planner's proposed default):
 - A10: one healthy harness case per storage (files and issues).
 - A11/A12: a `peal doctor` subsection in docs/design.md after "Setting up a project", plus the
   README lib list; fixes are worded `.peal/peal ...`.
+
+Departures during the build (the review asked for them here):
+
+- `plugin/lib/fake-gh` gained a `gh auth status` handler (succeeds unless `$FAKE_GH/no-auth`
+  exists), so the gh check's issues cases have a shim; outside the planned files, added to
+  `touches`.
+- `.belfry.yml` is parsed from its top-level `tasks:` block only: yaml-parse.awk refuses the
+  whole file on any section outside Peal's subset (this repository's own `docs:` list of
+  maps), which made a working contract fail.
+- The config load's stderr goes through a temp file, not `$(...)`, so `PEAL_CONFIG` survives
+  in the calling shell.
 
 ## Plan
 
