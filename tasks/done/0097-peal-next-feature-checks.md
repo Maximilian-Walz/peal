@@ -189,4 +189,80 @@ Agreed with the human at close, after the review (2026-09-28):
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+`peal next` now knows the features around the setup stages. After `review-task`, in this
+order, it checks five new items:
+
+- **`decisions`**: the decisions module is off, and there is an ADR-like directory
+  (`docs/adr`, `docs/decisions`, `doc/adr`) or at least 20 tasks done.
+- **`drift`**: `.peal/drift.md` is missing, `context` is set or there is docs Markdown
+  outside the milestones, tasks and decisions directories, and at least 10 tasks done.
+- **`releases`**: no local release tag under `release.tag-prefix` is merged into main,
+  and at least 5 tasks are done. Only the root `package.json` or
+  `.claude-plugin/plugin.json` is named as a version file.
+- **`reviewer`**: `.peal/reviewer.md` is missing, and either `context` is empty while
+  design docs exist, or CI files exist while `checks.close` and `checks.commit` are both
+  empty.
+- **`review-steps`**: a milestone is done and `.peal/review.md` is missing.
+
+How the checks work:
+
+- One gatherer, `_peal_next_features`, collects the local facts once per run, using files
+  and git only, no `gh` and no fetch. It feeds `peal_next_core` as a seventh fact
+  argument, so the SessionStart hint stays cheap.
+- Declines work unchanged for the new items.
+
+`plugin/commands/next.md` has a "Try it" for each item. It shows the change, then commits
+it as `chore(peal): <item>` on `peal/next-<item>` from main:
+
+- `decisions` runs `peal decision check` first. When that check fails, it proposes
+  `docs/decisions` only if that directory is missing or empty; otherwise it writes
+  nothing and asks the human for a directory.
+- `drift` writes a stub `.peal/drift.md`, then runs `/peal:drift` once.
+- `reviewer` writes a stub `.peal/reviewer.md` plus `context: [<design docs>]`. It never
+  writes `checks.*`.
+- `review-steps` writes a stub `.peal/review.md`.
+- `releases` runs `/peal:release` once.
+
+`docs/design.md` and `README.md` describe the new items.
+
+Decisions (all in the task's Notes):
+
+- `review-steps` is an item of its own. Folded into `review-task`, it could never fire
+  once the review task is filed.
+- The TOML version files are not suggested, because `release.version-files` takes only
+  top-level fields.
+- The session makes the accept step itself; there is no `peal next --take` command. A
+  safe nested config merge would have doubled the task.
+- The review found two dead ends: drift's "Try it" ran `/peal:drift`, which stops without
+  `drift.md`, and the decisions fallback could re-propose the directory that had just
+  failed. The human chose both fixes at close.
+
+Verification:
+
+- `next.test.sh` has 159 passing cases: each item firing and silent, the declines, the
+  order, and `NONE`.
+- `session.test.sh`: the hint names a feature item on an all-stages project, with no more
+  `gh` calls. The state-C fixtures now decline the feature items, so they stay `NONE`.
+- The full suite passes (31 harnesses) and `tools/lint.sh` passes.
+- By hand, on a scratch project with this branch's plugin:
+  - The fixture had all four stages, 12 tasks done, `docs/design.md`, an empty `docs/adr`,
+    a `package.json`, `context: []` and no tag.
+  - `peal next --all` suggested `review-task`, with `decisions` ("docs/adr found"),
+    `drift` ("12 done, 1 docs") and `releases` ("12 done, package.json") as ALSO lines.
+  - Each item was then taken through its next.md step and committed: `decisions` (the
+    check passed on the empty directory), the `drift` stub, the `reviewer` stub with its
+    context, and the `review-steps` stub. `review-task` and `releases` were declined.
+  - `peal next` then printed `NONE`.
+  - `/peal:drift` and `/peal:release` themselves were not run there; they are agent
+    commands. The Try it commits were made by hand, following the text.
+
+For the next session:
+
+- Peal's own repository now hints `decisions` or `drift` at session start. The human
+  agreed to this.
+- The CI file list is duplicated between `next.sh` and `init.sh`'s survey. This is filed
+  as an idea.
+- An interrupted build session left an autosave commit with a stray empty `hostile.out`,
+  removed on the branch. No test writes it, and its cause is unknown.
+- `plugin/lib/hostile.test.sh` alone takes about 7 minutes here.
+
