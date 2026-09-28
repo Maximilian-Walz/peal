@@ -2,6 +2,7 @@
 milestone:
 plan: skipped
 depends: []
+priority: high
 ---
 
 # 0083 — `peal create` takes `--origin` for text Belfry marks untrusted
@@ -37,6 +38,8 @@ frontmatter the same way `owner` is.
 on Belfry passing the job's untrusted flag."
 
 ## Notes
+
+Revised 2026-09-28: priority high: goes into Peal's next patch release (daily-use fixes after m1)
 
 - Blocked on Belfry adding an untrusted-origin flag to the job it runs
   `tasks.commands.create` in and documenting the placeholder its contract passes; no
