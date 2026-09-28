@@ -79,6 +79,12 @@ The human's answers while planning (2026-09-28):
   the config records no `stages:`; only on `startup`/`clear`; an engine error drops the
   hint silently.
 
+- At close (2026-09-28), the human settled the ranking: guardrails, milestones, belfry,
+  review-task (the `peal init` order, then review-task), overriding the Plan's catalogue
+  paragraph and its state B example. State A (`stages: [tasks]`, 12 done) therefore
+  suggests guardrails with milestones as a runner-up; the Plan's `SUGGEST milestones`
+  there was inconsistent with any fixed order.
+
 ## Plan
 
 **Engine, `plugin/lib/next.sh`.** A pure core takes the storage's list records
