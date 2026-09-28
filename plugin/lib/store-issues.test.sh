@@ -431,6 +431,13 @@ filed 6 https://github.com/acme/widgets/issues/6 — milestone: -, plan: -, size
   check "batch: where it was found" "Found while working on #1." \
     "$(gh_get '.[] | select(.number == 7) | .body' | sed -n '/^## Notes/,/^---/p' | sed -n 3p)"
 
+  # The Belfry form (peal_create_filed) works on the issues storage too, lightly: not
+  # part of the github-issues contract, but nothing here is files-storage-specific.
+  out=$(peal create --owner ai --title "Belfry files this one now" \
+    < <(TITLE="Belfry files this one now" text) 2>&1)
+  check "belfry create form: filed, the id last" "1" \
+    "$(printf '%s\n' "$out" | tail -n 1 | grep -c -E '^filed: [0-9]+$')"
+
   # revise: the text rewritten, the reason a comment; the Raw section never.
   peal read 7 | sed 's/^Why\.$/Why, better./; s/^---$/---/' | awk '
     NR == 1 { print; print "milestone: m2"; print "size: L"; next } { print }' >"$work.new"

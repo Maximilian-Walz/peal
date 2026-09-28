@@ -107,7 +107,9 @@ set only when the idea says their value.
 
 ## 3. File it
 
-Pick a slug, two to five kebab-case words from the title, and run:
+Pick a slug, two to five kebab-case words from the title.
+
+**`BELFRY_SESSION` unset:** run
 
 ```bash
 peal idea <slug> <<'IDEA'
@@ -121,9 +123,24 @@ task closes.
 A refusal names what to fix: fix it and run again once. A `depends` id it does not
 know moves into Notes as prose.
 
+**`BELFRY_SESSION` set:** on a task's own branch (this worktree's `tasks/doing/` holds
+its file, or `git branch --show-current` names it), `peal idea <slug>` above still
+queues it offline as usual — that only writes to this worktree's git directory, nothing
+over the network.
+
+Off a task branch (the main checkout, or anywhere else): never run `peal idea` here — a
+sandboxed session under Belfry has neither `gh`'s login nor SSH keys, and the shell
+command hangs with no output. Call the `task_create` tool instead, with `title` the
+title above, `body` the composed text (from `## Intent` on; not the frontmatter or
+heading) and `owner` the idea's owner (`ai` unless the idea plainly names a human).
+Report the id it returns, as `filed ...` above. If `task_create` refuses because this
+session is not a filing job, call the `idea` tool instead, with `text` the composed text
+and the same `owner`.
+
 ## 4. Report
 
 Say what `peal idea` printed, `queued ...` or `filed ...` with its milestone, plan and
 title, as printed, and the `pull request #N <url>` line when main takes writes through
-pull requests (the number is final once it merges): the human may overrule the triage in
-one sentence while here.
+pull requests (the number is final once it merges); off a task branch under Belfry, the
+id `task_create` or `idea` returned instead. The human may overrule the triage in one
+sentence while here.

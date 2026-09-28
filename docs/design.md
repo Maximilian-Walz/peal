@@ -47,7 +47,7 @@ following:
 
 | | Peal provides | Belfry expects |
 |---|---|---|
-| tasks | list, offer, claim (printing the worktree), board and idea commands | the `commands` backend of its contract |
+| tasks | list, offer, claim (printing the worktree), board, idea and create commands | the `commands` backend of its contract |
 | milestones | milestones as data; `peal milestone-state`; `/peal:milestone-review {milestone}` | a milestone list in the board output; `tasks.commands.milestone` for its Close, Park and Un-park; actions with the `milestone` trigger |
 | a session | `/peal:work` and `/peal:close` in the claimed worktree | claim before the session; finished means a PR open and green |
 | the human | questions through `AskUserQuestion` | routes them to its inbox |
@@ -65,6 +65,7 @@ tasks:
     claim: .peal/peal claim {task} --print-path
     start: /peal:work {task}
     idea: /peal:idea {idea}
+    create: .peal/peal create --owner {owner} --title {title}
     board: .peal/peal board
     milestone: .peal/peal milestone-state {id} {state} --reason {reason}
     retire: .peal/peal retire {task} --reason {reason}
@@ -93,10 +94,22 @@ actions:
   board add; each but `id` and `state` only when set, so a normal priority, an AI's task
   and the project's default merge are no field), and one
   `{"milestone":{...}}` line per milestone, exactly the shapes of Belfry's contract.
+- `create --owner OWNER --title TITLE` is `tasks.commands.create`: the task's text on
+  stdin filed as one task (`peal create` does, 0061), `OWNER` (`ai` or `human`, the flag
+  winning over the text's own) written into the frontmatter, the slug the first five
+  words of `TITLE`. Belfry runs it itself, outside a session's sandbox (which has neither
+  `gh`'s login nor SSH keys), so it never hangs there; it ends with `filed: <id>` as its
+  last line, the shape Belfry's contract reads back.
 - `/peal:work NNNN` notices it is already inside NNNN's worktree (the branch is the task's
   branch and `tasks/doing/` holds its file) and skips its own claim. It does not read any
   Belfry variable: the same check serves a human who opened a session in the worktree by
   hand. The reference used a Belfry environment variable here; Peal does without.
+- `/peal:idea` is the one deliberate exception: off a task branch, it reads
+  `BELFRY_SESSION` to tell a Belfry session from an ordinary one. Running `peal idea` in
+  the shell there hangs, for the same sandbox reason; instead the command calls Belfry's
+  `task_create` tool directly with the composed title, text and owner (its `idea` tool
+  when `task_create` refuses, this session not being a filing job), never the shell. On a
+  task branch it queues offline as always, `BELFRY_SESSION` set or not.
 - `/peal:close` waits for the PR's checks in the foreground with a budget, re-running
   while the verdict is `WAIT`. That works headless and interactive alike.
 - `milestone` changes a milestone's state (`done`, `parked`, `open`) in the storage, the

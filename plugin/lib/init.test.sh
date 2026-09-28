@@ -94,8 +94,11 @@ skipped the check: belfry check is not available yet" "$out"
   check "belfry: the commands backend" "  backend: commands
     list: .peal/peal list
     start: /peal:work {task}
+    create: .peal/peal create --owner {owner} --title {title}
     milestone: .peal/peal milestone-state {id} {state} --reason {reason}" \
-    "$(grep -E '^  backend|list:|start:|milestone:' "$work/.belfry.yml")"
+    "$(grep -E '^  backend|list:|start:|create:|milestone:' "$work/.belfry.yml")"
+  check "belfry: create's only placeholders are owner and title" "" \
+    "$(grep '^    create:' "$work/.belfry.yml" | grep -o '{[^}]*}' | grep -v -e '^{owner}$' -e '^{title}$')"
   check "belfry: the actions are suggestions" "# actions:" "$(grep 'actions:' "$work/.belfry.yml")"
   check "all stages recorded, in order" "tasks
 guardrails
@@ -222,6 +225,7 @@ tasks" "$(peal config storage.issues.repo; peal config storage.issues.label)"
     label: 'tasks'
     start: /peal:work {task}
     idea: /peal:idea {idea}" "$(sed -n '2,7p' "$work/.belfry.yml")"
+  check "issues: no create (Belfry files issues its own way)" "" "$(grep 'create:' "$work/.belfry.yml")"
 
   peal hook session-start </dev/null >/dev/null 2>&1
   check "issues, session-start: the root recorded" "$PEAL_ROOT" "$(cat "$work/.git/peal-root")"

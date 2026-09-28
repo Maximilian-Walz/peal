@@ -360,6 +360,24 @@ awk_channels() {
   cover create
   each_input "create, hostile text" "$WORK" "$(hostile_text)" create hostile-text-task
   each_input "create --batch, hostile text" "$WORK" "$(hostile_text)" create --batch 0001 found-hostile-text
+  each_input "create --owner --title, hostile text" "$WORK" "$(hostile_text)" \
+    create --owner ai --title "Belfry hostile stdin text"
+
+  # peal_create_filed's own promise: the text lands in the file exactly as given, only
+  # NNNN replaced by the id it is given (dollar's the only hostile value here that both
+  # passes touches' own checks and stays one line, so cmp is exact byte for byte).
+  local btmpl binput bout bid
+  btmpl=$(hostile_text)
+  binput=${btmpl//@/${H[0]}}
+  bout=$(printf '%s' "$binput" | at "$WORK" "$PEAL" create --owner ai --title "Hostile hex byte check" 2>&1)
+  bid=$(printf '%s\n' "$bout" | tail -n 1 | sed -n 's/^filed: //p')
+  if [ -n "$bid" ]; then
+    git -C "$WORK" fetch -q origin 2>/dev/null
+    check "create --owner --title: hostile stdin byte for byte, only NNNN replaced" "${binput//NNNN/$bid}" \
+      "$(git -C "$WORK" show "origin/main:tasks/backlog/$bid-hostile-hex-byte-check.md" 2>/dev/null)"
+  else
+    check "create --owner --title: hostile stdin filed, to compare it byte for byte" "filed" "not filed: $bout"
+  fi
   claim_wt 0001
   wt=$WT
   if [ -z "$wt" ] || [ ! -d "$wt" ]; then
@@ -495,6 +513,8 @@ arg_cases() {
   with_input "$(ID=NNNN text "milestone: m1" "size: S")" each "create SLUG" "$WORK" create @
   with_input "$(ID=NNNN text "milestone: m1" "size: S")" each "create --part-of ID" "$WORK" create --part-of @ some-piece
   with_input "$(ID=NNNN text "milestone: m1" "size: S")" each "create --batch SLUG" "$WORK" create --batch 0001 @
+  with_input "$(ID=NNNN text "milestone: m1" "size: S")" each "create --owner OWNER" "$WORK" create --owner @ --title "Hostile owner test title"
+  with_input "$(ID=NNNN text "milestone: m1" "size: S")" each "create --title TITLE" "$WORK" create --owner ai --title @
   with_input "$(ID=NNNN text "milestone: m1" "size: S")" each "idea SLUG on main" "$WORK" idea @
   with_input "$(ID=NNNN text "milestone: m1" "size: S")" each "idea --now ARG" "$WORK" idea some-idea-here @
   each "ideas ARG" "$WORK" ideas @

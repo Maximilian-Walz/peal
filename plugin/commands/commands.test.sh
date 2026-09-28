@@ -59,6 +59,17 @@ check "work: records them before peal record" "touches plan" \
 check "idea: touches only when the idea names the files" "1|1" \
   "$(grep -c -F -- '- `touches`: only when the idea names' "$commands/idea.md")|$(grep -c '^touches: \[' "$commands/idea.md")"
 
+# Belfry: a sandboxed session hangs running peal idea in the shell off a task branch, so
+# idea.md calls Belfry's own tools there instead (0074).
+# shellcheck disable=SC2016 # the literal backticks
+check "idea: names BELFRY_SESSION" "2" "$(grep -c -F 'BELFRY_SESSION' "$commands/idea.md")"
+check "idea: calls Belfry's task_create" "3" "$(grep -c -F 'task_create' "$commands/idea.md")"
+# shellcheck disable=SC2016 # the literal backticks
+check "idea: falls back to Belfry's idea tool" "1" "$(grep -c -F 'call the `idea` tool instead' "$commands/idea.md")"
+# shellcheck disable=SC2016 # the literal backticks
+check "idea: never runs peal idea off a task branch under Belfry" "1" \
+  "$(grep -c -F 'never run `peal idea` here' "$commands/idea.md")"
+
 # merge: auto: recommended by the planner for small, low-risk work only, written only when
 # the human agrees, never by /peal:idea; the reviewer's verdict goes to finish.
 check "planner: recommends merge: auto for small, low-risk work" "1" \

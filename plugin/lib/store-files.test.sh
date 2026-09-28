@@ -13,6 +13,8 @@ set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/test-lib.sh"
 # shellcheck source=task-fixtures.sh
 . "$PEAL_ROOT/lib/task-fixtures.sh"
+# shellcheck source=issue-fixtures.sh
+. "$PEAL_ROOT/lib/issue-fixtures.sh"
 
 peal() { at "$work" "$PEAL" "$@"; }
 subject() { git -C "$work" log -1 --format=%s origin/main; }
@@ -76,6 +78,107 @@ filed 0017 tasks/backlog/0017-idea-two.md — milestone: m2, plan: -, size: - �
   check "own fields" "0:filed 0019 tasks/backlog/0019-own-fields.md — milestone: -, plan: -, size: - — \"Title of 0019\"" "$?:$out"
   check_refused "own field, wrong value" "own-fields: area art is not one of engine,ui" \
     peal create own-fields < <(text "area: art")
+}
+
+# create_belfry -> peal create --owner OWNER --title TITLE, Belfry's tasks.commands.create
+# contract (0074): one task filed from stdin, the slug the title's first five words, ends
+# with "filed: <id>" as its last line.
+create_belfry() {
+  local work out
+  work=$(repo)
+  put "$work" backlog 0001 existing-one
+  put "$work" backlog 0002 existing-two
+  put "$work" backlog 0003 existing-three
+
+  out=$(text "milestone: m1" | peal create --owner ai --title "Model the crate for level two" 2>&1)
+  check "belfry create" "0:filed 0004 tasks/backlog/0004-model-the-crate-for-level.md — milestone: m1, plan: -, size: - — \"Title of 0004\"
+filed: 0004" "$?:$out"
+  # shellcheck disable=SC2016 # the literal backtick in the contract's own regex
+  check "belfry create: the last line matches the contract's regex" "1" \
+    "$(printf '%s\n' "$out" | tail -n 1 | grep -c -E '^[ 	`]*filed:[ 	]*#?([A-Za-z0-9._-]+)[ 	`]*$')"
+  check "belfry create: the file, no owner line" "$(ID=0004 text "milestone: m1")" \
+    "$(on_main "$work" tasks/backlog/0004-model-the-crate-for-level.md)"
+
+  out=$(text "milestone: m2" | peal create --owner human --title "Second belfry task here now" 2>&1)
+  check "belfry create: owner human, status and id" "0:filed: 0005" "$?:$(printf '%s\n' "$out" | tail -n 1)"
+  check "belfry create: owner human in the file" "owner: human" \
+    "$(on_main "$work" tasks/backlog/0005-second-belfry-task-here-now.md | grep '^owner:')"
+
+  # Refused, nothing filed: numbering picks up right after 0005 once one succeeds.
+  check_refused "belfry create: owner not ai or human" "owner must be ai or human, not 'robot'" \
+    peal create --owner robot --title "Some words here now" < <(text)
+  check_refused "belfry create: no --title" "--title is required" peal create --owner ai < <(text)
+  check_refused "belfry create: no --owner" "--owner is required" peal create --title "Some words here now" < <(text)
+  check_refused "belfry create: a one-word title" "makes a slug of 1 word" \
+    peal create --owner ai --title one < <(text)
+  check_refused "belfry create: sets merge" "the text sets merge" \
+    peal create --owner ai --title "Some other words now" < <(text "merge: auto")
+  check_refused "belfry create: holds the delimiter" "holds '-----NEXT TASK-----'" \
+    peal create --owner ai --title "Some more words now" < <(printf '%s\n-----NEXT TASK-----\n%s\n' "$(text)" "$(text)")
+
+  # A hostile-looking title is a title, never another option: --title takes the very
+  # next argument, whatever it looks like.
+  out=$(text "milestone: m1" | peal create --owner ai --title "-dashed title words here" 2>&1)
+  check "belfry create: a title starting with -" "0:filed 0006 tasks/backlog/0006-dashed-title-words-here.md — milestone: m1, plan: -, size: - — \"Title of 0006\"
+filed: 0006" "$?:$out"
+  out=$(TITLE='--batch 0001 more words' text "milestone: m1" | peal create --owner ai --title "--batch 0001 more words" 2>&1)
+  check "belfry create: a title that looks like an option" "0:filed 0007 tasks/backlog/0007-batch-0001-more-words.md — milestone: m1, plan: -, size: - — \"--batch 0001 more words\"
+filed: 0007" "$?:$out"
+
+  check "belfry create: nothing filed on a refusal, numbering unbroken" "0001-existing-one.md
+0002-existing-two.md
+0003-existing-three.md
+0004-model-the-crate-for-level.md
+0005-second-belfry-task-here-now.md
+0006-dashed-title-words-here.md
+0007-batch-0001-more-words.md" "$(ids_on_main)"
+}
+
+# create_belfry_pr -> the belfry create form through a pull request (lib/main-write.sh
+# has the general PR-route coverage; this is the one path specific to this form): pending
+# checks that clear, no auto-merge, and no PEAL_MAIN_WRITE_BUDGET from the caller, so the
+# form's own ~90s cap is what is in play. Needs jq, for the fake gh.
+create_belfry_pr() {
+  local work out st
+  unset PEAL_MAIN_WRITE_WAIT PEAL_MAIN_WRITE_BUDGET PEAL_PUSH_ATTEMPTS
+  work=$(repo)
+  fake_github "$work"
+  ln -s "$(dirname "$work")/remote.git" "$FAKE_GH/remote"
+  mkdir -p "$work/.peal"
+  printf '%s\n' "storage:" "  issues:" "    repo: acme/widgets" >"$work/.peal/config.yml"
+  cat >"$(dirname "$work")/remote.git/hooks/pre-receive" <<'EOF'
+#!/bin/sh
+while read -r old new ref; do
+  if [ "$ref" = refs/heads/main ]; then
+    echo "GH013: Repository rule violations found for refs/heads/main: changes must be made through a pull request" >&2
+    exit 1
+  fi
+done
+exit 0
+EOF
+  chmod +x "$(dirname "$work")/remote.git/hooks/pre-receive"
+  touch "$FAKE_GH/no-auto-merge"
+  echo 2 >"$FAKE_GH/checks-pending"
+
+  out=$(text "milestone: m1" | PEAL_MAIN_WRITE_INTERVAL=0 peal create --owner ai --title "Belfry files this through a pull request" 2>&1)
+  check "belfry create, PR route: filed, merged, the id last" "0:filed: 0001" \
+    "$?:$(printf '%s\n' "$out" | tail -n 1)"
+  check "belfry create, PR route: merged" "closed true" \
+    "$(jq -r '.[0] | "\(.state) \(.merged)"' "$FAKE_GH/pulls.json")"
+
+  # An open PR still at the cap (checks never clear within PEAL_MAIN_WRITE_BUDGET) counts
+  # as filed too: status 0, not peal_store_create's own 3 (a caller would read non-zero
+  # as "not filed" and retry, filing the task twice) — and no PEAL_MW_STATE unbound
+  # variable error, which a command substitution around peal_store_create used to cause
+  # (0074, reviewer finding: main-write.sh's peal_main_write_written reads PEAL_MW_STATE,
+  # a plain global peal_push_main sets, under set -u).
+  echo 1000 >"$FAKE_GH/checks-pending"
+  out=$(text "milestone: m1" | PEAL_MAIN_WRITE_INTERVAL=0 PEAL_MAIN_WRITE_BUDGET=0 \
+    peal create --owner ai --title "Belfry files this at the cap" 2>"$work.err")
+  st=$?
+  check "belfry create, PR route: open at the cap counts as filed, status 0" "0:filed: 0002" \
+    "$st:$(printf '%s\n' "$out" | tail -n 1)"
+  check "belfry create, PR route: no unbound variable" "0" "$(grep -c unbound "$work.err")"
 }
 
 refusals() {
@@ -439,6 +542,12 @@ cycles() {
 
 cases() {
   create
+  create_belfry
+  if command -v jq >/dev/null; then
+    create_belfry_pr
+  elif [ -n "${PEAL_REQUIRE_JQ-}" ]; then
+    check "jq, which the fake gh needs" "jq" ""
+  fi
   cycles
   refusals
   race

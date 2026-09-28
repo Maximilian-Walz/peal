@@ -50,8 +50,9 @@ Peal works on its own: every command runs in an ordinary interactive Claude Code
 [Belfry](https://github.com/Maximilian-Walz/belfry) is a self-hosted control plane that
 runs Claude Code sessions unattended on your machines and gathers every decision they
 need into one inbox. Peal provides the commands Belfry's task contract asks for (list,
-offer, claim, board, idea), so Belfry can show a Peal project's backlog, run its tasks,
-and bring you only the questions, reviews and merges. Neither depends on the other.
+offer, claim, board, idea, create), so Belfry can show a Peal project's backlog, run its
+tasks, file what it or an outsider's issue found, and bring you only the questions,
+reviews and merges. Neither depends on the other.
 
 ## Working on Peal
 
