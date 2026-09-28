@@ -113,7 +113,7 @@ jobs:
         env:
           PEAL_REQUIRE_CLAUDE: '1'
           PEAL_REQUIRE_JQ: '1'
-        run: false # temporary: gate negative test
+        run: tools/test-all.sh ${{ matrix.harnesses }}
       - name: Find and run the rest (everything the other shards don't name)
         if: matrix.shard == 'rest'
         env:
