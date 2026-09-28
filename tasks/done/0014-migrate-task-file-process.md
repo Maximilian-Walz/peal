@@ -169,3 +169,49 @@ Ranges relied on: `docs/design.md:120-316`, `docs/design.md:441-507`,
 ---
 
 ## Outcome
+
+Built `peal migrate headers` and `peal migrate milestones` (`plugin/lib/migrate.sh`,
+`plugin/lib/migrate-headers.awk`, dispatched from `plugin/bin/peal`), their harness
+`plugin/lib/migrate.test.sh` (synthetic fixtures only, every case under mawk, nawk and the
+system awk), a `migrate` group in `plugin/lib/hostile.test.sh`, and the migration section
+of `docs/design.md` rewritten for pool flags.
+
+- **Headers.** A numbered task file without frontmatter gets its `key: value` header
+  lifted into a `---` block. Trailing comments are dropped, empty fields are dropped,
+  `depends`/`needs` become flow lists, and the milestone is mapped (N → `mNN` with the
+  digits as in the file name, `--none` pools dropped, `--parked`/`--open` pools kept as
+  ids). The rest of the file stays byte-for-byte. A file with any problem is left
+  untouched and named on stderr, exit 1. A second run changes nothing; non-numbered files
+  (`TEMPLATE.md`) are skipped. Nothing is committed.
+- **Milestones.** Numbered docs get `id: mNN`, `state` (highest `current`, the rest
+  `done`) and `order`. Pool files `<pool>.md` are created as `parked`/`open`. It refuses a
+  second `current` and reports milestone ids used by tasks that have no file.
+- **Decided:**
+  - Pool names are flags with no defaults, so no project's vocabulary is built in.
+  - Milestone files are not renamed; an `id:` field carries the new id.
+  - A never-offered recurring pool becomes its own parked milestone; `docs/design.md`'s
+    claim that it held only the drift check is corrected.
+  - The header ends at the first blank line after its `key: value` lines, not at the
+    first `## ` heading. This was a mid-build correction by the human (see Notes): real
+    files put prose right under the header.
+- **Hardening beyond the plan:**
+  - Pool names from `--parked`/`--open` are validated against the milestone id shape
+    before they become file names. The hostile harness caught `--parked ../../x`
+    writing outside the milestones directory.
+  - A comment-only line is a single `#`, so a `## ` heading is never swallowed as a
+    comment.
+- **Review fix:** a trailing comment on an empty value (`size:   # S, M or L`) was
+  converted as the value, and a comment after a tab was not stripped. Both are fixed,
+  with tests.
+- **The Done when.** Over a copy of the reference project's main branch (supplied by the
+  human, extracted and converted outside this repository, nothing from it committed):
+  - both converters exit 0 with nothing reported;
+  - `peal list --no-pr` and `peal board --no-pr` agree with the reference's own
+    task-state and board output on done/free/blocked for 587 of 588 tasks;
+  - the one left out is claimed in the real clone, a claim the copy cannot carry (the
+    human agreed claim states are out of the comparison);
+  - `migrate.test.sh` and `hostile.test.sh` pass.
+- **Next:**
+  - 0096 (split from this task) writes `docs/migrating.md`, the procedure around these
+    commands.
+  - The reference project's own migration is a task in that project.
