@@ -35,6 +35,23 @@ set -uo pipefail
 # shellcheck source=issue-fixtures.sh
 . "$PEAL_ROOT/lib/issue-fixtures.sh"
 
+# PEAL_HOSTILE_SHARD=K/N: see the comment near PEAL_HOSTILE_CASES below for what this
+# does; validated here, before anything (a scratch directory, a stub) is created.
+SHARD_K=1
+SHARD_N=1
+if [ -n "${PEAL_HOSTILE_SHARD-}" ]; then
+  if [[ ! "$PEAL_HOSTILE_SHARD" =~ ^[0-9]+/[0-9]+$ ]]; then
+    echo "hostile: PEAL_HOSTILE_SHARD must be K/N, e.g. 2/4 (got '$PEAL_HOSTILE_SHARD')" >&2
+    exit 2
+  fi
+  SHARD_K=$((10#${PEAL_HOSTILE_SHARD%/*}))
+  SHARD_N=$((10#${PEAL_HOSTILE_SHARD#*/}))
+  if [ "$SHARD_N" -lt 1 ] || [ "$SHARD_K" -lt 1 ] || [ "$SHARD_K" -gt "$SHARD_N" ]; then
+    echo "hostile: PEAL_HOSTILE_SHARD K/N needs 1<=K<=N (got '$PEAL_HOSTILE_SHARD')" >&2
+    exit 2
+  fi
+fi
+
 # The scratch area: BASE/canary, BASE/abs-target; each repository BASE/rN/a/b/{remote.git,
 # work, work-wt, tmp}, so that ../../escape from the work tree stays under BASE.
 BASE=$(cd "$(scratch_dir)" && pwd -P)
@@ -257,20 +274,31 @@ INPUT=$NOINPUT
 cover() { COVERED="$COVERED$1 "; }
 
 # try LABEL CWD ARG... -> peal ARG... run in CWD with INPUT on stdin, judged; a problem
-# fails the check, unless KNOWN lists "LABEL: problem kind".
+# fails the check, unless KNOWN lists "LABEL:problem kind" in full (LABEL may itself hold
+# spaces and colons, e.g. "issues: list", so a KNOWN entry is matched here as the whole
+# string "$label:$kind", never cut at a space or a colon of its own). Counts every call
+# toward TRIES; with PEAL_HOSTILE_SHARD set, only the tries that land in this shard
+# (round-robin by call order) actually run assess, and RAN_LABELS records which did.
 try() {
   local label=$1 cwd=$2 problems kind known
   shift 2
+  TRIES=$((TRIES + 1))
+  [ $(( (TRIES - 1) % SHARD_N )) -eq $((SHARD_K - 1)) ] || return 0
+  RAN=$((RAN + 1))
+  RAN_LABELS="$RAN_LABELS$label"$'\n'
   problems=$(assess "$cwd" "$INPUT" "$PEAL" "$@")
   if [ -n "$problems" ]; then
     kind=${problems%%:*}
     for known in ${KNOWN[@]+"${KNOWN[@]}"}; do
-      if [ "${known%% *}" = "$label:$kind" ]; then KNOWN_HIT="$KNOWN_HIT$known"$'\n'; problems=""; fi
+      if [ "$known" = "$label:$kind" ]; then KNOWN_HIT="$KNOWN_HIT$known"$'\n'; problems=""; fi
     done
   fi
   check "$label" "" "$problems"
 }
 KNOWN_HIT=""
+TRIES=0
+RAN=0
+RAN_LABELS=$'\n'
 
 # each LABEL CWD ARG... -> try once per hostile value, the value in place of every @ among
 # the ARGs.
@@ -699,6 +727,19 @@ coverage() {
 
 # PEAL_HOSTILE_CASES: the groups to run (self_test awk_channels issues_channels arg_cases
 # hook_cases), all by default; the coverage check runs with all of them only.
+# PEAL_HOSTILE_SHARD=K/N (parsed and validated above, before anything ran): only shard K
+# of N's tries actually run try()'s peal call, round-robin by call order across every
+# group that runs here; unset or 1/1 is today's full serial run. Every group's own body
+# (hostile_repo, cover, and the direct check/check_fails/self_test calls outside try())
+# still runs in every shard, so each shard's COVERED stays complete and its own
+# coverage() check (below, when PEAL_HOSTILE_CASES is unset) passes on its own; there is
+# no cross-job aggregation. Slicing mid-group means a shard's repository state can drift
+# from what a full serial run would leave a try seeing, since a skipped try's write never
+# happens in this shard; a local serial run still covers today's exact sequence. With N=1
+# (unset or 1/1) a not-hit KNOWN entry always fails, as before sharding existed; with N>1
+# it only fails in the shard whose RAN_LABELS actually ran that label, so the other
+# shards don't each report the same known finding as newly missing. Composes with
+# PEAL_HOSTILE_CASES and PEAL_TEST_AWK unchanged.
 cases=${PEAL_HOSTILE_CASES:-self_test awk_channels issues_channels arg_cases hook_cases}
 # run_group NAME CMD... -> CMD, if NAME is one of the groups to run.
 run_group() {
@@ -722,11 +763,25 @@ else
   run_group hook_cases for_each_awk hook_cases
 fi
 [ -n "${PEAL_HOSTILE_CASES-}" ] || coverage
+# A KNOWN entry not hit fails, unless this is a shard (N>1) that never ran its label
+# (RAN_LABELS); with N=1 (unset or 1/1, a full run) every entry is checked regardless,
+# today's behaviour unchanged. ${known%:*} takes the label up to the LAST colon: kind
+# never holds one, but a label can ("issues: list"), so %% (first colon) would cut it.
 for known in ${KNOWN[@]+"${KNOWN[@]}"}; do
+  if [ "$SHARD_N" -gt 1 ]; then
+    case $RAN_LABELS in
+      *$'\n'"${known%:*}"$'\n'*) ;;
+      *) continue ;;
+    esac
+  fi
   case $KNOWN_HIT in
     *"$known"*) ;;
     *) check "KNOWN still found: $known" "found" "fixed, or no longer run: take it off KNOWN" ;;
   esac
 done
+printf 'hostile shard %s/%s: ran %d of %d tries\n' "$SHARD_K" "$SHARD_N" "$RAN" "$TRIES"
+if [ "$TRIES" -gt 0 ] && [ "$RAN" -eq 0 ]; then
+  check "hostile shard $SHARD_K/$SHARD_N ran at least one try" "yes" "no: ran 0 of $TRIES"
+fi
 [ -z "$NOTES" ] || printf '%s' "$NOTES"
 finish

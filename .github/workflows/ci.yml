@@ -15,13 +15,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            harnesses: ""
           - os: macos-latest
             # Only what differs from Linux: bash 3.2, BSD tools, and a real file
-            # system. The full set already runs above, so a pull request is not
-            # waiting on macOS too. Trimmed or grown against the timings tools/test-all.sh
-            # prints for each harness.
+            # system. The full set runs on Linux (the "linux" job below), so a pull
+            # request is not waiting on macOS too. Trimmed or grown against the timings
+            # tools/test-all.sh prints for each harness.
             #   plugin/templates/githook.test.sh, plugin/templates/launcher.test.sh:
             #     they run in other people's repositories, and bash 3.2 broke them in 0040.
             #   tools/install.test.sh
@@ -38,18 +36,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      # Every awk the harnesses can find is one they run under; Peal must work with
-      # whichever a machine has. macOS brings its own BSD awk and bash 3.2.
-      - name: Install the awks
-        if: runner.os == 'Linux'
-        run: sudo apt-get update -q && sudo apt-get install -yq mawk gawk original-awk busybox
-      - name: Install Claude Code
-        if: runner.os == 'Linux'
-        run: npm install -g @anthropic-ai/claude-code
-      # The runner's PATH puts a newer Homebrew bash ahead of /bin/bash; the macOS job
-      # exists to exercise bash 3.2, so force it for every "bash" and "env bash" lookup.
+      # The runner's PATH puts a newer Homebrew bash ahead of /bin/bash; this job exists
+      # to exercise bash 3.2, so force it for every "bash" and "env bash" lookup.
       - name: Force /bin/bash, log bash and the awks found
-        if: runner.os == 'macOS'
         run: |
           mkdir -p "$RUNNER_TEMP/bashshim"
           ln -sf /bin/bash "$RUNNER_TEMP/bashshim/bash"
@@ -60,13 +49,105 @@ jobs:
           done
       - name: Run the harnesses
         env:
-          PEAL_REQUIRE_CLAUDE: ${{ runner.os == 'Linux' && '1' || '' }}
           # The issues storage's harness runs its fake gh on jq, which both runners have.
           PEAL_REQUIRE_JQ: '1'
-          # macOS runs only these two groups of the hostile harness (see the matrix
-          # comment above); Linux runs all of them, coverage check included.
-          PEAL_HOSTILE_CASES: ${{ runner.os == 'macOS' && 'self_test awk_channels' || '' }}
+          # Only these two groups of the hostile harness (see the matrix comment above);
+          # the Linux job below runs all of them, coverage check included.
+          PEAL_HOSTILE_CASES: 'self_test awk_channels'
         run: tools/test-all.sh ${{ matrix.harnesses }}
+
+  # Every hostile.test.sh case that used to run serially in "harnesses (ubuntu-latest)"
+  # now runs across these shards instead: 4 that each take a slice of hostile.test.sh
+  # (plugin/lib/hostile.test.sh:PEAL_HOSTILE_SHARD, measured to keep each under about 6
+  # minutes) and the rest of the Linux-only harnesses split by their measured seconds
+  # (tools/test-all.sh's timing, quoted in 0077's task notes). "rest" is computed, not
+  # listed, so a new *.test.sh is covered the moment it exists, same promise
+  # tools/test-all.sh makes with no arguments.
+  linux:
+    name: linux (${{ matrix.shard }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: hostile 1/4
+            hostile_shard: 1/4
+          - shard: hostile 2/4
+            hostile_shard: 2/4
+          - shard: hostile 3/4
+            hostile_shard: 3/4
+          - shard: hostile 4/4
+            hostile_shard: 4/4
+          # Anchored (&shard_a etc.) so the "rest" step below can read the same three
+          # lists by alias instead of a second, driftable copy of these paths.
+          - shard: a
+            harnesses: &shard_a >-
+              plugin/lib/close.test.sh plugin/lib/frontmatter.test.sh
+              plugin/lib/git-guard.test.sh
+          - shard: b
+            harnesses: &shard_b >-
+              plugin/lib/store-issues.test.sh plugin/lib/decisions.test.sh
+              plugin/lib/milestones.test.sh
+          - shard: c
+            harnesses: &shard_c >-
+              plugin/lib/store-files.test.sh plugin/lib/work.test.sh
+              plugin/lib/backlog.test.sh plugin/lib/githooks.test.sh
+          - shard: rest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Every awk the harnesses can find is one they run under; Peal must work with
+      # whichever a machine has.
+      - name: Install the awks
+        run: sudo apt-get update -q && sudo apt-get install -yq mawk gawk original-awk busybox
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Run a hostile shard
+        if: matrix.hostile_shard
+        env:
+          PEAL_REQUIRE_CLAUDE: '1'
+          PEAL_REQUIRE_JQ: '1'
+          PEAL_HOSTILE_SHARD: ${{ matrix.hostile_shard }}
+        run: tools/test-all.sh plugin/lib/hostile.test.sh
+      - name: Run the named harnesses
+        if: matrix.harnesses
+        env:
+          PEAL_REQUIRE_CLAUDE: '1'
+          PEAL_REQUIRE_JQ: '1'
+        run: tools/test-all.sh ${{ matrix.harnesses }}
+      - name: Find and run the rest (everything the other shards don't name)
+        if: matrix.shard == 'rest'
+        env:
+          PEAL_REQUIRE_CLAUDE: '1'
+          PEAL_REQUIRE_JQ: '1'
+          # Aliases of the anchors on shards a/b/c above: the one place those paths are
+          # written, so a harness moved between shards can't be left stale here too.
+          SHARD_A: *shard_a
+          SHARD_B: *shard_b
+          SHARD_C: *shard_c
+        run: |
+          named=$(printf '%s\n' $SHARD_A $SHARD_B $SHARD_C plugin/lib/hostile.test.sh | sort)
+          all=$(find . -name '*.test.sh' -not -path './.git/*' -printf '%P\n' | sort)
+          mapfile -t rest < <(comm -23 <(printf '%s\n' "$all") <(printf '%s\n' "$named"))
+          if [ ${#rest[@]} -eq 0 ]; then
+            echo "linux (rest): the other shards now name every *.test.sh; nothing left to run" >&2
+            exit 2
+          fi
+          printf 'rest:\n'
+          printf '  %s\n' "${rest[@]}"
+          tools/test-all.sh "${rest[@]}"
+
+  # The required check "harnesses (ubuntu-latest)" is now this gate over the shards
+  # above, not a single job: always() is essential, since a skipped required check
+  # counts as passing, and fail-fast: false on "linux" means one shard's failure must
+  # not be masked by another shard still running.
+  harnesses-linux:
+    name: harnesses (ubuntu-latest)
+    needs: linux
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every Linux shard passed
+        run: '[ "${{ needs.linux.result }}" = success ]'
 
   shellcheck:
     runs-on: ubuntu-latest
