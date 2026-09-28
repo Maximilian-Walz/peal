@@ -1,6 +1,7 @@
 ---
 plan: skipped
 size: S
+priority: high
 ---
 
 # 0079 — CLAUDE.md's "each clone installs the git gates once" line is now only the fallback
@@ -35,5 +36,7 @@ plugin/bin/peal here. File an idea for the CLAUDE.md rule ('Each clone installs 
 gates once') rather than editing it."
 
 ## Notes
+
+Revised 2026-09-28: priority high: goes into Peal's next patch release (daily-use fixes after m1)
 
 None beyond the Raw section.
