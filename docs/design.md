@@ -380,7 +380,10 @@ Derived from refs and the main branch on the remote, never from the calling work
   task's size tier (M while unsized) the session is nudged once to close or split.
 - **SessionEnd**: when the main session ends (`logout`, `prompt_input_exit`, `other`) in a
   task's worktree, uncommitted work is committed as `wip: session-end autosave [NNNN]` and
-  the branch pushed.
+  the branch pushed. A sandbox's device mount is left out of that (`peal_status_porcelain`,
+  `peal_untracked_devices`); seen from outside the sandbox, the same path is an ordinary
+  empty regular file, and the autosave commits it like any other untracked file (0087) —
+  the remedy is git's own `.gitignore` or clone-local `.git/info/exclude`, not Peal code.
 
 The heartbeat, the turn count and the autosave's log live in the worktree's git
 directory, where no commit sees them.

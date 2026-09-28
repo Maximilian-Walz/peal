@@ -49,6 +49,14 @@ peal_refuse() {
 # root-relative regardless of the caller's directory, so they are resolved against the
 # work tree's top before the test: called from any directory, not just the top, this
 # still gives the right answer.
+#
+# Only the character device is filtered. Seen from outside that sandbox — a plain host
+# process, a machine that never had the mount active, or the same worktree once the
+# sandbox is gone — the same path is an ordinary empty regular file: [ -c ] says no, so it
+# is not filtered and counts as work like any other untracked file. By decision (0087),
+# this is left to git's own .gitignore or .git/info/exclude, not handled here: an
+# empty-file heuristic would also swallow a real empty file kept on purpose (.gitkeep,
+# __init__.py), and a known-path filter would not be generic.
 peal_status_porcelain() {
   local top line path
   top=$(git rev-parse --show-toplevel) || return 1
