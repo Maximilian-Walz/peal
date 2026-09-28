@@ -45,5 +45,17 @@ Revised 2026-09-28: priority high: goes into Peal's next patch release (daily-us
 
 ## Outcome
 
-<!-- Written at close, replacing this comment: what was built, what was decided, what was
-     found and left (each a new task), and what the next session needs to know. -->
+Built: Peal's own `.belfry.yml` now holds `create: .peal/peal create --owner {owner}
+--title {title}` under `tasks.commands`, between `idea:` and `board:`, the same text and
+place `_peal_init_belfry_text` (`plugin/lib/init.sh`) writes for the files storage. Nothing
+else changed; the review found the line matches and the scope clean.
+
+Not verified here: the Notes' merge gate. This session cannot see which Belfry release is
+deployed, so nobody has checked that Belfry's release after its #264 is live. Until it is,
+Belfry's server refuses the whole contract with the new key and keeps the last valid one.
+The human checks that before merging; no `merge: auto` is set.
+
+### Reviewer findings not acted on
+
+- Merge precondition unconfirmed: this session cannot confirm it; the pull request asks
+  the human to confirm it before merging.
