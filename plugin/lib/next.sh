@@ -9,9 +9,9 @@
 # Catalogue, in the order they are offered (the stages of `peal init`, then review-task):
 #   guardrails  not recorded, and a task done or a non-merge commit on main without [ID]
 #   milestones  not recorded, and >=10 tasks done or >=8 open
+#   belfry      not recorded, and >=5 tasks done
 #   review-task a current milestone with no record holding it in milestone and
 #               "milestone" in depends
-#   belfry      not recorded, and >=5 tasks done
 # `tasks` is not in that loop: without it recorded nothing else can be, so it is the only
 # thing ever suggested then.
 #
@@ -146,7 +146,7 @@ peal_next_core() {
     evidence=$(_evidence "$only")
     printf 'SUGGEST %s %s%s\n' "$only" "$(_peal_next_try "$only")" "${evidence:+ $evidence}"
   else
-    for item in guardrails milestones review-task belfry; do
+    for item in guardrails milestones belfry review-task; do
       _qualifies "$item" || continue
       _peal_next_blocked "$item" "$declined" "$today" && continue
       evidence=$(_evidence "$item")

@@ -1027,7 +1027,7 @@ milestones and one local read of the main branch's git history (never Belfry), a
 prints the one next thing with the best evidence for it, in fixed order (the stages of
 `peal init`, then the review task a current milestone is missing) — `guardrails` once a
 task is done or a commit on main carries no task id, `milestones` at ten tasks done or
-eight open, `review-task` once the current milestone has none, `belfry` at five done —
+eight open, `belfry` at five done, `review-task` once the current milestone has none —
 with why this repository would profit and how to try it, and up to three runners-up. The
 human accepts (`/peal:setup <stage>` runs), declines (`declined.<item>: [DATE]` in
 `.peal/config.yml`, committed like a setup, not suggested again for 90 days unless asked
