@@ -77,16 +77,18 @@ jobs:
             hostile_shard: 3/4
           - shard: hostile 4/4
             hostile_shard: 4/4
+          # Anchored (&shard_a etc.) so the "rest" step below can read the same three
+          # lists by alias instead of a second, driftable copy of these paths.
           - shard: a
-            harnesses: >-
+            harnesses: &shard_a >-
               plugin/lib/close.test.sh plugin/lib/frontmatter.test.sh
               plugin/lib/git-guard.test.sh
           - shard: b
-            harnesses: >-
+            harnesses: &shard_b >-
               plugin/lib/store-issues.test.sh plugin/lib/decisions.test.sh
               plugin/lib/milestones.test.sh
           - shard: c
-            harnesses: >-
+            harnesses: &shard_c >-
               plugin/lib/store-files.test.sh plugin/lib/work.test.sh
               plugin/lib/backlog.test.sh plugin/lib/githooks.test.sh
           - shard: rest
@@ -117,12 +119,13 @@ jobs:
         env:
           PEAL_REQUIRE_CLAUDE: '1'
           PEAL_REQUIRE_JQ: '1'
+          # Aliases of the anchors on shards a/b/c above: the one place those paths are
+          # written, so a harness moved between shards can't be left stale here too.
+          SHARD_A: *shard_a
+          SHARD_B: *shard_b
+          SHARD_C: *shard_c
         run: |
-          named=$(printf '%s\n' \
-            plugin/lib/close.test.sh plugin/lib/frontmatter.test.sh plugin/lib/git-guard.test.sh \
-            plugin/lib/store-issues.test.sh plugin/lib/decisions.test.sh plugin/lib/milestones.test.sh \
-            plugin/lib/store-files.test.sh plugin/lib/work.test.sh plugin/lib/backlog.test.sh \
-            plugin/lib/githooks.test.sh plugin/lib/hostile.test.sh | sort)
+          named=$(printf '%s\n' $SHARD_A $SHARD_B $SHARD_C plugin/lib/hostile.test.sh | sort)
           all=$(find . -name '*.test.sh' -not -path './.git/*' -printf '%P\n' | sort)
           mapfile -t rest < <(comm -23 <(printf '%s\n' "$all") <(printf '%s\n' "$named"))
           if [ ${#rest[@]} -eq 0 ]; then
