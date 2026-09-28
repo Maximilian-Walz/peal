@@ -9,6 +9,8 @@ tasks: tasks                    # holds backlog/, doing/, done/ and TEMPLATE.md
 milestones: docs/milestones
 branch-prefix: task/
 worktrees: ../{repo}-wt         # each claim is {worktrees}/NNNN-slug
+worktree-setup: ""              # a command run once in each new claim's worktree, with
+                                # PEAL_PRIMARY the primary checkout's path; a failure fails the claim
 sizes: {S: 60, M: 120, L: 200}  # tool calls; the turn budget nudges at the tier
 plan:
   required-paths: []            # a task touching one of these gets plan: required
