@@ -11,6 +11,8 @@ plan:
 context: [docs/design.md, README.md]
 checks:
   close: [tools/lint.sh]
+release:
+  version-files: ["plugin/.claude-plugin/plugin.json: version"]
 
 # Peal's defaults:
 # remote: origin
