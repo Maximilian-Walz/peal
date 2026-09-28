@@ -11,6 +11,8 @@ set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/test-lib.sh"
 # shellcheck source=task-fixtures.sh
 . "$PEAL_ROOT/lib/task-fixtures.sh"
+# shellcheck source=issue-fixtures.sh
+. "$PEAL_ROOT/lib/issue-fixtures.sh"
 
 # hook DIR NAME JSON -> the hook NAME run in DIR with JSON on stdin; its status, stdout
 # and stderr as "status:output".
@@ -178,7 +180,8 @@ gates() {
     "0:Peal:
 installed Peal's git hooks in $dir (core.hooksPath); they chain to the hooks in $hooksdir
 Current milestone: m1, Milestone m1 (docs/milestones/m1.md)
-Task: none in this worktree. /peal:work claims one into a worktree of its own." "$out"
+Task: none in this worktree. /peal:work claims one into a worktree of its own.
+Next to adopt: review-task, m1 current, no review task. For the human: /peal:next says more; nothing changes unasked." "$out"
   check "gates: core.hooksPath" "$dir" "$(git -C "$work" config core.hooksPath)"
 
   out=$(hook "$work" session-start '{"source":"startup"}')
@@ -200,7 +203,8 @@ Task: none in this worktree. /peal:work claims one into a worktree of its own." 
     "0:Peal:
 peal: Peal's git hooks are not installed: core.hooksPath is custom-hooks; to install them chained to it, run: .peal/peal hooks install
 Current milestone: m1, Milestone m1 (docs/milestones/m1.md)
-Task: none in this worktree. /peal:work claims one into a worktree of its own." "$out"
+Task: none in this worktree. /peal:work claims one into a worktree of its own.
+Next to adopt: review-task, m1 current, no review task. For the human: /peal:next says more; nothing changes unasked." "$out"
   check "gates: a foreign core.hooksPath is left alone" "custom-hooks" "$(git -C "$work" config core.hooksPath)"
 
   # A forced failure: the common directory's peal/ blocked by a plain file. The command
@@ -212,11 +216,68 @@ Task: none in this worktree. /peal:work claims one into a worktree of its own." 
     "${out%%:*}:$(printf '%s\n' "$out" | grep -c "could not be installed.*\\.peal/peal hooks install")"
 }
 
+# hint -> /peal:next's SessionStart hint (lib/next.sh, peal_next_hint): shown on
+# startup/clear outside a task's worktree, silent otherwise, and (issues storage) no gh
+# call beyond what the orientation already makes.
+hint() {
+  local work wt out n1 n2
+
+  work=$(peal_repo)
+  put "$work" backlog 0001 solo-task
+  (cd "$work" && "$PEAL" claim 0001) >/dev/null 2>&1
+  wt=$(dirname "$work")/work-wt/0001-solo-task
+
+  check "hint: shown on startup, outside a task's worktree" \
+    "Next to adopt: tasks. For the human: /peal:next says more; nothing changes unasked." \
+    "$(hook "$work" session-start '{"source":"startup"}' | tail -n 1)"
+  check "hint: shown on clear too" "1" \
+    "$(hook "$work" session-start '{"source":"clear"}' | grep -c '^Next to adopt:')"
+  check "hint: silent on resume" "0" \
+    "$(hook "$work" session-start '{"source":"resume"}' | grep -c '^Next to adopt:')"
+  check "hint: silent inside a task's worktree" "0" \
+    "$(hook "$wt" session-start '{"source":"startup"}' | grep -c '^Next to adopt:')"
+
+  # Everything this task's catalogue knows is set up, and m1's review task is filed: NONE.
+  work=$(peal_repo)
+  printf 'stages: [tasks, guardrails, milestones, belfry]\n' >>"$work/.peal/config.yml"
+  publish "$work" >/dev/null 2>&1
+  put "$work" backlog 0001 review-m1 "milestone: m1" "depends: [milestone]"
+  check "hint: silent once nothing is left" "0" \
+    "$(hook "$work" session-start '{"source":"startup"}' | grep -c '^Next to adopt:')"
+
+  # A malformed declined date: the orientation still runs, no hint, status 0.
+  work=$(peal_repo)
+  printf 'declined:\n  guardrails: [not-a-date]\n' >>"$work/.peal/config.yml"
+  publish "$work" >/dev/null 2>&1
+  out=$(hook "$work" session-start '{"source":"startup"}')
+  check "hint: a malformed declined date, status 0, no hint, orientation intact" \
+    "0:Peal:
+Current milestone: m1, Milestone m1 (docs/milestones/m1.md)
+Task: none in this worktree. /peal:work claims one into a worktree of its own." "$out"
+
+  # Issues storage: the hint reuses the orientation's own list and milestones, so which
+  # item it names (or whether it is silent) costs no gh call of its own. Two startups,
+  # same worktree, differing only in what next --decline (a local file edit) took off the
+  # table between them, make the same number of gh calls either way.
+  command -v jq >/dev/null 2>&1 || return 0
+  ISSUES_CONFIG=$'stages: [tasks]\n' issues_repo
+  : >"$FAKE_GH/log"
+  local item
+  item=$(hook "$work" session-start '{"source":"startup"}' | sed -n 's/^Next to adopt: \([a-z-]*\).*/\1/p')
+  n1=$(wc -l <"$FAKE_GH/log" | tr -d ' ')
+  [ -n "$item" ] && at "$work" "$PEAL" next --decline "$item" >/dev/null 2>&1
+  : >"$FAKE_GH/log"
+  hook "$work" session-start '{"source":"startup"}' >/dev/null
+  n2=$(wc -l <"$FAKE_GH/log" | tr -d ' ')
+  check "hint: issues storage, no gh call of its own" "$n1" "$n2"
+}
+
 cases() {
   orientation
   budget
   autosave
   gates
+  hint
 }
 
 for_each_awk cases
