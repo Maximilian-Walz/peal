@@ -255,20 +255,26 @@ hint() {
 Current milestone: m1, Milestone m1 (docs/milestones/m1.md)
 Task: none in this worktree. /peal:work claims one into a worktree of its own." "$out"
 
-  # Issues storage: the hint reuses the orientation's own list and milestones, so which
-  # item it names (or whether it is silent) costs no gh call of its own. Two startups,
-  # same worktree, differing only in what next --decline (a local file edit) took off the
-  # table between them, make the same number of gh calls either way.
+  # Issues storage: the hint reuses the orientation's own list and milestones (never gh
+  # of its own). A real baseline: the same worktree, the same startup (so the same fetch
+  # and peal_reap's own re-list happen either way), only review-task qualifies (every
+  # stage recorded, m1 current with no review task filed) so the first startup hints;
+  # declining it (a local file edit, no gh call) leaves NONE, so the second is silent.
+  # Equal gh call counts prove the hint itself, on or off, costs none of its own.
   command -v jq >/dev/null 2>&1 || return 0
-  ISSUES_CONFIG=$'stages: [tasks]\n' issues_repo
+  ISSUES_CONFIG=$'stages: [tasks, guardrails, milestones, belfry]\n' issues_repo
   : >"$FAKE_GH/log"
-  local item
-  item=$(hook "$work" session-start '{"source":"startup"}' | sed -n 's/^Next to adopt: \([a-z-]*\).*/\1/p')
+  out=$(hook "$work" session-start '{"source":"startup"}')
   n1=$(wc -l <"$FAKE_GH/log" | tr -d ' ')
-  [ -n "$item" ] && at "$work" "$PEAL" next --decline "$item" >/dev/null 2>&1
+  check "hint: issues storage, the hinted run actually hints" "1" \
+    "$(printf '%s\n' "$out" | grep -c '^Next to adopt: review-task')"
+
+  at "$work" "$PEAL" next --decline review-task >/dev/null 2>&1
   : >"$FAKE_GH/log"
-  hook "$work" session-start '{"source":"startup"}' >/dev/null
+  out=$(hook "$work" session-start '{"source":"startup"}')
   n2=$(wc -l <"$FAKE_GH/log" | tr -d ' ')
+  check "hint: issues storage, the baseline run is silent" "0" \
+    "$(printf '%s\n' "$out" | grep -c '^Next to adopt:')"
   check "hint: issues storage, no gh call of its own" "$n1" "$n2"
 }
 
