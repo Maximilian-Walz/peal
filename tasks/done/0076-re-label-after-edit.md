@@ -133,4 +133,37 @@ plugin/lib/close.sh:263, plugin/lib/claim.sh:278, plugin/lib/main-write.sh:221.
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+On the issues storage, when a filter label (`storage.issues.label`) is set, a
+single-issue read now refuses an issue whose body or title was edited after its latest
+labelling by someone without write access. It is refused the way an unadmitted issue
+is: status 2, and a `refused:` message that asks the maintainer to take the label off
+and add it again. The message quotes no issue text and no login.
+
+- **How it works.** `_peal_issues_edits` in `store-issues.sh` makes one GraphQL call. It
+  reads `createdAt`, the author, `lastEditedAt`/`editor` and the timeline's
+  `LABELED_EVENT` and `RENAMED_TITLE_EVENT` entries. `edit_admitted()` in
+  `issues-lib.awk` then decides. `updated_at` is not used, because the claim label and
+  Peal's own comments bump it.
+- **Write access is inferred, with no permission call.** GitHub lets only writers edit
+  someone else's issue, so an editor who is not the author counts as a writer. The
+  author counts as one when their association is OWNER, MEMBER or COLLABORATOR.
+- **Fails closed.** When no `labeled` event is found, the issue's `createdAt` stands in
+  for the labelling time. A failing GraphQL call refuses the issue with `could not read
+  issue N's edits`. With no filter label configured, the check never runs and makes no
+  extra call.
+- **Claim and revise are now checked too.** The plan assumed every single-issue path
+  already went through `_peal_issues_admitted`. Claim and revise did not: they relied on
+  the listing, which still admits a labelled issue. Both now call the new wrapper,
+  `_peal_issues_check_admitted`, alongside read and defer. Before this change, claim and
+  revise never checked admission directly.
+- **Tests.** Fixtures: `fake-gh` answers the edits query, and `issue()` in
+  `issue-fixtures.sh` gained `--labelled-at`, `--edited-at` and `--renamed-at`. New
+  cases are in `store-issues.test.sh` (`edit_admission()`) and in a label-configured
+  block of `hostile.test.sh`'s `issues_channels`. The reviewer's mutation check (forcing
+  `edit_admitted` to always admit) failed both harnesses.
+- **Docs.** `docs/security.md` drops the known limit this closes and describes the
+  guard. `docs/design.md` names it in one sentence.
+- **Left.** The listing, board, offer and ship's release notes still admit such an issue
+  by its label, so an outsider's edited title can show there. The body never shows, and
+  claiming refuses the issue. `docs/security.md` records this narrower limit, and the
+  idea `listing-re-label-check` (m1) is filed to close it.
