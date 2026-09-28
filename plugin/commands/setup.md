@@ -77,7 +77,8 @@ of the commit.
    files the `tasks/` directories with `TEMPLATE.md`. Options: the recommended storage
    first, labelled `(Recommended)`, then the other. A `taskdir` line means a tasks
    directory is there already: say that its files stay as they are and that adopting an
-   existing task process is a migration of its own, not this setup.
+   existing task process is a migration of its own, not this setup — point at Peal's
+   `docs/migrating.md`.
 4. **Write it:** `peal init --stage tasks --storage <files|issues>`. No `--label`: the
    issues opened by someone with write access are the tasks, the safe default on a
    public repository. Status 1 means `.claude/settings.json` does not parse: the rest is
