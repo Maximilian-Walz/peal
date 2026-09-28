@@ -135,11 +135,13 @@ number to come, several texts are separated by lines -----NEXT TASK-----):
   create --part-of ID SLUG...   file the pieces of a split of ID (part-of: ORIGIN,
                                 PART1..n for each other)
   create --batch ID SLUG...     file ideas found in task ID
-  create --owner OWNER --title TITLE
+  create --owner OWNER --title TITLE [--origin outsider|writer]
                                 Belfry's tasks.commands.create contract: one task filed,
                                 its slug the first five words of TITLE, OWNER (ai or
-                                human) written into owner (lib/backlog.sh); ends with
-                                "filed: <id>" as its last line
+                                human) written into owner, ORIGIN outsider written into
+                                origin (writer, or left out: no field, as today)
+                                (lib/backlog.sh); ends with "filed: <id>" as its last
+                                line
   idea SLUG [--now]             queue an idea on a task branch, else (or --now) file it
   ideas [--flush | --export | --drop N|--all]
                                 the queued ideas; --export prints them in full as
@@ -380,7 +382,7 @@ cmd_create() {
   case $1 in
     --part-of) need 3 "$@"; peal_store_create split "$2" "${@:3}" ;;
     --batch) need 3 "$@"; peal_store_create batch "$2" "${@:3}" ;;
-    --owner | --title) peal_create_filed "$@" ;;
+    --owner | --title | --origin) peal_create_filed "$@" ;;
     -*) usage >&2; exit 2 ;;
     *) [ $# -eq 1 ] || { usage >&2; exit 2; }; peal_store_create plain "" "$1" ;;
   esac

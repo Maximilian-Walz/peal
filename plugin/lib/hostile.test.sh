@@ -598,6 +598,7 @@ arg_cases() {
   with_input "$(ID=NNNN text "milestone: m1" "size: S")" each "create --batch SLUG" "$WORK" create --batch 0001 @
   with_input "$(ID=NNNN text "milestone: m1" "size: S")" each "create --owner OWNER" "$WORK" create --owner @ --title "Hostile owner test title"
   with_input "$(ID=NNNN text "milestone: m1" "size: S")" each "create --title TITLE" "$WORK" create --owner ai --title @
+  with_input "$(ID=NNNN text "milestone: m1" "size: S")" each "create --origin ORIGIN" "$WORK" create --owner ai --title "Hostile origin test title" --origin @
   with_input "$(ID=NNNN text "milestone: m1" "size: S")" each "idea SLUG on main" "$WORK" idea @
   with_input "$(ID=NNNN text "milestone: m1" "size: S")" each "idea --now ARG" "$WORK" idea some-idea-here @
   each "ideas ARG" "$WORK" ideas @
