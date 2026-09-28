@@ -7,9 +7,11 @@
 # or status also names its commit, sha; a job its run, run_id; a release is {tag, title,
 # notes, url}), $FAKE_GH/logs/<job id>, a job's log, and $FAKE_GH/workflows, how many
 # Actions workflows there are (1). --jq
-# is applied with jq, as gh applies its own. A pull request's merge (PUT pulls/N/merge,
-# a squash) and a branch's deletion (DELETE git/refs/heads/B) act on the bare repository
-# $FAKE_GH/remote; `gh api graphql` knows the mutation enablePullRequestAutoMerge, refused
+# is applied with jq, as gh applies its own. A pull request opened (POST pulls) gets its
+# head branch's real sha from $FAKE_GH/remote (empty without one, or the branch there).
+# A pull request's merge (PUT pulls/N/merge, a squash) and a branch's deletion (DELETE
+# git/refs/heads/B) act on the bare repository $FAKE_GH/remote; `gh api graphql` knows
+# the mutation enablePullRequestAutoMerge, refused
 # while $FAKE_GH/no-auto-merge exists, and the re-label check's edits query (the
 # timelineItems of each issue it names, one alias "iN: issue(number: N)" per issue, all
 # in one answer; an issue that does not exist fails the call), answered from an issue's
@@ -243,15 +245,20 @@ case "$method $rest" in
     ;;
   "POST pulls")
     n=$(jq -s '[.[0][].number, .[1][].number] | max // 0 | . + 1' "$FAKE_GH/issues.json" "$FAKE_GH/pulls.json")
-    jq -e --arg h "$(jq -r .head <<<"$body")" 'any(.[]; .state == "open" and .head.ref == $h) | not' \
+    head=$(jq -r .head <<<"$body")
+    jq -e --arg h "$head" 'any(.[]; .state == "open" and .head.ref == $h) | not' \
       "$FAKE_GH/pulls.json" >/dev/null || { printf 'gh: A pull request already exists (HTTP 422)\n' >&2; exit 1; }
     unmergeable=false
     [ ! -e "$FAKE_GH/unmergeable" ] || unmergeable=true
+    # The real API always reports the head branch's sha; a caller that reuses an open
+    # pull request checks it against the branch fetched, so it is worth getting right.
+    headsha=""
+    [ ! -d "$FAKE_GH/remote" ] || headsha=$(git -C "$FAKE_GH/remote" rev-parse -q --verify "refs/heads/$head" 2>/dev/null) || headsha=""
     save pulls '. + [{number: $n, node_id: ("PR_" + ($n | tostring)), title: $in.title, body: $in.body, state: "open", draft: false,
         merged: false, mergeable: ($unm | not), author_association: "OWNER",
         html_url: ($url + "/pull/" + ($n | tostring)),
-        head: {ref: $in.head, repo: {full_name: $repo}}, base: {ref: $in.base, repo: {full_name: $repo}}}]' \
-      --argjson in "$body" --argjson n "$n" --arg url "$url" --arg repo "$repo" --argjson unm "$unmergeable"
+        head: {ref: $in.head, sha: $sha, repo: {full_name: $repo}}, base: {ref: $in.base, repo: {full_name: $repo}}}]' \
+      --argjson in "$body" --argjson n "$n" --arg url "$url" --arg repo "$repo" --argjson unm "$unmergeable" --arg sha "$headsha"
     out "$(jq -c --argjson n "$n" '.[] | select(.number == $n)' "$FAKE_GH/pulls.json")"
     ;;
   "PUT pulls/"*/merge)

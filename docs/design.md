@@ -895,7 +895,9 @@ claims' command, so the release's steps are `peal ship ...`, each rerunnable on 
   branch, in one commit `chore(release): <tag>` built as the storage's writes are
   ([Writes onto main](#writes-onto-main)): pushed, or on a protected main through a
   pull request, waited for until it merged (`PEAL_MAIN_WRITE_WAIT=merged`; status 3 when
-  it is still open after the budget: rerun once it merged). Each item is `"PATH:
+  it is still open after the budget: rerun once it merged). A rerun before it merged
+  finds that pull request open already and waits for it instead of opening a second one.
+  Each item is `"PATH:
   FIELD"`, a top-level field only: JSON's at depth 1 of the top object, TOML's before
   the first `[table]`, YAML's at column 0, holding a string on one line whose quoting is
   kept (`lib/version-field.awk`, which the pre-push gate runs too). A path outside the

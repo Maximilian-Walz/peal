@@ -72,19 +72,23 @@ _peal_mw_rivals() {
   return 0
 }
 
-# _peal_mw_find_reuse REPO SUBJECT -> status 0 when an open pull request of a main-write
-# branch into PEAL_MAIN already holds SUBJECT as its title (the lowest number, when
-# somehow more than one does): PEAL_MW_PR, PEAL_MW_URL and PEAL_MW_REUSE_BRANCH (its head
-# ref) set from it; 1 without jq, gh, or such a pull request.
+# _peal_mw_find_reuse REPO SUBJECT -> status 0 when an open pull request whose branch is
+# in the repository itself (never a fork, as _peal_mw_rivals counts them) matches a
+# main-write branch into PEAL_MAIN and holds SUBJECT as its title (the lowest number,
+# when somehow more than one does): PEAL_MW_PR, PEAL_MW_URL, PEAL_MW_REUSE_BRANCH (its
+# head ref) and PEAL_MW_REUSE_SHA (its head sha, checked against the branch once fetched:
+# a fork could otherwise rename its own branch to match ours) set from it; 1 without jq,
+# gh, or such a pull request.
 _peal_mw_find_reuse() {
   local repo=$1 subject=$2 body row
   body=$(peal_gh "repos/$repo/pulls?state=open&per_page=100" 2>/dev/null) || return 1
   row=$(jq -r --arg base "$PEAL_MAIN" --arg prefix "$PEAL_MW_PREFIX" --arg subject "$subject" '
-      [.[] | select(.base.ref == $base and (.head.ref | startswith($prefix)) and .title == $subject)]
+      [.[] | select(.base.ref == $base and (.head.ref | startswith($prefix)) and .title == $subject
+        and .head.repo != null and .head.repo.full_name == .base.repo.full_name)]
       | sort_by(.number) | .[0] // empty
-      | [(.number | tostring), .html_url, .head.ref] | @tsv' <<<"$body" 2>/dev/null) || return 1
+      | [(.number | tostring), .html_url, .head.ref, .head.sha] | @tsv' <<<"$body" 2>/dev/null) || return 1
   [ -n "$row" ] || return 1
-  IFS=$'\t' read -r PEAL_MW_PR PEAL_MW_URL PEAL_MW_REUSE_BRANCH <<<"$row"
+  IFS=$'\t' read -r PEAL_MW_PR PEAL_MW_URL PEAL_MW_REUSE_BRANCH PEAL_MW_REUSE_SHA <<<"$row"
 }
 
 # _peal_mw_taken REPO -> status 0 when PEAL_MW_TAKEN finds what PEAL_MW_PR wrote taken on
@@ -115,9 +119,11 @@ _peal_mw_taken_drop() {
 # request is open and before Peal merges it, and builds again when it is taken. Afterwards PEAL_MW_PR, PEAL_MW_URL and PEAL_MW_STATE (merged, auto, open)
 # describe the pull request, if one was made: peal_main_write_report.
 # REUSE, given, is a subject: before building, the pull request route looks for an
-# already open pull request of its own main-write branches with that title and, found,
-# manages it instead of opening another (_peal_mw_pr_manage, the same as one just
-# opened): a rerun before the earlier one merged waits for it instead of duplicating it.
+# already open pull request of its own main-write branches with that title, its branch
+# in the repository itself (never a fork, as with a rival) and, once fetched, still at
+# the sha the pull request names, and, found, manages it instead of opening another
+# (_peal_mw_pr_manage, the same as one just opened): a rerun before the earlier one
+# merged waits for it instead of duplicating it.
 peal_push_main() {
   local build=$1 command=${2-} reuse=${3-} attempt=1 max=${PEAL_PUSH_ATTEMPTS:-5} route base sha new err status replaces="" repo branch node
   PEAL_MW_PR="" PEAL_MW_URL="" PEAL_MW_STATE="" PEAL_MW_RIVALS=""
@@ -129,7 +135,10 @@ peal_push_main() {
     git fetch -q "$PEAL_REMOTE" "+refs/heads/$branch:refs/remotes/$PEAL_REMOTE/$branch" 2>/dev/null
     sha=$(git rev-parse -q --verify "refs/remotes/$PEAL_REMOTE/$branch") || sha=""
     node=$(peal_gh "repos/$repo/pulls/$PEAL_MW_PR" --jq .node_id 2>/dev/null) || node=""
-    if [ -n "$sha" ] && [ -n "$node" ]; then
+    # The branch fetched must still be exactly what the pull request's head names: a
+    # stranger's own branch of the same name, pushed after ours or while ours moved on,
+    # is never reused (nor is a race where the fetch landed something else).
+    if [ -n "$sha" ] && [ "$sha" = "$PEAL_MW_REUSE_SHA" ] && [ -n "$node" ]; then
       PEAL_MW_STATE=open
       peal_err "pull request #$PEAL_MW_PR $PEAL_MW_URL is open already; waiting for it"
       _peal_mw_pr_manage "$repo" "$branch" "$sha" "$node"
@@ -142,6 +151,8 @@ peal_push_main() {
       PEAL_MW_PR="" PEAL_MW_URL="" PEAL_MW_STATE=""
       attempt=$((attempt + 1))
       git fetch -q "$PEAL_REMOTE" "$PEAL_MAIN" 2>/dev/null
+    else
+      PEAL_MW_PR="" PEAL_MW_URL=""
     fi
   fi
   while :; do
