@@ -3,13 +3,15 @@
 # what is one step. It decides nothing about when to commit; the commit-msg gate still
 # judges the commit.
 
-# peal_commit SUBJECT [--body TEXT | --body-file FILE] [PATH...] -> PATHs (or everything,
-# without any) staged and committed with SUBJECT, the commit reported. Refused: on the main
-# branch or a detached HEAD, without Peal's git hooks installed (the commit would go
-# ungated), a new backlog task file (those are filed onto main, never on a branch), and
-# nothing to commit.
+# peal_commit SUBJECT [--body TEXT | --body-file FILE] [PATH...] -> with PATHs, given
+# staged and committed, resolved from the caller's directory as git's own are; everything
+# else in the index stays staged and out of the commit. Without any, everything staged
+# (git add -A first). The commit reported. Refused: on the main branch or a detached HEAD,
+# without Peal's git hooks installed (the commit would go ungated), a new backlog task file
+# among the named paths (those are filed onto main, never on a branch), and nothing to
+# commit among the named paths.
 peal_commit() {
-  local subject=${1-} body="" main branch tasks added top
+  local subject=${1-} body="" main branch tasks added top prefix path
   if [ -z "$subject" ]; then
     peal_err 'commit: "<type>(<area>): <what> [NNNN]" [--body TEXT | --body-file FILE] [PATH...]'
     return 2
@@ -37,6 +39,18 @@ peal_commit() {
       --body | --body-file) peal_err "commit: $added goes right after the subject, once"; return 2 ;;
     esac
   done
+  local -a paths=()
+  if [ $# -gt 0 ]; then
+    # The caller's own paths, resolved from here (as git's are) before the cd below moves
+    # us to the top of the work tree.
+    prefix=$(git rev-parse --show-prefix 2>/dev/null) || prefix=""
+    for path in "$@"; do
+      case $path in
+        /*) paths+=("$path") ;;
+        *) paths+=("$prefix$path") ;;
+      esac
+    done
+  fi
   top=$(peal_project_root) || return 2
   cd "$top" || return 2
   main=$(peal_config_get main) || return 2
@@ -54,24 +68,37 @@ peal_commit() {
     peal_err "commit: Peal's git hooks are not installed here, so nothing would gate the commit; run: .peal/peal hooks install"
     return 2
   fi
-  if [ $# -gt 0 ]; then
-    git add -- "$@" || { peal_err "commit: git add failed"; return 2; }
+  if [ ${#paths[@]} -gt 0 ]; then
+    git add -- "${paths[@]}" || { peal_err "commit: git add failed"; return 2; }
   else
     git add -A || { peal_err "commit: git add failed"; return 2; }
   fi
-  added=$(git diff --cached --name-only --no-renames --diff-filter=A -- "$tasks/backlog/")
+  if [ ${#paths[@]} -gt 0 ]; then
+    # A second pathspec would OR, not AND: filter the named paths' own additions down to
+    # the backlog by hand.
+    added=$(git diff --cached --name-only --no-renames --diff-filter=A -- "${paths[@]}" \
+      | awk -v t="$tasks/backlog/" 'index($0, t) == 1')
+  else
+    added=$(git diff --cached --name-only --no-renames --diff-filter=A -- "$tasks/backlog/")
+  fi
   if [ -n "$added" ]; then
     printf '%s\n' "$added" | while IFS= read -r top; do git reset -q -- "$top"; done
     peal_err "commit: refused: a new backlog task file is filed onto $main (peal idea), never committed on a branch; unstaged:"
     printf '  %s\n' "$added" >&2
     return 2
   fi
-  if git diff --cached --quiet; then
+  if [ ${#paths[@]} -gt 0 ]; then
+    if git diff --cached --quiet -- "${paths[@]}"; then
+      peal_err "commit: nothing staged, nothing to commit"
+      return 2
+    fi
+  elif git diff --cached --quiet; then
     peal_err "commit: nothing staged, nothing to commit"
     return 2
   fi
   set -- -q -m "$subject"
   [ -z "$body" ] || set -- "$@" -m "$body"
+  [ ${#paths[@]} -eq 0 ] || set -- "$@" -- "${paths[@]}"
   if ! git commit "$@"; then
     peal_err "commit: the commit was refused (above); nothing was committed"
     return 1
