@@ -1057,8 +1057,9 @@ documents exist or CI configuration exists while `checks.commit` and `checks.clo
 both empty, `review-steps` once the milestones stage is recorded, a milestone is done,
 and there is no `.peal/review.md` — with why this repository would profit and how to try
 it, and up to three runners-up. The human accepts (`/peal:setup <stage>` runs for the
-first five; the features within the stages show the small change they would make, or run
-`/peal:drift` or `/peal:release` once, then commit it themselves), declines
+first five; the features within the stages show the small change they would make and commit it
+themselves; `drift` writes the stub `.peal/drift.md` first, then runs `/peal:drift`
+once, and `releases` runs `/peal:release` once), declines
 (`declined.<item>: [DATE]` in `.peal/config.yml`, committed like a setup, not suggested
 again for 90 days unless asked by name with `/peal:next <item>`), or asks for more;
 nothing changes unasked. `all` also shows what is currently declined. The SessionStart

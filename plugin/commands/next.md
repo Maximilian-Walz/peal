@@ -76,7 +76,12 @@ anything either.
 
 - `tasks`, `guardrails`, `milestones` or `belfry`: run `/peal:setup <stage>`.
 - `review-task`: run `/peal:setup milestones`, whose step 3 offers to file it.
-- `drift`: run `/peal:drift` once; its own report is the report.
+- `drift`: `/peal:drift` stops without `.peal/drift.md`, so write it first. Show a stub
+  `.peal/drift.md` that lists the documents `/peal:drift` would suggest from what the
+  evidence found (the README, design documents, the current milestone, the decisions
+  directory when there is one, each as a path that exists) and one line saying to add
+  the questions to ask of them. Branch and commit it as below, then run `/peal:drift`
+  once; its own report is the report.
 - `releases`: run `/peal:release` once; its own report is the report. If the evidence
   named a version file, mention that `release.version-files` (docs/design.md,
   "Configuration") can keep it in step with each release, but do not write it yourself:
@@ -98,7 +103,7 @@ anything either.
   `/peal:milestone-review` should run for this project, to fill in) as the change.
   Branch and commit it as below.
 
-For `decisions`, `reviewer` and `review-steps`, the branch and commit are the same recipe
+For `decisions`, `drift`, `reviewer` and `review-steps`, the branch and commit are the same recipe
 step 4 uses to decline: on the main branch, or a detached HEAD, `git switch -c
 peal/next-<item>` (a name already taken: `-2`, and so on), commit the shown change there
 as `git commit -m "chore(peal): <item>"`, then ask with `AskUserQuestion`: push and open a
