@@ -3,6 +3,7 @@ milestone:
 plan: required
 size:
 depends: []
+priority: high
 ---
 
 # 0087 — A sandbox mount placeholder looks like real work outside the sandbox
@@ -40,6 +41,8 @@ character-device filter itself (0084), which is unaffected.
 (quoted from task 0084's Notes, the human's answer during its planning)
 
 ## Notes
+
+Revised 2026-09-28: priority high: goes into Peal's next patch release (daily-use fixes after m1)
 
 Split off from 0084 (char-device-everywhere), which fixed every uncommitted-work check to
 filter an untracked character device (and a symlink to one) but explicitly left this case
