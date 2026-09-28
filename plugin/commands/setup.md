@@ -26,7 +26,8 @@ Run `peal init --survey`. It writes nothing and prints one `key value` line each
 the `tasks` stage), `branch <name> main <main>`, `github` (owner/name, `-` for none),
 `issues` and `milestones` (open ones on GitHub, or `unknown: why`), `closes` (recent
 commits that close an issue), `readme`, `todo` (TODO lists), `todo-marks` (TODO and
-FIXME marks in the code), `ci`, `taskdir` (a tasks directory already there, with its file
+FIXME marks in the code), `ci`, `local-files` (ignored files here that look local, `.env*` or `*.local.*`, at
+most 5, `-` for none), `taskdir` (a tasks directory already there, with its file
 count), `belfry` (`peal`, `other` or `-`) and `recommend` (the storage to recommend).
 
 Then decide the stage:
@@ -212,4 +213,8 @@ End with at most five lines:
   stage and in a few words what it brings (`guardrails`: git hooks that keep commits off
   the main branch and run the project's checks; `milestones`: tasks grouped into goals,
   worked in order; `belfry`: Belfry's board and jobs for this project);
+- when `local-files` is not `-` and `peal config worktree-setup` prints nothing, one
+  line: the `worktree-setup` setting runs a command in every new task worktree, so the
+  ignored files exist there too, e.g.
+  `worktree-setup: 'for f in .env; do ln -sf "$PEAL_PRIMARY/$f" "$f"; done'`; never write it;
 - any human step: settings lines to add by hand, `gh auth login`, Belfry's.

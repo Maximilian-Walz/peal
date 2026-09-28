@@ -61,6 +61,10 @@ Limits this boundary does not cover, accepted for now:
   their job. Which commands run still comes from the work tree's `.peal/config.yml`, so
   a branch can change them; reading the gates' settings (`checks.commit`, `main`,
   `tasks`, `milestones`) from the main branch's tip instead is a task of its own.
+- **`worktree-setup` runs a command from the config.** `peal claim` runs it in every
+  new worktree, and it comes from the work tree's `.peal/config.yml`, so a branch can
+  change it, the same class as `checks.commit`. Nothing limits it: no timeout, the
+  caller's environment, plus `PEAL_PRIMARY`.
 - **In-tree project hooks.** When the hooks path the install replaced
   (`peal.projectHooks`) is a directory of the work tree, such as `.githooks`, the stub
   chains to the hooks there, which a branch can change. Only that configured path runs;
