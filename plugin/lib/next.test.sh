@@ -196,7 +196,7 @@ feature_repo() {
 # done_tasks WORK N -> N done tasks (0001..N) committed on WORK's main.
 done_tasks() {
   local work=$1 n=$2 i
-  for i in $(seq 1 "$n"); do put "$work" done "$(printf '%04d' "$i")" "task-$i"; done
+  for i in $(seq 1 "$n"); do put "$work" "done" "$(printf '%04d' "$i")" "task-$i"; done
 }
 
 # next_out DIR ARGS... -> `peal next ARGS...`'s own stdout and stderr, merged, without the
