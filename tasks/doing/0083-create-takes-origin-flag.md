@@ -46,6 +46,15 @@ Revised 2026-09-28: priority high: goes into Peal's next patch release (daily-us
   Peal task id names that Belfry-side work, so nothing to put in `depends`. Check
   Belfry's own backlog and contract docs before starting.
 - 0074's own `## Notes` records the same open question in full.
+- Unblocked 2026-09-28: Belfry's contract (docs/contract.md on its main) now documents it.
+  `tasks.commands.create` gets `{origin}` as a plain word, `outsider` when the text came
+  from outside, else `writer`; no other placeholder is allowed besides `{title}` and
+  `{owner}`. The board's `origin` field: `writer`, or `outsider`; missing is `writer`; any
+  word other than `writer` is external (quoted as data, never unattended, never
+  self-merged). A `commands` project whose create does not name `{origin}` still has its
+  filing job run for outsider text, since the task file then carries no mark. So the field
+  is `origin` in the frontmatter, `--origin writer` writes nothing (absent as today), and
+  `peal board` must carry `origin` through or the mark is inert.
 
 ---
 
