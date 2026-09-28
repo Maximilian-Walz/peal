@@ -1037,6 +1037,51 @@ shows what is currently declined. The SessionStart orientation carries a one-lin
 when there is a suggestion and the session is outside a task's worktree; `/peal:next`
 says more.
 
+### `peal doctor`
+
+When Peal does not work in a project, nobody should have to guess why. `peal doctor
+[CHECK...]` runs its checks (all of them with none named), each config, version, hooks,
+gh, claims or belfry, and reports one problem per finding: a sentence and one fix, worded
+`.peal/peal ...` where the fix is a command. Every finding is a problem; there is no warn
+level. Local refs only: doctor never fetches, so a claim that landed on the remote but
+was never fetched into this clone passes silently.
+
+- **config**: `peal_config_load`'s own refusal (`config-merge.awk`'s unknown key or wrong
+  shape) becomes the sentence, its fix naming the line; once it loads, the values
+  `peal_config_load` and `peal check` do not check themselves: `storage.kind` in
+  `files`/`issues`, `main-writes` in `push`/`pr`/`auto`, `sizes.S`/`M`/`L` positive
+  integers, each of `stages` one of `tasks`/`guardrails`/`milestones`/`belfry`,
+  `release.wait-ci` `true`/`false`, `models.*` not empty. Every other check that needs
+  the config (hooks, gh, claims) says "skip: the config does not load" when it does not.
+- **version**: (a) `.peal/peal` byte-identical to the plugin's `templates/launcher`
+  (skipped without a launcher when `tasks` is not a recorded stage); (b), only once (a)
+  holds, `env -u PEAL_ROOT .peal/peal --version` against this session's own, so the fix
+  is either installing the plugin (none found) or starting a fresh Claude Code session or
+  `.peal/peal hooks install` (another version).
+- **hooks**: only when `guardrails` is a stage. `core.hooksPath` unset or foreign (the
+  fix would chain to it), a stub missing, not executable, or differing from
+  `templates/githook`.
+- **gh**: only for `storage.kind: issues`. `gh` missing, or `gh auth status` failing.
+- **claims**: every claim worktree here that [Claims and the session
+  hooks](#claims-and-the-session-hooks)'s `peal_release_verdict` would let go (`ok` or
+  `deferred`) or that landed with uncommitted or unpushed work, and every worktree `git
+  worktree list --porcelain` calls prunable. Not a live claim, `own`, `not-landed`, a
+  close sentinel, or `refs/reaped/*`. Skipped when `gh` failed on the issues storage.
+- **belfry**: only with a `.belfry.yml` whose `tasks.backend` is `commands`. Its `list`,
+  `board` and `offer` commands (never the write commands: `claim`, `start`, `idea`,
+  `create`, `milestone`, `retire`) are run, `{pool}` filled from `pool:`, only once their
+  words (`lib/shell-words.awk`, never `bash -c`) are literally `.peal/peal list`,
+  `.peal/peal board` or `.peal/peal offer ...`; anything else is skipped, never run.
+  Run through `.peal/peal` (`PEAL_ROOT` unset) once version's (a) holds, else through
+  `$PEAL_ROOT/bin/peal` with the same arguments, under a timeout. A non-zero exit, a
+  timeout, or output not shaped as [Peal and Belfry](#peal-and-belfry) promises (`list`
+  lines `ID state slug ...`, `board` lines starting with `{`, `offer` only `CANDIDATE`/
+  `MORE` lines) is a problem.
+
+Output: `ok`/`FAIL`/`skip` lines, each naming its check, a `FAIL` followed by a `  fix:
+...` line, and a last `doctor: N problem(s)` line. Status 0 healthy, 1 with any problem,
+2 for an unknown `CHECK`, outside a git repository, or a project without `.peal/`.
+
 ## Migrating an existing project
 
 Adopting Peal is a migration, not a rewrite: tasks keep their numbers, history stays,
