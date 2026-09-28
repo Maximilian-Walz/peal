@@ -151,7 +151,10 @@ git_try_ssh_cases() {
 # [ -c ] alike (git lists only regular files, symlinks and directories as untracked, so a
 # real mknod device never reaches this code path; the symlink exercises the same [ -c ]
 # branch without needing the privilege mknod does), does not, from the repository's top or
-# from a subdirectory, and with an explicit pathspec.
+# from a subdirectory, and with an explicit pathspec. An empty read-only regular file —
+# what the same mount looks like once the sandbox is gone — is not a device to [ -c ] and
+# still counts (0087, decided out of scope for a filter here; git's own ignore is the
+# remedy).
 status_porcelain_cases() {
   local dir
   dir=$(scratch_dir)/repo
@@ -187,6 +190,19 @@ status_porcelain_cases() {
     "dev-null
 sub/dev-null" "$(cd "$dir" && peal_untracked_devices | sort)"
   rm -f "$dir/dev-null" "$dir/sub/dev-null"
+
+  # A sandbox mount seen from outside the sandbox (0087): an empty, read-only regular
+  # file at the same kind of path. [ -c ] says no, so it is ordinary untracked work, not
+  # filtered here; a .gitignore or .git/info/exclude is the documented remedy, not tested
+  # here since it is git's own behaviour, not Peal's.
+  : >"$dir/.mcp.json"
+  chmod 444 "$dir/.mcp.json"
+  check "status: an empty read-only regular file (a placeholder outside its sandbox) still counts" \
+    "?? .mcp.json" "$(cd "$dir" && peal_status_porcelain | grep '.mcp.json')"
+  check "status: peal_untracked_devices does not list it" "" \
+    "$(cd "$dir" && peal_untracked_devices | grep '.mcp.json')"
+  chmod 644 "$dir/.mcp.json"
+  rm -f "$dir/.mcp.json"
 }
 
 git_try_cases
