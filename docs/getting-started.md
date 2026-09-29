@@ -7,6 +7,7 @@ what it adds and how to take it back.
 
 In a Claude Code session:
 
+<!-- docs-check: install -->
 ```text
 /plugin marketplace add Maximilian-Walz/peal
 /plugin install peal@peal
@@ -30,7 +31,8 @@ Run `/peal:setup` in your repository. It reads the repository, recommends where 
 should live, asks once, and writes the first stage as one commit on a `peal/setup-tasks`
 branch for you to review. It never commits to your main branch. Then it proposes one or
 two first tasks from what it read, and ends by saying what you can do now and which stage
-comes next.
+comes next. Merge that branch into your main branch (setup offers to open the pull
+request) before working a task: `/peal:work` claims from the main branch.
 
 `/peal:setup STAGE` sets up one stage. Every stage but `tasks` needs `tasks` first. Each
 is safe to run again, and `peal init --remove STAGE` takes it back; your tasks stay.

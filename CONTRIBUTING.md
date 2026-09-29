@@ -44,11 +44,6 @@ with one plugin, `peal`, in `plugin/`:
   `decisions.yml`, the workflow that regenerates a project's decisions index after a
   merge.
 
-Every script has a harness next to it, `<script>.test.sh`, runnable on its own with
-`bash`. `tools/test-all.sh` runs them all and `tools/lint.sh` runs `shellcheck`; CI runs
-both on every pull request.
-
-
 ## Harnesses, lint and CI
 
 Every script has a harness next to it, `<script>.test.sh`, runnable on its own with
