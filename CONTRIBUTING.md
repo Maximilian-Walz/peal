@@ -48,7 +48,8 @@ with one plugin, `peal`, in `plugin/`:
 
 Every script has a harness next to it, `<script>.test.sh`, runnable on its own with
 `bash`. `tools/test-all.sh` runs them all, or the ones you name, and `tools/lint.sh` runs
-`shellcheck` and `peal check`. `tools/docs.test.sh` checks the documentation: every
+`shellcheck`, `tools/pins.sh` (a workflow's action or Peal fetch must be pinned by SHA) and
+`peal check`. `tools/docs.test.sh` checks the documentation: every
 command and relative link it names exists, and the blocks marked
 `<!-- docs-check: run -->`, `<!-- docs-check: config -->`, `<!-- docs-check: shape -->`
 and `<!-- docs-check: install -->` run or load, so a copied example works.

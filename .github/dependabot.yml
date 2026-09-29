@@ -1,6 +1,10 @@
 version: 2
 updates:
   - package-ecosystem: "github-actions"
-    directory: "/"
+    directories: ["/", "/plugin/templates"]
     schedule:
       interval: "weekly"
+    groups:
+      checkout:
+        patterns: ["actions/checkout"]
+        group-by: dependency-name

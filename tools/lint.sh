@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs shellcheck over every shell script in the repository: *.sh files and any file
-# whose first line names bash or sh; then this branch's `peal check` over Peal's own tasks
+# whose first line names bash or sh; then tools/pins.sh (the workflow files' pins); then this branch's `peal check` over Peal's own tasks
 # (a duplicate task id, an empty Outcome, a depends cycle). CI runs this; so can you:
 #
 #   tools/lint.sh
@@ -21,6 +21,8 @@ fi
 printf 'lint: shellcheck on %d scripts\n' "${#scripts[@]}"
 status=0
 shellcheck "${scripts[@]}" || status=1
+echo 'lint: pins'
+tools/pins.sh || status=1
 echo 'lint: peal check'
 PEAL_ROOT=$PWD/plugin plugin/bin/peal check || status=1
 exit $status
