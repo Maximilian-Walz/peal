@@ -127,4 +127,58 @@ tasks/done/0041-ci-supply-chain.md:54-59, tools/docs.test.sh:3-27.
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+The decisions workflow template now pins both pieces of code it runs with write access,
+each by commit SHA.
+
+- `actions/checkout` is `3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1`, the same pin
+  as Peal's own CI.
+- The Get Peal step no longer clones Peal's default branch. It fetches v0.2.0's commit,
+  `8927e4644010042329fed4ddb2f8084aa98ebf02`.
+
+`git ls-remote` confirmed both SHAs. The implementer ran the new Get Peal lines locally:
+they checked out that commit, and its `peal` has `decision publish`. Since v0.2.0 only
+55c7f3a (comments only) touched `plugin/lib/decisions.sh` or `plugin/lib/main-write.sh`,
+so the pinned Peal lacks no publish fix.
+
+What keeps each pin current:
+- **The checkout pin.** `.github/dependabot.yml` now scans
+  `directories: ["/", "/plugin/templates"]`. Dependabot's source shows it reads every
+  `*.yml` in a directory other than `/`. A `checkout` group with
+  `group-by: dependency-name` should make each checkout bump one pull request covering
+  both directories.
+- **The Peal pin.** Dependabot cannot update it, and `release.version-files` cannot reach
+  it. `tools/pins.test.sh` checks that the template's `# vX.Y.Z` equals `plugin.json`'s
+  version. The check is in a harness rather than lint because a release's version-only
+  bump skips the harnesses (`tools/ci-changes.sh`), so it never blocks a release.
+  - **Cost:** the first pull request after a release that runs the harnesses fails until
+    someone updates the template's SHA and tag. Its message names
+    `git rev-parse vX.Y.Z^{commit}`.
+  - **Lag:** the template always pins the release before the current one, because a
+    release commit cannot name its own SHA. The human accepted both.
+
+The guard is a new `tools/pins.sh`, run by `tools/lint.sh`. It refuses these in
+`plugin/templates/*.yml` and `.github/workflows/*.yml`:
+- a `uses:` that is not `OWNER/REPO@<40 hex> # vX`;
+- any `git clone`;
+- a fetch of an `https://` URL without a 40-hex SHA and a `# vX.Y.Z` comment.
+
+The human left its reach to the session; the session added Peal's workflows because
+they all comply and the guard then catches a regression before Scorecard's weekly run.
+`tools/pins.test.sh` passes 75 cases: every refused form, exit 2 when there are no files,
+and lines 37 and 42 of the template before this task. `docs/security.md`'s CI boundary
+and `CONTRIBUTING.md` say so.
+
+**For the human after merge:** check that the repository's Dependabot page (Insights >
+Dependency graph > Dependabot) lists `/` and `/plugin/templates` with no config error.
+The planner could not confirm that github-actions honours `group-by`. If Dependabot
+rejects the `groups` block, delete it in a follow-up; each checkout bump then arrives as
+two pull requests.
+
+Idea queued: "Release bumps the template's Peal tag", which extends
+`release.version-files` so a release can set the tag.
+
+### Reviewer findings not acted on
+
+- The reviewer did not run the Get Peal step itself because a sandbox hook blocked it.
+  The implementer ran it, and the reviewer checked the tag's commit and its `decision`
+  subcommand.
