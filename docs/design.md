@@ -572,6 +572,7 @@ release:
   report: []                    # texts whose lines in those runs' logs the release reports
   version-files: []             # files the release sets to its version before the tag,
                                 # each "PATH: FIELD" (a top-level field; JSON, TOML, YAML)
+  changelog: ""                 # a Markdown file each release's entry goes into; empty: none
 decisions: false                # the decisions module, or its directory to turn it on
 stages: []                      # the setup stages peal init has done
 declined: {}                    # /peal:next's declines, {item: [DATE]}, one per item;
@@ -656,8 +657,8 @@ access token or an app's) when the project sets one, else the workflow's
 main that requires checks it waits for a human; `PEAL_TOKEN` lets its checks run and
 auto-merge take it.
 
-The issues storage writes no task onto main: with the decisions module off and no
-`release.version-files`, it warns when `main-writes` is set to anything but `auto`.
+The issues storage writes no task onto main: with the decisions module off and neither
+`release.version-files` nor `release.changelog`, it warns when `main-writes` is set to anything but `auto`.
 
 ## Git gates
 
@@ -693,7 +694,11 @@ fix, never the first word on it.
   `docs(tasks): retire` moves that one to `done/` under its name; with the decisions
   module on, `docs(decisions): regenerate the index` changes the index alone;
   `chore(release): <tag>` only modifies files of `release.version-files`, each byte for
-  byte what setting its field to the tag's version makes of its parent's. Nothing
+  byte what setting its field to the tag's version makes of its parent's, and
+  `release.changelog`: its parent's with one entry inserted after the title, headed
+  `## <tag>`, the parent holding none of that tag and the entry no other `##` heading,
+  or added as `# Changelog` and that entry (its shape, not its text:
+  [docs/security.md](security.md)). Nothing
   else, no rewrite of main, no deletion. A pull request merged on the server runs no client hook,
   and a write through a pull request pushes only its `peal/main-write-*` branch, which
   the gate leaves alone ([Writes onto main](#writes-onto-main)).
@@ -926,7 +931,7 @@ claims' command, so the release's steps are `peal ship ...`, each rerunnable on 
   its file at the tag on GitHub, or `#42`) and its pull requests. Once the tag exists,
   the notes are those of its range, whatever landed since.
 - **`peal ship bump VERSION`**, for a project with `release.version-files` (a plugin's
-  manifest, a package's version, a chart's `appVersion`), sets each listed file's field
+  manifest, a package's version, a chart's `appVersion`) or `release.changelog`, sets each listed file's field
   to the version without the tag prefix (`0.2.0`, `0.2.0-rc.1`) on the remote's main
   branch, in one commit `chore(release): <tag>` built as the storage's writes are
   ([Writes onto main](#writes-onto-main)): pushed, or on a protected main through a
@@ -939,13 +944,22 @@ claims' command, so the release's steps are `peal ship ...`, each rerunnable on 
   kept (`lib/version-field.awk`, which the pre-push gate runs too). A path outside the
   repository, a dotted field, a file missing, a field missing, there twice or not a
   string are refused before anything is written; so is a version `tag` would refuse.
-  Files that hold the version already: `already at <version>`, nothing written. The
-  commit is a `chore`, so the notes leave it out.
+  With `release.changelog` (a Markdown file, `CHANGELOG.md`, a path under the same
+  rules), the same commit inserts the release's entry: `## <tag> (<UTC date>)`, a blank
+  line, then the notes with their headings one level down (`### Features`), after the
+  file's title line (`# ...`) and its blank line, or at the very top of a file without
+  one, a blank line between it and the entries below, which stay byte for byte; a file
+  missing on main is created as `# Changelog` and the entry. The entry holds what went
+  in up to the bump: a task merged between the bump and the tag is in the tag's notes,
+  not in it; a pre-release gets an entry of its own. Either key alone is enough to
+  bump. Files that hold the version already, and a changelog with an entry `## <tag>`:
+  `already at <version>`, nothing written. The commit is a `chore`, so the notes leave
+  it out.
 - **`peal ship tag VERSION`** tags the remote's main branch, annotated, and pushes the
   tag. It refuses a tag that exists (here or on the remote; a release is never moved), a
-  version not above the last release, and a file of `release.version-files` that does
-  not hold the version on main (run `peal ship bump`); a push that fails takes the tag
-  back.
+  version not above the last release, a file of `release.version-files` that does not
+  hold the version on main, and a `release.changelog` there without an entry `## <tag>`
+  (run `peal ship bump`); a push that fails takes the tag back.
 - **`peal ship publish VERSION`** creates the GitHub release with the notes (`gh release
   create --notes-file`), or brings an existing one up to date (`gh release edit`); on a
   remote not on GitHub the tag is the release.
