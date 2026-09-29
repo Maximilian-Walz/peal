@@ -109,3 +109,8 @@ declined:
 ## Already have a task process
 
 See [migrating an existing project](migrating.md).
+
+## Where to look things up
+
+The [reference](reference/README.md) lists every command, `peal` subcommand, setting and
+task field; [the design](design.md) says why.

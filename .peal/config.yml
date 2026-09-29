@@ -8,7 +8,7 @@ stages: [tasks, guardrails, milestones, belfry]
 # a close runs the lint, which is quick.
 plan:
   required-paths: [plugin/, tools/]
-context: [docs/design.md, README.md]
+context: [docs/design.md, docs/reference/cli.md, docs/reference/configuration.md, docs/reference/tasks.md, README.md]
 checks:
   close: [tools/lint.sh]
 release:

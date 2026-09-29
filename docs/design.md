@@ -8,6 +8,8 @@ Peal generalises the task-file process of one real project, the *reference proje
 That process grew under daily use: every script and rule in it exists because a session
 once went wrong without it. Peal keeps those lessons and drops what only that project
 needs. Issue #2 settled the decisions below; the build is split into the issues listed at the end.
+The lookup (every command, flag, setting and field) is in [the reference](reference/README.md);
+this page keeps the reasons.
 
 ## Principles
 
@@ -31,6 +33,7 @@ needs. Issue #2 settled the decisions below; the build is split into the issues 
 - **Generic in Peal, specific in the project.** Peal calls into the project where the
   project knows better (its checks, its context documents, its PR sections), and never
   absorbs the project's own tooling.
+
 
 ## Peal and Belfry
 
@@ -76,56 +79,34 @@ actions:
     triggers: [milestone]
 ```
 
-- `list` prints `NNNN state slug detail...`, states `free`, `claimed-live`, `parked`,
-  `awaiting-merge`, `blocked`, `done` (see [Claim states](#claim-states)). The detail of
-  a free task is its milestone (`-` for none) and, in a split, `split:<origin>
-  <done>/<total>`; of a blocked one `needs:<id>,...`, followed by `cycle: 0042 → 0043 →
-  0042` when the task lies on a depends cycle (`#42 → #43 → #42` for issues); of a claim
-  `wt:<path>`, `remote:<remote>`, `N commit(s) ahead, last <date>`, or `pr:#N <url>`
-  (`pr:unknown` without `gh`). A task not done whose priority is not normal ends its
-  detail with `priority:<urgent|high|low>`, and a human task not done with `owner:human`.
-- `offer` prints `CANDIDATE <id> <bucket> <title>` lines for a pool, best first.
-- `claim` is idempotent: a task already claimed on this machine prints its existing
-  worktree, so a re-run Belfry job continues where the last one stopped. The last line is
-  the worktree path.
-- `board` prints one JSON object per task (`id`, `state`, `slug`, `title`, `milestone`,
-  `depends`, `part_of`, `size`, `plan`, `needs`, `priority`, `owner`, `origin`, `touches`,
-  `merge`, `pr`, `path`, `ref`, and `cycle`, the list detail's cycle, which the contract
-  lets a board add; each but `id` and `state` only when set, so a normal priority, an
-  AI's task, a task the project wrote itself and the project's default merge are no
-  field), and one `{"milestone":{...}}` line per milestone, exactly the shapes of
-  Belfry's contract.
-- `create --owner OWNER --title TITLE [--origin outsider|writer]` is
-  `tasks.commands.create`: the task's text on stdin filed as one task (`peal create`
-  does, 0061), `OWNER` (`ai` or `human`, the flag winning over the text's own) written
-  into the frontmatter, `ORIGIN` `outsider` written into its `origin` field when the text
-  came from outside the project (`writer`, or `--origin` left out: no field, as before
-  0083), the slug the first five words of `TITLE`. Belfry runs it itself, outside a
-  session's sandbox (which has neither `gh`'s login nor SSH keys), so it never hangs
-  there; it ends with `filed: <id>` as its last line, the shape Belfry's contract reads
-  back.
-- `/peal:work NNNN` notices it is already inside NNNN's worktree (the branch is the task's
-  branch and `tasks/doing/` holds its file) and skips its own claim. It does not read any
-  Belfry variable: the same check serves a human who opened a session in the worktree by
-  hand. The reference used a Belfry environment variable here; Peal does without.
-- `/peal:idea` is the one deliberate exception: off a task branch, it reads
-  `BELFRY_SESSION` to tell a Belfry session from an ordinary one. Running `peal idea` in
-  the shell there hangs, for the same sandbox reason; instead the command calls Belfry's
-  `task_create` tool directly with the composed title, text and owner (its `idea` tool
-  when `task_create` refuses, this session not being a filing job), never the shell. On a
-  task branch it queues offline as always, `BELFRY_SESSION` set or not.
-- `/peal:close` waits for the PR's checks in the foreground with a budget, re-running
-  while the verdict is `WAIT`. That works headless and interactive alike.
-- `milestone` changes a milestone's state (`done`, `parked`, `open`) in the storage, the
-  same change Belfry makes itself on GitHub for its `github-issues` backend; see
-  [Milestones](#milestones). The review, an action Belfry offers when a milestone is
-  closed, ends with one question, "Close <milestone>?", and makes that change on yes.
+Where the pieces meet, and why:
+
+- The commands of the contract (`list`, `offer`, `board`, `create`, `claim`,
+  `milestone-state`) print exactly the shapes Belfry reads
+  ([CLI](reference/cli.md#peal-list)). `claim` is idempotent, so a re-run job continues
+  where the last one stopped.
+- `/peal:work NNNN` notices it is already inside NNNN's worktree and skips its own claim.
+  It reads no Belfry variable: the same check serves a human who opened a session in the
+  worktree by hand. The reference used a Belfry environment variable here; Peal does
+  without.
+- `/peal:idea` is the one deliberate exception: off a task branch it reads
+  `BELFRY_SESSION` to tell a Belfry session from an ordinary one, because running
+  `peal idea` in the shell of a Belfry session hangs (its sandbox has neither `gh`'s login
+  nor SSH keys). The command calls Belfry's `task_create` tool instead. `peal create` is
+  what Belfry itself runs, outside the sandbox. On a task branch an idea queues offline
+  as always.
+- `/peal:close` waits for the pull request's checks in the foreground with a budget,
+  re-running while the verdict is `WAIT`. That works headless and interactive alike.
+- `peal milestone-state` is the change Belfry makes itself on GitHub for its
+  `github-issues` backend. The review, an action Belfry offers when a milestone is closed,
+  ends with one question, "Close <milestone>?", and makes that change on yes.
 
 ## Scope: what moves, what stays
 
 Every piece of the reference's process, and what becomes of it. *Moves*: Peal owns it,
 generalised. *Stays*: project-specific, the project keeps it. *Extension point*: Peal
 does the generic part and calls something the project provides.
+
 
 ### Commands
 
@@ -150,46 +131,27 @@ does the generic part and calls something the project provides.
 | implementer | moves | builds the agreed plan, commits as it goes, hands back `DONE`, `QUESTION` or `STOPPED` with a fixed status block. |
 | reviewer | moves, with an extension point | the generic checks (scope, Done when evidence, decisions, repeat rot from the last milestone review). The project's architecture rules come from `.peal/reviewer.md` (the reference checks its engine layering there). |
 
+
 Model routing moves as defaults: planner and reviewer on Opus, implementer on Sonnet
 unless the task's `model:` says otherwise. The project may override them in config.
 
-A subagent's frontmatter cannot read the project's config, so `/peal:work` passes each
-its model (`peal work` prints them) and starts each with `peal brief ROLE`: the task, the
-main branch, the current milestone, the size tiers, the `context` documents, and
-`.peal/planner.md` or `.peal/reviewer.md` verbatim. The planner has no Bash; the brief
-gives it what it would otherwise have to parse the config for.
+A subagent's frontmatter cannot read the project's config, so `/peal:work` passes each its
+model and starts each with `peal brief ROLE`, which gives it the task, the context
+documents and the project's own rules. The planner has no Bash; the brief gives it what it
+would otherwise have to parse the config for.
 
-`/peal:work [id | pool]` runs `peal work`, which decides every step a script can: in a
-task's worktree (its branch and its claim) it prints the task, where its plan stands
-(`required`, `agreed`, `skipped`) and the subagents' models, and claims nothing; outside
-one it claims an id, or offers a pool for the human to pick from through
-`AskUserQuestion`. After a claim the session enters the worktree (`EnterWorktree`); the
-planner runs when the plan is required, and the session stops for the human, asking
-through `AskUserQuestion` so the same step works interactive and headless. The agreed
-plan goes into the task's `Plan` section, the size, a non-default `model:`, the
-planner's `touches` and, only when the human agreed it, `merge: auto` into its frontmatter, and `peal record ID plan` puts that text on the claim (the storage's
-`record`). The implementer builds; its `QUESTION`s
-go to the human and back to it through `SendMessage`. The main session never writes the
-task's code.
+`/peal:work` is a script's decisions plus a conversation: `peal work` decides every step a
+script can (resume, claim, offer), and the session stops for the human to agree the plan,
+asking through `AskUserQuestion` so the same step works interactive and headless. The
+plan is recorded on the claim, where a restarted session finds it. The implementer builds
+and its `QUESTION`s go to the human; the main session never writes the task's code.
 
-The backlog commands call the storage only, through the `peal` CLI:
-
-- `/peal:idea TEXT` composes a task from the human's words in one pass, never asking:
-  `milestone` the current one only with direct evidence (else none, never a parked one),
-  `plan` from `plan.required-paths`, `size` left to the planner. `peal idea` queues it in
-  a task's worktree, for the close to file, and files it at once anywhere else.
-- `/peal:split` files the pieces of this worktree's task in one `peal create --part-of`,
-  then narrows the task to its first piece (`peal revise` on one's own claim records the
-  text there, as `record` does) or closes it as split.
-- `/peal:defer REASON` gives a claim back that nothing was built on: `peal defer` writes
-  the task's text, with what the session learned, back into the storage under the same
-  number (for task files, onto the backlog file on main) and marks the claim deferred;
-  `peal release ID`, run from outside the worktree, then deletes it although the task is
-  not done, as the SessionStart reaping does once the claim is idle. Work on the branch
-  refuses it: that ends through a close.
-- `/peal:retire ID REASON` and `/peal:revise ID ...` write straight into the storage, so
-  the human confirms first (`revise` shows its `--dry-run` diff); both refuse a claimed
-  task.
+The backlog commands call the storage only, through the `peal` CLI. `/peal:idea` composes
+a task in one pass, never asking, so filing costs the human no attention. `/peal:defer`
+gives a claim back that nothing was built on, keeping its number and what was learned.
+`/peal:retire` and `/peal:revise` write straight into the storage, so the human confirms
+first, and both refuse a claimed task: a claimed task's text is its session's. Each is
+in [Commands](reference/commands.md).
 
 ### Scripts
 
@@ -242,253 +204,117 @@ The backlog commands call the storage only, through the `peal` CLI:
 
 ## Task files
 
-A task is a Markdown file `tasks/<dir>/NNNN-slug.md`. The number is four digits, the slug
-2–5 kebab-case words. Its state is the directory (`backlog`, `doing`, `done`) together
-with refs; there is no status field. The title is the first heading, `# NNNN — Title`.
-Text from a task can come from a stranger, so a malformed task id is refused where it
-enters (`refused: ...`, status 2), a task file or branch whose slug is not kebab-case
-`a-z0-9` is skipped with a warning (`peal check` names the file), and free text (titles, reasons, bodies) is passed only as data
+A task is a Markdown file with YAML frontmatter, its state the directory it is in
+together with refs ([Tasks](reference/tasks.md)). There is no status field: a field
+someone must remember to update goes stale, and a directory and a branch cannot.
+
+Text from a task can come from a stranger, so a malformed id is refused where it enters,
+a bad slug is skipped with a warning, and free text is passed only as data
 (`plugin/lib/hostile.test.sh` holds every command to that).
 
-The header is real YAML frontmatter:
+Peal reads and writes a small subset of YAML: scalars, and lists of scalars in flow or
+block style. That keeps the scripts dependency-free (bash and git on a bare machine, as
+in the reference) while every file stays valid YAML for any other tool.
 
-```markdown
----
-milestone: m08
-plan: required
-size: M
-depends: [0271, human]
-part-of: 0190
-needs: [display, gpu]
-model: opus
----
+A project may add its own fields, declared under `task.fields`. Peal carries them through
+every command and refuses undeclared keys when filing, so a typo fails at once instead of
+being ignored for ever.
 
-# 0305 — Title
+**A depends cycle is refused** where a task is filed, revised or deferred, since every
+task on it would stay blocked for ever. One made by hand is shown, not refused, so it can
+be found and fixed.
 
-## Intent
-## Scope
-## Done when
-## Raw
-## Notes
+**`touches`** is carried on the board so that a scheduler like Belfry does not start two
+tasks on the same files side by side. It is a hint: a wrong one costs a missed parallel
+slot, nothing more, so nothing refuses on it.
 
----
-
-## Outcome
-```
-
-Peal's fields, all optional:
-
-| Field | Meaning |
-|---|---|
-| `milestone` | a milestone id; absent means unassigned. |
-| `plan` | `required` or `skipped`. `/peal:idea` sets it from the config's `plan.required-paths` and the declared size. |
-| `size` | `S`, `M` or `L`, tool-call tiers from config; empty until the planner sizes it. |
-| `depends` | a list of task ids that must be done first, plus two keywords: `milestone` (every other task of this task's milestone, written only on a milestone's review task) and `human` (never resolves by itself). Depending on a task that was split waits for it and all its pieces. A cycle is refused (below). |
-| `part-of` | the task this one was split from; filed by `/peal:split` only. |
-| `needs` | capabilities a worker must have, Belfry's vocabulary; carried to the board. |
-| `model` | the implementer's model when not the default, written after the human agrees the plan. |
-| `breaking` | `true` when the task breaks something its users rely on: the next release is a major one ([Releases](#releases)). |
-| `release-note` | `none` leaves the task out of the release notes. |
-| `priority` | `urgent`, `high`, `normal` or `low`; absent means normal. Orders the offer within a milestone, never across milestones; `/peal:idea` sets it only when the idea says so plainly, `/peal:revise` changes it. The board carries it, `peal overview` marks urgent `!` and high `↑`. |
-| `owner` | `ai` or `human`; absent means ai. A human task is work only the human can deliver: the offer never offers it and `/peal:work` refuses it, while `peal claim` still makes its worktree for the human (or Belfry's Start). A `depends` on it waits until it is done, like any other; the `human` keyword, by contrast, never resolves by itself. The board, the list and `peal overview` carry it. |
-| `origin` | `outsider`; absent means the task's text is the project's own (`writer`). Written only by `peal create`'s `--origin outsider` (Belfry's `tasks.commands.create`, for a task filed from an outsider's issue or comment), never by `/peal:idea` or a human's own `peal create`. The board carries it; files only (the issues backend has no label for it). |
-| `merge` | `auto`; absent means the project's default. The human agreed that the task's pull request may merge itself once its checks are green, as Belfry's merge rules can require. The planner may recommend it for small, low-risk work; `/peal:work` writes it only when the human agrees the plan, `/peal:idea` never, `/peal:revise` can remove it. When the review finds the diff larger or riskier than that plan, its report ends `merge-auto: withdraw` and `peal close finish` removes the field and says so in the pull request's body. The board carries it. |
-| `touches` | a list of paths, directories or globs (`*`, `?`, `[...]` within a directory, `**` across) the task will likely change, relative to the repository's root; no entry absolute or holding a comma, and on issues none making a label over GitHub's 50 characters. The planner writes it when the human agrees the plan; `/peal:idea` only when the idea names the files plainly. The board carries it, so a scheduler like Belfry does not start two tasks on the same files side by side. A hint: a wrong one costs a missed parallel slot, nothing more. |
-
-**A depends cycle is refused,** since every task on it would stay blocked for ever. Where
-a task text is filed, revised or deferred, the depends graph is built as the read model
-expands it (`milestone`, split origins), with the new text in place; a cycle through a
-task the text adds or changes, which that task was not on before, exits 1 with
-`refused: depends cycle 0042 → 0043 → 0042` (`#42 → #43 → #42` for issues; a task still
-to be filed shows as `NNNN` or `PART1`). A task depending on its own milestone is no
-cycle: the expansion leaves the task itself out. A cycle made by hand is shown instead:
-`list` and `board` show its tasks as blocked with the cycle, `peal check` names it.
-
-**A project may add its own fields,** declared in `.peal/config.yml` under
-`task.fields` (name, and optionally the allowed values). Peal carries them through every
-command unchanged and refuses undeclared keys when filing, so a typo fails at once
-instead of being ignored forever.
-
-Peal reads and writes a small subset of YAML: scalars, and lists of scalars in flow
-(`[a, b]`) or block style. That keeps the scripts dependency-free (bash and git on a bare
-machine, as in the reference) while every file stays valid YAML for any other tool.
-
-The section structure (`Intent`, `Scope`, `Done when`, `Raw`, `Notes`, `Outcome`) is a
-convention Peal's commands rely on: `Raw` is the human's words and never rewritten,
-`Outcome` is written at close and must not be empty or a placeholder. A task with
-`plan: required` gets a `Plan` section after `Notes` once the human agrees the planner's
-plan; until it holds something, the plan is not agreed.
+The section structure is a convention Peal's commands rely on: `Raw` is the human's words
+and never rewritten, `Outcome` is written at close and must not be empty. The plan is
+agreed only once the `Plan` section holds something.
 
 ### Claim states
 
-Derived from refs and the main branch on the remote, never from the calling worktree:
-
-| State | Means |
-|---|---|
-| `free` | no branch; claimable |
-| `claimed-live` | the branch has a worktree, or exists only on the remote |
-| `parked` | a local branch ahead of main without a worktree; `claim` resumes it |
-| `awaiting-merge` | the branch tip holds the task under `done/`; waits for the human's merge |
-| `blocked` | a `depends` entry is not done yet, or the task lies on a depends cycle |
-| `done` | the file is under `done/` on main; outranks every other state |
+A claim's state is derived from refs and the main branch on the remote, never from the
+calling worktree: any worktree, on any branch, gets the same answer. `done` outranks every
+other state. The states and their meaning are in
+[Tasks](reference/tasks.md#claim-states).
 
 ## Claims and the session hooks
 
-- **`peal offer POOL [--top N]`** prints `CANDIDATE <id> <bucket> <title>` for the best N
-  (3) free tasks and `MORE <bucket> <count>` for each bucket with some left over. The pool
-  is a comma list of milestone ids, `current` and `unassigned`; each is a bucket (`current`
-  becomes the current milestone's id), in the pool's order; a human task (`owner: human`)
-  is never offered. Within a bucket by priority
-  (urgent, high, normal, low; priority never lifts a task into an earlier bucket), then
-  the free members of an open split, then by number; their titles say `(part of
-  <origin>, <done>/<total> done)`. A parked, done or unknown milestone in the pool is
-  refused.
-- **`peal claim ID [--print-path]`** fetches, then refuses a task that is done, awaiting
-  merge, blocked, claimed elsewhere, or of a parked, done or unknown milestone. It branches
-  from the remote's main into `{worktrees}/NNNN-slug`, moves the file to `doing/` in one
-  commit (`docs(tasks): claim NNNN slug [NNNN]`) and pushes the branch: a push that loses
-  to another claim takes everything back. A task claimed on this machine prints its
-  worktree again; a parked claim gets its worktree back and is pushed. A new worktree
-  (claimed or resumed) runs the `worktree-setup` command, if set, once, with its output
-  on stderr; a failure is status 2 and rolls nothing back: the claim and its worktree
-  stay, and the message says to fix it and run the command there by hand. `--print-path`
-  makes the worktree's path the last line. `--next [POOL]` claims the offer's best
-  candidate for POOL (`current,unassigned`), the next one when a claim loses its race.
-  A human task is claimed by its id like any other; `/peal:work` refuses it.
-  Scope paths (backticked in `## Scope`) that another claim's branch changes already are
-  warned about, never refused. A fresh clone whose config records the `guardrails` stage
-  gets its git gates here too (`peal_hooks_ensure`, [Git gates](#git-gates)), before
-  anything else: the install's line on stdout, before the path; a foreign
-  `core.hooksPath` or a failed install only warns, on stderr, naming the command.
-- **`peal release ID`** removes a claim's worktree and branch (the remote's too, if it
-  holds nothing more), the tip kept as `refs/reaped/NNNN-slug` for 30 days. It stays,
-  with the reason, while it is the calling worktree, a session touched it in the last 30
-  minutes, the task is not done on main, the worktree holds uncommitted changes, or the
-  branch holds commits not pushed. Landed means done on main, so a squash merge counts.
-  A claim `peal defer` gave back goes although its task is not done, and although a
-  session touched it lately.
-- **SessionStart**: a fresh clone whose config records the `guardrails` stage gets its
-  git gates here too (`peal_hooks_ensure`, [Git gates](#git-gates)), its line directly
-  after `Peal:`, in the orientation itself rather than on stderr (a hook's stderr never
-  reaches the session): a foreign `core.hooksPath` or a failed install only warns and
-  installs nothing, but names the command in that same orientation line so the session
-  still sees it. This covers a session that never claims. Then, on a
-  new session (`startup`, `clear`) the turn budget restarts, the remote is fetched and
-  every claim under the worktrees directory that `release` would let go is reaped (a
-  deferred one only once idle); a landed one kept for uncommitted or unpushed work says
-  so. Then the orientation: the current milestone, this worktree's task, the other
-  claims, the open splits, and, outside a task's worktree, `/peal:next`'s hint when it
-  has a suggestion (reusing this same list and these same milestones; no second read, no
-  fetch, no `gh`).
-- **PostToolUse**: the heartbeat that keeps a worktree from being reaped, and the turn
-  budget: the main session's tool calls in a task's worktree are counted, and at the
-  task's size tier (M while unsized) the session is nudged once to close or split.
-- **SessionEnd**: when the main session ends (`logout`, `prompt_input_exit`, `other`) in a
-  task's worktree, uncommitted work is committed as `wip: session-end autosave [NNNN]` and
-  the branch pushed. A sandbox's device mount is left out of that (`peal_status_porcelain`,
-  `peal_untracked_devices`); seen from outside the sandbox, the same path is an ordinary
-  empty regular file, and the autosave commits it like any other untracked file (0087) —
-  the remedy is git's own `.gitignore` or clone-local `.git/info/exclude`, not Peal code.
+- **`peal offer`** orders by milestone bucket first, then priority, then split, then
+  number. Priority never lifts a task into an earlier bucket: the current milestone is the
+  human's decision, a priority is one task's. A human task is never offered, since only
+  the human can deliver it.
+- **`peal claim`** is the lock: it branches from the remote's main, moves the file to
+  `doing/` in one commit and pushes the branch, and a push that loses to another claim
+  takes everything back. A claimed task prints its worktree again, so a re-run continues.
+  Scope paths another claim already changes are warned about, never refused: a hint of
+  a clash costs less than a refused claim. A fresh clone gets its git gates here too, before
+  anything else ([Git gates](#git-gates)).
+- **`peal release`** removes a claim's worktree and branch, the tip kept as
+  `refs/reaped/NNNN-slug` for 30 days, and stays whenever anything would be lost: it is the
+  calling worktree, a session touched it lately, the task is not done on main, or the
+  worktree holds uncommitted or unpushed work. Landed means done on main, so a squash
+  merge counts. A claim `peal defer` gave back goes although its task is not done.
+- **SessionStart** installs the git gates in a fresh clone whose config records
+  `guardrails`, in the orientation itself (a hook's stderr never reaches the session), so
+  a session that never claims is covered. On a new session it restarts the turn budget,
+  fetches and reaps the claims `release` would let go of, then prints the orientation: the
+  current milestone, this worktree's task, the other claims, the open splits and
+  `/peal:next`'s hint. The hint reuses the same list: no second read, no fetch, no `gh`.
+- **PostToolUse** is the heartbeat that keeps a worktree from being reaped, and the turn
+  budget: at the task's size tier the session is nudged once to close or split.
+- **SessionEnd** commits uncommitted work as a `wip:` autosave and pushes the branch, so
+  a session that ends abruptly loses nothing. A sandbox's device mount is left out of it
+  (`peal_status_porcelain`, `peal_untracked_devices`); seen from outside the sandbox the
+  same path is an ordinary empty file, and the autosave commits it like any other
+  untracked file (0087), the remedy being git's own `.gitignore` or `.git/info/exclude`,
+  not Peal code.
 
 The heartbeat, the turn count and the autosave's log live in the worktree's git
-directory, where no commit sees them.
+directory, where no commit sees them. The hooks are listed in
+[CLI](reference/cli.md#peal-hook).
 
 ## Closing a task
 
 `/peal:close` runs in the task's worktree once its `## Done when` holds, or once the task
 is decided against. `peal close` holds every step a script can check; the command holds
-the judgement (the review, routing the findings, the Outcome, the summary).
+the judgement (the review, routing the findings, the Outcome, the summary). The steps are
+in [CLI](reference/cli.md#peal-close).
 
-- **`peal close begin`** declares the close: a sentinel in the worktree's git directory
-  arms the Stop hook. It refuses outside a task's worktree, without the git hooks
-  installed, with more than one task under `doing/`, and on a branch that adds a backlog
-  file. It notes, never refusing: how far the branch is behind main (task files not
-  counted), the paths a merge of main would conflict in, milestone files the branch
-  changes, the ideas queued, an empty `## Scope` or `## Done when`. Then it names the file
-  the Outcome goes in (the task file; for an issue, a file of the close's own in the git
-  directory, since an issue has no Outcome section), the project's PR sections, the diff
-  and the `## Done when`.
+- **`begin`** declares the close with a sentinel that arms the Stop hook, so a session
+  cannot end with the close half done. It refuses what cannot be closed and notes, never
+  refusing, what the human will want to know.
 - **The review** runs unless every path of the diff lies under `review.skip-paths`. Each
-  finding is fixed on the branch, filed as an idea, escalated under `### Escalations` in
-  the Outcome, or rebutted under `### Reviewer findings not acted on`. For a task holding
-  `merge: auto` the report ends in one line, `merge-auto: keep` or `merge-auto: withdraw`:
-  whether the diff is still the small, low-risk work the plan promised.
-- **`peal close finish --summary TEXT [--section TITLE TEXT]... [--review-file FILE]`**
-  refuses, before anything changes, a missing summary or PR section, an empty Outcome or
-  one with a placeholder left, more than three escalations (the task was underspecified:
-  the human decides first), a task holding `merge: auto` without the reviewer's report
-  and its `merge-auto` line (FILE), an uncommitted path besides the Outcome's text, the
-  git hooks missing, and a failing `checks.close` command. Then it files the queued ideas
-  in one push (a storage that files one at a time, like issues, takes off the queue
-  exactly those filed, so a rerun never files one twice), on `merge-auto: withdraw`
-  removes `merge: auto` from the task through the storage's `record` (a commit on the
-  branch, or the issue's label), commits the storage's finish as `docs(tasks): close
-  ID [ID]` (the file's move to `done/`; an empty commit when the branch holds nothing
-  else, since a pull request needs one), pushes, and opens the pull request, or updates
-  the title and body of the one open for the branch. Whatever fails after the flush keeps
-  the close in progress; finish run again goes on where it stopped.
-- **The pull request's body** is generated (`peal close body` prints it): the count of
-  escalations and a withdrawn `merge: auto` first, then the summary bullets; `Fixes #N` for an issue, which closes it on merge; the split it is part of; the
-  project's `pr.sections`, each an item `"Title: what to write"` whose text the session
-  passes to finish; the Outcome; the ideas filed from the worktree; the branch's commits.
-- **`peal close abort REASON`** calls a close off, the reason logged in the git directory;
-  the queued ideas stay queued.
-- **`peal close verify`** prints one verdict about the branch checked out: `READY` (open
-  and green; `:merged`, `:pr-closed`, `:no-checks` for a repository without Actions
-  workflows), `WAIT:<why>` (checks pending or not registered yet, mergeability unknown),
-  or `BLOCKED:<why>` (the close unfinished, uncommitted or unpushed work, no pull request,
-  conflicts, failing checks, no `gh`, ...). Anything it cannot verify is `BLOCKED`, never
-  `READY`. **`peal close wait`** runs it again until the verdict is not `WAIT` or its
-  budget (nine minutes, under a tool call's ten) is spent; the command runs wait again
-  while it says `WAIT`.
-- **The Stop hook** is silent unless a close is in progress in the worktree; then it
-  refuses to let a turn end while the Outcome is empty or holds a placeholder, or work is
-  uncommitted or unpushed. It never refuses twice in a row, and a sentinel another session
-  left behind is cleared, not enforced.
-- **`peal check`** refuses a task file under `done/` whose Outcome is empty or holds a
-  placeholder, names each task id that two or more task files use (backlog, doing and
-  done together: `peal: task id NNNN is used by A and B`), and names each depends cycle
-  among the tasks not done (the work tree's task files; for issues, the storage's). This
-  repository's CI runs the branch's own `peal check` from `tools/lint.sh`.
+  finding is fixed, filed as an idea, escalated or rebutted: none is dropped silently.
+  For a task holding `merge: auto` the report says whether the diff is still the small,
+  low-risk work the plan promised.
+- **`finish`** checks everything before it changes anything, so a refusal leaves the
+  branch as it was. What fails after the ideas are filed keeps the close in progress, and
+  running it again goes on where it stopped: the ideas filed are taken off the queue as
+  they are, so a rerun never files one twice, and the `docs(tasks): close` commit is
+  empty when nothing else changed, since a pull request needs one. More than three
+  escalations refuse: the task was underspecified, and the human decides first.
+- **The pull request's body** is generated, so every pull request says the same things in
+  the same order, and the project's `pr.sections` are asked for, not remembered.
+- **`verify` and `wait`** answer with one verdict, and anything they cannot verify is
+  `BLOCKED`, never `READY`. The budget is nine minutes, under a tool call's ten.
+- **The Stop hook** is silent unless a close is in progress. It never refuses twice in a
+  row, and a sentinel another session left behind is cleared, not enforced.
+- **`peal check`** is the gate for what only CI sees: a done task with no Outcome, a task
+  id two files use, a depends cycle. This repository's CI runs the branch's own
+  `peal check` from `tools/lint.sh`.
 
 ## Milestones
 
-Milestones are data, the model Belfry shares (its issue #3): an id, a title, a state
-(`open`, `current`, `done`, `parked`), an order, and an optional due date.
+Milestones are data, the model Belfry shares (its issue #3): an id, a title, a state, an
+order and an optional due date. Each is one Markdown file, its data as frontmatter and its
+prose (goal, acceptance criteria, the review) as the body
+([Tasks](reference/tasks.md#milestone-files)).
 
-Each milestone is one Markdown file in the milestones directory (`docs/milestones/` by
-default), its data as frontmatter and its prose (goal, acceptance criteria, the review)
-as the body:
-
-```markdown
----
-id: m08
-title: Combat
-state: current
-order: 8
-due: 2026-11-01
----
-```
-
-A parked milestone may say why in `reason`, free text: `reason: 'until #12, other/repo#43'`
-names the issues it waits for, a form Belfry reads to suggest un-parking once they are
-closed. On GitHub the reason is the rest of the description's first line after "Parked:".
-The board's milestone line carries it as `reason`.
-
-`id` defaults to the file name without `.md`, `title` to the first heading. Peal refuses
-a milestones directory with more than one `current` milestone. The state is written, not
-inferred: the reference took "the newest milestone doc" as current, which cannot
-express a parked milestone or one planned ahead.
-
-What the states mean to Peal:
-
-| State | Offered by a bare `/peal:work` | Claimable by number |
-|---|---|---|
-| `current` | yes, first | yes |
-| no milestone | yes, after `current` | yes |
-| `open` | no; `/peal:work <milestone-id>` offers it | yes |
-| `parked` | no | no; a milestone review or the human moves the task out first |
-| `done` | no | no (its tasks are done) |
+The state is written, not inferred: the reference took "the newest milestone doc" as
+current, which cannot express a parked milestone or one planned ahead. More than one
+`current` is refused.
 
 The reference's pools map onto this: its current milestone is the `current` one,
 "unassigned" is no milestone, "later" is a `parked` milestone, and its "process" pool,
@@ -498,183 +324,83 @@ drift check (which becomes `/peal:drift`), and a migration keeps what else was o
 
 Every milestone has a review task, `depends: [milestone]`, whose session runs
 `/peal:milestone-review`. The same command runs without a task, as a Belfry action with
-the `milestone` trigger, given the milestone's id. `peal milestone-review [ID]` prints what
-a script can know: the milestone's tasks not done (its review task aside), the milestone
-that becomes current next, the parked milestones and their reasons, the milestone's
-text, and the project's steps from `.peal/review.md`, then `READY` or `OPEN <count>`. The
-command walks the acceptance criteria (each met, with its evidence, or carried forward
-as an idea), runs the project's steps, files the loose ends through `/peal:idea`, and
-triages the backlog (tasks without a milestone, parked milestones whose reason has gone,
-open tasks moved on). It ends with one `AskUserQuestion`, "Close <milestone>?", with its
-summary, and on yes runs `peal milestone-state ID done --review FILE`.
-
-`peal milestone-state ID done|parked|open [--reason R] [--review FILE]` is the one way a
-milestone's state changes, for the review, for Belfry's lane actions, and for a human in
-a shell. For task files it rewrites the milestone's file straight onto the main branch
-(`docs(tasks): milestone ID STATE`, which the pre-push gate lets through when it only
-modifies milestone files). When no milestone is current afterwards, it also makes the
-first open milestone by order current, in the same commit. For issues it closes or
-opens the GitHub milestone and writes or removes the "Parked" line of its description;
-which milestone is current follows from the due dates. The review goes under `## Review,
-<date>` in the file or the description. A milestone in that state already is left as it
-is. Milestone files are read-only during an ordinary task; `/peal:close` warns when a
-branch touches one.
+the `milestone` trigger. `peal milestone-review` prints what a script can know; the
+command walks the acceptance criteria, files loose ends as ideas, triages the backlog and
+ends with one question. `peal milestone-state` is the one way a state changes, for the
+review, for Belfry's lane actions and for a human in a shell
+([CLI](reference/cli.md#peal-milestone-state)). Milestone files are read-only during an
+ordinary task: a milestone's state is not a task's to change.
 
 ## Configuration
 
-A project keeps everything of Peal's in `.peal/`:
+A project keeps everything of Peal's in `.peal/`, and every setting has a default
+([Configuration](reference/configuration.md)). A setting exists only where two real
+projects would differ; everything else is a convention with no setting (the
+`backlog`/`doing`/`done` directories, `NNNN-slug.md` names, one task per branch and pull
+request, the commit subject grammar, which pushes may reach main directly, the close
+sequence). A key Peal does not know is refused, so a typo fails at once.
 
-| Path | What |
-|---|---|
-| `.peal/config.yml` | settings, below |
-| `.peal/peal` | the launcher, committed ([Distribution](#distribution)) |
-| `.peal/reviewer.md`, `.peal/planner.md` | optional: the project's own rules for these subagents, appended to their prompts |
-| `.peal/drift.md` | optional: what `/peal:drift` compares |
-| `.peal/review.md` | optional: the project's steps for `/peal:milestone-review` |
+The project's own rules for the planner, reviewer, drift check and milestone review are
+files under `.peal/` that Peal appends, rather than settings: they are prose, and the
+project knows better.
 
-Settings, all optional, with their defaults:
-
-```yaml
-remote: origin
-main: main                      # the branch tasks land on
-main-writes: auto               # Peal's own writes onto main: push, pr, auto (push; pr once refused)
-tasks: tasks                    # holds backlog/, doing/, done/ and TEMPLATE.md
-milestones: docs/milestones
-branch-prefix: task/
-worktrees: ../{repo}-wt         # each claim is {worktrees}/NNNN-slug
-worktree-setup: ""              # a command run once in each new worktree, PEAL_PRIMARY the
-                                # primary checkout's path
-sizes: {S: 60, M: 120, L: 200}  # tool calls; the turn budget nudges at the tier
-plan:
-  required-paths: []            # a task touching one of these gets plan: required
-review:
-  skip-paths: [docs/, tasks/]   # a diff only here skips the reviewer
-context: []                     # documents the planner, reviewer and /peal:idea read
-checks:
-  commit: []                    # commands the commit-msg gate runs; each may name paths it applies to
-  close: []                     # commands close runs before opening the PR
-pr:
-  sections: []                  # extra prose sections close asks the session for: "Title: instruction"
-commit:
-  areas: []                     # allowed <area> values in commit subjects; empty allows any
-models: {planner: opus, reviewer: opus, implementer: sonnet}
-task:
-  fields: {}                    # the project's own frontmatter fields
-storage:
-  kind: files                   # where tasks live: files (task files) or issues (GitHub issues)
-  issues:
-    repo: ""                    # owner/name; empty: the remote's GitHub repository
-    label: ""                   # only issues with this label are tasks; empty: the issues
-                                # opened by someone with write access
-release:
-  tag-prefix: v                 # release tags are <prefix>MAJOR.MINOR.PATCH
-  wait-ci: false                # /peal:release waits for the workflow runs of the tag
-  report: []                    # texts whose lines in those runs' logs the release reports
-  version-files: []             # files the release sets to its version before the tag,
-                                # each "PATH: FIELD" (a top-level field; JSON, TOML, YAML)
-  changelog: ""                 # a Markdown file each release's entry goes into; empty: none
-decisions: false                # the decisions module, or its directory to turn it on
-stages: []                      # the setup stages peal init has done
-declined: {}                    # /peal:next's declines, {item: [DATE]}, one per item;
-                                # blocks it for 90 days from DATE
-```
-
-Conventions with no setting: the `backlog`/`doing`/`done` directories, `NNNN-slug.md`
-names, one task per branch and PR, the task sections, the commit subject grammar
-`<type>(<area>): <what> [NNNN]`, which pushes may reach main directly, and the close
-sequence. A setting exists only where two real projects would differ.
-
-`worktree-setup` gives a task worktree the local files the project's commands need
-(`.env`, `*.local.yaml`), which git does not carry. The common case links them from the
-primary checkout:
-
-```yaml
-worktree-setup: 'for f in .env values.local.yaml; do ln -sf "$PEAL_PRIMARY/$f" "$f"; done'
-```
-
-It runs in the new worktree with the primary checkout's path in `PEAL_PRIMARY`, after
-the git gates are ensured and before the scope-overlap warning; it has no timeout. It is
-a command taken from the checkout's config, like `checks.commit` ([Security](security.md)).
+`worktree-setup` exists because a task worktree lacks the local files git does not carry
+(`.env`, `*.local.yaml`). It is a command taken from the checkout's config, like
+`checks.commit`, so it has the limits [Security](security.md) names.
 
 ## Writes onto main
 
-The storage's writes (`peal create`, `revise`, `retire`, `defer`, `set-milestone`,
-`comment`, `milestone-state`) and `peal decision publish` build their commit on a
-temporary index from the fetched main (`lib/main-write.sh`) and write it there one of
-three ways, the setting `main-writes`:
+The storage's writes (`create`, `revise`, `retire`, `defer`, `set-milestone`, `comment`,
+`milestone-state`) and `peal decision publish` build their commit on a temporary index
+from the fetched main (`lib/main-write.sh`), so they touch no worktree and run anywhere.
+They reach main one of three ways, the setting `main-writes`: `push`, `pr` or `auto`
+(the settings are in [Configuration](reference/configuration.md)).
 
-- **`push`**: pushed straight onto main, as the pre-push gate lets through; a refusal is
-  an error (status 1, git's reason), never retried but for a lost race.
-- **`pr`**: pushed to a branch `peal/main-write-<short sha>` and opened as a pull request
-  titled with the commit's subject, its body naming the command (and the task, from the
-  subject's `[NNNN]`). Peal turns on GitHub's auto-merge (squash, through the GraphQL
-  `enablePullRequestAutoMerge`), which needs "Allow auto-merge" in the repository's
-  settings. Where that is off, or the pull request is mergeable already, Peal merges it
-  itself (`PUT pulls/N/merge`, squash, and deletes the branch) once `peal_pr_checks` finds
-  its checks green, polling every `PEAL_MAIN_WRITE_INTERVAL` seconds (20) within
-  `PEAL_MAIN_WRITE_BUDGET` (540); a failing check leaves it open (status 1), the budget
-  spent leaves it open too and says where (status 3, the write reported as made).
-- **`auto`**, the default: a push first; when the remote itself refuses main (git's
-  `[remote rejected] ... -> main`, a ruleset or branch protection, never a local gate's
-  refusal nor a lost race), the same write goes through a pull request, and the clone
-  remembers it in git config `peal.mainWrites=pr`, so the next write opens its pull
-  request at once. `git config --unset peal.mainWrites` forgets it.
+`auto` is the default because Peal cannot know a repository's rules before it pushes, and
+both kinds are common. An unprotected main keeps the one-step push; a protected one (a
+public project's usual ruleset) keeps working without a setting or a human step beyond
+allowing auto-merge. A push first, and a pull request once the remote itself refuses
+main, is remembered in git config `peal.mainWrites` so the next write does not try again.
+`push` is for a project that wants a refusal to stay an error; `pr` for one that wants
+every write reviewed, or whose remote refuses in a way git does not report as a
+rejection of main.
 
-`auto` is the default because Peal cannot know a repository's rules before it pushes,
-and both kinds are common: an unprotected main keeps the one-step push, and a protected
-one (a public project's usual ruleset) keeps working without a setting or a human step
-beyond allowing auto-merge. `push` is for a project that wants a refusal to stay an
-error; `pr` for one that wants every write reviewed as a pull request, or whose remote
-refuses in a way git does not report as a rejection of main.
-
-A write returns once auto-merge is on: filing prints its `filed NNNN ...` lines and
-`pull request #N <url>, merging once its checks pass; the number is final once it
-merges`; an edit its usual line and the pull request's. A caller that needs main to hold
-the change sets `PEAL_MAIN_WRITE_WAIT=merged` to wait for the merge within the same
-budget. Until the merge, a read of main does not find the write; its "no task" says a
-Peal pull request may still be open. A conflict that arises after the command returned
-is left to a human.
+A write returns once auto-merge is on, since waiting would hold a session for minutes;
+a caller that needs main to hold the change waits explicitly
+(`PEAL_MAIN_WRITE_WAIT=merged`, [CLI](reference/cli.md#environment-variables-and-git-config)).
+Until the merge a read of main does not find the write, so its "no task" says a Peal pull
+request may still be open. A conflict that arises after the command returned is left to a
+human.
 
 **Races.** Two writes built on the same main both open. A filing's rivals are the open
-pull requests against main whose branch is in the repository itself, any branch (a
-filing made by hand as much as Peal's), never a fork's. Before its first build the
-filing fetches them all, so its next free number counts the task files on their
-branches and on every fetched `peal/main-write-*` branch. Once its pull request is open,
-and again before Peal merges it itself, it looks for its numbers on the newest main and
-in the branches of the rivals numbered below its own (the lower number wins); if one is
-taken it closes its pull request, deletes the branch and files again with the next free
-number, the file's name, heading and any `depends`/`part-of` naming it rebuilt from its
-texts, in a pull request saying "Replaces #N". A pull request GitHub reports unmergeable
-is closed the same way and the write built again on the new main, where an edit of a
-text changed meanwhile is refused as with a push. Each is bounded by
-`PEAL_PUSH_ATTEMPTS` (5). A rival numbered higher that merges first, or a clash after
-auto-merge took over, is left to CI, where `peal check` refuses two task files with one
-id; the `push` route needs no `gh` and leaves a clash there to CI too.
+pull requests against main from the repository itself, never a fork's. The filing counts
+the task files on their branches when it picks its number, and looks again once its pull
+request is open and before Peal merges it: the lower pull request number wins, and the
+loser closes its pull request and files again with the next free number, in a pull
+request saying "Replaces #N". A pull request GitHub reports unmergeable is closed the
+same way and the write built again. Each is bounded (`PEAL_PUSH_ATTEMPTS`). A rival
+numbered higher that merges first, or a clash after auto-merge took over, is left to CI,
+where `peal check` refuses two task files with one id; the `push` route needs no `gh`
+and leaves a clash there to CI too.
 
-**In CI.** `templates/decisions.yml` publishes with a `PEAL_TOKEN` secret (a personal
-access token or an app's) when the project sets one, else the workflow's
-`GITHUB_TOKEN`. A pull request opened with `GITHUB_TOKEN` starts no workflow, so on a
-main that requires checks it waits for a human; `PEAL_TOKEN` lets its checks run and
-auto-merge take it.
-
-The issues storage writes no task onto main: with the decisions module off and neither
-`release.version-files` nor `release.changelog`, it warns when `main-writes` is set to anything but `auto`.
+**In CI.** `templates/decisions.yml` publishes with a `PEAL_TOKEN` secret when the project
+sets one, else the workflow's `GITHUB_TOKEN`. A pull request opened with `GITHUB_TOKEN`
+starts no workflow, so on a main that requires checks it waits for a human; `PEAL_TOKEN`
+lets its checks run and auto-merge take it.
 
 ## Git gates
 
-`peal hooks install` (the `guardrails` stage of `peal init`) writes one small hook under every git hook
-name into the repository's git directory (`<git-common-dir>/peal/hooks`) and points
-`core.hooksPath` there. Living outside every branch, no branch can weaken them. Each finds
-the installed Peal the way the launcher does, runs Peal's gate for `pre-push` and
-`commit-msg` (`peal githook NAME`), then the project's own hook of the same name: in the
-hooks path the install replaced (kept as git config `peal.projectHooks`), else the git
-directory's `hooks/`. A gate that cannot find Peal refuses rather than waves through.
-The hooks never run what the repository ships: the stub reads no file of the work tree,
-calls no network, and verifies every root before it runs it, `$PEAL_ROOT` included (an
-in-repository one is skipped with a message; see [Distribution](#distribution)). Every
-refusal names its reason. `peal hooks install` refuses to record a Peal inside the
-repository. The limits that remain (`checks.commit`, in-tree project hooks, gate
-settings read from the work tree) are in [docs/security.md](security.md).
+`peal hooks install` (the `guardrails` stage of `peal init`) writes one small hook under
+every git hook name into the repository's git directory and points `core.hooksPath` there.
+Living outside every branch, no branch can weaken them. Each finds the installed Peal the
+way the launcher does, runs Peal's gate for `pre-push` and `commit-msg`, then the project's
+own hook of the same name, so Peal never displaces a hook a project already relies on. A
+gate that cannot find Peal refuses rather than waves through. The hooks never run what the
+repository ships: the stub reads no file of the work tree, calls no network, and verifies
+every root before it runs it, `$PEAL_ROOT` included (an in-repository one is skipped with
+a message; see [Distribution](#distribution)). Every refusal names its reason. The limits
+that remain (`checks.commit`, in-tree project hooks, gate settings read from the work
+tree) are in [docs/security.md](security.md).
 
 `core.hooksPath` belongs to each clone, not to the repository: a committed `guardrails`
 stage in `stages:` only says the project wants the hooks, so a fresh clone runs the
@@ -682,46 +408,33 @@ install itself, at the start of the work rather than at its first refusal
 (`peal_hooks_ensure`, `plugin/lib/githooks.sh`), from `peal claim` and the `SessionStart`
 hook, both covered whether or not the other runs first. A `core.hooksPath` already set to
 something other than these stubs is a clone's own choice: `peal_hooks_ensure` only warns
-and names `.peal/peal hooks install`, which chains to it (as `peal hooks install` always
-has), rather than installing over it unasked. `peal close begin`, `peal close finish` and
-`peal commit` stay pure refusals: the backstop for whatever `peal_hooks_ensure` could not
-fix, never the first word on it.
+and names `.peal/peal hooks install`, which chains to it, rather than installing over it
+unasked. `peal close begin`, `peal close finish` and `peal commit` stay pure refusals: the
+backstop for whatever `peal_hooks_ensure` could not fix, never the first word on it.
 
-- **pre-push** lets onto the main branch merges whose other parents a pushed branch
-  already holds, and the storage's own writes, told by subject and checked by the diff's
-  shape: `docs(tasks): file ...` only adds backlog task files; `docs(tasks): revise`,
-  `defer`, `set milestone of`, `note on` modify exactly one, the subject's `[NNNN]`;
-  `docs(tasks): retire` moves that one to `done/` under its name; with the decisions
-  module on, `docs(decisions): regenerate the index` changes the index alone;
-  `chore(release): <tag>` only modifies files of `release.version-files`, each byte for
-  byte what setting its field to the tag's version makes of its parent's, and
-  `release.changelog`: its parent's with one entry inserted after the title, headed
-  `## <tag>`, the parent holding none of that tag and the entry no other `##` heading,
-  or added as `# Changelog` and that entry (its shape, not its text:
-  [docs/security.md](security.md)). Nothing
-  else, no rewrite of main, no deletion. A pull request merged on the server runs no client hook,
-  and a write through a pull request pushes only its `peal/main-write-*` branch, which
-  the gate leaves alone ([Writes onto main](#writes-onto-main)).
-- **commit-msg** checks the subject `<type>(<area>): <what> [NNNN]`, types `feat fix test
-  refactor docs chore wip`; the area is one of `commit.areas` (then required), `tasks`,
-  or `decisions` with the decisions module on. `wip: <what>` skips the checks and needs
-  no id; a `(tasks)` commit must touch only the tasks directory and skips them too, as a
-  `(decisions)` commit the decisions directory. `chore(peal): <what>`, a project's setup
-  (`/peal:setup`), needs no id and skips them, touching only what `peal init` writes:
-  `.peal/`, `.claude/settings.json`, `.belfry.yml`, the tasks and milestones directories.
-  Otherwise each `checks.commit` item runs when the
-  commit touches its paths: `"src/ *.cs: dotnet test"` runs on a change under `src/` or to
-  a `.cs` file, an item without paths always. Git's own subjects (merge, revert, fixup)
-  pass the grammar; a merge still pays the checks. The id is required on a task's branch only
-  (the storage says which: `task/NNNN-slug` for files, `issue/N` for issues): on any other
-  named branch (a hotfix, a pin, an ad-hoc job) a subject without `[NNNN]` passes, and `checks.commit` still runs. `peal commit` still
-  refuses the main branch, so such work goes on a branch of its own, then a pull request.
-- **`peal commit SUBJECT [--body TEXT | --body-file FILE] [PATH...]`** stages, commits and
-  reports in one call. With PATHs, resolved from the caller's directory as git's own are,
-  only those are committed (`git commit --`); anything else already staged stays staged,
-  out of the commit. Without any, everything staged is committed. Refused on the main
-  branch, without the hooks installed, and for a new backlog file among what is committed
-  (those are filed onto main).
+- **pre-push** lets onto the main branch only what the lifecycle commands write, told by
+  subject and checked by the diff's shape. `docs(tasks): file ...` only adds backlog task
+  files; `docs(tasks): revise`, `defer`, `set milestone of`, `note on` modify exactly one,
+  the subject's `[NNNN]`; `docs(tasks): retire` moves that one to `done/` under its name;
+  with the decisions module on, `docs(decisions): regenerate the index` changes the index
+  alone; `docs(tasks): milestone` only modifies milestone files; `chore(release): <tag>`
+  only modifies files of `release.version-files`, each byte for byte what setting its
+  field to the tag's version makes of its parent's, and `release.changelog`: its
+  parent's with one entry inserted after the title, headed `## <tag>`, the parent
+  holding none of that tag and the entry no other `##` heading, or added as
+  `# Changelog` and that entry (its shape, not its text: [Security](security.md)).
+  Merges whose other parents a pushed
+  branch already holds pass too. Nothing else, no rewrite of main, no deletion. A pull
+  request merged on the server runs no client hook, and a write through a pull request
+  pushes only its `peal/main-write-*` branch, which the gate leaves alone
+  ([Writes onto main](#writes-onto-main)).
+- **commit-msg** checks the subject grammar and the id, and runs the project's
+  `checks.commit` ([CLI](reference/cli.md#peal-githook)). A `(tasks)` or `(decisions)`
+  commit skips them because it touches only those directories; `wip:` skips them because
+  an autosave must never be refused. The id is required on a task's branch only: on any
+  other named branch (a hotfix, a pin, an ad-hoc job) a subject without `[NNNN]` passes
+  and `checks.commit` still runs. `peal commit` still refuses the main branch, so such
+  work goes on a branch of its own, then a pull request.
 - **The git guard**, a PreToolUse hook on Bash, refuses in a Peal repository a commit on
   the main branch, a gate bypass (`--no-verify`, `commit -n`, `core.hooksPath` changed or
   set inline, `GIT_CONFIG_*` around a git call) and a push to main. It parses the git
@@ -732,11 +445,11 @@ fix, never the first word on it.
 
 Two things are kept apart: *where tasks live*, and *how a session works a task*. The
 workflow (plan, implement, close, the PR conventions, milestone review) is Peal's value
-and serves a project whose tasks are GitHub issues as well as one with task files. So
-the commands talk to a small storage interface with two implementations, selected by
-the `storage.kind` setting: `files` (the default) and `issues`. Belfry already *reads*
-tasks from either place; Peal does not duplicate that, and an issues project's claims
-are Belfry's, so either recognises the other's.
+and serves a project whose tasks are GitHub issues as well as one with task files. So the
+commands talk to a small storage interface with two implementations, selected by the
+`storage.kind` setting: `files` (the default) and `issues`. Belfry already *reads* tasks
+from either place; Peal does not duplicate that, and an issues project's claims are
+Belfry's, so either recognises the other's.
 
 The interface:
 
@@ -758,67 +471,24 @@ The interface:
 | `milestone-text id` | the milestone's file on main | the milestone's description |
 | `milestone-state id state reason review` | the milestone's file (and the next current one's) rewritten on main | the milestone closed or opened, its "Parked" line and review in the description |
 
-**Ids.** A task file's id is four digits (`0042`), an issue's its number (`42`). The
-commands and the read model take either; the commit subject's `[NNNN]` is the id, so
-`[42]` in an issues project.
+Ids, the mapping of an issue's labels and lines to frontmatter, the states of an issue,
+who is admitted and the claims on issues are in [Storage](reference/storage.md).
 
-**An issue as a task.** Belfry's conventions where it has one, so a board reads the same
-in both:
-
-| Task field | On the issue |
-|---|---|
-| title | the issue's title; the slug is its first five words |
-| `milestone` | the issue's milestone, by title |
-| `depends` | lines `Depends on #3, #7` (with `human` and `milestone` too), read up to the first word that is none of those |
-| `part-of` | a line `Part of #3` |
-| `needs` | labels `needs: <capability>` |
-| `size`, `plan`, `model`, `breaking`, `release-note`, the project's own fields | labels `<field>: <value>` |
-| `priority` | labels `priority: urgent`, `priority: high`, `priority: low`, Belfry's; of two the higher counts, none is normal |
-| `owner` | the label `owner: human`, Belfry's; none is ai |
-| `merge` | the label `merge: auto`, the one Belfry reads; none is the project's default |
-| `touches` | labels `touches: <path>`, one per entry, Belfry's |
-
-Labels rather than a frontmatter block in the body: they show and filter on GitHub, and
-Belfry reads `needs:` labels already. The sections (Intent, Scope, Raw, ...) are the
-body's own headings, as in a file. A filter label (`storage.issues.label`, like Belfry's
-`tasks.github-issues.label`) limits which issues are tasks; without one, only issues
-opened by someone with write access are (anyone may open one on a public repository),
-and only pull requests from the repository itself or by such a person mark an issue
-awaiting merge. `admitted()` (`plugin/lib/issues-lib.awk`) is this one rule, and every
-read path applies it, not only the listing: `read`, `claim`, `work` and `defer` refuse an
-issue it does not admit, quoting none of its text (`docs/security.md`, "Only admitted
-issues reach a session"; `plugin/lib/hostile.test.sh` holds the issues storage's channels
-to it too). With a filter label, `edit_admitted()` also refuses an issue edited later
-than its own labelling by someone without write access, so a stranger cannot slip a
-task's real text in after a maintainer's label: on every single-issue path, on the
-listing (such an issue is left out, as an unadmitted one is; one batched GraphQL call per
-100 listed issues) and in `ship`'s release notes.
-
-**States of an issue:** `done` when closed; `awaiting-merge` while such an open PR says
-`Fixes #N` (closes, resolves, ...); `claimed-live` when `issue/N` has a worktree here or
-the issue carries the label; `parked` for a local `issue/N` ahead of main without a
-worktree; then `blocked` and `free` by the same rules as for files.
-
-**Claims.** Belfry's `github-issues` backend claims before the session starts: the worker
-makes `<clone>-wt/issue-N` on `issue/N`, the server adds the label. `peal claim` makes
-exactly that, so Belfry's worker reuses Peal's worktree and its board shows the claim, and
-`peal claim N` on a task Belfry claimed prints the worktree Belfry made. A worktree alone
-is a claim already: Belfry labels only when the session starts. The label is no lock (two
-claims at the same moment can both add it); for a project run by one Belfry, or by hand,
-that is enough. The session hooks find the task from the branch, and read its size from a
-copy of its text the claim keeps in the worktree's git directory, so a tool call costs no
-request to GitHub.
-
-**What stays open.** GitHub's own sub-issues are not read as `part-of`, and `read` gives
-the body without the comments; the commands that need either (#8 to #10) read them with
-`gh` directly or extend the interface.
+Why labels rather than a frontmatter block in the body: they show and filter on GitHub,
+and Belfry reads `needs:` labels already. Why an admission rule: anyone may open an issue
+on a public repository, so what reaches a session must have been vouched for by someone
+with write access. `admitted()` (`plugin/lib/issues-lib.awk`) is that one rule, and every
+read path applies it, not only the listing (`docs/security.md`, "Only admitted issues
+reach a session"; `plugin/lib/hostile.test.sh` holds the issues storage's channels to it
+too). Why the claim label is no lock: for a project run by one Belfry, or by hand, a
+worktree is a claim already, and the label only shows it.
 
 In the scripts the interface is a set of shell functions (`peal_store_list`,
 `peal_store_create`, ...) in one file per implementation (`lib/store-files.sh`,
 `lib/store-issues.sh`), selected by `storage.kind`. The commands and the `peal` CLI call
 only these functions. Everything above them (offer ordering, dependency and split
-expansion, milestone rules, close) is storage-independent. The issues storage needs `gh`,
-logged in; its harness runs against a fake `gh` over recorded API shapes.
+expansion, milestone rules, close) is storage-independent. The issues storage's harness
+runs against a fake `gh` over recorded API shapes.
 
 ## Decision records
 
@@ -828,6 +498,7 @@ numbers reserved by push-as-lock (`refs/decisions/NNNN`), a check that an added 
 holds a reservation, the supersedes pairing check, the generated index (never edited in a
 PR, regenerated on main after a merge), and the brief of decisions naming the paths a
 task or diff touches, which the planner and reviewer read instead of the whole index.
+The commands are in [CLI](reference/cli.md#peal-decision).
 
 Why a module rather than core or project-specific: nothing in it is specific to one
 project, and the close sequence and both subagents integrate with it (a decision entry
@@ -837,6 +508,7 @@ record no decisions, and the task process must not require them.
 
 An entry is `<dir>/NNNN-slug.md`, in the reference's shape, so its entries move over
 unchanged:
+
 
 ```markdown
 # 0042 — Title
@@ -848,131 +520,39 @@ Status: accepted
 **Rules out.** What it excludes, so it is not argued again.
 ```
 
-`Status` is `accepted` or `superseded by NNNN`, anything after the number free (the
-reference narrows a partial supersession there). An entry that supersedes another has a
-paragraph starting `**Supersedes** decision NNNN` (or `decisions NNNN and MMMM`, a link
-`[NNNN](...)`, `**Supersedes (in part).**`). Once merged, an entry's one edit is its
-`Status` line, made in the pull request of its successor.
-
-- **`peal decision reserve SLUG`** takes the next number past every entry on the
-  remote's main, every `refs/decisions/*` on the remote and every entry in the work tree,
-  and pushes a marker commit (`reserve decision NNNN: slug (branch B, date)`, on the
-  empty tree) to `refs/decisions/NNNN`. The ref is the number alone, so two branches
-  after the same number contend for the same ref; the loser's push is not a fast-forward
-  and fails, and it retries with the next number. A push failing for another reason is
-  not retried. It then scaffolds the entry in the work tree, placeholders to fill in;
-  nothing is committed. Refused on the main branch and on a detached HEAD.
-- **`peal decision check`**, and `peal check` with the module on, refuse: an entry that
-  is not well-formed (its name, its heading with its own number, its `Status`, a
-  successor that exists, no placeholder left, a number used once); and, for what the
-  branch changes since it left main (commits, the work tree and new files alike): a
-  change to the index, a deleted entry, a `Status` turned `superseded by NNNN` without
-  NNNN being an entry the branch adds whose `**Supersedes**` names it, an added entry
-  whose `**Supersedes**` names an entry whose `Status` does not say so, and an added
-  entry whose number the branch holds no reservation of (the marker names another
-  branch, or there is none). The branch is `GITHUB_HEAD_REF` in a pull request's
-  workflow, whose checkout is a merge commit, else the one checked out. Checking only
-  what the branch changes keeps the pairing check off merged entries, whose text is
-  frozen however it was worded then.
-- **The guard**, a PostToolUse hook on Edit and Write, runs the check when an entry or
-  the index is written, and shows the session what it finds. A reservation it cannot
-  verify (the remote out of reach) is only a warning; the check in CI is the gate.
-- **The index**, `<dir>/index.md`: the accepted entries by number, then the superseded
-  ones with their successors. `peal decision index` prints it. `peal decision publish`
-  regenerates it from the remote's main and pushes it there as `docs(decisions):
-  regenerate the index`, built on a temporary index like the storage's own writes (so it
-  touches no worktree and runs anywhere) and let through by the pre-push gate when it
-  changes the index alone, or through a pull request where main refuses pushes
-  ([Writes onto main](#writes-onto-main)). `templates/decisions.yml` is the workflow a
-  project copies to run it after every merge that changes the directory.
-- **`peal decision brief --task FILE | --diff [BASE]`** prints the entries whose text
-  names a path of the task (its `## Scope`, or `## Intent` and `## Notes` while the
-  Scope is empty) or of the diff since the branch left main: a path being a word of two
-  or more `/`-separated parts or a file name with an extension, matched as written, by
-  its last part, and by each of its directories three or more parts deep. Superseded
-  entries are counted, not shown. `peal brief planner` includes the task's, `peal brief
-  reviewer` the diff's.
-- **The close.** `peal close finish` lets uncommitted entries through its clean-tree
-  check, refuses on anything the check finds, and commits the entries as
-  `docs(decisions): record NNNN [ID]` of their own, right before the task's move to done.
-  The commit gate allows the area `decisions` with the module on, for a commit that
-  touches the decisions directory only, and skips the project's checks for it as for
-  `tasks`.
+`Status` is `accepted` or `superseded by NNNN`. Once merged, an entry's one edit is its
+`Status` line, made in the pull request of its successor. The check looks only at what
+the branch changes, which keeps the pairing check off merged entries, whose text is frozen
+however it was worded then. The reservation is a ref named by the number alone, so two
+branches after the same number contend for the same ref and the loser retries. The guard,
+a PostToolUse hook, shows the session what the check finds; a reservation it cannot verify
+is only a warning, since the check in CI is the gate.
 
 ## Releases
 
-`/peal:release [version]` makes a release from what Peal knows better than commit
-messages do: the tasks finished since the last release, with their Outcomes. It works in
-either storage, claims nothing, and asks the human one question. `peal release` is the
-claims' command, so the release's steps are `peal ship ...`, each rerunnable on its own:
+`/peal:release` makes a release from what Peal knows better than commit messages do: the
+tasks finished since the last release, with their Outcomes. It works in either storage,
+claims nothing, and asks the human one question. `peal release` is the claims' command,
+so the release's steps are `peal ship ...`, each rerunnable on its own
+([CLI](reference/cli.md#peal-ship)), because a release that fails halfway must go on
+from where it stopped.
 
-- **`peal ship propose`** reads the last release: the highest tag
-  `<release.tag-prefix>MAJOR.MINOR.PATCH` reachable from the remote's main branch (a
-  pre-release, `v1.1.0-rc.1`, is never the last release). It prints `LAST <tag>`, an
-  `ITEM kind id prs title` line per item since, and `PROPOSE <tag> <bump>`: `major`
-  when an item is breaking, `minor` when one is a feature, `patch` when all are fixes,
-  `first` (`v0.1.0`, with every done task) without an earlier release; or `NOTHING
-  since <tag>`.
-- **What went in** is read from the main branch's commits since the last release,
-  squash merges as the close's pull requests make them (`Title [ID] (#PR)`). For task
-  files: each file the range adds under `done/`, but those retired (`docs(tasks):
-  retire`); the pull request from the commit adding it. For issues: each issue a
-  subject names (`[42]`) that is closed as completed, and all its pull requests in the
-  range. For both, each `feat` or `fix` commit of no such task (nor of an issue closed
-  as not planned) is an item of its own, its subject the line.
-- **Kinds.** Breaking: `breaking: true`, a label `breaking` or `breaking: true`, or a
-  subject `type!:`. A fix: a commit subject starting `fix`, or an issue labelled `bug`.
-  A feature otherwise. `release-note: none` (field or label) leaves the task out of the
-  notes and of the version's bump.
-- **`peal ship notes VERSION`** prints the notes: a first line (`v0.2.0: 2 features, 1
-  fix since v0.1.0.`, the tag's message), then the sections Breaking, Features and
-  Fixes, one line per item: its title and the first sentence of its Outcome (for an
-  issue, of the Outcome its first pull request's body holds), then the task (a link to
-  its file at the tag on GitHub, or `#42`) and its pull requests. Once the tag exists,
-  the notes are those of its range, whatever landed since.
-- **`peal ship bump VERSION`**, for a project with `release.version-files` (a plugin's
-  manifest, a package's version, a chart's `appVersion`) or `release.changelog`, sets each listed file's field
-  to the version without the tag prefix (`0.2.0`, `0.2.0-rc.1`) on the remote's main
-  branch, in one commit `chore(release): <tag>` built as the storage's writes are
-  ([Writes onto main](#writes-onto-main)): pushed, or on a protected main through a
-  pull request, waited for until it merged (`PEAL_MAIN_WRITE_WAIT=merged`; status 3 when
-  it is still open after the budget: rerun once it merged). A rerun before it merged
-  finds that pull request open already and waits for it instead of opening a second one.
-  Each item is `"PATH:
-  FIELD"`, a top-level field only: JSON's at depth 1 of the top object, TOML's before
-  the first `[table]`, YAML's at column 0, holding a string on one line whose quoting is
-  kept (`lib/version-field.awk`, which the pre-push gate runs too). A path outside the
-  repository, a dotted field, a file missing, a field missing, there twice or not a
-  string are refused before anything is written; so is a version `tag` would refuse.
-  With `release.changelog` (a Markdown file, `CHANGELOG.md`, a path under the same
-  rules), the same commit inserts the release's entry: `## <tag> (<UTC date>)`, a blank
-  line, then the notes with their headings one level down (`### Features`), after the
-  file's title line (`# ...`) and its blank line, or at the very top of a file without
-  one, a blank line between it and the entries below, which stay byte for byte; a file
-  missing on main is created as `# Changelog` and the entry. The entry holds what went
-  in up to the bump: a task merged between the bump and the tag is in the tag's notes,
-  not in it; a pre-release gets an entry of its own. Either key alone is enough to
-  bump. Files that hold the version already, and a changelog with an entry `## <tag>`:
-  `already at <version>`, nothing written. The commit is a `chore`, so the notes leave
-  it out.
-- **`peal ship tag VERSION`** tags the remote's main branch, annotated, and pushes the
-  tag. It refuses a tag that exists (here or on the remote; a release is never moved), a
-  version not above the last release, a file of `release.version-files` that does not
-  hold the version on main, and a `release.changelog` there without an entry `## <tag>`
-  (run `peal ship bump`); a push that fails takes the tag back.
-- **`peal ship publish VERSION`** creates the GitHub release with the notes (`gh release
-  create --notes-file`), or brings an existing one up to date (`gh release edit`); on a
-  remote not on GitHub the tag is the release.
-- **`peal ship wait VERSION`**, run when `release.wait-ci` is `true`, waits for the
-  workflow runs the tag's push started, with a budget as `peal close wait` has, and
-  prints a `RUN` line per run, a `REPORT` line per text of `release.report` (the first
-  line of the runs' job logs holding it: an image digest, say), then `READY`,
-  `FAILED:<run> <url>`, `NONE:<why>` (no run within five minutes of the tag), or
-  `WAIT:<why>` when the budget is spent.
+- What went in is read from the main branch's commits since the last release, squash
+  merges as the close's pull requests make them, so a task's Outcome and pull request are
+  found from its commit. A `feat` or `fix` commit of no task is an item of its own.
+- The bump is proposed, not decided: `major` for a breaking item, `minor` for a feature,
+  `patch` for fixes. `release-note: none` leaves a task out of both notes and bump.
+- `peal ship bump` writes the project's version files and changelog entry onto main through the storage's own
+  route, so a protected main works, and refuses anything it cannot set safely before it
+  writes (`lib/version-field.awk`, which the pre-push gate runs too).
+- `peal ship tag` never moves a release: a tag that exists is refused.
+- `peal ship wait` exists for a project whose tag starts a workflow that publishes
+  something (an image), and reports what those runs logged.
 
 The command proposes, shows the notes, and asks "Release <version>?" in one
 `AskUserQuestion` (under Belfry, its inbox), then sets the version files, tags,
 publishes and waits.
+
 
 ## Distribution
 
@@ -1015,148 +595,50 @@ commands and hooks call it too, so there is a single place that loads config and
 ## Setting up a project
 
 `peal init --stage STAGE` writes one stage of a project's setup, deterministically;
-`/peal:setup` is the conversation on top, which decides the options. A stage is safe to
-run again (what is there already is kept and said so) and taken back by `peal init
---remove STAGE`, which leaves the tasks themselves alone. Nothing is committed: each
-stage prints what it created, updated, kept or removed, for the caller to commit.
-`stages:` in `.peal/config.yml` records the stages set up, in this order, so other
-commands know what is there.
+`/peal:setup` is the conversation on top, which decides the options. The split is the
+process's own rule: what a script can do, a script does, so a stage is safe to run again,
+taken back by `peal init --remove STAGE`, and never commits: the caller commits, so the
+human reviews one commit. `stages:` in `.peal/config.yml` records the stages set up so
+other commands know what is there. The stages (`tasks`, `guardrails`, `milestones`,
+`belfry`) and what each writes and removes are in [CLI](reference/cli.md#peal-init).
 
-| Stage | Writes | `--remove` |
-|---|---|---|
-| `tasks` | `.peal/config.yml` (`stages:`, and Peal's defaults as comments), the launcher `.peal/peal`, and for task files the tasks directory's `backlog/`, `doing/`, `done/` (a `.gitkeep` in each empty one) and `TEMPLATE.md` (a project's own is kept); `--storage issues [--label L]` writes `storage.kind: issues` and the label instead (empty by default: the write-access rule), keeping a `repo` set by hand, and `--storage files` removes it. Last, the `.claude/settings.json` lines of [Distribution](#distribution): the file is created when absent, the keys inserted into it when present (`lib/settings-json.awk`, keeping the rest as written); when it does not parse, the lines to add are printed and the stage exits 1. | refused while another stage is set up. The template, the `.gitkeep`s, the directories left empty, `storage`, `stages`, the launcher, Peal's lines in the settings (the file and `.claude/` when nothing else is left); the config file when it holds nothing else; the recorded root (`peal-root`). Task state stays: claims, `task/*` branches, `refs/reaped/*` and the sessions' files in the git directories. |
-| `guardrails` | `peal hooks install`. The session hooks come from the plugin's `hooks.json`, so nothing is written to the settings. | `peal hooks uninstall`: `core.hooksPath` back to what it was; every `peal.*` key of the repository's config, the hooks' directory and the recorded root (`peal-root`) removed. |
-| `milestones` | for task files a first milestone, `m1.md` (`current`, `--title T`, "First milestone" by default), unless the milestones directory holds one; for issues nothing but the record (the repository's milestones are the milestones). | `m1.md` while it is as the stage wrote it. |
-| `belfry` | `.belfry.yml`: the `commands` backend of [Peal and Belfry](#peal-and-belfry) (with `retire` and a parking reason) for task files, `github-issues` with the label, `start: /peal:work {task}` and `idea: /peal:idea {idea}` for issues; the actions Peal provides (`milestone-review`, `release`) as comments to uncomment. A `.belfry.yml` that is not Peal's is left alone, the contract printed, status 1. The file is to be checked with `belfry check` once Belfry has one; until then the stage says it skipped the check. | the file while it is as the stage writes it; otherwise status 1, for the human to remove it. |
-
-`peal init --survey` writes nothing: it prints, a `key value` line each, what the
-conversation decides from: the stages set up and the next one, the storage, the branch,
-the GitHub repository with its open issues and milestones, the recent commits that close
-an issue, the README, TODO lists and marks, the CI files, ignored files that look local (`local-files`), a tasks directory already
-there, whose `.belfry.yml` is there, and the storage to recommend (the one set up; else
-`issues` for a GitHub project that already works from issues, so nothing moves; else
-`files`).
-
-**`/peal:setup [STAGE]`** runs in the human's own session. Without a stage it sets up
-`tasks` and nothing more: it reads the repository, recommends the storage in two
-sentences and asks once, shows what the stage writes, and commits it as one `chore(peal)`
-commit on a `peal/setup-<stage>` branch (never on the main branch), which it offers to
-push as a pull request. Then it proposes one or two first tasks from what it read (a
-TODO, a gap the README admits; for issues, it names fitting open issues instead of
-filing), files those the human picks, and ends in five lines: what was set up, what the
-human can do now (`/peal:idea`, `/peal:work`), and the next stage for later, not set up.
-`/peal:setup STAGE` sets up that stage the same way. Its `milestones` stage asks the
-first milestone's title and offers to file its review task (`depends: [milestone]`),
-once the milestone is on the main branch; its `belfry` stage offers to turn the
-milestone review action on.
-
-Each stage but `tasks` needs `tasks` set up first. A `guardrails` stage recorded in the
-committed config says the project wants the hooks; `core.hooksPath` is each clone's own,
-so a fresh clone runs the stage again itself, at the start of the work rather than
-waiting for a human's `/peal:setup guardrails` or `.peal/peal hooks install`
+`/peal:setup` without a stage sets up `tasks` and nothing more: a first run that asks
+once and commits one change is one a human will try. Each stage but `tasks` needs it
+first. A `guardrails` stage in the committed config says the project wants the hooks;
+`core.hooksPath` is each clone's own, so a fresh clone runs the stage again itself
 (`peal_hooks_ensure`, [Git gates](#git-gates)).
 
-**`/peal:next [all | ITEM]`** finds the rest once `tasks` is set up: `peal next` reads
-the stages recorded, the backlog and its history (tasks done, splits, deferrals), the
-milestones, one local read of the main branch's git history, and the local files and one
-local tag list the features below check (never Belfry, never `gh`, never a fetch), and
-prints the one next thing with the best evidence for it, in fixed order (the stages of
-`peal init`, then the review task a current milestone is missing, then the features
-within the stages) — `guardrails` once a task is done or a commit on main carries no task
-id, `milestones` at ten tasks done or eight open, `belfry` at five done, `review-task`
-once the current milestone has none, `decisions` once the module is off and either an
-ADR-like directory (`docs/adr`, `docs/decisions`, `doc/adr`) exists or twenty tasks are
-done, `drift` once there is no `.peal/drift.md` and either `context:` is set or other
-Markdown sits under `docs/`, with ten tasks done, `releases` once no local tag under
-`release.tag-prefix` is reachable from local main and five tasks are done, `reviewer`
-once there is no `.peal/reviewer.md` and either `context:` is empty while design-like
-documents exist or CI configuration exists while `checks.commit` and `checks.close` are
-both empty, `review-steps` once the milestones stage is recorded, a milestone is done,
-and there is no `.peal/review.md` — with why this repository would profit and how to try
-it, and up to three runners-up. The human accepts (`/peal:setup <stage>` runs for the
-first five; the features within the stages show the small change they would make and commit it
-themselves; `drift` writes the stub `.peal/drift.md` first, then runs `/peal:drift`
-once, and `releases` runs `/peal:release` once), declines
-(`declined.<item>: [DATE]` in `.peal/config.yml`, committed like a setup, not suggested
-again for 90 days unless asked by name with `/peal:next <item>`), or asks for more;
-nothing changes unasked. `all` also shows what is currently declined. The SessionStart
-orientation carries a one-line hint when there is a suggestion and the session is outside
-a task's worktree; `/peal:next` says more.
+`/peal:next` finds the rest once `tasks` is set up. It reads local facts only (never
+Belfry, never `gh`, never a fetch), so it is cheap enough for the SessionStart hint, and
+it prints the one next thing with the best evidence for it, in a fixed order: the stages,
+then a current milestone's missing review task, then the features within the stages. Why
+a fixed order: a suggestion that changes between runs cannot be trusted. Why a decline
+lasts 90 days: nagging is how a tool is uninstalled. Nothing changes unasked
+([Commands](reference/commands.md#pealnext)).
 
 ### `peal doctor`
 
-When Peal does not work in a project, nobody should have to guess why. `peal doctor
-[CHECK...]` runs its checks (all of them with none named), each config, version, hooks,
-gh, claims or belfry, and reports one problem per finding: a sentence and one fix, worded
+When Peal does not work in a project, nobody should have to guess why. `peal doctor` runs
+its checks and reports one problem per finding: a sentence and one fix, worded
 `.peal/peal ...` where the fix is a command. Every finding is a problem; there is no warn
-level. Local refs only: doctor never fetches, so a claim that landed on the remote but
-was never fetched into this clone passes silently.
-
-- **config**: `peal_config_load`'s own refusal (`config-merge.awk`'s unknown key or wrong
-  shape) becomes the sentence, its fix naming the line; once it loads, the values
-  `peal_config_load` and `peal check` do not check themselves: `storage.kind` in
-  `files`/`issues`, `main-writes` in `push`/`pr`/`auto`, `sizes.S`/`M`/`L` positive
-  integers, each of `stages` one of `tasks`/`guardrails`/`milestones`/`belfry`,
-  `release.wait-ci` `true`/`false`, `models.*` not empty. Every other check that needs
-  the config (hooks, gh, claims) says "skip: the config does not load" when it does not.
-- **version**: (a) `.peal/peal` byte-identical to the plugin's `templates/launcher`
-  (skipped without a launcher when `tasks` is not a recorded stage); (b), only once (a)
-  holds, `env -u PEAL_ROOT .peal/peal --version` against this session's own, so the fix
-  is either installing the plugin (none found) or starting a fresh Claude Code session or
-  `.peal/peal hooks install` (another version).
-- **hooks**: only when `guardrails` is a stage. `core.hooksPath` unset or foreign (the
-  fix would chain to it), a stub missing, not executable, or differing from
-  `templates/githook`.
-- **gh**: only for `storage.kind: issues`. `gh` missing, or `gh auth status` failing.
-- **claims**: every claim worktree here that [Claims and the session
-  hooks](#claims-and-the-session-hooks)'s `peal_release_verdict` would let go (`ok` or
-  `deferred`) or that landed with uncommitted or unpushed work, and every worktree `git
-  worktree list --porcelain` calls prunable. Not a live claim, `own`, `not-landed`, a
-  close sentinel, or `refs/reaped/*`. Skipped when `gh` failed on the issues storage.
-- **belfry**: only with a `.belfry.yml` whose `tasks.backend` is `commands`. Its `list`,
-  `board` and `offer` commands (never the write commands: `claim`, `start`, `idea`,
-  `create`, `milestone`, `retire`) are run, `{pool}` filled from `pool:`, only once their
-  words (`lib/shell-words.awk`, never `bash -c`) are literally `.peal/peal list`,
-  `.peal/peal board` or `.peal/peal offer ...`; anything else is skipped, never run.
-  Run through `.peal/peal` (`PEAL_ROOT` unset) once version's (a) holds, else through
-  `$PEAL_ROOT/bin/peal` with the same arguments, under a timeout. A non-zero exit, a
-  timeout, or output not shaped as [Peal and Belfry](#peal-and-belfry) promises (`list`
-  lines `ID state slug ...`, `board` lines starting with `{`, `offer` only `CANDIDATE`/
-  `MORE` lines) is a problem.
-
-Output: `ok`/`FAIL`/`skip` lines, each naming its check, a `FAIL` followed by a `  fix:
-...` line, and a last `doctor: N problem(s)` line. Status 0 healthy, 1 with any problem,
-2 for an unknown `CHECK`, outside a git repository, or a project without `.peal/`.
+level. It reads local refs only and never fetches, so a claim that landed on the remote
+but was never fetched into this clone passes silently. The `belfry` check runs the
+contract's read commands only, and only once their words are literally Peal's, never
+through `bash -c`: a doctor that ran whatever `.belfry.yml` says would be a hole. The
+checks and the output are in [CLI](reference/cli.md#peal-doctor).
 
 ## Migrating an existing project
 
-Adopting Peal is a migration, not a rewrite: tasks keep their numbers, history stays,
-the project's own tooling keeps working through the extension points. For a project with
-its own task-file process, such as the reference:
+Adopting Peal is a migration, not a rewrite: tasks keep their numbers, history stays, the
+project's own tooling keeps working through the extension points. For a project with its
+own task-file process, such as the reference: install the plugin, convert the task
+headers and milestone docs (`peal migrate`, [CLI](reference/cli.md#peal-migrate)), move
+project settings into the config, replace the generic scripts, commands, subagents and
+hooks with Peal's, keeping every piece the
+[scope tables](#scope-what-moves-what-stays) mark as staying, and point `.belfry.yml` at
+the launcher. All of it lands as one task, one PR, in the project itself. See
+[`docs/migrating.md`](migrating.md) for the walkthrough.
 
-1. **Install** the plugin: `peal init --stage tasks` and `--stage guardrails`, keeping
-   the existing `tasks/` layout and template.
-2. **Convert headers.** `peal migrate headers [--parked P,...] [--open P,...] [--none
-   P,...]` rewrites each task's `key: value` header into a frontmatter block: space- or
-   comma-separated `depends` and `needs` become YAML lists, trailing comments are
-   dropped, a numbered milestone becomes its id, a pool named in `--none` drops the
-   field, one named in `--parked` or `--open` stays as that id (the reference: `--none
-   unassigned --parked later,any --open process`). It prints anything it cannot convert.
-3. **Convert milestones.** `peal migrate milestones [--parked P,...] [--open P,...]`
-   adds frontmatter to each numbered milestone doc, the highest number `current`, earlier
-   ones `done`, and creates a milestone for every `--parked` and `--open` pool that has
-   no file yet.
-4. **Move project settings into config:** plan paths, reviewer skip paths, context
-   documents, commit areas, checks (the build and test gate), PR sections.
-5. **Replace the generic scripts, commands, subagents and hooks with Peal's,** keeping
-   every piece the [scope tables](#scope-what-moves-what-stays) mark as staying, and
-   moving project rules for the reviewer and planner into `.peal/`.
-6. **Point `.belfry.yml`** at the launcher (the `belfry` stage writes Peal's).
-
-All of it lands as one task, one PR, in the project itself. See
-[`docs/migrating.md`](migrating.md) for the full walkthrough: which pieces a project
-keeps, one-line invocations for its own pool names, and where its checks, context
-documents, PR sections and reviewer/planner rules go in `.peal/`.
 
 ## Building Peal
 

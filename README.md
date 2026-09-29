@@ -44,7 +44,8 @@ Install the plugin in a Claude Code session:
 ```
 
 Then run `/peal:setup` in your repository. [Getting started](docs/getting-started.md)
-walks through what it does and the first task. A project that already has its own
+walks through what it does and the first task; the [reference](docs/reference/README.md)
+lists every command and setting. A project that already has its own
 task-file process migrates with [docs/migrating.md](docs/migrating.md).
 
 ## Status

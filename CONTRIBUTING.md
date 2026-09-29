@@ -1,7 +1,7 @@
 # Contributing to Peal
 
-Thank you for helping. Read [docs/design.md](docs/design.md) first: it is the design and
-the reference. This page is how to work in the repository.
+Thank you for helping. Read [docs/design.md](docs/design.md) first: it is the design
+(the why); [docs/reference/](docs/reference/README.md) is the reference. This page is how to work in the repository.
 
 Peal runs on itself. Its backlog is the task files under `tasks/`, its milestones are
 `docs/milestones/`, its settings `.peal/config.yml`. A task is worked with `/peal:work`
