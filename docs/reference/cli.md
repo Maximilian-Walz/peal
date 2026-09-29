@@ -139,7 +139,8 @@ The Claude Code hooks; `hooks.json` runs them. Terse here; the reasons are in
 Records where Peal is installed; installs the git gates when the config records
 `guardrails` and they are missing (`peal_hooks_ensure`); on a new session (`startup`,
 `clear`) restarts the turn budget, fetches, and reaps the claims `peal release` would let
-go of; prints the orientation.
+go of, and the worktrees a release left in place once idle (`reaped leftover PATH`);
+prints the orientation.
 
 ### `peal hook post-tool-use`
 
@@ -321,6 +322,10 @@ free tasks, best first, and `MORE <bucket> <count>` for each bucket with some le
   a push that loses to another claim takes everything back.
 - A task claimed on this machine prints its worktree again (idempotent). A parked claim
   gets its worktree back and is pushed.
+- A free task whose deferred claim is still there ([Claim states](tasks.md#claim-states))
+  has it taken over first: a local one released as `peal release` would, one only on the
+  remote deleted there, its tip kept under `refs/reaped/` and the delete refused if the
+  branch moved meanwhile; one `released ...` line, then the claim.
 - Installs the git gates first when the config records `guardrails` and they are missing:
   the install's line on stdout, before the path. A foreign `core.hooksPath` or a failed
   install only warns, on stderr.
@@ -339,20 +344,27 @@ free tasks, best first, and `MORE <bucket> <count>` for each bucket with some le
 it holds nothing more), the tip kept as `refs/reaped/NNNN-slug` for 30 days. It stays,
 with the reason, while:
 
-- it is the calling worktree;
+- it is the calling worktree, unless its claim was deferred;
 - a session touched it in the last 30 minutes;
 - the task is not done on the main branch (a squash merge counts as done);
 - the worktree holds uncommitted changes, or the branch unpushed commits.
 
 A claim `peal defer` gave back goes although its task is not done, and although touched
-lately. Not to be mistaken for a release of a version, which is [`peal ship`](#peal-ship).
+lately. From its own worktree it is released in place: the branches go, and the worktree
+stays, detached at the tip and marked `peal-released`, for the SessionStart reaping to
+remove once idle; the `released ...` line says so. From elsewhere, a clean worktree that
+`git worktree remove` cannot delete is left in place the same way; one git dropped after
+emptying it (its directory busy or not writable) leaves that directory, named in the line.
+Not to be mistaken for a release of a version, which is [`peal ship`](#peal-ship).
 
 ## `peal defer`
 
 `peal defer --reason R [--dry-run]`, in a claim's worktree: the task's text (on stdin)
 written back under its number, the reason in `## Notes`, and the claim marked deferred.
 For task files it lands on the backlog file on the main branch; refused for any commit
-beyond the claim but those of the task's own file. Then `peal release ID` from elsewhere.
+beyond the claim but those of the task's own file; for issues, the `in progress` label
+taken off. Once on main the claim reads as given back
+([Claim states](tasks.md#claim-states)). Then `peal release ID`, here or from elsewhere.
 
 ## `peal work`
 

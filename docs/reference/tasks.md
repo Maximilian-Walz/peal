@@ -104,6 +104,13 @@ Derived from refs and the main branch on the remote, never from the calling work
 | `blocked` | a `depends` entry is not done yet, or the task lies on a depends cycle |
 | `done` | the file is under `done/` on main; outranks every other state |
 
+A claim `peal defer` gave back claims nothing as soon as the defer is on main, whatever is
+left of its branch or worktree: the task reads `free`, or `blocked` by its `depends`. The
+sign is a line `Deferred YYYY-MM-DD after a claim: ...` in main's copy of the task that the
+copy where the claim's branch forked from main lacks, so a claim made after the defer
+counts again, even on the same day. For issues, the defer takes the `in progress` label
+off, and a worktree marked deferred no longer counts.
+
 ## Milestone files
 
 A milestone is one Markdown file in the `milestones` directory: its data as frontmatter,

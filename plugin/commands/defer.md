@@ -70,20 +70,17 @@ release to run.
 
 ## 5. Delete the claim
 
-A session cannot remove the worktree it stands in. Call `ExitWorktree` with
-`action: "keep"`, never `"remove"`, then run the release `peal defer` printed, from the
-main checkout:
+Run the release `peal defer` printed, here, with no `ExitWorktree`:
 
 ```bash
 peal release <id>
 ```
 
-It keeps the branch's tip under `refs/reaped/` and deletes the worktree, the branch and
-its remote copy (and, for an issue, the `in progress` label). If `ExitWorktree` is
-missing or refuses (the session did not start this worktree), do not remove anything
-yourself: the claim is deferred already, and the next session start on this machine
-releases it once this session has been idle for half an hour. Say so, and give the
-human the release line to run sooner.
+It keeps the branch's tip under `refs/reaped/` and deletes the branch and its remote copy
+(and, for an issue, the `in progress` label). The worktree this session stands in stays,
+detached, and the next session start on this machine removes it once this session has
+been idle for half an hour. Do not remove anything yourself. If the release refuses, the
+claim reads as given back already; say so, and give the human the release line to run.
 
 ## 6. Report
 
