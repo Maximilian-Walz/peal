@@ -62,6 +62,9 @@ Frontmatter, triaged now:
   ("the board's awk", "`docs/api.md`"): those paths, relative to the repository's root.
   Otherwise leave it out; the planner writes it when the plan is agreed. It is a hint
   for starting tasks in parallel, never a guess worth making.
+- `after_deploy`: only when the idea says the task depends on a control-plane change
+  that is merged but may not be deployed yet: the pull request numbers it names, as
+  `N`, `#N` or `owner/repo#N`. Otherwise leave it out.
 - `size`: left out; the planner sizes a task when it is claimed.
 - `merge`: never. Only the human's agreement to a plan writes `merge: auto`.
 
@@ -75,6 +78,7 @@ plan: <required | skipped>
 depends: [<ids, human>]
 priority: <urgent | high | low, or leave the line out>
 touches: [<paths the idea names plainly, or leave the line out>]
+after_deploy: [<pull requests the idea names, or leave the line out>]
 ---
 
 # NNNN — <Title>

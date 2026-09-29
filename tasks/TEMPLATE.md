@@ -32,6 +32,9 @@ depends: []
   touches    paths, directories or globs the task will likely change, e.g. [docs/api.md,
              'ui/**']; a hint so that tasks on the same files are not started side by
              side. The planner writes it once the plan is agreed.
+  after_deploy  pull requests (N, #N, repo#N or owner/repo#N) that must be deployed
+             before the task can be worked: write it when the task depends on a
+             control-plane change that is merged but may not be deployed yet.
   A project's own fields are declared under task.fields in .peal/config.yml. -->
 
 ## Intent

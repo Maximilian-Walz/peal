@@ -21,3 +21,17 @@ function json_list(s,    n, items, j, out) {
   for (j = 1; j <= n; j++) out = out (j > 1 ? "," : "") json_str(items[j])
   return "[" out "]"
 }
+
+# json_refs(s) -> the comma-separated items of s as a JSON array: an all-digit item a bare
+# number (leading zeros stripped), any other a string.
+function json_refs(s,    n, items, j, out, it) {
+  n = split(s, items, ",")
+  out = ""
+  for (j = 1; j <= n; j++) {
+    it = items[j]
+    if (it ~ /^[0-9]+$/) { sub(/^0+/, "", it); if (it == "") it = "0" }
+    else it = json_str(it)
+    out = out (j > 1 ? "," : "") it
+  }
+  return "[" out "]"
+}

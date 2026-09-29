@@ -13,7 +13,7 @@
 function put(key, list,    n, it) {
   if (list == "") return
   n = split(list, it, ",")
-  if (key == "depends" || key == "needs" || key == "touches" || n > 1) print key ": " yaml_flow_list(it, n)
+  if (key == "depends" || key == "needs" || key == "touches" || key == "after_deploy" || n > 1) print key ": " yaml_flow_list(it, n)
   else print key ": " yaml_scalar(it[1], 0)
 }
 
@@ -48,6 +48,7 @@ function put(key, list,    n, it) {
   put("release-note", v["release-note"])
   if (v["priority"] != "normal") put("priority", v["priority"])
   put("touches", v["touches"])
+  put("after_deploy", AFTERDEP)
   for (j = 6; j <= nf; j++) if (fl[j] != "") put(fl[j], v[fl[j]])
   print "---"
   print ""

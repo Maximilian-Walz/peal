@@ -167,7 +167,8 @@ peal_store_list() {
   tmp=$(mktemp -d) || return 2
   if _peal_issues_scan "$tmp" && _peal_issues_prs >"$tmp/prs"; then
     _peal_issues_claims "$tmp/scan" "$tmp/prs" >"$tmp/claims"
-    cut -f1-13,16-19 "$tmp/scan" >"$tmp/tasks"
+    # No origin column here (the issues backend carries none): it stands empty before after_deploy.
+    awk -F '\t' -v OFS='\t' '{ print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $16, $17, $18, $19, "", $20 }' "$tmp/scan" >"$tmp/tasks"
     awk -F '\t' -v idprefix="#" -f "$PEAL_ROOT/lib/task-state.awk" "$tmp/claims" "$tmp/tasks" >"$tmp/out" || status=2
     # The issues read only for their state are no tasks.
     [ $status != 0 ] || awk -F '\t' 'NR == FNR { if ($15 == 1) extra[$1] = 1; next } !($1 in extra)' "$tmp/scan" "$tmp/out"
@@ -351,10 +352,10 @@ _peal_issues_managed() {
 }
 
 # _peal_issues_from_text FILE ID DIR -> the issue the task text in FILE (headed "# ID —
-# Title") makes: DIR/title, DIR/body (its "Part of" and "Depends on" lines, then the
+# Title") makes: DIR/title, DIR/body (its "Part of", "Depends on" and "After deploy of" lines, then the
 # text after the heading), DIR/labels (one per line) and DIR/milestone.
 _peal_issues_from_text() {
-  local file=$1 id=$2 dir=$3 key item deps="" part
+  local file=$1 id=$2 dir=$3 key item deps="" part after=""
   peal_text_title "$id" <"$file" >"$dir/title" || return 2
   : >"$dir/labels"
   for key in plan size model breaking release-note $(printf '%s' "$PEAL_FIELDS" | tr ',' ' '); do
@@ -377,11 +378,17 @@ _peal_issues_from_text() {
     case $item in [0-9]*) item="#$item" ;; esac
     deps=${deps:+$deps, }$item
   done < <(peal_fm_get "$file" depends 2>/dev/null)
+  while IFS= read -r item; do
+    [ -n "$item" ] || continue
+    case $item in [0-9]*) item="#$item" ;; esac
+    after=${after:+$after, }$item
+  done < <(peal_fm_get "$file" after_deploy 2>/dev/null)
   part=$(peal_fm_get "$file" part-of 2>/dev/null)
   {
     [ -z "$part" ] || printf 'Part of #%s\n' "$part"
     [ -z "$deps" ] || printf 'Depends on %s\n' "$deps"
-    [ -z "$part$deps" ] || echo
+    [ -z "$after" ] || printf 'After deploy of %s\n' "$after"
+    [ -z "$part$deps$after" ] || echo
   } >"$dir/body"
   awk '
     NR == 1 && $0 == "---" { fm = 1; next }

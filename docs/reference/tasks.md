@@ -52,6 +52,7 @@ Peal's fields, all optional.
 | `origin` | `outsider`, or absent for the project's own text (`writer`); written only by `peal create --origin outsider` and `peal comment --origin outsider`; files only |
 | `merge` | `auto`, or absent for the project's default; the human agreed the pull request may merge itself once its checks are green; `/peal:work` writes it only on the human's word, `/peal:revise` can remove it, a close ending `merge-auto: withdraw` removes it |
 | `touches` | a list of paths, directories or globs (`*`, `?`, `[...]` within a directory, `**` across), relative to the repository's root, none absolute or holding a comma, and on issues none over GitHub's 50 label characters; written by the planner, a hint only |
+| `after_deploy` | a list of pull requests that must be deployed before the task can be worked, each `N`, `#N`, `repo#N` or `owner/repo#N` (a scalar is a one-item list); write it when the task depends on a control-plane change that is merged but may not be deployed yet; Peal only passes it to the board, all-digit entries as numbers and the rest as strings, and does nothing else with it; `/peal:idea` sets it only when the idea says so, `/peal:revise` may add it |
 
 - `depends` keywords: `milestone` is every other task of this task's milestone, written
   only on a milestone's review task; `human` never resolves by itself. A `depends` on a
