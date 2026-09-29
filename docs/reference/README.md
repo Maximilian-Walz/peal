@@ -1,8 +1,8 @@
 # Reference
 
 Where to look a thing up. Each page is complete and terse; the reasons are in
-[the design](../design.md), the walk-throughs in [getting started](../getting-started.md)
-and [migrating](../migrating.md).
+[the design](../design.md), the walk-throughs in [getting started](../getting-started.md),
+the [guides](../guides/README.md) and [migrating](../migrating.md).
 
 | Page | Holds |
 |---|---|

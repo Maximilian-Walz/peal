@@ -12,8 +12,9 @@
 # - every relative Markdown link resolves, and so does its #anchor;
 # - a fenced block right after a marker comment is exercised:
 #     <!-- docs-check: config -->   loads through `peal config` in a scratch repository
-#     <!-- docs-check: run -->      its `$ ` lines run there, and the output lines quoted
-#                                   under each appear in its output (a line ending in " …"
+#     <!-- docs-check: run -->      its `$ ` lines run there, in a repository whose `origin`
+#                                   is an empty bare one, and the output lines quoted under
+#                                   each appear in its output (a line ending in " …"
 #                                   matches by its start)
 #     <!-- docs-check: frontmatter -->  the block is a task or milestone header `peal
 #                                 frontmatter check` accepts
@@ -24,6 +25,7 @@
 #   plugin/lib/config-defaults.yml, a row in tasks.md for every Peal field of
 #   plugin/lib/task-check.awk, a heading in cli.md for every subcommand of `peal --help`
 #   (grouped second words too), a heading in commands.md for every plugin/commands/*.md;
+# - the guides in docs/guides/ are among the documents, each with a marked block;
 # Then negative cases on scratch copies: each mistake must be reported.
 # No network. bash and awk only.
 set -uo pipefail
@@ -33,6 +35,13 @@ set -uo pipefail
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 peal_bin=$REPO/plugin/bin/peal
 
+# Every scratch directory lies under one base made here, in the main shell and not through
+# `$(scratch_dir)`: a directory registered inside $(...) is registered in a subshell, and
+# the exit trap would never see it.
+base=$(mktemp -d)
+scratch+=("$base")
+scratch_dir() { mktemp -d "$base/d.XXXXXX"; }
+
 # A directory with a `peal` that runs this checkout's CLI, for the blocks that run it.
 bindir=$(scratch_dir)
 printf '#!/usr/bin/env bash\nexec "%s" "$@"\n' "$peal_bin" >"$bindir/peal"
@@ -40,15 +49,24 @@ chmod +x "$bindir/peal"
 
 known=$("$peal_bin" --help | awk '/^  [a-z]/ { print $1 }' | sort -u)
 
-# scratch_repo -> a git repository with one commit, cd-able.
+# scratch_repo [--remote] -> a git repository with one commit, cd-able. With --remote it
+# is $dir/repo and has an empty bare `origin`, $dir/origin.git, so a claim's worktree
+# ($dir/repo-wt) lands in the same scratch directory too.
 scratch_repo() {
-  local dir
+  local dir repo
   dir=$(scratch_dir)
-  git -C "$dir" init -q -b main
-  git -C "$dir" config user.email docs@example.invalid
-  git -C "$dir" config user.name docs
-  git -C "$dir" commit -q --allow-empty -m init
-  printf '%s\n' "$dir"
+  repo=$dir
+  if [ "${1-}" == --remote ]; then
+    repo=$dir/repo
+    git init -q --bare "$dir/origin.git"
+    mkdir "$repo"
+  fi
+  git -C "$repo" init -q -b main
+  git -C "$repo" config user.email docs@example.invalid
+  git -C "$repo" config user.name docs
+  git -C "$repo" commit -q --allow-empty -m init
+  [ "${1-}" != --remote ] || git -C "$repo" remote add origin "$dir/origin.git"
+  printf '%s\n' "$repo"
 }
 
 # doc_files ROOT -> the documents checked, relative to ROOT.
@@ -272,7 +290,7 @@ docs_problems() {
             printf '%s:%s: the config block does not load: %s\n' "$file" "$ln" "$(cat "$repo/.err")"
           ;;
         run)
-          (cd "$(scratch_repo)" && run_block "$b") | sed "s|^|$file:$ln: |"
+          (cd "$(scratch_repo --remote)" && run_block "$b") | sed "s|^|$file:$ln: |"
           ;;
         frontmatter)
           cp "$b" "$tmp/fm.md"
@@ -336,8 +354,11 @@ check "the documents are checked" "CONTRIBUTING.md README.md docs/getting-starte
   "$(grep -x -F -e README.md -e CONTRIBUTING.md -e docs/getting-started.md <<<"$files" | LC_ALL=C sort | tr '\n' ' ' | sed 's/ $//')"
 check "no milestone or decision record is checked" "0" "$(grep -c -E '^docs/(milestones|decisions)/' <<<"$files")"
 check "the reference pages are checked" "6" "$(grep -c '^docs/reference/' <<<"$files")"
+check "the guides are checked" "6" "$(grep -c '^docs/guides/' <<<"$files")"
+check "every guide has a marked block" "" "$(for g in "$REPO"/docs/guides/*.md; do
+  [ "$(basename "$g")" == README.md ] || grep -q '^<!-- docs-check: ' "$g" || basename "$g"; done)"
 check "every marker kind is used" "config frontmatter install run shape" \
-  "$(grep -h -o -E 'docs-check: [a-z]+' "$REPO/README.md" "$REPO/CONTRIBUTING.md" "$REPO"/docs/*.md "$REPO"/docs/reference/*.md | sed 's/docs-check: //' | sort -u | tr '\n' ' ' | sed 's/ $//')"
+  "$(grep -h -o -E 'docs-check: [a-z]+' "$REPO/README.md" "$REPO/CONTRIBUTING.md" "$REPO"/docs/*.md "$REPO"/docs/reference/*.md "$REPO"/docs/guides/*.md | sed 's/docs-check: //' | sort -u | tr '\n' ' ' | sed 's/ $//')"
 
 # Negative cases, on a copy of the documents.
 mutant() { # mutant FILE SED-SCRIPT -> problems of a copy with FILE edited
@@ -362,6 +383,7 @@ has "a broken link is reported" "$(mutant README.md 's|\(docs/getting-started.md
 has "a broken anchor is reported" "$(mutant README.md 's|\(docs/getting-started.md\)|(docs/getting-started.md#nowhere)|')" "the anchor"
 has "an unknown config key is reported" "$(mutant docs/getting-started.md 's/^stages: \[tasks, guardrails\]$/nosuchkey: 1/')" "the config block does not load"
 has "a quoted output that changed is reported" "$(mutant docs/getting-started.md 's/^created .peal\/peal$/created .peal\/launcher/')" "did not print the line created .peal/launcher"
+has "a quoted output that changed in a guide, whose block uses the remote, is reported" "$(mutant docs/guides/working-a-task.md 's/^TASK 0001 tasks\/doing\/0001-health-check.md$/TASK 0001 tasks\/doing\/0001-nosuch.md/')" "did not print the line TASK 0001 tasks/doing/0001-nosuch.md"
 has "a wrong filed line is reported" "$(mutant README.md 's/size: S/size: L/')" "the filed line is"
 has "a wrong install line is reported" "$(mutant README.md 's|install peal@peal|install peal@other|')" "the plugin is peal@peal"
 has "a setting without a row is reported" "$(mutant docs/reference/configuration.md '/^\| `remote` \|/d')" "no row for the setting remote"

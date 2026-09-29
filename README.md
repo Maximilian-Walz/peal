@@ -44,8 +44,9 @@ Install the plugin in a Claude Code session:
 ```
 
 Then run `/peal:setup` in your repository. [Getting started](docs/getting-started.md)
-walks through what it does and the first task; the [reference](docs/reference/README.md)
-lists every command and setting. A project that already has its own
+walks through what it does and the first task; the [guides](docs/guides/README.md) take
+each workflow in turn, and the [reference](docs/reference/README.md) lists every command
+and setting. A project that already has its own
 task-file process migrates with [docs/migrating.md](docs/migrating.md).
 
 ## Status
@@ -59,7 +60,7 @@ Peal works on its own: every command runs in an ordinary Claude Code session.
 [Belfry](https://github.com/Maximilian-Walz/belfry) is a self-hosted control plane that
 runs Claude Code sessions unattended and gathers the decisions they need into one inbox.
 Peal provides the commands Belfry's task contract asks for; neither depends on the
-other.
+other. [Running under Belfry](docs/guides/belfry.md) says how to set it up.
 
 ## Contributing and license
 

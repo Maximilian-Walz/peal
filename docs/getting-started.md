@@ -112,5 +112,6 @@ See [migrating an existing project](migrating.md).
 
 ## Where to look things up
 
-The [reference](reference/README.md) lists every command, `peal` subcommand, setting and
+The [guides](guides/README.md) take each workflow in turn, starting where this page ends;
+the [reference](reference/README.md) lists every command, `peal` subcommand, setting and
 task field; [the design](design.md) says why.
