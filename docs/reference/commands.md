@@ -73,6 +73,15 @@ first. A claimed task is refused.
 place, straight into the storage. Shows the `--dry-run` diff; the human confirms first. A
 claimed task is refused.
 
+## `/peal:comment`
+
+`/peal:comment <task id> <text>`. Adds a dated line to an unclaimed task's Notes through
+`peal comment`, the text passed in a file, never as a shell word. It is the prompt of
+Belfry's `tasks.commands.revise`, which `peal init --stage belfry` writes for files
+storage. Text starting with Belfry's `From outside (` header is added with `--origin
+outsider`. A claimed or done task, a refused text or a failed write is reported with the
+text quoted and "not added".
+
 ## `/peal:milestone-review`
 
 `/peal:milestone-review [milestone id]`. Reviews a milestone before it closes. Without an

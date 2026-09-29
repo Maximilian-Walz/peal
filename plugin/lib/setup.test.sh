@@ -114,6 +114,7 @@ tasks/done/.gitkeep" "$(git -C "$work" show --format= --name-only HEAD)"
   stage belfry >/dev/null
   check "files: belfry committed" ".belfry.yml
 .peal/config.yml" "$(git -C "$work" show --format= --name-only HEAD)"
+  check "files: belfry writes revise" "1" "$(grep -c '^    revise: /peal:comment {task} {text}$' "$work/.belfry.yml")"
   merge
   check "files: every stage" "stages tasks,guardrails,milestones,belfry" "$(peal init --survey | grep '^stages')"
   check_fails "files: the gate keeps setup commits to the setup" 1 "a (peal) commit is Peal's setup" \
