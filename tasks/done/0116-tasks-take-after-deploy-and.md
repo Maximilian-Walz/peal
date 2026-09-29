@@ -106,3 +106,29 @@ Agreed 2026-09-29. Size M, model default, merge default.
 - Every board line stays valid JSON.
 
 Ranges: board.awk:1-33; task-scan.awk:1-126; task-state.awk:1-16,151-163,219-222; yaml-lib.awk:1-15,84-130; json.awk:1-24; task-check.awk:1-97; frontmatter-write.awk:1-21; tasks.test.sh:464-517; store-issues.sh:1-26,151-177,340-395; issues-lib.awk:1-22,109-146; issues-scan.awk:1-62; issues-text.awk:1-66; templates/task.md:1-35; tasks/TEMPLATE.md:1-35; commands/idea.md:45-107; commands/revise.md:1-17; tools/docs.test.sh:327-331,392; docs/design.md:38-103,218-232,450-487; docs/reference/tasks.md:17-62; docs/reference/cli.md:222-232; docs/reference/storage.md:25-42 (the `.awk` and `.sh` files are under `plugin/lib/`).
+
+---
+
+## Outcome
+
+Built as agreed. A task's frontmatter now takes `after_deploy:`, a YAML list of pull requests that the running control plane must contain before the task can start. Each entry is `N`, `#N`, `repo#N` or `owner/repo#N`. `peal board` prints the list on the task's line after `touches`: all-digit entries become JSON numbers (with leading zeros dropped, so `"412"` and `412` both print as `412`), everything else becomes a string. A task without the field, or with `[]`, gets no key. Peal does nothing else with the field. `peal list`, `offer` and `overview` don't change and never block on it.
+
+- **Filing:** `task-check.awk` knows the field. It refuses any entry that isn't `N` or `[[owner/]repo]#N` and accepts a scalar as a one-item list.
+- **Records:** the field is a new last column of the task record (`task-scan.awk`, `task-state.awk`, column 21 of the list record). `json_refs` in `json.awk` renders it.
+- **Issues storage:**
+  - `After deploy of #412, belfry#9` lines in an issue body (several lines add up) round-trip: they appear on the board line and as `after_deploy:` frontmatter in `peal read`, and they leave the body there.
+  - Filing or revising a text with the field writes the line.
+  - A line whose tokens are not all references stays in the body as prose.
+  - On issues, `N` and `#N` both come back as bare numbers.
+  - `store-issues.sh` now builds the tasks record with an awk that inserts an empty origin column, replacing the old `cut`, so `after_deploy` lands in the column `task-state.awk` reads.
+- **Filing text:**
+  - `/peal:idea` says, in generic words, when to set the field: the task depends on a control-plane change that is merged but may not be deployed yet.
+  - `/peal:revise` may add the field.
+  - Both templates carry it.
+  - Belfry is named only in `docs/design.md`'s "Peal and Belfry" section.
+- **Docs:** `docs/reference/tasks.md`, `cli.md`, `storage.md` and `design.md` are updated.
+- **Docs check:** `tools/docs.test.sh`'s field regex now accepts underscores (`[a-z_-]*`); before, it could not see an underscored field. `after_deploy` is Peal's only snake_case frontmatter key, kept that way because the contract uses that spelling.
+- **Contract check:** the field's name and format were checked against Belfry's published contract ("After deploy", board table) before planning, and they match.
+- **Tests:** `tasks.test.sh`, `store-files.test.sh`, `store-issues.test.sh` and `tools/docs.test.sh` all pass. The full test files are slow; run them with `bash plugin/lib/X.test.sh`.
+
+The review found no blocking issues. Its one observation: `docs/design.md` gets two short additions (the contract bullet and a paragraph beside `touches`) rather than the one sentence the scope named. That was kept, because both are in scope under `docs/**` and Belfry is still named only in the contract section.
