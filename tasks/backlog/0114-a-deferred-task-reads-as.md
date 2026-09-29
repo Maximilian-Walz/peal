@@ -1,5 +1,6 @@
 ---
-milestone: m3
+milestone: m2
+priority: high
 plan: required
 ---
 
