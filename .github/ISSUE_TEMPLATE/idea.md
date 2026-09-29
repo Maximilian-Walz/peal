@@ -1,5 +1,5 @@
 ---
-name: Task
+name: Idea
 about: Something Peal should do
 title: ''
 labels: ''

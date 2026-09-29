@@ -1,108 +1,68 @@
 # Peal
 
-A task-file process for [Claude Code](https://claude.com/claude-code) projects, packaged
-as a plugin. Tasks live in your repository as Markdown files with YAML frontmatter.
-Commands claim a task into its own branch and worktree, plan it, implement it in a
-subagent, and close it as a pull request, and file, split, defer, revise and retire
-tasks along the way. Milestones group the backlog.
+Peal keeps a project's tasks as Markdown files in its repository and gives
+[Claude Code](https://claude.com/claude-code) the commands to work them: file an idea,
+plan a task, build it on its own branch, and open the pull request.
 
-A peal is a full, ordered ringing of changes on a set of bells: a backlog worked through
-in order.
+<!-- docs-check: shape -->
+```text
+> /peal:idea a health check endpoint
+filed 0001 tasks/backlog/0001-health-check.md — milestone: -, plan: -, size: S — "Add a health check"
 
-**Getting started:** install the plugin, then run `/peal:setup` in a Claude Code
-session in your repository. It looks at the repository, asks where your tasks should
-live, and writes the setup as one commit for you to review. Already running your own
-task-file process? See [docs/migrating.md](docs/migrating.md) for the migration.
+> /peal:work 0001
+claimed 0001 task/0001-health-check ../myproject-wt/0001-health-check
+  ... the plan, for you to agree; then the build in a subagent ...
 
-Installing adds this to your `.claude/settings.json` (`peal init` writes it for you):
-
-```json
-{
-  "extraKnownMarketplaces": {
-    "peal": {"source": {"source": "github", "repo": "Maximilian-Walz/peal"}}
-  },
-  "enabledPlugins": {"peal@peal": true}
-}
+> /peal:close
+closed 0001: pull request #12 https://github.com/you/myproject/pull/12
 ```
 
-That tracks `main`. For a fixed version instead, add a release tag's ref to the
-marketplace source before running `peal init`, or edit it in afterwards:
+The lines shown are what the commands print. You agree the plan, and you merge the pull
+request.
 
-```json
-"peal": {"source": {"source": "github", "repo": "Maximilian-Walz/peal", "ref": "vX"}}
+## Why
+
+- **Tasks live in the repository.** A task is a Markdown file with YAML frontmatter,
+  reviewed and versioned like the code.
+- **One branch and one worktree per task.** Claiming a task creates both, so work on
+  several tasks never mixes.
+- **A plan before code.** A planner subagent writes the plan, you agree it, and only then
+  does an implementer build it. A reviewer checks the diff before the pull request opens.
+
+Peal is not a tracker with a screen of its own. It does not replace GitHub issues: it can
+keep the tasks in them. It does not need Belfry. It is not an autonomous agent: nothing
+merges until you say so.
+
+## Start
+
+Install the plugin in a Claude Code session:
+
+<!-- docs-check: install -->
+```text
+/plugin marketplace add Maximilian-Walz/peal
+/plugin install peal@peal
 ```
 
-**Status:** being built; the plugin installs, its CLI lists, offers, claims, files,
-revises and retires tasks, gates commits and pushes, and diagnoses its own installation
-with `peal doctor`, its session hooks orient a session, keep its budget and autosave its
-work, `/peal:work` claims, plans and builds
-a task with the planner and implementer subagents, `/peal:idea`, `/peal:split`,
-`/peal:defer`, `/peal:revise` and `/peal:retire` keep the backlog, `/peal:close`
-reviews a task and opens its pull request, `/peal:milestone-review` closes a milestone
-once the human agrees, `/peal:drift` files what the documents and the repository
-disagree on, `/peal:release` makes a release from the tasks finished since the last, `/peal:setup`
-sets a project up in stages from inside your session, on `peal init`, which writes them and takes them back, `/peal:next` suggests the one next stage or feature to adopt (decisions, drift, releases, the reviewer's own rules, the milestone review's own steps) with the evidence for it, and the optional decisions module keeps a project's decision records. See
-[docs/design.md](docs/design.md), the [milestones](docs/milestones/) and the backlog in
-[tasks/](tasks/).
+Then run `/peal:setup` in your repository. [Getting started](docs/getting-started.md)
+walks through what it does and the first task. A project that already has its own
+task-file process migrates with [docs/migrating.md](docs/migrating.md).
+
+## Status
+
+Peal is before its first stable version. The [milestones](docs/milestones/) are the
+roadmap.
 
 ## Peal and Belfry
 
-Peal works on its own: every command runs in an ordinary interactive Claude Code session.
-
+Peal works on its own: every command runs in an ordinary Claude Code session.
 [Belfry](https://github.com/Maximilian-Walz/belfry) is a self-hosted control plane that
-runs Claude Code sessions unattended on your machines and gathers every decision they
-need into one inbox. Peal provides the commands Belfry's task contract asks for (list,
-offer, claim, board, idea, create), so Belfry can show a Peal project's backlog, run its
-tasks, file what it or an outsider's issue found, and bring you only the questions,
-reviews and merges. Neither depends on the other.
+runs Claude Code sessions unattended and gathers the decisions they need into one inbox.
+Peal provides the commands Belfry's task contract asks for; neither depends on the
+other.
 
-## Working on Peal
+## Contributing and license
 
-Peal runs on itself: its backlog is the task files under `tasks/`, its milestones are
-`docs/milestones/`, and its settings `.peal/config.yml`, so a task is worked with
-`/peal:work` and `/peal:close` like in any Peal project, and new work is filed with
-`/peal:idea` rather than as an issue. A fresh clone installs the git gates itself, at the
-first `peal claim` or session start; `.peal/peal hooks install` still does it by hand, or
-again over a `core.hooksPath` the automatic install only warned about. The process runs
-the installed plugin, not the checkout's `plugin/`; to try a branch's CLI, run
-`PEAL_ROOT=$PWD/plugin plugin/bin/peal`.
+See [CONTRIBUTING.md](CONTRIBUTING.md). MIT, see [LICENSE](LICENSE).
 
-This repository is a Claude Code plugin marketplace (`.claude-plugin/marketplace.json`)
-with one plugin, `peal`, in `plugin/`:
-
-- `plugin/bin/peal`, the CLI every command, hook and outside caller runs;
-- `plugin/lib/`, its libraries, in bash and awk only: the frontmatter reader and writer
-  for Peal's YAML subset, the configuration, the milestones, and the task storage
-  (`store.sh`, the interface; `store-files.sh`, the task files; `store-issues.sh`, GitHub
-  issues through `gh`, with `fake-gh` for its harness; `task-state.awk`, the read model's
-  rules), claims (`claim.sh`), the session hooks (`session.sh`), and the
-  git gates (`githooks.sh`, pre-push and commit-msg; `commit.sh`, `peal commit`;
-  `git-guard.sh`, the Claude Code guard), `/peal:work`'s checks and the subagents'
-  briefs (`work.sh`), the backlog commands' steps above the storage, defer and the
-  revise of one's own claim (`backlog.sh`), the close (`close.sh`: begin, finish,
-  the pull request's body, verify, wait, the Stop hook), through `gh` (`github.sh`),
-  a milestone's end (`review.sh`: the review's brief, the state change), the optional
-  decision records (`decisions.sh`: reserve, check, index, publish, brief), releases
-  (`ship.sh`: the proposal, the notes, the version files, the tag, the GitHub release, the wait), writes
-  onto the main branch (`main-write.sh`), a project's setup in stages and the survey `/peal:setup` decides from (`init.sh`,
-  with `config-block.awk` and `settings-json.awk` editing the config and Claude Code's
-  settings as text), what to adopt next, with the `declined:` bookkeeping (`next.sh`), and
-  what is broken in a project's installation, one fix per problem (`doctor.sh`);
-- `plugin/commands/`, the plugin's Claude Code commands (`/peal:work`, `/peal:idea`,
-  `/peal:split`, `/peal:defer`, `/peal:revise`, `/peal:retire`, `/peal:close`,
-  `/peal:milestone-review`, `/peal:drift`, `/peal:release`, `/peal:setup`,
-  `/peal:next`), and
-  `plugin/agents/`, its subagents (`planner`, `implementer`, `reviewer`);
-- `plugin/hooks/`, the plugin's Claude Code hooks;
-- `plugin/templates/`: `launcher`, the `.peal/peal` a project commits; `githook`, the
-  git hook `peal hooks install` writes; `task.md`, the task template; and
-  `decisions.yml`, the workflow that regenerates a project's decisions index after a
-  merge.
-
-Every script has a harness next to it, `<script>.test.sh`, runnable on its own with
-`bash`. `tools/test-all.sh` runs them all and `tools/lint.sh` runs `shellcheck`; CI runs
-both on every pull request.
-
-## License
-
-MIT, see [LICENSE](LICENSE).
+A peal is a full, ordered ringing of changes on a set of bells: a backlog worked through
+in order.
