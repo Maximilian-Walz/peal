@@ -2,6 +2,8 @@
 milestone: m2
 plan: required
 depends: [0030]
+size: M
+touches: [README.md, CONTRIBUTING.md, docs/getting-started.md, docs/design.md, tools/docs.test.sh, .github/ISSUE_TEMPLATE/*, .github/pull_request_template.md]
 ---
 
 # 0031 — README and docs for newcomers: a first screen that explains, docs split by reader
