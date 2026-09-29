@@ -86,6 +86,8 @@ Where the pieces meet, and why:
   `milestone-state`) print exactly the shapes Belfry reads
   ([CLI](reference/cli.md#peal-list)). `claim` is idempotent, so a re-run job continues
   where the last one stopped.
+- The board's `after_deploy` list (pull requests a task waits on) is Belfry's contract
+  too: Peal passes it through and never reads it.
 - `/peal:work NNNN` notices it is already inside NNNN's worktree and skips its own claim.
   It reads no Belfry variable: the same check serves a human who opened a session in the
   worktree by hand. The reference used a Belfry environment variable here; Peal does
@@ -230,6 +232,9 @@ be found and fixed.
 **`touches`** is carried on the board so that a scheduler like Belfry does not start two
 tasks on the same files side by side. It is a hint: a wrong one costs a missed parallel
 slot, nothing more, so nothing refuses on it.
+
+**`after_deploy`** is carried on the board unchanged, for a scheduler that holds a task back
+until its server contains the pull requests it lists. Peal does nothing else with it.
 
 The section structure is a convention Peal's commands rely on: `Raw` is the human's words
 and never rewritten, `Outcome` is written at close and must not be empty. The plan is

@@ -222,6 +222,8 @@ refusals() {
   check_refused "touches: a comma" "bad-one: touches: src/{a,b}.c holds a comma" peal create bad-one < <(text "touches: ['src/{a,b}.c']")
   check_refused "touches: absolute" "bad-one: touches: /etc/hosts is absolute" peal create bad-one < <(text "touches: [/etc/hosts]")
   check_refused "touches: empty entry" "bad-one: touches: an empty entry" peal create bad-one < <(text "touches: ['']")
+  check_refused "after_deploy: not a reference" "bad-one: after_deploy: abc is neither N nor" peal create bad-one < <(text "after_deploy: [abc]")
+  check_refused "after_deploy: one bad entry" "bad-one: after_deploy: repo# is neither N nor" peal create bad-one < <(text "after_deploy: [412, 'repo#']")
   check_refused "part-of outside a split" "bad-one: part-of is written by a split only" peal create bad-one < <(text "part-of: 0001")
   check_refused "PARTn outside a split" "bad-one: depends: PART1 is no task id" peal create bad-one < <(text "depends: [PART1]")
   check_refused "no NNNN heading" "bad-one: the first heading must be '# NNNN — Title'" peal create bad-one < <(ID=0005 text)

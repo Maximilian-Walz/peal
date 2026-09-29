@@ -9,6 +9,7 @@
 # The conventions, Belfry's where it has one:
 #   depends   lines "Depends on #3, #7" (the keywords human and milestone too); the
 #             items are read up to the first word that is none of those
+#   after_deploy  lines "After deploy of #3, repo#7" (owner/repo#7 too); all of them add up
 #   part-of   a line "Part of #3"
 #   needs     labels "needs: <capability>"
 #   fields    labels "<field>: <value>": size, plan, model, breaking, release-note and
@@ -112,11 +113,13 @@ function add_item(list, v) {
   return list (list == "" ? "" : ",") v
 }
 
-# body_refs(body) -> DEPS (a comma list) and PARTOF from the body's reference lines, and
-# BODY_REST: the body without them, CRs dropped. A "Depends on" line naming anything but
-# issues and keywords keeps its leading items and stays in the body, as prose.
-function body_refs(body,    n, lines, j, line, low, rest, nt, toks, k, t, whole) {
-  DEPS = ""; PARTOF = ""; BODY_REST = ""
+# body_refs(body) -> DEPS (a comma list), AFTERDEP (a comma list) and PARTOF from the
+# body's reference lines, and BODY_REST: the body without them, CRs dropped. A "Depends on"
+# line naming anything but issues and keywords keeps its leading items and stays in the
+# body, as prose; an "After deploy of" line naming anything but #N, repo#N and owner/repo#N
+# stays in the body whole.
+function body_refs(body,    n, lines, j, line, low, rest, nt, toks, k, t, whole, bad, found) {
+  DEPS = ""; AFTERDEP = ""; PARTOF = ""; BODY_REST = ""
   n = split(body, lines, "\n")
   for (j = 1; j <= n; j++) {
     line = lines[j]
@@ -135,6 +138,22 @@ function body_refs(body,    n, lines, j, line, low, rest, nt, toks, k, t, whole)
         if (!whole) whole = 1
       }
       if (whole == 1) continue
+    } else if (match(low, /^[ \t]*after deploy of:?[ \t]*/)) {
+      rest = substr(line, RLENGTH + 1)
+      nt = split(rest, toks, /[ \t,]+/)
+      bad = 0; found = ""
+      for (k = 1; k <= nt; k++) {
+        t = toks[k]
+        if (t == "") continue
+        if (t ~ /^#[0-9]+$/) t = substr(t, 2) + 0
+        else if (t !~ /^[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)?#[0-9]+$/) { bad = 1; break }
+        found = add_item(found, t)
+      }
+      if (!bad && found != "") {
+        nt = split(found, toks, ",")
+        for (k = 1; k <= nt; k++) AFTERDEP = add_item(AFTERDEP, toks[k])
+        continue
+      }
     } else if (match(low, /^[ \t]*part of:?[ \t]*#[0-9]+[ \t.]*$/)) {
       t = low
       sub(/^[^#]*#/, "", t)

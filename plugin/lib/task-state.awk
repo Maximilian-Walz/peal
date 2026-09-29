@@ -10,10 +10,10 @@
 # state one of awaiting-merge, claimed-live, parked. Out comes the store's list record
 # (lib/store.sh):
 #
-#   id  state  detail  slug  title  milestone  depends  part-of  size  plan  needs  path  ref  pr  url  priority  owner  touches  merge  origin
+#   id  state  detail  slug  title  milestone  depends  part-of  size  plan  needs  path  ref  pr  url  priority  owner  touches  merge  origin  after_deploy
 #
-# A TASKS record with no origin column (17 fields, the issues backend's shape) reads as
-# origin empty: the issues backend carries no origin.
+# A TASKS record with no origin column (17 fields) reads as origin empty and one with no
+# after_deploy column as after_deploy empty.
 #
 # The state, first match wins: done (the file is under done/), the claim's state, blocked
 # (a depends entry is not done yet), free. The detail: for a free task its milestone ("-"
@@ -159,7 +159,7 @@ FILENAME == ARGV[1] {
   } else order[++n] = id
   dir[id] = $2; slug[id] = $4; title[id] = $5; ms[id] = $6; deps[id] = $7
   partof[id] = $8; size[id] = $9; plan[id] = $10; needs[id] = $11; path[id] = $12; url[id] = $13
-  prio[id] = $14; owner[id] = $15; touches[id] = $16; merge[id] = $17; origin[id] = $18
+  prio[id] = $14; owner[id] = $15; touches[id] = $16; merge[id] = $17; origin[id] = $18; afterdep[id] = $19
 }
 
 END {
@@ -216,8 +216,8 @@ END {
         }
       }
     }
-    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", id, state, detail,
+    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", id, state, detail,
       slug[id], title[id], ms[id], deps[id], partof[id], size[id], plan[id], needs[id],
-      path[id], cref[id], cpr[id], url[id], prio[id], owner[id], touches[id], merge[id], origin[id]
+      path[id], cref[id], cpr[id], url[id], prio[id], owner[id], touches[id], merge[id], origin[id], afterdep[id]
   }
 }

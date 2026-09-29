@@ -225,10 +225,11 @@ The detail:
 `{"milestone":{...}}` line per milestone: the shapes of Belfry's contract.
 
 - Task keys: `id`, `state`, `slug`, `title`, `milestone`, `depends`, `part_of`, `size`,
-  `plan`, `needs`, `priority`, `owner`, `origin`, `touches`, `merge`, `pr`, `path`,
+  `plan`, `needs`, `priority`, `owner`, `origin`, `touches`, `after_deploy`, `merge`, `pr`, `path`,
   `ref`, `cycle`.
 - Each but `id` and `state` only when set: no field for a normal priority, an AI's task,
   a task the project wrote itself or the project's default merge.
+- `after_deploy` is a list as written in the task: an all-digit entry prints as a number, any other as a string.
 - A milestone line carries a parked one's `reason`.
 
 ## `peal overview`

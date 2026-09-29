@@ -891,6 +891,23 @@ touches() {
 
 # merge as the label "merge: auto", Belfry's: read, on the board, written by create and
 # revise, which can drop it.
+after_deploy() {
+  local work out
+  issues_repo
+  issue 1 "Late" --body $'After deploy of #412, belfry#9\nAfter deploy of acme/tool#3\n\nWhy.'
+  issue 2 "Prose" --body "After deploy of the weather"
+  check "after_deploy: board" '{"id":"1","state":"free","slug":"late","title":"Late","after_deploy":[412,"belfry#9","acme/tool#3"],"url":"https://github.com/acme/widgets/issues/1"}
+{"id":"2","state":"free","slug":"prose","title":"Prose","url":"https://github.com/acme/widgets/issues/2"}' "$(peal board 2>&1 | grep -v '^{"milestone"')"
+  check "after_deploy: read" "after_deploy: [412, belfry#9, acme/tool#3]" "$(peal read 1 | grep '^after_deploy')"
+  check "after_deploy: the lines leave the body" "0" "$(peal read 1 | grep -c 'After deploy')"
+  check "after_deploy: prose stays" "After deploy of the weather" "$(peal read 2 | tail -1)"
+  out=$(peal create late-thing < <(TITLE="Late thing" text "after_deploy: [412, 'belfry#9']") 2>&1)
+  check "after_deploy: create" "0:filed 3" "$?:${out%% https*}"
+  check "after_deploy: the body line" "After deploy of #412, belfry#9" "$(gh_get '.[] | select(.number == 3) | .body' | head -1)"
+  check "after_deploy: read back" "after_deploy: [412, belfry#9]" "$(peal read 3 | grep '^after_deploy')"
+  check_refused "after_deploy: refused" "after_deploy: abc is neither N nor" peal create bad-one < <(text "after_deploy: [abc]")
+}
+
 merge() {
   local out
   issues_repo
@@ -938,6 +955,7 @@ cases() {
   priority
   owner
   touches
+  after_deploy
   merge
   writes
   claims
