@@ -316,7 +316,6 @@ surveys() {
   local work
   work=$(project)
   check "survey: a bare project" "stages -
-next tasks
 storage -
 branch main main main
 github -
@@ -387,18 +386,16 @@ recommend files" "$(survey issues recommend)"
   peal init --stage tasks >/dev/null
   printf 'tasks: {}\n' >"$work/.belfry.yml"
   check "survey: set up" "stages tasks
-next guardrails
 storage files
 taskdir -
 belfry other
-recommend files" "$(survey stages next storage taskdir belfry recommend)"
+recommend files" "$(survey stages storage taskdir belfry recommend)"
   rm "$work/.belfry.yml"
   peal init --stage guardrails >/dev/null
   peal init --stage milestones >/dev/null
   peal init --stage belfry >/dev/null
   check "survey: every stage" "stages tasks,guardrails,milestones,belfry
-next -
-belfry peal" "$(survey stages next belfry)"
+belfry peal" "$(survey stages belfry)"
   check_refused "survey: no arguments" "--survey takes no arguments" peal init --survey x
 }
 
