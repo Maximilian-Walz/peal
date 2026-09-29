@@ -224,6 +224,10 @@ being ignored for ever.
 task on it would stay blocked for ever. One made by hand is shown, not refused, so it can
 be found and fixed.
 
+**`touches`** is carried on the board so that a scheduler like Belfry does not start two
+tasks on the same files side by side. It is a hint: a wrong one costs a missed parallel
+slot, nothing more, so nothing refuses on it.
+
 The section structure is a convention Peal's commands rely on: `Raw` is the human's words
 and never rewritten, `Outcome` is written at close and must not be empty. The plan is
 agreed only once the `Plan` section holds something.
@@ -287,8 +291,10 @@ in [CLI](reference/cli.md#peal-close).
   low-risk work the plan promised.
 - **`finish`** checks everything before it changes anything, so a refusal leaves the
   branch as it was. What fails after the ideas are filed keeps the close in progress, and
-  running it again goes on where it stopped. More than three escalations refuse: the task
-  was underspecified, and the human decides first.
+  running it again goes on where it stopped: the ideas filed are taken off the queue as
+  they are, so a rerun never files one twice, and the `docs(tasks): close` commit is
+  empty when nothing else changed, since a pull request needs one. More than three
+  escalations refuse: the task was underspecified, and the human decides first.
 - **The pull request's body** is generated, so every pull request says the same things in
   the same order, and the project's `pr.sections` are asked for, not remembered.
 - **`verify` and `wait`** answer with one verdict, and anything they cannot verify is
