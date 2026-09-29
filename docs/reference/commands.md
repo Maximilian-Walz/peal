@@ -117,7 +117,8 @@ in the human's own session, on top of `peal init`.
 - Without a stage: the `tasks` stage and nothing more. Reads the repository, recommends
   the storage in two sentences and asks once, shows what the stage writes, commits it as
   one `chore(peal)` commit on a `peal/setup-<stage>` branch (never the main branch),
-  offers it as a pull request, proposes one or two first tasks, and ends in five lines, pointing at `/peal:next` for what comes later.
+  offers it as a pull request, proposes one or two first tasks, and ends in five lines,
+  pointing at `/peal:next` for what comes later.
 - With a stage: sets up that one the same way. Each stage but `tasks` needs `tasks` first.
 - `milestones` asks the first milestone's title and offers its review task; `belfry`
   offers to turn the milestone review action on.
