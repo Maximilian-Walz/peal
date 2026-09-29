@@ -1,4 +1,5 @@
 ---
+milestone: m3
 plan: required
 touches: [plugin/lib/ship.sh, docs/reference/configuration.md]
 ---
