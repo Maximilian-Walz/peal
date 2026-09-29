@@ -155,4 +155,45 @@ Touches: see frontmatter.
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Built `docs/reference/`, the place to look things up:
+- `README.md`: the index, and a Words list of about 20 terms that spells out the collisions (origin, release, pull request/PR, idea/task, stage/feature).
+- `commands.md`: every `/peal:*` command.
+- `cli.md`: every `peal` subcommand, grouped second words included, with output shapes, exit statuses, `PEAL_*` env vars, git config keys, the commit-subject grammar and the decision-record facts.
+- `configuration.md`: every config key as a row.
+- `tasks.md`: task and milestone frontmatter, sections, claim states.
+- `storage.md`: the issues storage.
+
+`docs/design.md` is pruned to the why: 1189 lines on origin/main, 671 now. Every former heading is kept, so outside anchors still resolve. Each section links the reference.
+
+`tools/docs.test.sh` checks completeness:
+- config keys against rows, both ways;
+- task-check fields against rows, both ways;
+- `peal --help` subcommands against `cli.md` headings;
+- `plugin/commands/*.md` against `commands.md` headings;
+- a new `docs-check: frontmatter` marker that runs `peal frontmatter check`.
+
+Each check has a negative case through `mutant`.
+
+Links repointed: `CONTRIBUTING.md:3`, `README.md`, `docs/getting-started.md` and `docs/migrating.md`. `.peal/config.yml` `context` and `.belfry.yml` `docs:` now include the reference, as the human agreed.
+
+Decided in planning, with the human: see Notes. In short:
+- the reference follows the code where design disagreed;
+- `plugin/` and backlog tasks are left untouched;
+- the pre-push rules and session-hook behaviour stay in design as the argument.
+
+Merged origin/main (0107, `release.changelog`) mid-close. The conflict in design.md was resolved in the plan's spirit: the new key's row, the `ship bump`/`ship tag` changelog behaviour and the `/peal:release` mention went to the reference; the pre-push gate rule stayed in design, in main's wording.
+
+The review found two gaps, both fixed on the branch:
+- The prune had dropped whys that the reference lacks too: why `touches` exists and why a wrong one is cheap, why the idea flush never files twice, and why the close commit may be empty. They are restored in design.md.
+- The decision-record lookup facts were in no document: well-formed, the Supersedes forms, pairing, `<dir>/index.md`, the `docs(decisions): record` commit, and `brief` matching. They are now in `cli.md` under `peal decision`.
+
+Found and left:
+- Stale design.md pointers in `plugin/`: `config-defaults.yml:1`, `doctor.sh:2`, `store.sh:2`, `close.sh:2`, `ship.sh:2`, `review.sh:2`, `next.sh:2`, `peal:98`, `commands/next.md:56,86`, `frontmatter.test.sh:14`, and the already dangling `common.sh:17` and `githooks.sh:2`. One idea is filed to repoint them.
+- Backlog tasks 0043, 0044, 0055, 0056, 0060, 0064, 0067 and 0068 cite design.md line ranges or sections that moved. Their planners should re-read the current design.md and reference; they were not revised here.
+- This repository's `.belfry.yml:12` `create:` lacks the `--origin {origin}` that design.md's example shows.
+- The design/code disagreements were resolved toward the code as the pages were written, without a separate list. One visible case: the `worktree-setup` wording "new or resumed" (`claim.sh:161`).
+
+For the next session:
+- design.md came out at about 670 lines, above the planned 450-550, because the sections kept whole (Belfry, scope tables, main writes, gates, distribution) are large.
+- `tools/test-all.sh` takes 8-10 minutes here.
+- 0106 (guides) can now link reference pages per topic.
