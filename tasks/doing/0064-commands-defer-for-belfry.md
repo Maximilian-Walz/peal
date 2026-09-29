@@ -1,6 +1,8 @@
 ---
 plan: required
 milestone: m2
+size: M
+touches: [plugin/bin/peal, plugin/lib/backlog.sh, plugin/lib/backlog.test.sh, plugin/lib/store*.sh, plugin/lib/init.sh, plugin/lib/init.test.sh, .belfry.yml, docs/**]
 ---
 
 # 0064 — A defer command for Belfry: `tasks.commands.defer`
@@ -24,6 +26,11 @@ Belfry's `task_defer` tool, on a `commands` project, can now run a contract comm
 From an idea a Belfry session filed while building Belfry #155 (PR #171).
 
 ## Notes
+
+2026-09-29: The human agreed the re-verified plan below. A1: `peal depend` on a claim of this
+clone hands the claim back like `peal defer` (note `Deferred <date> after a claim: waits for <on>`),
+knowingly overriding 0114's note: that is exactly the deferred sign 0114 reads, and it is wanted here.
+The eleven earlier questions are settled as the plan's defaults.
 
 2026-09-29: From 0114: 0114 reads a claim as deferred when main has a line starting `Deferred YYYY-MM-DD after a claim:` that the claim's fork point lacks. The note 0064 plans to add (`<date>: waits for <on> (deferred by its session)`) must never start that way.
 
@@ -72,6 +79,79 @@ Open questions, each with the planner's default:
 10. A repeated call succeeds and writes nothing.
 11. Update `docs/design.md` even though it is outside Scope.
 
+
+## Plan
+
+Agreed 2026-09-29.
+
+**Command `peal depend ID ON`** (`with_id` dispatch, usage in `plugin/bin/peal`); a store
+function `peal_store_depend ID ON` per storage and a thin `peal_depend` wrapper in
+`plugin/lib/backlog.sh`.
+
+- Arguments: `ON` a task id (`peal_valid_id`), not `ID`, existing on main. `ON` only in an open
+  main-write pull request: refused with `peal_main_write_hint`. `ON` done: accepted, stderr note.
+  Task ids only, no `human`/`milestone` keywords.
+- State of `ID` (`peal_store_list --fetch`):
+  - `free`/`blocked`: add the dependency, note `<date>: waits for <ON>`.
+  - A claim of this clone (`claimed-live wt:` of this repository, or `parked`): add the
+    dependency and hand the claim back as `peal defer` does: note
+    `Deferred <date> after a claim: waits for <ON>` (0114's `_peal_files_deferred` reads it as
+    given back), the `peal-deferred` marker in the claim worktree's git admin dir, so `peal release`
+    and SessionStart reaping let it go. Refused like `peal defer` when the branch holds work beyond
+    the claim, uncommitted changes other than the task file, or the remote branch holds more
+    (files: `_peal_files_no_work` run in the claim's worktree; issues: the checks factored out of
+    `peal_store_defer` into a helper).
+  - Refused: remote-only claim, label-only claim, `awaiting-merge`, `done`, unknown `ID`.
+- Writes:
+  - Files: main's backlog copy via the `_peal_files_rewrite`/`_peal_files_build_rewrite` pattern
+    (`peal_fm_set_list depends` + `peal_text_add_note`), `peal_push_main`, subject
+    `docs(tasks): defer NNNN <slug>, waits for MMMM [NNNN]` (gate allows it as is,
+    `githooks.sh:234`).
+  - Issues: `_peal_issues_text` with depends added, `_peal_issues_rewrite` + `_peal_issues_apply`
+    (`Depends on #N` in the body, the note as a comment); on hand-back `_peal_issues_unlabel` plus
+    the marker.
+- Cycle: `peal_cycle_check_text depend ID <newtext>`, exit 1 `depend: refused: depends cycle …`.
+- Idempotent: `ON` already in main's depends and no claim of this clone to hand back → exit 0,
+  nothing written; only a still-owed hand-back is written otherwise.
+- Budget: `: "${PEAL_MAIN_WRITE_BUDGET:=90}"` as in `peal_create_filed`; a write still in an open
+  pull request at the cap counts as success.
+- Init: `_peal_init_belfry_text` adds `defer: .peal/peal depend {task} {on}` to `commands`, files
+  storage only. `.belfry.yml` gets the same line. An older Peal's `.belfry.yml` now reads as
+  "not Peal's" to `init`: accepted, say so in the Outcome.
+- `filed: <id>` exists already (`peal create`, 0074); one test checks create → `filed:` → depend.
+
+**Files:** `plugin/bin/peal`, `plugin/lib/backlog.sh`, `plugin/lib/store-files.sh`,
+`plugin/lib/store-issues.sh`, `plugin/lib/store.sh` (interface comment), `plugin/lib/init.sh`,
+`plugin/lib/init.test.sh`, `plugin/lib/backlog.test.sh`, `.belfry.yml`; docs (agreed, outside
+Scope): `docs/reference/cli.md` (`## peal depend`, required by `tools/docs.test.sh`),
+`docs/reference/storage.md`, `docs/reference/tasks.md` (claim states), `docs/design.md`
+(Peal/Belfry table and sample contract), `docs/guides/belfry.md`, `docs/security.md` (`{task}`/`{on}`
+are checked ids).
+
+**Verification** (`plugin/lib/backlog.test.sh` through the CLI, files and fake-gh issues):
+- Files: free task gets `depends: [0002]` + note on main with the `defer` subject through the
+  installed pre-push gate, lists `blocked … needs:0002`. This clone's live claim with nothing built,
+  run from `$work`: `blocked`, main holds `Deferred <today> after a claim: waits for 0002`, marker
+  present, `peal release ID` succeeds, a later `peal claim` after 0002 is done takes it over.
+  Refusals: commit on the claim branch, dirty extra file, remote-only claim, `ON`=`ID`, unknown `ON`,
+  `'0002; x'`, awaiting-merge, done. Cycle `peal depend 0001 0004` with 0004→0001 exits 1 with the
+  cycle message, main unchanged. Repeat call exits 0, main's head unchanged. create → `filed:` →
+  depend chain.
+- Issues: body gains `Depends on #2`, comment holds the note; claimed issue with nothing built loses
+  its label, gets the marker, lists `blocked`; refusals: cycle, label-only claim, issue with a
+  commit; repeat call exits 0 with no new comment.
+- `plugin/lib/init.test.sh`: files contract has `    defer: .peal/peal depend {task} {on}`, only
+  `{task}`/`{on}` placeholders; issues contract has no `defer:`.
+- `bash tools/docs.test.sh`, `tools/lint.sh`.
+
+**Ranges:** plugin/bin/peal:164-233, 391-455, 484-528; plugin/lib/backlog.sh:1-102, 121-209;
+plugin/lib/store-files.sh:118-199, 439-542, 560-670, 775-861, 1014-1043;
+plugin/lib/store-issues.sh:104-149, 551-746, 770-784; plugin/lib/store.sh:1-73;
+plugin/lib/tasks.sh:256-271; plugin/lib/githooks.sh:143-249; plugin/lib/claim.sh:439-513;
+plugin/lib/init.sh:402-483; plugin/lib/init.test.sh:88-117, 220-235;
+plugin/lib/backlog.test.sh:1-79, 250-347; plugin/commands/defer.md:1-90; .belfry.yml:1-46;
+docs/design.md:40-105; docs/reference/cli.md:241-374; docs/reference/tasks.md:57-113;
+docs/guides/belfry.md:9-49; docs/security.md:116-153; tools/docs.test.sh:1-30.
 
 ---
 
