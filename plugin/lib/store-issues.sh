@@ -869,10 +869,7 @@ peal_store_claim() {
   _peal_issues_check_admitted "$id" "$row" || return 2
   dir=$(peal_worktrees_dir) || return 2
   branch=issue/$id wt=$dir/issue-$id
-  if [ -e "$wt" ]; then
-    peal_err "claim: $wt is in the way; move it, or remove it with git worktree remove"
-    return 2
-  fi
+  peal_claim_clear "$wt" || return 2
   mkdir -p "$dir" || return 2
   err=$(mktemp) || return 2
   if git rev-parse -q --verify "refs/heads/$branch" >/dev/null; then

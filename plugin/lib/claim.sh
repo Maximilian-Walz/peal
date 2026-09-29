@@ -394,13 +394,45 @@ peal_release_worktree() {
   PEAL_RELEASE_LEFT=$wt
 }
 
+# peal_claim_clear WT -> status 0 if a claim may make its worktree at WT: nothing there,
+# an empty directory (git worktree add takes it; what git leaves when it drops a worktree
+# it could not delete), or a worktree a release left in place (peal_release_worktree),
+# removed here as the reaping would, device files first and never forced. Status 2, with
+# the reason, for anything else in the way, or a leftover that cannot go yet.
+peal_claim_clear() {
+  local wt=$1 admin dev out
+  [ -e "$wt" ] || return 0
+  if [ -d "$wt" ] && [ -z "$(ls -A "$wt" 2>/dev/null)" ] && ! _peal_admin_dir "$wt" >/dev/null; then
+    return 0
+  fi
+  if ! admin=$(_peal_admin_dir "$wt") || [ ! -f "$admin/$PEAL_RELEASED" ] \
+      || git -C "$wt" symbolic-ref -q HEAD >/dev/null 2>&1; then
+    peal_err "claim: $wt is in the way; move it, or remove it with git worktree remove"
+    return 2
+  fi
+  if peal_is_here "$wt"; then
+    peal_err "claim: $wt, a released claim's leftover, is the worktree this runs in; claim from elsewhere, or let the SessionStart reaping remove it once idle"
+    return 2
+  fi
+  while IFS= read -r dev; do
+    [ -n "$dev" ] && rm -f -- "$wt/$dev"
+  done < <(cd "$wt" 2>/dev/null && peal_untracked_devices 2>/dev/null)
+  out=$(git worktree remove "$wt" 2>&1) && { echo "removed the leftover $wt"; return 0; }
+  # Dropped by git but not deleted (a busy directory): emptied, so the claim can use it.
+  if ! _peal_admin_dir "$wt" >/dev/null && [ -z "$(ls -A "$wt" 2>/dev/null)" ]; then
+    return 0
+  fi
+  peal_err "claim: the leftover $wt of a released claim could not be removed ($(printf '%s' "$out" | tail -n 1)); the SessionStart reaping removes it once idle, or remove it with git worktree remove"
+  return 2
+}
+
 # peal_release_said -> what peal_release_worktree left behind, as the end of the release's
 # line.
 peal_release_said() {
   if [ -n "${PEAL_RELEASE_LEFT-}" ]; then
     printf '; the worktree stays at %s, the SessionStart reaping removes it once idle' "$PEAL_RELEASE_LEFT"
   elif [ -n "${PEAL_RELEASE_STUCK-}" ]; then
-    printf '; git dropped the worktree, but its emptied directory stays at %s: remove it once nothing holds it' "$PEAL_RELEASE_STUCK"
+    printf '; git dropped the worktree, but its emptied directory stays at %s: a claim of the task afresh uses it, or remove it once nothing holds it' "$PEAL_RELEASE_STUCK"
   fi
 }
 

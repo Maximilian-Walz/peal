@@ -327,6 +327,11 @@ free tasks, best first, and `MORE <bucket> <count>` for each bucket with some le
   has it taken over first: a local one released as `peal release` would, one only on the
   remote deleted there, its tip kept under `refs/reaped/` and the delete refused if the
   branch moved meanwhile; one `released ...` line, then the claim.
+- The worktree's path may hold an empty directory (what git leaves of a worktree it
+  could not delete), which the claim uses, or a worktree a release left in place, which
+  the claim removes first as the reaping would (`removed the leftover PATH`). Anything
+  else there is in the way; so is a leftover that is the calling worktree or that `git
+  worktree remove` refuses, with the SessionStart reaping named as the way out.
 - Installs the git gates first when the config records `guardrails` and they are missing:
   the install's line on stdout, before the path. A foreign `core.hooksPath` or a failed
   install only warns, on stderr.
@@ -355,7 +360,8 @@ lately. From its own worktree it is released in place: the branches go, and the 
 stays, detached at the tip and marked `peal-released`, for the SessionStart reaping to
 remove once idle; the `released ...` line says so. From elsewhere, a clean worktree that
 `git worktree remove` cannot delete is left in place the same way; one git dropped after
-emptying it (its directory busy or not writable) leaves that directory, named in the line.
+emptying it (its directory busy or not writable) leaves that directory, named in the line;
+the next claim of the task uses it.
 Not to be mistaken for a release of a version, which is [`peal ship`](#peal-ship).
 
 ## `peal defer`

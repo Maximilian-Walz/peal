@@ -182,9 +182,31 @@ claimed 0003 task/0003-kept-task $(dirname "$work")/other-wt/0003-kept-task" "$?
   chmod a-w "$(dirname "$wt")"
   out=$(peal release 0002 2>&1)
   chmod u+w "$(dirname "$wt")"
-  check "release: a worktree git cannot delete" "0:released 0002 task/0002-blocking-task, tip kept as refs/reaped/0002-blocking-task; git dropped the worktree, but its emptied directory stays at $wt: remove it once nothing holds it" "$?:$out"
+  check "release: a worktree git cannot delete" "0:released 0002 task/0002-blocking-task, tip kept as refs/reaped/0002-blocking-task; git dropped the worktree, but its emptied directory stays at $wt: a claim of the task afresh uses it, or remove it once nothing holds it" "$?:$out"
   check "release: a worktree git cannot delete, the branches gone" "||0002 free blocking-task -" \
     "$(git -C "$work" branch --list 'task/0002-*')|$(git -C "$work" ls-remote origin 'refs/heads/task/0002-*')|$(peal list --no-pr 0002 2>&1)"
+  check "claim into the emptied directory" "0:claimed 0002 task/0002-blocking-task $wt" "$?:$(peal claim 0002 2>/dev/null)"
+  check "claim into the emptied directory: claimed" "0002 claimed-live blocking-task wt:$wt" "$(peal list --no-pr 0002 2>&1)"
+
+  # The prescribed flow: defer, release in place, and the next claim takes the leftover.
+  in_wt defer --reason "later" < <(ID=0002 text) >/dev/null 2>&1
+  in_wt release 0002 >/dev/null 2>&1
+  out=$(peal claim 0002 2>/dev/null)
+  check "claim over a leftover released in place" "0:removed the leftover $wt
+claimed 0002 task/0002-blocking-task $wt" "$?:$out"
+  check "claim over a leftover released in place: claimed" "0002 claimed-live blocking-task wt:$wt|task/0002-blocking-task" \
+    "$(peal list --no-pr 0002 2>&1)|$(git -C "$wt" symbolic-ref -q --short HEAD)"
+
+  # Not from inside the leftover, nor over one that holds something: the reaping's.
+  in_wt defer --reason "later" < <(in_wt read 0002) >/dev/null 2>&1
+  in_wt release 0002 >/dev/null 2>&1
+  check_refused "claim from inside the leftover" "the worktree this runs in; claim from elsewhere, or let the SessionStart reaping remove it" \
+    in_wt claim 0002
+  echo scratch >"$wt/scratch.txt"
+  check_refused "claim over a leftover that holds something" "could not be removed*the SessionStart reaping removes it once idle" \
+    peal claim 0002
+  check "claim over a leftover that holds something: left alone" "scratch|0002 free blocking-task -" \
+    "$(cat "$wt/scratch.txt")|$(peal list --no-pr 0002 2>&1)"
 }
 
 files_own() {
@@ -292,6 +314,12 @@ next: peal release 1" "$?:$out"
   out=$(in_wt defer --reason "later" < <(in_wt read 2) 2>&1)
   check "issues defer: unchanged" "0:deferred 2 https://github.com/acme/widgets/issues/2" "$?:$(printf '%s\n' "$out" | head -n 1)"
   check "issues defer: unchanged, commented" "Deferred $today after a claim: later" "$(gh_get '.[] | select(.issue == 2) | .body' comments)"
+  # Released in place from inside, the next claim takes the leftover over.
+  in_wt release 2 >/dev/null 2>&1
+  out=$(peal claim 2 2>/dev/null)
+  check "issues claim over a leftover released in place" "0:removed the leftover $wt
+claimed 2 issue/2 $wt" "$?:$out"
+  check "issues claim over a leftover: claimed" "2 claimed-live blocking-one wt:$wt|in progress" "$(peal list 2 2>&1)|$(labels 2)"
 
   # Revising one's own claim: the origin of a split narrowed.
   peal claim 3 >/dev/null 2>&1

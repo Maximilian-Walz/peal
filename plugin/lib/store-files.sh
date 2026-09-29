@@ -117,8 +117,9 @@ _peal_files_branches() {
 
 # _peal_files_deferred REF BASE ID -> status 0 if the claim on REF was given back by a
 # defer: BASE's copy of task ID holds a line "Deferred <date> after a claim: ..." that the
-# copy at the fork point of REF and BASE lacks. A claim made after the defer forks from a
-# main that has the line already.
+# copy at the fork point of REF and BASE lacks, counted (a second defer on the same day
+# for the same reason adds the same line again). A claim made after the defer forks from
+# a main that has the line already.
 _peal_files_deferred() {
   local ref=$1 base=$2 id=$3 path fork forkpath
   path=$(_peal_files_find "$base" "$id" 2>/dev/null) || return 1
@@ -126,8 +127,8 @@ _peal_files_deferred() {
   forkpath=$(_peal_files_find "$fork" "$id" 2>/dev/null) || forkpath=""
   awk -v re='^Deferred [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] after a claim: ' '
     FNR == 1 { f++ }
-    f == 1 && $0 ~ re { seen[$0] = 1 }
-    f == 2 && $0 ~ re && !($0 in seen) { found = 1 }
+    f == 1 && $0 ~ re { seen[$0]++ }
+    f == 2 && $0 ~ re && --seen[$0] < 0 { found = 1 }
     END { exit !found }' \
     <(if [ -n "$forkpath" ]; then git show "$fork:$forkpath"; else echo; fi) <(git show "$base:$path")
 }
@@ -903,10 +904,7 @@ peal_store_claim() {
   slug=${slug%.md}
   branch=$PEAL_PREFIX$slug
   wt=$dir/$slug
-  if [ -e "$wt" ]; then
-    peal_err "claim: $wt is in the way; move it, or remove it with git worktree remove"
-    return 2
-  fi
+  peal_claim_clear "$wt" || return 2
   mkdir -p "$dir" || return 2
   err=$(mktemp) || return 2
   # LC_ALL=C: git's own words are read below; translated, they would never match.
@@ -960,10 +958,7 @@ _peal_files_resume() {
     return 2
   fi
   wt=$dir/${branch#"$PEAL_PREFIX"}
-  if [ -e "$wt" ]; then
-    peal_err "claim: $wt is in the way; move it, or remove it with git worktree remove"
-    return 2
-  fi
+  peal_claim_clear "$wt" || return 2
   mkdir -p "$dir" || return 2
   git worktree add -q "$wt" "$branch" || { peal_err "claim: could not add the worktree $wt"; return 2; }
   if git rev-parse -q --verify "refs/remotes/$PEAL_REMOTE/$branch" >/dev/null; then

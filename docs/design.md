@@ -268,7 +268,8 @@ other state. The states and their meaning are in
   release deletes the branches and leaves the worktree detached and marked for the
   reaping. The defer itself already makes the task read free once it is on main
   ([Tasks](reference/tasks.md#claim-states)), whatever is left of the claim, and the next
-  claim takes such a leftover over.
+  claim takes such a leftover over: its branches, and a worktree left in place or the
+  empty directory git left of one at the claim's path.
 - **SessionStart** installs the git gates in a fresh clone whose config records
   `guardrails`, in the orientation itself (a hook's stderr never reaches the session), so
   a session that never claims is covered. On a new session it restarts the turn budget,
