@@ -13,6 +13,7 @@ checks:
   close: [tools/lint.sh]
 release:
   version-files: ["plugin/.claude-plugin/plugin.json: version"]
+  changelog: CHANGELOG.md
 
 # Peal's defaults:
 # remote: origin
