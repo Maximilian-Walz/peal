@@ -286,8 +286,11 @@ issue is closed as not planned, `R` a comment.
 
 ## `peal comment`
 
-`peal comment ID TEXT` adds a dated line to an unclaimed task's `## Notes`; an issue gets
-a comment, claimed or not.
+`peal comment [--origin outsider|writer] ID TEXT` adds a dated line to an unclaimed task's
+`## Notes`; an issue gets a comment, claimed or not. `--origin outsider` also sets the
+task's `origin: outsider` (files storage). A TEXT with a line that is `---` or starts with
+`## ` is refused (status 2). Belfry reaches it through `/peal:comment`, the
+`tasks.commands.revise` prompt.
 
 ## `peal finish`
 

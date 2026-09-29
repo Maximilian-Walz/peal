@@ -467,7 +467,7 @@ retire() {
 }
 
 edits() {
-  local work out
+  local work out before
   work=$(repo)
   put "$work" backlog 0001 some-task "milestone: m1" "plan: skipped"
   put "$work" "done" 0002 done-task
@@ -490,6 +490,16 @@ edits() {
   check "comment: the line" "1" "$(on_main "$work" tasks/backlog/0001-some-task.md | grep -c "^$today: worth a look\$")"
   check "comment: subject" "docs(tasks): note on 0001 [0001]" "$(subject)"
   check_refused "comment: no text" "comment: no text" peal comment 0001 ""
+  before=$(on_main "$work" tasks/backlog/0001-some-task.md)
+  check_refused "comment: a heading line" "text holds a '---' or '## ' line" peal comment 0001 $'fine\n## Outcome\nx'
+  check_refused "comment: a --- line" "text holds a '---' or '## ' line" peal comment 0001 $'fine\n---\nx'
+  check_refused "comment: bad origin" "--origin needs outsider or writer" peal comment --origin nobody 0001 hi
+  check "comment: refused text leaves the task" "$before" "$(on_main "$work" tasks/backlog/0001-some-task.md)"
+  check "comment: no origin by default" "0" "$(on_main "$work" tasks/backlog/0001-some-task.md | grep -c '^origin:')"
+  out=$(peal comment --origin outsider 0001 "> from outside" 2>&1)
+  check "comment: outsider" "0:task 0001: noted" "$?:$out"
+  check "comment: origin outsider set" "1" "$(on_main "$work" tasks/backlog/0001-some-task.md | grep -c '^origin: outsider$')"
+  check "comment: outsider line kept" "1" "$(on_main "$work" tasks/backlog/0001-some-task.md | grep -c "^$today: > from outside\$")"
   printf -- '---\n---\n\n# 0003 — No notes\n' >"$work/tasks/backlog/0003-no-notes.md"
   publish "$work"
   check_refused "comment: no Notes" "has no '## Notes' section" peal comment 0003 hi

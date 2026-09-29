@@ -782,7 +782,10 @@ _peal_files_rewrite_comment() {
     peal_err "comment: $PEAL_PATH has no '## Notes' section"
     return 2
   fi
-  peal_text_add_note "$PEAL_COMMENT" <"$1" >"$2"
+  peal_text_add_note "$PEAL_COMMENT" <"$1" >"$2" || return 2
+  if [ "${PEAL_COMMENT_ORIGIN-}" = outsider ]; then
+    peal_fm_set "$2" origin outsider || return 2
+  fi
 }
 
 # _peal_files_rewrite ID VERB SUBJECT FUNCTION -> PEAL_PATH of the unclaimed task ID

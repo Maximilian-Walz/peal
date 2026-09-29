@@ -138,6 +138,20 @@ merges itself.
 - Harness: `plugin/lib/store-files.test.sh`, `plugin/lib/store-issues.test.sh`,
   `plugin/lib/hostile.test.sh`.
 
+### Text from outside added to a task's Notes
+
+Belfry runs `tasks.commands.revise` (`/peal:comment {task} {text}`) as a session job:
+`{text}` is a prompt, never a shell command, and `/peal:comment` hands it to `peal comment`
+through a file, never as a composed shell word. Text that Belfry says came from outside
+goes with `--origin outsider`, which marks the task `origin: outsider` in the same commit
+(its job then never runs unattended, its pull request never merges itself). `peal
+comment` refuses any text with a line that is `---` or starts with `## `, so a note cannot
+end the frontmatter or open a section of the task file.
+
+- Guard: `plugin/bin/peal` (`comment`), `plugin/lib/store-files.sh`
+  (`_peal_files_rewrite_comment`).
+- Harness: `plugin/lib/store-files.test.sh`, `plugin/lib/hostile.test.sh`.
+
 ### A commit must clear the project's own checks before it lands, even mid-branch
 
 Outside the fast paths for task files and decision entries, the `commit-msg` gate runs

@@ -72,6 +72,7 @@ tasks:
     board: .peal/peal board
     milestone: .peal/peal milestone-state {id} {state} --reason {reason}
     retire: .peal/peal retire {task} --reason {reason}
+    revise: /peal:comment {task} {text}
 actions:
   milestone-review:
     title: Milestone review
@@ -150,8 +151,10 @@ The backlog commands call the storage only, through the `peal` CLI. `/peal:idea`
 a task in one pass, never asking, so filing costs the human no attention. `/peal:defer`
 gives a claim back that nothing was built on, keeping its number and what was learned.
 `/peal:retire` and `/peal:revise` write straight into the storage, so the human confirms
-first, and both refuse a claimed task: a claimed task's text is its session's. Each is
-in [Commands](reference/commands.md).
+first, and both refuse a claimed task: a claimed task's text is its session's. `/peal:comment`
+only adds a dated line to a free task's Notes, so it asks nothing: it is the prompt Belfry's
+triage runs, headless, to add to a task, and text from outside marks the task `origin:
+outsider`. Each is in [Commands](reference/commands.md).
 
 ### Scripts
 
