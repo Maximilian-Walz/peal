@@ -99,8 +99,16 @@ branch by hand, and `git lfs install --force` overwriting Peal's hooks with LFS'
 The `pre-push` gate walks every commit a push would add to main's first-parent line and
 refuses it unless it is a merge of a branch pushed first (never content made up as a
 merge parent), or one of Peal's own mechanical commits — filing, revising, deferring,
-retiring a task, a milestone's state, the decisions index — whose diff has exactly the
-shape its subject claims. Rewriting or deleting main is refused outright.
+retiring a task, a milestone's state, the decisions index, a release's version files and
+changelog entry — whose diff has exactly the shape its subject claims. Rewriting or
+deleting main is refused outright.
+
+Limit: a release's changelog entry is checked by its shape only. The gate refuses
+anything but one entry inserted after the title (or a new `# Changelog` holding it),
+headed `## <tag>` for the subject's tag, with no other `##` heading, the parent holding
+no entry of that tag, and every other byte unchanged; it does not rebuild the entry
+from the release's notes, so text a local push writes within that entry passes. It
+lands on main as a visible commit of its own, in a file Peal never runs or trusts.
 
 - Guard: `plugin/lib/githooks.sh` (`_peal_pre_push`).
 - Harness: `plugin/lib/githooks.test.sh`.
