@@ -14,6 +14,7 @@ tasks:
     milestone: .peal/peal milestone-state {id} {state} --reason {reason}
     retire: .peal/peal retire {task} --reason {reason}
     defer: .peal/peal depend {task} {on}
+    revise: /peal:comment {task} {text}
 actions:
   milestone-review:
     title: Milestone review
