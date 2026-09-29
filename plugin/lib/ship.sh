@@ -75,16 +75,106 @@ peal_version_files() {
       return 2
     fi
     path=${BASH_REMATCH[1]} field=${BASH_REMATCH[2]}
-    case /$path/ in
-      //* | */../* | */./* | *//*) peal_err "release.version-files: '$path' is no plain path inside the repository"; return 2 ;;
-    esac
+    _peal_repo_path release.version-files "$path" || return 2
     case $path in
-      -*) peal_err "release.version-files: '$path' starts with -"; return 2 ;;
       *.json | *.toml | *.yml | *.yaml) ;;
       *) peal_err "release.version-files: '$path' is not a .json, .toml, .yml or .yaml file"; return 2 ;;
     esac
     printf '%s\t%s\n' "$path" "$field"
   done <<<"$items"
+}
+
+# _peal_repo_path KEY PATH -> status 0 when PATH, a setting KEY names, is a plain path
+# inside the repository: relative, no "." or ".." part, no empty part, not starting with
+# -; status 2 and a message naming KEY otherwise.
+_peal_repo_path() {
+  case /$2/ in
+    //* | */../* | */./* | *//*) peal_err "$1: '$2' is no plain path inside the repository"; return 2 ;;
+  esac
+  case $2 in
+    -*) peal_err "$1: '$2' starts with -"; return 2 ;;
+  esac
+}
+
+# peal_changelog_file -> release.changelog, the file each release's entry goes into;
+# nothing when it is empty (off). Checked as release.version-files' paths are, no white
+# space or control character in it, and a .md file: status 2 and a message when not.
+peal_changelog_file() {
+  local path
+  path=$(peal_config_get release.changelog) || return 2
+  [ -n "$path" ] || return 0
+  if ! [[ "$path" =~ ^[^[:space:][:cntrl:]]+$ ]]; then
+    peal_err "release.changelog: '$path' holds white space or a control character"
+    return 2
+  fi
+  _peal_repo_path release.changelog "$path" || return 2
+  case $path in
+    *.md) ;;
+    *) peal_err "release.changelog: '$path' is not a .md file"; return 2 ;;
+  esac
+  printf '%s\n' "$path"
+}
+
+# A changelog is a Markdown file: an optional title line "# ..." and a blank line after
+# it, then one entry per release, the newest first, each headed "## <tag> (<date>)". A
+# release's entry goes right after the title and its blank line (or at the very top of a
+# file without a title), followed by a blank line when anything comes after it; a file
+# missing on main is made from PEAL_CHANGELOG_NEW with the entry.
+PEAL_CHANGELOG_NEW=$'# Changelog\n\n'
+
+# _peal_changelog_pos FILE -> the byte offset where a new entry goes in FILE.
+_peal_changelog_pos() {
+  local size
+  size=$(wc -c <"$1" | tr -d ' ') || return 2
+  LC_ALL=C awk -v size="$size" '
+    NR == 1 { if ($0 !~ /^# / || length($0) + 1 > size) exit; t = length($0) + 1; next }
+    NR == 2 { if (($0 == "" || $0 == "\r") && t + length($0) + 1 <= size) t += length($0) + 1; exit }
+    END { print t + 0 }' "$1"
+}
+
+# _peal_changelog_has FILE TAG -> status 0 when FILE has an entry of TAG: a line
+# "## TAG", alone or followed by a blank.
+_peal_changelog_has() {
+  LC_ALL=C awk -v h="## $2" '$0 == h || index($0, h " ") == 1 { f = 1; exit } END { exit !f }' "$1"
+}
+
+# _peal_changelog_insert OLD ENTRY -> OLD with ENTRY inserted where a release's entry goes.
+_peal_changelog_insert() {
+  local pos
+  pos=$(_peal_changelog_pos "$1") || return 2
+  head -c "$pos" "$1"
+  cat "$2"
+  if [ "$(wc -c <"$1" | tr -d ' ')" -gt "$pos" ]; then
+    echo
+    tail -c +"$((pos + 1))" "$1"
+  fi
+}
+
+# peal_changelog_shape OLD NEW TAG -> status 0 when NEW is OLD with one entry of TAG
+# inserted where a release's entry goes, OLD holding none of TAG; else 1 and why on
+# stdout. The shape only: the entry's text is not rebuilt (docs/security.md).
+peal_changelog_shape() {
+  local old=$1 new=$2 tag=$3 pos p n k
+  if _peal_changelog_has "$old" "$tag"; then
+    echo "it has an entry ## $tag already"
+    return 1
+  fi
+  pos=$(_peal_changelog_pos "$old") || return 1
+  p=$(wc -c <"$old" | tr -d ' ') n=$(wc -c <"$new" | tr -d ' ')
+  k=$((n - p))
+  if [ "$k" -le 0 ] || ! cmp -s <(head -c "$pos" "$old") <(head -c "$pos" "$new") \
+      || ! cmp -s <(tail -c +"$((pos + 1))" "$old") <(tail -c +"$((pos + k + 1))" "$new"); then
+    echo "it is not the old text with one entry inserted after its title"
+    return 1
+  fi
+  if [ -n "$(tail -c +"$((pos + 1))" "$new" | head -c "$k" | tail -c 1)" ]; then
+    echo "its new entry does not end a line"
+    return 1
+  fi
+  tail -c +"$((pos + 1))" "$new" | head -c "$k" | LC_ALL=C awk -v h="## $tag" '
+    NR == 1 && $0 != h && index($0, h " ") != 1 { print "its new entry does not start with " h; bad = 1; exit }
+    NR > 1 && /^## / { print "its new entry holds a second ## heading: " $0; bad = 1; exit }
+    END { exit bad }'
 }
 
 # peal_version_edit PATH FIELD VALUE FILE -> FILE (the content of PATH) with its
@@ -417,6 +507,15 @@ _peal_ship_notes() {
     }' "$items"
 }
 
+# _peal_ship_changelog_entry TAG ITEMS -> the release's changelog entry: "## TAG
+# (<UTC date>)", a blank line, then the notes, their headings one level down.
+_peal_ship_changelog_entry() {
+  local notes
+  notes=$(_peal_ship_notes "$1" "$2") || return 2
+  printf '## %s (%s)\n\n' "$1" "$(date -u +%Y-%m-%d)"
+  printf '%s\n' "$notes" | sed 's/^## /### /'
+}
+
 # _peal_ship_collect DIR [TAG] -> the range and DIR/items for a release named TAG (or
 # the one to propose).
 _peal_ship_collect() {
@@ -464,31 +563,44 @@ peal_ship_notes() {
 }
 
 # peal_ship_bump VERSION -> each file of release.version-files set to VERSION (without
-# the tag prefix) on the remote's main branch, in one commit "chore(release): <tag>"; on
+# the tag prefix), and the release's entry (its notes) inserted into release.changelog,
+# on the remote's main branch, in one commit "chore(release): <tag>"; on
 # a main that refuses direct pushes through a pull request, waited for until it merged. A
 # rerun before it merged finds that pull request open already (peal_push_main's REUSE)
 # and waits for it instead of opening a second one.
-# Nothing when every file holds the version already. Refused as peal ship tag refuses
-# the version, and for a file missing, or with no top-level field holding a string: main
+# Nothing when every file holds the version already and the changelog an entry of the
+# tag. Refused as peal ship tag refuses the version, and for a file missing, or with no
+# top-level field holding a string, or a changelog that is not a plain file: main
 # unchanged. Status 3 when the pull request is still open after the budget
 # (PEAL_MAIN_WRITE_BUDGET): run it again once it merged.
 peal_ship_bump() {
-  local tag dir status=0 files
+  local tag dir status=0 files all
   [ $# -eq 1 ] || { peal_err "ship bump: VERSION"; return 2; }
   PEAL_PREFIX=$(peal_config_get release.tag-prefix) || return 2
   tag=$(_peal_ship_version "$1") || return 2
+  PEAL_SHIP_FILES=$(peal_version_files) || return 2
+  PEAL_SHIP_CHANGELOG=$(peal_changelog_file) || return 2
   _peal_ship_settings || return 2
   _peal_ship_fresh bump "$tag" || return 2
-  PEAL_SHIP_FILES=$(peal_version_files) || return 2
-  if [ -z "$PEAL_SHIP_FILES" ]; then
-    echo "no release.version-files: nothing to bump"
+  if [ -z "$PEAL_SHIP_FILES" ] && [ -z "$PEAL_SHIP_CHANGELOG" ]; then
+    echo "no release.version-files nor release.changelog: nothing to bump"
     return 0
   fi
   PEAL_SHIP_VERSION=${tag#"$PEAL_PREFIX"} PEAL_SHIP_TAG=$tag
   dir=$(mktemp -d) || return 2
   PEAL_SHIP_DIR=$dir
+  if [ -n "$PEAL_SHIP_CHANGELOG" ]; then
+    # The entry: what went in until now; the tag's notes are those of its own range.
+    _peal_ship_range "$tag"
+    if ! _peal_ship_items "$dir" || ! _peal_ship_changelog_entry "$tag" "$dir/items" >"$dir/entry"; then
+      rm -rf "$dir"
+      return 2
+    fi
+  fi
+  : >"$dir/changed"
   PEAL_MAIN_WRITE_WAIT=merged peal_push_main _peal_ship_bump_build "ship bump" "chore(release): $tag" || status=$?
   files=$(cut -f2 "$dir/changed" | paste -s -d ' ' -)
+  all=$(printf '%s\n' "$(cut -f1 <<<"$PEAL_SHIP_FILES")" "$PEAL_SHIP_CHANGELOG" | awk 'NF' | paste -s -d ' ' -)
   rm -rf "$dir"
   case $status in
     0)
@@ -498,7 +610,7 @@ peal_ship_bump() {
         echo "bumped $files to $PEAL_SHIP_VERSION on $PEAL_REMOTE/$PEAL_MAIN: $(git rev-parse --short "$PEAL_REMOTE/$PEAL_MAIN") chore(release): $tag"
       fi
       ;;
-    4) echo "already at $PEAL_SHIP_VERSION: $(cut -f1 <<<"$PEAL_SHIP_FILES" | paste -s -d ' ' -)"; status=0 ;;
+    4) echo "already at $PEAL_SHIP_VERSION: $all"; status=0 ;;
     3)
       if [ -n "$PEAL_MW_PR" ]; then
         echo "not merged yet: $(peal_main_write_report "run peal ship bump $tag again once it merged, then peal ship tag $tag")"
@@ -509,33 +621,59 @@ peal_ship_bump() {
 }
 
 # _peal_ship_bump_build BASE -> PEAL_TREE and PEAL_SUBJECT for peal_push_main: BASE with
-# the version files set; status 4 when they hold the version already.
+# the version files set and the changelog's entry inserted; status 4 when they hold the
+# version and the entry already.
 _peal_ship_bump_build() {
-  local base=$1 n path args=() status
-  _peal_ship_holds "$base" "$PEAL_SHIP_DIR" "$PEAL_REMOTE/$PEAL_MAIN"
+  local base=$1 dir=$PEAL_SHIP_DIR n path args=() status
+  _peal_ship_holds "$base" "$dir" "$PEAL_REMOTE/$PEAL_MAIN"
   status=$?
+  [ $status -le 1 ] || return 2
+  if [ -n "$PEAL_SHIP_CHANGELOG" ]; then
+    _peal_ship_changelog_at "$base" "$dir/cl.old" "$PEAL_REMOTE/$PEAL_MAIN" || return 2
+    if ! _peal_changelog_has "$dir/cl.old" "$PEAL_SHIP_TAG"; then
+      _peal_changelog_insert "$dir/cl.old" "$dir/entry" >"$dir/cl.new" || return 2
+      printf '%s\t%s\n' cl.new "$PEAL_SHIP_CHANGELOG" >>"$dir/changed"
+      status=1
+    fi
+  fi
   [ $status != 0 ] || return 4
-  [ $status = 1 ] || return 2
   while IFS=$'\t' read -r n path; do
-    args+=(add "$path" "$PEAL_SHIP_DIR/$n")
-  done <"$PEAL_SHIP_DIR/changed"
+    args+=(add "$path" "$dir/$n")
+  done <"$dir/changed"
   peal_write_tree "$base" "${args[@]}" || return 2
   # shellcheck disable=SC2034 # read by peal_push_main
   PEAL_SUBJECT="chore(release): $PEAL_SHIP_TAG"
 }
 
+# _peal_ship_changelog_at REF FILE NAME -> FILE the changelog at REF (named NAME), or
+# PEAL_CHANGELOG_NEW when REF has none; status 2 and a message when it is no plain file.
+_peal_ship_changelog_at() {
+  local entry
+  entry=$(git ls-tree -z "$1" -- "$PEAL_SHIP_CHANGELOG" | tr '\0' '\n')
+  if [ -z "$entry" ]; then
+    printf '%s' "$PEAL_CHANGELOG_NEW" >"$2"
+    return 0
+  fi
+  case $entry in
+    "100644 blob "*$'\t'"$PEAL_SHIP_CHANGELOG") git show "$1:$PEAL_SHIP_CHANGELOG" >"$2" ;;
+    *) peal_err "$PEAL_SHIP_CHANGELOG on $3 is not a plain file (release.changelog)"; return 2 ;;
+  esac
+}
+
 # peal_ship_tag VERSION -> the annotated tag of VERSION on the remote's main branch, the
 # notes' first line its message, pushed. Refused: a tag that exists (here or on the
-# remote), a version not above the last release, and a file of release.version-files
-# that does not hold the version there (peal ship bump).
+# remote), a version not above the last release, a file of release.version-files that
+# does not hold the version there, and a release.changelog there without the tag's entry
+# (peal ship bump).
 peal_ship_tag() {
   local dir tag msg sha status=0
   [ $# -eq 1 ] || { peal_err "ship tag: VERSION"; return 2; }
   PEAL_PREFIX=$(peal_config_get release.tag-prefix) || return 2
   tag=$(_peal_ship_version "$1") || return 2
+  PEAL_SHIP_FILES=$(peal_version_files) || return 2
+  PEAL_SHIP_CHANGELOG=$(peal_changelog_file) || return 2
   _peal_ship_settings || return 2
   _peal_ship_fresh tag "$tag" || return 2
-  PEAL_SHIP_FILES=$(peal_version_files) || return 2
   PEAL_SHIP_VERSION=${tag#"$PEAL_PREFIX"}
   dir=$(mktemp -d) || return 2
   if [ -n "$PEAL_SHIP_FILES" ]; then
@@ -546,6 +684,17 @@ peal_ship_tag() {
       status=2
     fi
     [ $status = 0 ] || { rm -rf "$dir"; return 2; }
+  fi
+  if [ -n "$PEAL_SHIP_CHANGELOG" ]; then
+    if ! _peal_ship_changelog_at "$PEAL_REMOTE/$PEAL_MAIN" "$dir/cl.old" "$PEAL_REMOTE/$PEAL_MAIN"; then
+      rm -rf "$dir"
+      return 2
+    fi
+    if ! _peal_changelog_has "$dir/cl.old" "$tag"; then
+      peal_err "ship tag: $PEAL_SHIP_CHANGELOG on $PEAL_REMOTE/$PEAL_MAIN has no entry ## $tag; peal ship bump $tag first"
+      rm -rf "$dir"
+      return 2
+    fi
   fi
   _peal_ship_range "$tag"
   PEAL_SHIP_TAG=$tag

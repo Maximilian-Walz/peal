@@ -10,7 +10,9 @@
 # release-note: none tasks left out, feat and fix commits of no task), the tag (annotated,
 # pushed; refused when it exists, here or on the remote, or is not above the last
 # release), the version files set before the tag (release.version-files: JSON, TOML and
-# YAML, directly and through a pull request, and their refusals), the GitHub release
+# YAML, directly and through a pull request, and their refusals), the changelog
+# (release.changelog: created, each entry above the last, tag refused without it), the
+# GitHub release
 # created and updated, the wait for the tag's workflow runs
 # and the release.report lines, and the fields breaking and release-note.
 set -uo pipefail
@@ -298,9 +300,108 @@ appVersion: '"'0.2.0'"'' "$(at_version v0.2.0)"
   # Without version files, a release is as before.
   printf 'release:\n  version-files: []\n' >"$work/.peal/config.yml"
   out=$(peal ship bump 0.4.0 2>&1)
-  check "bump: no version files" "0:no release.version-files: nothing to bump" "$?:$out"
+  check "bump: no version files" "0:no release.version-files nor release.changelog: nothing to bump" "$?:$out"
   out=$(peal ship tag 0.4.0 2>&1)
   check "tag: no version files" "0" "$?"
+}
+
+# changelog_of REF -> work's CHANGELOG.md at REF, byte for byte, its end marked.
+changelog_of() {
+  git -C "$work" show "$1:CHANGELOG.md"
+  echo "<END>"
+}
+
+# publish_main -> work's main pushed to the remote's.
+publish_main() {
+  git -C "$work" push -q origin main 2>/dev/null
+}
+
+changelog() {
+  local work out main day
+  day=$(date -u +%Y-%m-%d)
+  work=$(repo)
+  versioned "$work" "  changelog: CHANGELOG.md"
+  main=$(git -C "$work" rev-parse origin/main)
+
+  # A file missing on main: created, in the same commit as the version files.
+  out=$(peal ship bump 0.2.0 2>&1)
+  check "changelog: one commit" "0:bumped plugin.json pkg/Cargo.toml chart.yaml CHANGELOG.md to 0.2.0 on origin/main: $(git -C "$work" rev-parse --short origin/main) chore(release): v0.2.0" "$?:$out"
+  check "changelog: on main" "$main chore(release): v0.2.0" "$(git -C "$work" log -1 --format='%P %s' origin/main)"
+  check "changelog: the files of the commit" "A	CHANGELOG.md
+M	chart.yaml
+M	pkg/Cargo.toml
+M	plugin.json" "$(git -C "$work" diff --name-status "$main" origin/main)"
+  check "changelog: created with the entry under # Changelog" "# Changelog
+
+## v0.2.0 ($day)
+
+v0.2.0: the first release, 1 feature.
+
+### Features
+
+- Title of 0001: Built it. (0001, #1)
+<END>" "$(changelog_of origin/main)"
+  out=$(peal ship bump 0.2.0 2>&1)
+  check "changelog: again, already at" "0:already at 0.2.0: plugin.json pkg/Cargo.toml chart.yaml CHANGELOG.md" "$?:$out"
+  check "changelog: again, no commit" "$main" "$(git -C "$work" rev-parse origin/main~1)"
+  out=$(peal ship tag 0.2.0 2>&1)
+  check "changelog: tagged" "0" "$?"
+
+  # A second release goes above the first, the rest byte for byte.
+  git -C "$work" merge -q --ff-only origin/main
+  OUTCOME="Fixed it." land 0002 second-thing "fix: second thing [0002] (#2)"
+  git -C "$work" show origin/main:CHANGELOG.md >"$(dirname "$work")/old.md"
+  out=$(peal ship bump 0.2.1 2>&1)
+  check "changelog: a second release" "0" "$?"
+  check "changelog: above the first" "# Changelog
+
+## v0.2.1 ($day)
+
+v0.2.1: 1 fix since v0.2.0.
+
+### Fixes
+
+- Title of 0002: Fixed it. (0002, #2)
+
+## v0.2.0 ($day)" "$(git -C "$work" show origin/main:CHANGELOG.md | head -n 11)"
+  check "changelog: the rest byte for byte" "0" \
+    "$(cmp -s <(tail -c +14 "$(dirname "$work")/old.md") <(git -C "$work" show origin/main:CHANGELOG.md | tail -n +11); echo $?)"
+  check "changelog: only lines added" "" "$(git -C "$work" diff -U0 origin/main~1 origin/main -- CHANGELOG.md | grep '^-[^-]')"
+  peal ship tag 0.2.1 >/dev/null 2>&1
+
+  # A title-less file: the entry on top, the file's own text after it, untouched.
+  git -C "$work" merge -q --ff-only origin/main
+  printf 'Older notes, kept by hand.\n' >"$work/CHANGELOG.md"
+  git -C "$work" add CHANGELOG.md && git -C "$work" commit -q -m "docs: notes by hand" && publish_main
+  out=$(peal ship bump 0.2.2 2>&1)
+  check "changelog: title-less, bumped" "0" "$?"
+  check "changelog: title-less, the entry on top" "## v0.2.2 ($day)
+
+v0.2.2: no finished task since v0.2.1.
+
+Older notes, kept by hand.
+<END>" "$(changelog_of origin/main)"
+
+  # Without version files: the changelog alone is still a bump, and ship tag refuses
+  # until it holds the tag's entry.
+  printf 'release:\n  changelog: CHANGELOG.md\n' >"$work/.peal/config.yml"
+  check_refused "changelog: tag without its entry" "CHANGELOG.md on origin/main has no entry ## v0.3.0; peal ship bump v0.3.0 first" peal ship tag 0.3.0
+  main=$(git -C "$work" rev-parse origin/main)
+  out=$(peal ship bump 0.3.0 2>&1)
+  check "changelog: no version files, still a commit" "0:bumped CHANGELOG.md to 0.3.0 on origin/main: $(git -C "$work" rev-parse --short origin/main) chore(release): v0.3.0" "$?:$out"
+  check "changelog: no version files, only the changelog" "M	CHANGELOG.md" "$(git -C "$work" diff --name-status "$main" origin/main)"
+  out=$(peal ship tag 0.3.0 2>&1)
+  check "changelog: tag with its entry" "0|v0.3.0" "$?|$(git -C "$work" ls-remote --tags --refs origin v0.3.0 | sed 's|.*refs/tags/||')"
+
+  # Not a plain file: refused, main unchanged; not Markdown: refused.
+  git -C "$work" merge -q --ff-only origin/main
+  git -C "$work" rm -q CHANGELOG.md && mkdir "$work/CHANGELOG.md" && echo x >"$work/CHANGELOG.md/f"
+  git -C "$work" add -A && git -C "$work" commit -q -m "chore: a directory" && publish_main
+  main=$(git -C "$work" rev-parse origin/main)
+  check_refused "changelog: a directory" "CHANGELOG.md on origin/main is not a plain file (release.changelog)" peal ship bump 0.4.0
+  check "changelog: a directory, main unchanged" "$main" "$(git -C "$(dirname "$work")/remote.git" rev-parse main)"
+  printf 'release:\n  changelog: notes.txt\n' >"$work/.peal/config.yml"
+  check_refused "changelog: not Markdown" "release.changelog: 'notes.txt' is not a .md file" peal ship bump 0.4.0
 }
 
 # protected WORK -> WORK's remote refusing pushes to main, a fake GitHub acme/widgets
@@ -326,7 +427,7 @@ EOF
 bump_protected() {
   local work out main
   work=$(repo)
-  versioned "$work" "main-writes: pr"
+  versioned "$work" "  changelog: CHANGELOG.md" "main-writes: pr"
   protected "$work"
   touch "$FAKE_GH/no-auto-merge"
   echo 0 >"$FAKE_GH/checks-pending"
@@ -334,7 +435,7 @@ bump_protected() {
 
   # Through a pull request, merged: the tag on the merged commit.
   out=$(PEAL_MAIN_WRITE_INTERVAL=0 peal ship bump 0.2.0 2>&1)
-  check "protected: merged" "0:bumped plugin.json pkg/Cargo.toml chart.yaml to 0.2.0: pull request #1 https://github.com/acme/widgets/pull/1, merged" "$?:$(tail -n 1 <<<"$out")"
+  check "protected: merged" "0:bumped plugin.json pkg/Cargo.toml chart.yaml CHANGELOG.md to 0.2.0: pull request #1 https://github.com/acme/widgets/pull/1, merged" "$?:$(tail -n 1 <<<"$out")"
   check "protected: the squash commit" "$main chore(release): v0.2.0 (#1)" "$(git -C "$work" log -1 --format='%P %s' origin/main)"
   out=$(peal ship tag 0.2.0 2>&1)
   check "protected: tagged" "0" "$?"
@@ -343,6 +444,7 @@ bump_protected() {
   check "protected: the version tagged" '  "version": "0.2.0",
 version = "0.2.0" # the crate
 appVersion: '"'0.2.0'"'' "$(at_version v0.2.0)"
+  check "protected: the changelog carried" "## v0.2.0 ($(date -u +%Y-%m-%d))" "$(git -C "$work" show v0.2.0:CHANGELOG.md | grep "^## ")"
 
   # The budget spent with the checks pending: status 3, no tag; once merged, the rerun
   # finds the files at the version and the tag follows.
@@ -364,7 +466,7 @@ appVersion: '"'0.2.0'"'' "$(at_version v0.2.0)"
 
   echo '{"merge_method": "squash"}' | at "$work" gh api --method PUT repos/acme/widgets/pulls/2/merge --input - >/dev/null
   out=$(peal ship bump 0.3.0 2>&1)
-  check "protected: rerun after the merge" "0:already at 0.3.0: plugin.json pkg/Cargo.toml chart.yaml" "$?:$out"
+  check "protected: rerun after the merge" "0:already at 0.3.0: plugin.json pkg/Cargo.toml chart.yaml CHANGELOG.md" "$?:$out"
   out=$(peal ship tag 0.3.0 2>&1)
   check "protected: tagged after the merge" "0|chore(release): v0.3.0 (#2)" "$?|$(git -C "$work" log -1 --format=%s 'v0.3.0^{commit}')"
 
@@ -480,6 +582,7 @@ ITEM feature 2 #11 the second subject" "$(peal ship propose 2>/dev/null | grep '
 
 for_each_awk files
 for_each_awk bump
+for_each_awk changelog
 for_each_awk bump_protected
 for_each_awk issues
 for_each_awk issues_relabel
