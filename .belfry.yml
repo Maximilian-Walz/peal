@@ -39,5 +39,7 @@ docs:
     path: README.md
   - title: Design
     path: docs/design.md
+  - title: Reference
+    path: docs/reference/
   - title: Milestones
     path: docs/milestones/

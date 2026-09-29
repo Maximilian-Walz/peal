@@ -95,7 +95,7 @@ peal migrate milestones --parked later,any --open process
 
 Everything a project used to hard-code into its own scripts, prompts and CI now lives as
 settings Peal reads, or as files under `.peal/` an extension point appends
-([`docs/design.md`, "Configuration"](design.md#configuration)):
+([the configuration reference](reference/configuration.md)):
 
 | Was | Becomes |
 |---|---|
