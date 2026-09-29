@@ -1,8 +1,8 @@
 # shellcheck shell=bash
 # Peal's git gates (docs/design.md, "Git gates"): what may reach the main branch,
-# and what a commit must satisfy. `peal hooks install` writes templates/githook under every hook
-# name into the git directory and points core.hooksPath there; that stub runs the gates
-# below through `peal githook NAME`, then the project's own hook of the same name.
+# and what a commit must satisfy. `peal hooks install` writes templates/githook under
+# every hook name into the git directory and points core.hooksPath there; that stub runs
+# the gates below through `peal githook NAME`, then the project's own hook of the same name.
 
 PEAL_GITHOOKS="applypatch-msg pre-applypatch post-applypatch pre-commit pre-merge-commit
 prepare-commit-msg commit-msg post-commit pre-rebase post-checkout post-merge pre-push

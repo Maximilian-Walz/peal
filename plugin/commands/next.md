@@ -83,8 +83,9 @@ anything either.
   the questions to ask of them. Branch and commit it as below, then run `/peal:drift`
   once; its own report is the report.
 - `releases`: run `/peal:release` once; its own report is the report. If the evidence
-  named a version file, mention that `release.version-files` (docs/reference/configuration.md) can keep it in step with each
-  release, but do not write it yourself: that is the human's call, not this suggestion's.
+  named a version file, mention that `release.version-files` (docs/reference/configuration.md)
+  can keep it in step with each release, but do not write it yourself: that is the
+  human's call, not this suggestion's.
 - `decisions`: `<try>` is `decisions: <dir>`, `<dir>` the ADR-like directory the evidence
   found, or `docs/decisions` when it found none. Show that line as the change to
   `.peal/config.yml`, then run `peal decision check` against `<dir>` before writing

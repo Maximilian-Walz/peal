@@ -472,7 +472,8 @@ appVersion: '"'0.2.0'"'' "$(at_version v0.2.0)"
   # A fork's pull request, even one naming a main-write branch and this bump's own
   # title, is never reused: its branch is not in the repository itself (the same test a
   # rival passes, docs/design.md, "Writes onto main"), so a stranger could not have Peal
-  # enable auto-merge, with the maintainer's credentials, by copying a branch name and title.
+  # enable auto-merge, with the maintainer's credentials, by copying a branch name and
+  # title.
   echo 0 >"$FAKE_GH/checks-pending"
   gh_save pulls '. + [{number: 99, node_id: "PR_99", title: "chore(release): v0.4.0",
       state: "open", mergeable: true, html_url: "https://github.com/acme/widgets/pull/99",
