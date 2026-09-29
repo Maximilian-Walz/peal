@@ -39,6 +39,19 @@ sed -i.bak 's/0.1.0/0.2.0/' "$dir/plugin/.claude-plugin/plugin.json" && rm "$dir
 check "a version bump: skip" harnesses=false "$(verdict bump)"
 reset
 
+printf '# Changelog\n\n## v0.2.0\n' >"$dir/CHANGELOG.md"
+check "the changelog alone: skip" harnesses=false "$(verdict changelog)"
+reset
+
+printf '# Changelog\n\n## v0.2.0\n' >"$dir/CHANGELOG.md"
+sed -i.bak 's/0.1.0/0.2.0/' "$dir/plugin/.claude-plugin/plugin.json" && rm "$dir/plugin/.claude-plugin/plugin.json.bak"
+check "the changelog and a version bump: skip" harnesses=false "$(verdict changelog-bump)"
+reset
+
+mkdir -p "$dir/docs" && printf '# Changelog\n' >"$dir/docs/CHANGELOG.md"
+check "a changelog elsewhere: run" harnesses=true "$(verdict changelog-elsewhere)"
+reset
+
 sed -i.bak 's/"x"/"y"/' "$dir/plugin/.claude-plugin/plugin.json" && rm "$dir/plugin/.claude-plugin/plugin.json.bak"
 check "plugin.json beyond its version: run" harnesses=true "$(verdict desc)"
 reset

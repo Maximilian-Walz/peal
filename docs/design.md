@@ -413,7 +413,11 @@ backstop for whatever `peal_hooks_ensure` could not fix, never the first word on
   with the decisions module on, `docs(decisions): regenerate the index` changes the index
   alone; `docs(tasks): milestone` only modifies milestone files; `chore(release): <tag>`
   only modifies files of `release.version-files`, each byte for byte what setting its
-  field to the tag's version makes of its parent's. Merges whose other parents a pushed
+  field to the tag's version makes of its parent's, and `release.changelog`: its
+  parent's with one entry inserted after the title, headed `## <tag>`, the parent
+  holding none of that tag and the entry no other `##` heading, or added as
+  `# Changelog` and that entry (its shape, not its text: [Security](security.md)).
+  Merges whose other parents a pushed
   branch already holds pass too. Nothing else, no rewrite of main, no deletion. A pull
   request merged on the server runs no client hook, and a write through a pull request
   pushes only its `peal/main-write-*` branch, which the gate leaves alone
@@ -532,7 +536,7 @@ from where it stopped.
   found from its commit. A `feat` or `fix` commit of no task is an item of its own.
 - The bump is proposed, not decided: `major` for a breaking item, `minor` for a feature,
   `patch` for fixes. `release-note: none` leaves a task out of both notes and bump.
-- `peal ship bump` writes the project's version files onto main through the storage's own
+- `peal ship bump` writes the project's version files and changelog entry onto main through the storage's own
   route, so a protected main works, and refuses anything it cannot set safely before it
   writes (`lib/version-field.awk`, which the pre-push gate runs too).
 - `peal ship tag` never moves a release: a tag that exists is refused.

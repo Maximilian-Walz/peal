@@ -653,8 +653,9 @@ arg_cases() {
   each "ship bump VERSION" "$WORK" ship bump @
   each "ship tag VERSION" "$WORK" ship tag @
   # Hostile items of release.version-files, as its path and as its field.
-  local i item what config
+  local i item what config main
   config=$(cat "$WORK/.peal/config.yml")
+  main=$(git -C "$REPO/remote.git" rev-parse main)
   for ((i = 0; i < ${#H[@]}; i++)); do
     for what in path field; do
       if [ $what = path ]; then item="${H[i]}: version"; else item="plugin.json: ${H[i]}"; fi
@@ -662,7 +663,13 @@ arg_cases() {
       try "ship bump, a hostile version file's $what [${H_NAMES[i]}]" "$WORK" ship bump 9.0.0
       try "ship tag, a hostile version file's $what [${H_NAMES[i]}]" "$WORK" ship tag 9.0.0
     done
+    # A hostile release.changelog: refused before anything is written.
+    printf '%s\nrelease:\n  changelog: %s\n' "$config" "'${H[i]//\'/\'\'}'" >"$WORK/.peal/config.yml"
+    try "ship bump, a hostile changelog [${H_NAMES[i]}]" "$WORK" ship bump 9.0.0
+    try "ship tag, a hostile changelog [${H_NAMES[i]}]" "$WORK" ship tag 9.0.0
   done
+  check "ship bump: hostile version files and changelogs write nothing onto main" "$main" \
+    "$(git -C "$REPO/remote.git" rev-parse main)"
   printf '%s\n' "$config" >"$WORK/.peal/config.yml"
   each "ship publish VERSION" "$WORK" ship publish @
   each "ship wait VERSION" "$WORK" ship wait @

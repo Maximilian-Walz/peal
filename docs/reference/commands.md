@@ -97,7 +97,7 @@ repository and files one idea per discrepancy. Fixes nothing.
 
 - Runs `peal ship propose`, shows `peal ship notes`, and asks "Release <version>?" in
   one `AskUserQuestion`.
-- On yes: `peal ship bump`, `tag`, `publish`, and `wait` when `release.wait-ci` is true.
+- On yes: `peal ship bump` (the version files and the changelog entry), `tag`, `publish`, and `wait` when `release.wait-ci` is true.
 - Works in either storage and claims nothing.
 
 ## `/peal:setup`

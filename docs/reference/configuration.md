@@ -47,12 +47,13 @@ under `storage`.
 | `release.wait-ci` | `false` | `/peal:release` waits for the workflow runs of the tag |
 | `release.report` | `[]` | texts whose lines in those runs' logs the release reports, e.g. `"digest: sha256:"` |
 | `release.version-files` | `[]` | files the release sets to its version before the tag, each `"PATH: FIELD"`, a top-level field of a JSON, TOML or YAML file |
+| `release.changelog` | `""` | a Markdown file (e.g. `CHANGELOG.md`) each release's entry, its notes, goes into with the version files; empty: none |
 | `decisions` | `false` | the decisions module: `false`, or its directory to turn it on |
 | `stages` | `[]` | the setup stages `peal init` has done; belongs to it |
 | `declined` | `{}` | `/peal:next`'s declines, `{item: [DATE]}`; blocks an item for 90 days from `DATE` |
 
-The issues storage writes no task onto main: with the decisions module off and no
-`release.version-files`, a `main-writes` other than `auto` only warns.
+The issues storage writes no task onto main: with the decisions module off and neither
+`release.version-files` nor `release.changelog`, a `main-writes` other than `auto` only warns.
 
 ## Conventions with no setting
 

@@ -5,8 +5,9 @@
 #   bash plugin/lib/githooks.test.sh
 #
 # pre-push: every write the storage makes onto main passes, through the real commands, as
-# does a release's version bump (peal ship bump); every other shape is refused. commit-msg: every subject form, the wip and task-file fast
-# paths, checks.commit (run by path, failing a commit). Both chain to the project's own
+# does a release's version bump and changelog entry (peal ship bump, and the same by
+# hand); every other shape is refused. commit-msg: every subject form, the wip and
+# task-file fast paths, checks.commit (run by path, failing a commit). Both chain to the project's own
 # hook of the same name.
 set -uo pipefail
 # shellcheck source=test-lib.sh
@@ -317,6 +318,80 @@ pre_push_release() {
   check_fails "release: refused, not listed" 1 "not a file of release.version-files: plugin.json" push_main
 }
 
+# changelog_commit SUBJECT FILE ENTRY -> FILE written as the title and its blank line
+# of CHANGELOG.md, ENTRY, a blank line, and the rest of CHANGELOG.md after them (the
+# whole of it, and no blank line, for a file with no title yet), committed as SUBJECT, the
+# gate skipped.
+changelog_commit() {
+  local subject=$1 file=$2 entry=$3 old=$work/CHANGELOG.md
+  if [ -f "$old" ]; then
+    { head -n 2 "$old"; printf '%s\n\n' "$entry"; tail -n +3 "$old"; } >"$work/$file.new"
+  else
+    printf '# Changelog\n\n%s\n' "$entry" >"$work/$file.new"
+  fi
+  mkdir -p "$(dirname "$work/$file")"
+  mv "$work/$file.new" "$work/$file"
+  git -C "$work" add "$file"
+  commit_ungated "$subject"
+}
+
+pre_push_changelog() {
+  local work
+  work=$(repo)
+  mkdir -p "$work/.peal"
+  printf 'release:\n  version-files: ["plugin.json: version"]\n  changelog: CHANGELOG.md\n' >"$work/.peal/config.yml"
+  printf '{\n  "name": "widgets",\n  "version": "0.1.0"\n}\n' >"$work/plugin.json"
+  git -C "$work" add -A && git -C "$work" commit -q -m "chore: version file"
+  git -C "$work" push -q origin main
+  peal hooks install >/dev/null
+
+  # An added changelog while the key is off.
+  fresh
+  printf 'release:\n  version-files: ["plugin.json: version"]\n' >"$work/.peal/config.yml"
+  changelog_commit "chore(release): v0.2.0" CHANGELOG.md "## v0.2.0 (2026-01-01)"
+  check_fails "changelog: refused, the key off" 1 "not a file of release.version-files: CHANGELOG.md" push_main
+
+  # peal ship bump's commits, through the gate: the file created, then an entry added.
+  fresh
+  check "changelog: the bump creating it" "0|chore(release): v0.2.0|A" \
+    "$(peal ship bump 0.2.0 >/dev/null 2>&1; echo $?)|$(git -C "$work" log -1 --format=%s origin/main)|$(git -C "$work" diff --name-status origin/main~1 origin/main -- CHANGELOG.md | cut -f1)"
+  check "changelog: the bump adding to it" "0|chore(release): v0.3.0|M" \
+    "$(peal ship bump 0.3.0 >/dev/null 2>&1; echo $?)|$(git -C "$work" log -1 --format=%s origin/main)|$(git -C "$work" diff --name-status origin/main~1 origin/main -- CHANGELOG.md | cut -f1)"
+
+  fresh
+  changelog_commit "chore(release): v0.4.0" CHANGELOG.md $'## v0.4.0\n\nWritten by hand.'
+  check "changelog: by hand, the same shape" "0" "$(push_main 2>/dev/null; echo $?)"
+
+  fresh
+  changelog_commit "chore(release): v0.5.0" CHANGELOG.md "## v0.5.0 (2026-01-02)"
+  sed 's/Written by hand/Rewritten/' "$work/CHANGELOG.md" >"$work/CHANGELOG.md.new"
+  mv "$work/CHANGELOG.md.new" "$work/CHANGELOG.md"
+  git -C "$work" add CHANGELOG.md
+  git -C "$work" commit -q --no-verify --amend --no-edit
+  check_fails "changelog: refused, old lines changed" 1 "CHANGELOG.md: it is not the old text with one entry inserted after its title" push_main
+
+  fresh
+  changelog_commit "chore(release): v0.5.0" CHANGELOG.md "## v0.4.9 (2026-01-02)"
+  check_fails "changelog: refused, another tag's entry" 1 "CHANGELOG.md: its new entry does not start with ## v0.5.0" push_main
+
+  fresh
+  changelog_commit "chore(release): v0.5.0" CHANGELOG.md $'## v0.5.0 (2026-01-02)\n\n## v0.4.0'
+  check_fails "changelog: refused, two entries" 1 "CHANGELOG.md: its new entry holds a second ## heading: ## v0.4.0" push_main
+
+  fresh
+  changelog_commit "chore(release): v0.3.0" CHANGELOG.md "## v0.3.0 (2026-01-02)"
+  check_fails "changelog: refused, a duplicate ## v0.3.0" 1 "CHANGELOG.md: it has an entry ## v0.3.0 already" push_main
+
+  fresh
+  changelog_commit "chore(release): v0.5.0" docs/CHANGELOG.md "## v0.5.0 (2026-01-02)"
+  check_fails "changelog: refused, another path" 1 "not a file of release.version-files: docs/CHANGELOG.md" push_main
+
+  fresh
+  printf 'release:\n  changelog: "../CHANGELOG.md"\n' >"$work/.peal/config.yml"
+  changelog_commit "chore(release): v0.5.0" CHANGELOG.md "## v0.5.0 (2026-01-02)"
+  check_fails "changelog: refused, the key not right" 1 "release.changelog is not right" push_main
+}
+
 commit_msg() {
   local work mark
   work=$(repo)
@@ -542,6 +617,7 @@ cases() {
   install
   pre_push
   pre_push_release
+  pre_push_changelog
   commit_msg
   chain
 }

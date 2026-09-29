@@ -504,16 +504,24 @@ since v0.1.0.`, the tag's message), then Breaking, Features and Fixes, a line pe
 ### `peal ship bump`
 
 `peal ship bump VERSION` sets each file of `release.version-files` to the version without
-the prefix, on the remote's main, in one commit `chore(release): <tag>`. Waits until a
+the prefix, and inserts the release's entry into `release.changelog`, on the remote's
+main, in one commit `chore(release): <tag>`. Either key alone is enough. Waits until a
 pull request merged (status 3 if still open: run it again). `already at <version>` when
-they hold it. Refused for a path outside the repository, a dotted field, a missing file or
-field, a field not a string.
+the files hold it and the changelog has an entry `## <tag>`. Refused for a path outside
+the repository, a dotted field, a missing file or field, a field not a string.
+
+The entry is `## <tag> (<UTC date>)`, a blank line, then the notes with their headings one
+level down (`### Features`). It goes after the file's title line and its blank line, or at
+the very top of a file without a title, the entries below kept byte for byte; a changelog
+missing on main is created as `# Changelog` and the entry. It holds what went in up to the
+bump: a task merged between the bump and the tag is in the tag's notes, not in it. A
+pre-release gets an entry of its own.
 
 ### `peal ship tag`
 
 `peal ship tag VERSION` tags the remote's main, annotated, and pushes. Refused for a tag
-that exists, a version not above the last release, and a version file not at the version
-(`peal ship bump` first).
+that exists, a version not above the last release, a version file not at the version, and
+a `release.changelog` without an entry `## <tag>` (`peal ship bump` first).
 
 ### `peal ship publish`
 
