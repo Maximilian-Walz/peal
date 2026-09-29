@@ -162,4 +162,47 @@ Ranges relied on:
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Built `docs/guides/`: a short index (`README.md`) and five guides, `working-a-task.md`,
+`backlog.md`, `milestones.md`, `belfry.md` and `releases.md`, each 56-64 lines. Each is
+a narrative that links into `docs/reference/` instead of copying its tables. Each carries
+at least one block that `tools/docs.test.sh` runs: a `run` block in every guide, a
+`shape` session excerpt in working-a-task, and a `config` block in releases. The README
+(Start, and "Peal and Belfry", which keeps the Belfry repository link and adds the
+guide), `docs/getting-started.md` and `docs/reference/README.md` link the guides.
+
+The harness (`tools/docs.test.sh`):
+- Every `run` block now runs in `$dir/repo` with an empty bare `$dir/origin.git` as
+  `origin` (`scratch_repo --remote`), so examples can claim, file and push. Claim
+  worktrees land in `$dir/repo-wt`, inside the scratch directory. The guides' blocks
+  hard-code that name in `cd ../repo-wt/0001-…`, and say so.
+- New checks: "the guides are checked" (6 pages) and "every guide has a marked block".
+  A new mutant on working-a-task's `run` block proves the remote-backed path reports a
+  changed output.
+- The temporary-directory leak is fixed, as the human chose over filing it. Scratch
+  directories used to be created inside `$(...)` subshells, so the EXIT trap never saw
+  them. The script now makes one base directory in the main shell, registers it, and
+  redefines `scratch_dir` to create everything under it. `plugin/lib/test-lib.sh` is
+  untouched. A run with an empty `TMPDIR` leaves it empty.
+- The docs check now takes about 2m45, because the run blocks claim and push. If CI
+  time matters, sharding it is the lever.
+
+Decisions, all agreed in the plan (see Notes): origin for every `run` block rather than
+a new marker; a `shape` excerpt plus a CLI `run` block as the "real example" of a slash
+command. The releases guide describes `release.changelog` as a setting any project can
+turn on, without claiming that Peal keeps a CHANGELOG (0108). `publish` and `wait` are
+named in prose only. The belfry guide quotes an abridged `.belfry.yml` as
+`peal init --stage belfry` writes it (with `--origin`). This repository's own
+`.belfry.yml` still lacks `--origin`, left as found in 0105.
+
+Small departure: the milestones guide's `run` block shows parking and reopening a
+milestone rather than `milestone-state m1 done`. `done` is described in prose under the
+review task.
+
+For the next session: a quoted output line matches by prefix only when it ends in
+" …", so there is no mid-line ellipsis. The branch holds two stray
+"chore(peal): set up" commits, each reverted right after (5fcedcf/a19f817,
+fb4b577/33fe9bd). The implementer ran exploration commands in the real worktree by
+mistake. Together the four commits change nothing, and the squash merge drops them.
+`CONTRIBUTING.md` needed no change.
+
+The review found nothing to act on.
