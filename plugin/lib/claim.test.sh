@@ -176,6 +176,7 @@ $wt" "$?:$out"
   # A worktree in the way.
   put "$work" backlog 0007 in-the-way
   mkdir -p "$(dirname "$work")/work-wt/0007-in-the-way"
+  echo x >"$(dirname "$work")/work-wt/0007-in-the-way/x"
   check_refused "claim: a directory in the way" "0007-in-the-way is in the way" peal claim 0007
   check "claim: refused, nothing left" ":" "$(git -C "$work" branch --list 'task/0007-*'):$(on_remote task/0007-in-the-way)"
 }

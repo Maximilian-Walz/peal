@@ -263,13 +263,20 @@ other state. The states and their meaning are in
   `refs/reaped/NNNN-slug` for 30 days, and stays whenever anything would be lost: it is the
   calling worktree, a session touched it lately, the task is not done on main, or the
   worktree holds uncommitted or unpushed work. Landed means done on main, so a squash
-  merge counts. A claim `peal defer` gave back goes although its task is not done.
+  merge counts. A claim `peal defer` gave back goes although its task is not done, and
+  from its own worktree too: a session cannot remove the worktree it stands in, so the
+  release deletes the branches and leaves the worktree detached and marked for the
+  reaping. The defer itself already makes the task read free once it is on main
+  ([Tasks](reference/tasks.md#claim-states)), whatever is left of the claim, and the next
+  claim takes such a leftover over: its branches, and a worktree left in place or the
+  empty directory git left of one at the claim's path.
 - **SessionStart** installs the git gates in a fresh clone whose config records
   `guardrails`, in the orientation itself (a hook's stderr never reaches the session), so
   a session that never claims is covered. On a new session it restarts the turn budget,
-  fetches and reaps the claims `release` would let go of, then prints the orientation: the
-  current milestone, this worktree's task, the other claims, the open splits and
-  `/peal:next`'s hint. The hint reuses the same list: no second read, no fetch, no `gh`.
+  fetches and reaps the claims `release` would let go of, and the worktrees a release left
+  in place once their heartbeat is idle (never the calling one), then prints the
+  orientation: the current milestone, this worktree's task, the other claims, the open
+  splits and `/peal:next`'s hint. The hint reuses the same list: no second read, no fetch, no `gh`.
 - **PostToolUse** is the heartbeat that keeps a worktree from being reaped, and the turn
   budget: at the task's size tier the session is nudged once to close or split.
 - **SessionEnd** commits uncommitted work as a `wip:` autosave and pushes the branch, so

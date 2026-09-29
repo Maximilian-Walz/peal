@@ -47,8 +47,8 @@ gives the body without the comments.
 - `done` when closed.
 - `awaiting-merge` while an admitted open pull request says `Fixes #N` (or closes,
   resolves, ...).
-- `claimed-live` when `issue/N` has a worktree here, or the issue carries the label
-  `in progress`.
+- `claimed-live` when `issue/N` has a worktree here not marked deferred, or the issue
+  carries the label `in progress`, which `peal defer` takes off.
 - `parked` for a local `issue/N` ahead of main without a worktree.
 - Then `blocked` and `free` by the same rules as for files ([Tasks](tasks.md#claim-states)).
 
