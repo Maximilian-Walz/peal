@@ -89,3 +89,29 @@ Ranges:
 
 ## Outcome
 
+
+`/peal:setup` no longer names the next stage. Its intro, step 1's "No argument, `tasks` already set up" case and step 7's report now say that `/peal:next` suggests what to adopt next, when you want it. Step 1's case also says, in one line, which stages are set up and where the tasks live. The step 7 line always appears, with no stage name or description: `/peal:next` holds those now (`plugin/commands/next.md`). `/peal:setup <stage>` is unchanged.
+
+The survey's `next` line is gone. `peal init --survey` no longer prints it (`plugin/lib/init.sh`), and its expectations in `init.test.sh` and its description in `docs/reference/cli.md` are gone with it. Nothing else read the line: `/peal:next` and `peal next` get the stages from the config. `PEAL_INIT_STAGES` stays, because other code uses it. `docs/getting-started.md` and `docs/reference/commands.md` now describe the new ending of setup. `CHANGELOG.md` is left for the release to write.
+
+Checks:
+- `plugin/commands/commands.test.sh`: `setup.md` names `/peal:next` at least twice and never contains `setup <next>`. The pattern is written `n[e]xt` so the test does not match itself.
+- `plugin/lib/setup.test.sh`: after the tasks stage on a scratch project, `peal next` suggests `guardrails`, and the survey prints no `next` line.
+- Passing: init.test.sh (279), setup.test.sh (60), commands.test.sh (120), next.test.sh (159) and tools/docs.test.sh (26).
+- `git grep 'setup <next>' -- plugin docs` is empty.
+
+The scratch run was scripted, not a live `/peal:setup` session, because this session ran headless. With the branch's plugin (`PEAL_ROOT=$PWD/plugin`), on a fresh repo with one commit:
+- the survey printed `stages -` and no `next` line;
+- `peal init --stage tasks --storage files` ran and was committed;
+- `peal next` then printed `SUGGEST guardrails /peal:setup guardrails 0 done, 2 untagged`;
+- the survey then printed `stages tasks`, `storage files`.
+
+That the model's report actually ends with the `/peal:next` line rests on setup.md's text, which was read and checked by commands.test.sh.
+
+### Escalations
+
+- Done when #5, together with the plan's agreed "one manual `/peal:setup` run", is shown only by a scripted run plus the text of setup.md. A headless session cannot drive the slash command interactively. If you want the live proof, run `/peal:setup` once on a scratch repo with this branch's plugin before merging.
+
+### Reviewer findings not acted on
+
+- None. The manual-run finding is the escalation above, and the unwrapped line in `docs/reference/commands.md` was rewrapped.
