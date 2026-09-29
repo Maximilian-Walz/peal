@@ -14,9 +14,10 @@ peal_project_root() {
   }
 }
 
-# Values that name things (docs/design.md, "Hostile input"): an id, a slug, a branch, a
-# path. Each is checked where it first enters, and one that fails is refused with
-# peal_refuse; free text (titles, reasons, bodies) is never checked, only passed safely.
+# Values that name things (docs/design.md, "Task files"; docs/security.md): an id, a
+# slug, a branch, a path. Each is checked where it first enters, and one that fails is
+# refused with peal_refuse; free text (titles, reasons, bodies) is never checked, only
+# passed safely.
 
 # peal_valid_id ID -> status 0 for a task id of the configured storage: four digits for
 # task files (0042), digits for issues (42).

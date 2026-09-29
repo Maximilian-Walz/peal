@@ -53,7 +53,7 @@ What each item is:
 - `review-task`: the review task the current milestone is missing (`<try>` is
   `/peal:setup milestones`, whose step 3 offers to file it).
 - `belfry`: Belfry's board and jobs for this project.
-- `decisions`: the decisions module (docs/design.md, "Decision records"), numbered,
+- `decisions`: the decisions module (docs/reference/cli.md, "peal decision"), numbered,
   append-only architectural decision records.
 - `drift`: `/peal:drift`, which compares the project's own documents against the
   repository and files what disagrees, once there is enough else written down to drift
@@ -83,9 +83,9 @@ anything either.
   the questions to ask of them. Branch and commit it as below, then run `/peal:drift`
   once; its own report is the report.
 - `releases`: run `/peal:release` once; its own report is the report. If the evidence
-  named a version file, mention that `release.version-files` (docs/design.md,
-  "Configuration") can keep it in step with each release, but do not write it yourself:
-  that is the human's call, not this suggestion's.
+  named a version file, mention that `release.version-files`
+  (docs/reference/configuration.md) can keep it in step with each release, but do not
+  write it yourself: that is the human's call, not this suggestion's.
 - `decisions`: `<try>` is `decisions: <dir>`, `<dir>` the ADR-like directory the evidence
   found, or `docs/decisions` when it found none. Show that line as the change to
   `.peal/config.yml`, then run `peal decision check` against `<dir>` before writing

@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# Closing a task (docs/design.md, "Closing a task"): /peal:close's scripts. `begin`
+# Closing a task (docs/reference/cli.md, "peal close"): /peal:close's scripts. `begin`
 # declares a close in progress with a sentinel in the worktree's git directory, which arms
 # the Stop hook, and prints what the session needs for the review and the Outcome;
 # `finish` runs the project's close checks, files the queued ideas, commits the task's

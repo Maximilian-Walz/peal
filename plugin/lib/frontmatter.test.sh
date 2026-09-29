@@ -11,7 +11,7 @@ set -uo pipefail
 # shellcheck source=test-lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/test-lib.sh"
 
-# The task example of docs/design.md, "Task files".
+# The task example of docs/reference/tasks.md, "Frontmatter".
 example() {
   cat <<'EOF'
 ---
