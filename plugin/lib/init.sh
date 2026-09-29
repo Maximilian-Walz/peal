@@ -430,6 +430,7 @@ tasks:
     board: .peal/peal board
     milestone: .peal/peal milestone-state {id} {state} --reason {reason}
     retire: .peal/peal retire {task} --reason {reason}
+    revise: /peal:comment {task} {text}
 EOF
   fi
   cat <<'EOF'

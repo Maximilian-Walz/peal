@@ -196,8 +196,11 @@ number to come, several texts are separated by lines -----NEXT TASK-----):
   retire ID --reason R          move an unclaimed task to done, R as its Outcome (an
                                 issue: closed as not planned, R as a comment)
   set-milestone ID [M]          set an unclaimed task's milestone, or remove it
-  comment ID TEXT               add a dated line to an unclaimed task's Notes (an
-                                issue's comment, claimed or not)
+  comment [--origin outsider|writer] ID TEXT
+                                add a dated line to an unclaimed task's Notes (an
+                                issue's comment, claimed or not); outsider marks the
+                                task origin: outsider; a '---' or '## ' line in TEXT
+                                is refused
   finish ID                     on the task's branch: its file from doing/ to done/,
                                 staged; for an issue, what its pull request must say
 
@@ -508,7 +511,21 @@ main() {
     milestone-review) with_store peal_milestone_review "$@" ;;
     milestone-state) with_store peal_milestone_state "$@" ;;
     ship) peal_config_load || exit 2; peal_ship "$@" ;;
-    comment) [ $# -eq 2 ] || { usage >&2; exit 2; }; with_id "$1" peal_store_comment "$1" "$2" ;;
+    comment)
+      PEAL_COMMENT_ORIGIN=writer
+      if [ "${1-}" = --origin ]; then
+        case ${2-} in
+          outsider | writer) PEAL_COMMENT_ORIGIN=$2; shift 2 ;;
+          *) peal_err "comment: --origin needs outsider or writer"; exit 2 ;;
+        esac
+      fi
+      [ $# -eq 2 ] || { usage >&2; exit 2; }
+      if printf '%s\n' "$2" | grep -n -m1 -e '^---[[:space:]]*$' -e '^## '; then
+        peal_err "comment: text holds a '---' or '## ' line (shown above); a note is prose, not structure"
+        exit 2
+      fi
+      export PEAL_COMMENT_ORIGIN
+      with_id "$1" peal_store_comment "$1" "$2" ;;
     *)
       peal_err "unknown command '$cmd'"
       usage >&2

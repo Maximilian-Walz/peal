@@ -625,6 +625,7 @@ arg_cases() {
   cover comment
   each "comment ID" "$WORK" comment @ text
   each "comment TEXT" "$WORK" comment 0001 @
+  each "comment --origin outsider TEXT" "$WORK" comment --origin outsider 0001 @
   cover set-milestone
   each "set-milestone ID" "$WORK" set-milestone @ m1
   each "set-milestone M" "$WORK" set-milestone 0001 @

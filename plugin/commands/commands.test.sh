@@ -43,6 +43,8 @@ check "setup: the issue sample is filtered to write access" "0|1|2" \
 # shellcheck disable=SC2016 # the literal placeholder
 check "setup: commits with the subject the gate lets through" "2|1" \
   "$(grep -c -F 'chore(peal): set up the <stage> stage' "$commands/setup.md")|$(grep -c -F '"chore(peal)" ]' "$PEAL_ROOT/lib/githooks.sh")"
+check "comment: through a file, the claimed case, outsider origin" "1|1|1|1" \
+  "$([ -f "$commands/comment.md" ] && echo 1)|$(grep -c -F 'Write tool' "$commands/comment.md")|$(grep -c -F 'is claimed' "$commands/comment.md")|$(grep -c -F -e '--origin outsider' "$commands/comment.md")"
 check "the backlog commands exist" "defer idea retire revise split" \
   "$(for c in defer idea retire revise split; do [ -f "$commands/$c.md" ] && printf '%s ' "$c"; done | sed 's/ $//')"
 
