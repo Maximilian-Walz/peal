@@ -1,4 +1,4 @@
-# Peal's settings and their defaults (docs/design.md, "Configuration"). A project's
+# Peal's settings and their defaults (docs/reference/configuration.md). A project's
 # .peal/config.yml overrides any of them; a key that is not here is refused, except under
 # task.fields, which holds the project's own frontmatter fields.
 remote: origin

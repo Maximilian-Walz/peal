@@ -95,7 +95,7 @@ usage: peal <command> [args]
                                 in place: depends and needs into flow lists, a trailing
                                 comment dropped, milestone numbers into mNN, a pool name
                                 in --none dropped, one in --parked or --open kept as its
-                                id (docs/design.md, "Migrating an existing project"); a
+                                id (docs/reference/cli.md, "peal migrate"); a
                                 file already in frontmatter is left alone, so a second
                                 run is a no-op; what it cannot convert is named on
                                 stderr, that file untouched; status 1 if anything was

@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# Releases (docs/design.md, "Releases"): what /peal:release makes a release from, the
+# Releases (docs/reference/cli.md, "peal ship"): what /peal:release makes a release from, the
 # tasks finished since the last release tag, and its steps, each rerunnable on its own:
 # the proposal, the notes, the version files set (release.version-files), the tag, the
 # GitHub release, the wait for the tag's workflow runs. `peal release` is taken by the claims; these are `peal ship ...`.

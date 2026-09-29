@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# /peal:next (docs/design.md, "Setting up a project"): what to adopt next, once
+# /peal:next (docs/reference/commands.md, "/peal:next"): what to adopt next, once
 # /peal:setup has done the first stage. A pure core (peal_next_core) takes the facts
 # already in hand (the storage's list records, the milestone lines, the config's stages
 # and declined:) and the catalogue below, and prints one suggestion, up to three

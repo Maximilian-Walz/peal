@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# The decisions module (docs/design.md, "Decision records"): architectural decisions as
+# The decisions module (docs/reference/cli.md, "peal decision"): architectural decisions as
 # numbered, append-only entries, DIR/NNNN-slug.md, DIR the setting `decisions` (false: the
 # module is off). An entry is
 #

@@ -14,7 +14,7 @@ peal_project_root() {
   }
 }
 
-# Values that name things (docs/design.md, "Hostile input"): an id, a slug, a branch, a
+# Values that name things (docs/design.md, "Task files"; docs/security.md): an id, a slug, a branch, a
 # path. Each is checked where it first enters, and one that fails is refused with
 # peal_refuse; free text (titles, reasons, bodies) is never checked, only passed safely.
 

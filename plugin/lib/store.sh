@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# The storage interface (docs/design.md, "Storage"): where tasks live, kept apart from how
+# The storage interface (docs/reference/storage.md): where tasks live, kept apart from how
 # a session works them. The `storage.kind` setting names the implementation, one file
 # lib/store-<name>.sh defining these functions; the commands and the peal CLI call only
 # them. `files` keeps tasks as files in the repository (their ids four digits, 0042),

@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# Peal's git gates (docs/design.md, "Hooks"): what may reach the main branch, and what a
+# Peal's git gates (docs/design.md, "Git gates"): what may reach the main branch, and what a
 # commit must satisfy. `peal hooks install` writes templates/githook under every hook
 # name into the git directory and points core.hooksPath there; that stub runs the gates
 # below through `peal githook NAME`, then the project's own hook of the same name.

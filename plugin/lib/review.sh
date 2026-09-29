@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# A milestone's end (docs/design.md, "Milestones"): the review /peal:milestone-review
+# A milestone's end (docs/reference/cli.md, "peal milestone-review"): the review /peal:milestone-review
 # walks, told by `peal milestone-review` what a script can know, and the state change
 # the human decides, `peal milestone-state`, which Belfry's milestone actions call too.
 
