@@ -450,19 +450,47 @@ Refuses an entry that is not well-formed, and, for what the branch changes since
 main: a changed index, a deleted entry, a supersession not paired, an added entry with no
 reservation. `GITHUB_HEAD_REF` names the branch in a pull request's workflow.
 
+Well-formed: the file name is `NNNN-slug.md` (four digits, a kebab-case slug), not empty;
+the first line is `# NNNN — Title` with the file's own number and a title; a `Status:`
+line reads `accepted` or `superseded by NNNN` (NNNN an entry that exists and is not the
+entry itself; `decision NNNN` is accepted, anything after the number free); no `<!--`
+placeholder is left; the number is used once.
+
+An entry that supersedes another says so in a paragraph starting `**Supersedes**`
+(also `**Supersedes (in part).**`), naming right after the verb `decision NNNN`,
+`decisions NNNN, MMMM and PPPP`, a link `[NNNN](...)` or a path in backticks
+`` `dir/NNNN-slug.md` ``. The pairing, for entries the branch adds or changes: a `Status`
+turned `superseded by NNNN` needs NNNN an entry this branch adds whose `**Supersedes**`
+names it; an added entry's `**Supersedes**` must name an existing entry whose `Status`
+says `superseded by` the added one. A paragraph naming none right after its verb is
+refused.
+
 ### `peal decision index`
 
-Prints the index: the accepted entries by number, then the superseded ones.
+Prints the index, `<dir>/index.md`: the accepted entries by number, then the superseded
+ones. A branch never changes it.
 
 ### `peal decision publish`
 
 Regenerates the index on the remote's main and pushes it as `docs(decisions): regenerate
 the index`, if it changed. Run after a merge.
 
+The close commits the entries a task adds on their own, before the task's move to done,
+as `docs(decisions): record NNNN [ID]` (`NNNN, MMMM` for several), the `decisions`
+commit area.
+
 ### `peal decision brief`
 
 `peal decision brief --task FILE | --diff [BASE]` prints the entries whose text names a
 path of the task or of the diff. Superseded entries are counted, not shown.
+
+The paths come from the task's `## Scope` (while that is empty, its `## Intent` and
+`## Notes`) or from the files the diff changes since BASE, uncommitted ones included. A
+candidate is a word of two or more `/`-separated parts or a file name with an extension,
+stripped of backticks, quotes, brackets and trailing punctuation. An entry matches when
+its text holds the candidate, its last part, or one of its directories three or more
+parts deep, since entries name the directory that governs a file more often than the file.
+Each match prints as `NNNN — Title (matched: KEY)` and the first line of its `**Decision.**`.
 
 ## `peal milestone-review`
 
