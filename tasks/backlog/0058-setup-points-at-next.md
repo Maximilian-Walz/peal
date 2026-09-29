@@ -1,6 +1,6 @@
 ---
 plan: required
-touches: [plugin/commands/setup.md]
+touches: [plugin/commands/setup.md, docs/getting-started.md]
 milestone: m2
 depends: [0030]
 ---
@@ -22,6 +22,7 @@ This cannot start before `/peal:next` exists: task 0030, a task file, not an ope
 - `plugin/commands/setup.md` step 7 points at `/peal:next` and no longer names `/peal:setup <next>` or the next stage's description.
 - Step 1's "`tasks` already set up" case points at `/peal:next` the same way.
 - Nothing else in `plugin/` or `docs/` tells the human to run `/peal:setup <next>` after a setup (`git grep 'setup <next>'` is empty); the survey's `next` line stays if `/peal:next` or anything else still reads it, and is removed otherwise.
+- `docs/getting-started.md` updated: it describes the end of `/peal:setup` as it is after this task (0031 wrote it as it is today), and `tools/docs.test.sh` passes.
 - A setup run on a scratch project ends by pointing at `/peal:next`, and `/peal:next` there suggests a stage that is not set up.
 
 ## Raw
