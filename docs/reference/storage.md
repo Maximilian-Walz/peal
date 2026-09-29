@@ -36,6 +36,7 @@ branch is `task/NNNN-slug` for files, `issue/N` for issues; the worktree
 | `owner` | the label `owner: human`; none is ai |
 | `merge` | the label `merge: auto`; none is the project's default |
 | `touches` | labels `touches: <path>`, one per entry |
+| `after_deploy` | lines `After deploy of #412, repo#9` (`owner/repo#9` too); several lines add up; a line naming anything else stays in the body |
 
 `origin` has no label: it is for files only. The sections (Intent, Scope, Raw, ...) are
 the body's own headings. GitHub's sub-issues are not read as `part-of`, and `peal read`

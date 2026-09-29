@@ -12,14 +12,15 @@
 # task's depends or part-of, read to know whether they are done, their edits unchecked.
 # The record:
 #
-#   id  dir  -  slug  title  milestone  depends  part-of  size  plan  needs  path  url  labelled  extra  priority  owner  touches  merge
+#   id  dir  -  slug  title  milestone  depends  part-of  size  plan  needs  path  url  labelled  extra  priority  owner  touches  merge  after_deploy
 #
 # dir is done for a closed issue, backlog for an open one; path is empty, url the
 # issue's page; labelled is 1 when the issue carries the claim label, extra 1 for an
 # issue from EXTRA (whose milestone and part-of are left out: it is no task here);
 # priority from the labels "priority: urgent|high|low", the higher of two, empty for normal;
 # owner human for an issue labelled "owner: human", empty for ai; touches from the labels
-# "touches: <path>"; merge auto for an issue labelled "merge: auto", empty otherwise.
+# "touches: <path>"; merge auto for an issue labelled "merge: auto", empty otherwise;
+# after_deploy from the body's "After deploy of" lines.
 
 BEGIN {
   if (label != "" && edits != "")
@@ -55,7 +56,7 @@ $0 == "" || ($1 in seen) { next }
   }
   if (prio == "normal") prio = ""
   body_refs(tsv_unescape($8))
-  printf "%s\t%s\t-\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", id,
+  printf "%s\t%s\t-\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", id,
     ($2 == "closed" ? "done" : "backlog"), issue_slug(title), title, ms, DEPS,
-    (extra ? "" : PARTOF), size, plan, needs, $7, labelled, (extra ? 1 : ""), prio, owner, touches, merge
+    (extra ? "" : PARTOF), size, plan, needs, $7, labelled, (extra ? 1 : ""), prio, owner, touches, merge, AFTERDEP
 }

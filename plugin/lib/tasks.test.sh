@@ -477,6 +477,28 @@ touches() {
 0003 free no-paths -" "$(list 2>&1)"
 }
 
+# after_deploy: a list in the board only, numbers as numbers and the rest as strings.
+after_deploy() {
+  local work
+  work=$(repo)
+  put "$work" backlog 0001 mixed-refs "after_deploy: [412, '#413']"
+  put "$work" backlog 0002 named-refs "after_deploy: ['belfry#9', 'owner/repo#10', '0007', '412']"
+  put "$work" backlog 0003 no-refs "after_deploy: []"
+  put "$work" backlog 0004 one-ref "after_deploy: 412"
+  put "$work" backlog 0005 none-at-all
+  check "after_deploy: board" '{"id":"0001","state":"free","slug":"mixed-refs","title":"Title of 0001","after_deploy":[412,"#413"],"path":"tasks/backlog/0001-mixed-refs.md"}
+{"id":"0002","state":"free","slug":"named-refs","title":"Title of 0002","after_deploy":["belfry#9","owner/repo#10",7,412],"path":"tasks/backlog/0002-named-refs.md"}
+{"id":"0003","state":"free","slug":"no-refs","title":"Title of 0003","path":"tasks/backlog/0003-no-refs.md"}
+{"id":"0004","state":"free","slug":"one-ref","title":"Title of 0004","after_deploy":[412],"path":"tasks/backlog/0004-one-ref.md"}
+{"id":"0005","state":"free","slug":"none-at-all","title":"Title of 0005","path":"tasks/backlog/0005-none-at-all.md"}' \
+    "$(at "$work" "$PEAL" board --no-pr 2>&1 | grep -v '^{"milestone"')"
+  check "after_deploy: not in the list" "0001 free mixed-refs -
+0002 free named-refs -
+0003 free no-refs -
+0004 free one-ref -
+0005 free none-at-all -" "$(list 2>&1)"
+}
+
 # merge: auto in the board only; any other word warned about and read as the default.
 merge() {
   local work err
@@ -565,6 +587,7 @@ cases() {
   priority
   owner
   touches
+  after_deploy
   merge
   origin
   branch_date_utc

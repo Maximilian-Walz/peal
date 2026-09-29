@@ -325,8 +325,8 @@ reference_problems() {
   LC_ALL=C comm -23 <(printf '%s\n' "$want") <(printf '%s\n' "$have") | sed 's|^\(.*\)$|docs/reference/configuration.md: no row for the setting \1|'
   LC_ALL=C comm -13 <(printf '%s\n' "$want") <(printf '%s\n' "$have") | sed 's|^\(.*\)$|docs/reference/configuration.md: a row for \1, which config-defaults.yml lacks|'
   # The task fields: Peal's, from task-check.awk, against the rows under "### Fields".
-  want=$(grep -o 'peal\["[a-z-]*"\]' "$root/plugin/lib/task-check.awk" | sed 's/peal\["\(.*\)"\]/\1/' | LC_ALL=C sort -u)
-  have=$(awk '/^#/ { on = ($0 == "### Fields"); next } on' "$ref/tasks.md" | sed -n 's/^| `\([a-z-]*\)` |.*/\1/p' | LC_ALL=C sort)
+  want=$(grep -o 'peal\["[a-z_-]*"\]' "$root/plugin/lib/task-check.awk" | sed 's/peal\["\(.*\)"\]/\1/' | LC_ALL=C sort -u)
+  have=$(awk '/^#/ { on = ($0 == "### Fields"); next } on' "$ref/tasks.md" | sed -n 's/^| `\([a-z_-]*\)` |.*/\1/p' | LC_ALL=C sort)
   LC_ALL=C comm -23 <(printf '%s\n' "$want") <(printf '%s\n' "$have") | sed 's|^\(.*\)$|docs/reference/tasks.md: no row for the field \1|'
   LC_ALL=C comm -13 <(printf '%s\n' "$want") <(printf '%s\n' "$have") | sed 's|^\(.*\)$|docs/reference/tasks.md: a row for the field \1, which task-check.awk lacks|'
   # The CLI: every first word of the usage, and every second word of a grouped one (read

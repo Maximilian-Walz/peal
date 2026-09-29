@@ -50,11 +50,11 @@ $1 == "" { next }
 
 END {
   peal["milestone"] = peal["plan"] = peal["size"] = peal["depends"] = 1
-  peal["part-of"] = peal["needs"] = peal["model"] = peal["owner"] = peal["origin"] = peal["merge"] = peal["priority"] = peal["breaking"] = peal["release-note"] = peal["touches"] = 1
+  peal["part-of"] = peal["needs"] = peal["model"] = peal["owner"] = peal["origin"] = peal["merge"] = peal["priority"] = peal["breaking"] = peal["release-note"] = peal["touches"] = peal["after_deploy"] = 1
   for (k = 1; k <= nkeys; k++) {
     key = keys[k]
     if (!(key in peal) && !(key in custom))
-      problem("unknown field " key " (Peal's: milestone, plan, size, depends, part-of, needs, model, owner, origin, merge, priority, breaking, release-note, touches; a project adds its own under task.fields in .peal/config.yml)")
+      problem("unknown field " key " (Peal's: milestone, plan, size, depends, part-of, needs, model, owner, origin, merge, priority, breaking, release-note, touches, after_deploy; a project adds its own under task.fields in .peal/config.yml)")
   }
 
   m = value["milestone"]
@@ -94,6 +94,13 @@ END {
     else if (t ~ /^\//) problem("touches: " t " is absolute; paths and globs are relative to the repository's root")
     else if (labelmax && length("touches: " t) > labelmax)
       problem("touches: " t " is too long for a label (\"touches: " t "\" is over " labelmax " characters); name a shorter path or glob that covers it")
+  }
+
+  if (kind["after_deploy"] == "s" && value["after_deploy"] != "") { items["after_deploy", 1] = value["after_deploy"]; nitems["after_deploy"] = 1 }
+  for (j = 1; j <= nitems["after_deploy"]; j++) {
+    t = items["after_deploy", j]
+    if (t !~ /^[0-9]+$/ && t !~ /^(([A-Za-z0-9._-]+\/)?[A-Za-z0-9._-]+)?#[0-9]+$/)
+      problem("after_deploy: " t " is neither N nor [[owner/]repo]#N")
   }
 
   if ("part-of" in kind) {
