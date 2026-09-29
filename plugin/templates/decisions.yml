@@ -34,12 +34,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           token: ${{ secrets.PEAL_TOKEN || github.token }}
       - name: Get Peal
-        # Pin a release with --branch vX.Y.Z to match the Peal your sessions run.
-        run: git clone -q --depth 1 https://github.com/Maximilian-Walz/peal "$RUNNER_TEMP/peal"
+        # Pinned to a release's commit; Dependabot does not update it. To move to another
+        # release, take its commit from
+        #   git ls-remote https://github.com/Maximilian-Walz/peal 'refs/tags/vX.Y.Z^{}'
+        # and change both the SHA and the tag in the comment.
+        run: |
+          git init -q "$RUNNER_TEMP/peal"
+          git -C "$RUNNER_TEMP/peal" fetch -q --depth 1 https://github.com/Maximilian-Walz/peal 8927e4644010042329fed4ddb2f8084aa98ebf02 # v0.2.0
+          git -C "$RUNNER_TEMP/peal" checkout -q FETCH_HEAD
       - name: Publish the index
         env:
           GH_TOKEN: ${{ secrets.PEAL_TOKEN || github.token }}

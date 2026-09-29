@@ -249,12 +249,17 @@ default; a fork's pull request runs only the harnesses and `shellcheck`, nothing
 needs a secret or a write.
 
 Every action runs at a pinned commit SHA, which Dependabot keeps current, and OpenSSF
-Scorecard checks the workflows weekly.
+Scorecard checks the workflows weekly. The decisions workflow template
+(`plugin/templates/decisions.yml`) ships its action and its Peal pinned by SHA too:
+Dependabot keeps the action current across `/` and `/plugin/templates`, the Peal pin
+follows each release (checked by `tools/pins.test.sh`), and `tools/pins.sh` refuses an
+unpinned reference in the template or in Peal's workflows.
 
 - Guard: `.github/workflows/ci.yml` (`permissions:`, the pinned `uses:`),
-  `.github/dependabot.yml`, `.github/workflows/scorecard.yml`.
-- Harness: none; Scorecard's weekly run reports an unpinned action or a broad
-  permission.
+  `.github/dependabot.yml`, `.github/workflows/scorecard.yml`,
+  `plugin/templates/decisions.yml`, `tools/pins.sh`.
+- Harness: `tools/pins.test.sh`; Scorecard's weekly run reports an unpinned action or a
+  broad permission.
 
 ## What this milestone leaves open
 
