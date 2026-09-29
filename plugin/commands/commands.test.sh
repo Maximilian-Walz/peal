@@ -67,6 +67,9 @@ check "idea: touches only when the idea names the files" "1|1" \
 # shellcheck disable=SC2016 # the literal backticks
 check "idea: names BELFRY_SESSION" "2" "$(grep -c -F 'BELFRY_SESSION' "$commands/idea.md")"
 check "idea: calls Belfry's task_create" "3" "$(grep -c -F 'task_create' "$commands/idea.md")"
+# the body is the whole composed text: `peal create` refuses one without the heading (0109)
+check "idea: task_create's body is the whole composed text" "1|0" \
+  "$(tr '\n' ' ' <"$commands/idea.md" | grep -c -F 'the whole composed text, frontmatter')|$(grep -c -F 'not the frontmatter or' "$commands/idea.md")"
 # shellcheck disable=SC2016 # the literal backticks
 check "idea: falls back to Belfry's idea tool" "1" "$(grep -c -F 'call the `idea` tool instead' "$commands/idea.md")"
 # shellcheck disable=SC2016 # the literal backticks
