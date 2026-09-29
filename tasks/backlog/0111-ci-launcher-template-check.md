@@ -1,5 +1,6 @@
 ---
 plan: required
+milestone: m4
 ---
 
 # 0111 — CI checks the committed launcher against its template
