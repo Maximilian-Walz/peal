@@ -38,4 +38,8 @@ priority: high
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+`/peal:idea` step 3 (the `BELFRY_SESSION` branch off a task branch) now tells the session to give `task_create` the whole composed text as `body`, frontmatter and the `# NNNN — Title` heading included: the same text `peal idea` and the `idea` tool fallback get. The old wording ("from `## Intent` on; not the frontmatter or heading") made `peal create` refuse the body and would have lost the triage fields. The sentence also says why, so a later edit does not trim it again.
+
+`plugin/commands/commands.test.sh` gains the check "idea: task_create's body is the whole composed text": the new phrase appears once (newlines joined), the old one not at all. The existing `task_create` count of 3 still holds. The suite passes, 114 checks.
+
+The second Scope bullet had nothing to change: `task_create` appears under `plugin/` only in `idea.md`, not in split, defer or close. The plan was skipped by the human's call (see Notes). The review found nothing.
