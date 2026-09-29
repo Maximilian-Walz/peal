@@ -101,6 +101,10 @@ skipped the check: belfry check is not available yet" "$out"
     "$(grep '^    create:' "$work/.belfry.yml" | grep -o '{[^}]*}' | grep -v -e '^{owner}$' -e '^{title}$' -e '^{origin}$')"
   check "belfry: revise is the comment command, with only task and text" "    revise: /peal:comment {task} {text}" \
     "$(grep '^    revise:' "$work/.belfry.yml")"
+  check "belfry: defer is the depend command, with only task and on" "    defer: .peal/peal depend {task} {on}" \
+    "$(grep '^    defer:' "$work/.belfry.yml")"
+  check "belfry: defer's only placeholders are task and on" "" \
+    "$(grep '^    defer:' "$work/.belfry.yml" | grep -o '{[^}]*}' | grep -v -e '^{task}$' -e '^{on}$')"
   check "belfry: the actions are suggestions" "# actions:" "$(grep 'actions:' "$work/.belfry.yml")"
   check "all stages recorded, in order" "tasks
 guardrails
@@ -228,6 +232,7 @@ tasks" "$(peal config storage.issues.repo; peal config storage.issues.label)"
     start: /peal:work {task}
     idea: /peal:idea {idea}" "$(sed -n '2,7p' "$work/.belfry.yml")"
   check "issues: no revise" "" "$(grep 'revise:' "$work/.belfry.yml")"
+  check "issues: no defer (the github-issues backend defers natively)" "" "$(grep 'defer:' "$work/.belfry.yml")"
   check "issues: no create (Belfry files issues its own way)" "" "$(grep 'create:' "$work/.belfry.yml")"
 
   peal hook session-start </dev/null >/dev/null 2>&1

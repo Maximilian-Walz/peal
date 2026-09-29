@@ -681,21 +681,12 @@ peal_store_edit() {
   return $status
 }
 
-# peal_store_defer ID REASON TEXT [--dry-run] -> the claim of issue ID, checked out here,
-# given back: the issue rewritten from the task text in the file TEXT as a revise would,
-# and "Deferred <date> after a claim: REASON" as a comment, the label "in progress" taken
-# off. Refused: another branch, any
-# commit on it beyond the remote's main (an issue's claim makes none, so a commit is
-# work), its remote branch holding more, anything uncommitted, a closed issue, and the
-# checks of a revise but "no change".
-peal_store_defer() {
-  local id=$1 reason=$2 text=$3 dry=${4-} base work tmp row status=0 note dirty
-  [ -n "$reason" ] || { peal_err "defer: give a reason"; return 2; }
-  _peal_issues_settings || return 2
-  if [ "$(peal_store_branch_task)" != "$id" ]; then
-    peal_err "defer: not on issue $id's branch (issue/$id), but on $(git symbolic-ref -q --short HEAD || echo a detached HEAD)"
-    return 2
-  fi
+# _peal_issues_no_work ID -> status 0 if the claim of issue ID, checked out in the current
+# directory, holds nothing to lose: no commit beyond the remote's main (an issue's claim
+# makes none, so a commit is work), its remote branch nothing more, nothing uncommitted.
+# Status 2 and what is there else.
+_peal_issues_no_work() {
+  local id=$1 base work dirty
   git fetch -q "$PEAL_REMOTE" 2>/dev/null
   base=refs/remotes/$PEAL_REMOTE/$PEAL_MAIN
   git rev-parse -q --verify "$base" >/dev/null || { peal_err "defer: no $PEAL_REMOTE/$PEAL_MAIN"; return 2; }
@@ -717,6 +708,24 @@ peal_store_defer() {
     printf '%s\n' "$dirty" | cut -c4- | sed 's/^/  /' >&2
     return 2
   fi
+}
+
+# peal_store_defer ID REASON TEXT [--dry-run] -> the claim of issue ID, checked out here,
+# given back: the issue rewritten from the task text in the file TEXT as a revise would,
+# and "Deferred <date> after a claim: REASON" as a comment, the label "in progress" taken
+# off. Refused: another branch, any
+# commit on it beyond the remote's main (an issue's claim makes none, so a commit is
+# work), its remote branch holding more, anything uncommitted, a closed issue, and the
+# checks of a revise but "no change".
+peal_store_defer() {
+  local id=$1 reason=$2 text=$3 dry=${4-} tmp row status=0 note
+  [ -n "$reason" ] || { peal_err "defer: give a reason"; return 2; }
+  _peal_issues_settings || return 2
+  if [ "$(peal_store_branch_task)" != "$id" ]; then
+    peal_err "defer: not on issue $id's branch (issue/$id), but on $(git symbolic-ref -q --short HEAD || echo a detached HEAD)"
+    return 2
+  fi
+  _peal_issues_no_work "$id" || return 2
   row=$(_peal_issues_issue "$id") || return 2
   _peal_issues_check_admitted "$id" "$row" || return 2
   if [ "$(_peal_field "$row" 2)" != open ]; then
@@ -740,6 +749,59 @@ peal_store_defer() {
       _peal_issues_apply "$id" "$row" "$tmp" "$note" || status=$?
     fi
     [ $status != 0 ] || { _peal_issues_unlabel "$id"; echo "deferred $id $(_peal_field "$row" 7)"; }
+  fi
+  rm -rf "$tmp"
+  return $status
+}
+
+# peal_store_depend ID ON WT -> issue ID made to wait for issue ON: ON added to the "Depends
+# on" line of its body, and a comment saying so. WT, when not empty, is the worktree of the
+# claim of this clone on ID, which is given back as a defer does (checked by
+# _peal_issues_no_work there, the comment "Deferred <date> after a claim: waits for ON",
+# the label "in progress" taken off); the caller marks the worktree. An ON already in the
+# body changes nothing but that comment. PEAL_RECORDS holds the store's list.
+peal_store_depend() {
+  local id=$1 on=$2 wt=${3-} tmp row status=0 note deps
+  _peal_issues_settings || return 2
+  if [ -n "$wt" ]; then
+    if [ "$(cd "$wt" && peal_store_branch_task)" != "$id" ]; then
+      peal_err "depend: $wt is not on issue $id's branch (issue/$id)"
+      return 2
+    fi
+    (cd "$wt" && _peal_issues_no_work "$id") || return 2
+  fi
+  row=$(_peal_issues_issue "$id") || return 2
+  _peal_issues_check_admitted "$id" "$row" || return 2
+  if [ "$(_peal_field "$row" 2)" != open ]; then
+    peal_err "depend: issue $id is closed"
+    return 2
+  fi
+  tmp=$(mktemp -d) || return 2
+  _peal_issues_text "$row" >"$tmp/old"
+  cp "$tmp/old" "$tmp/new"
+  deps=$(peal_fm_get "$tmp/old" depends 2>/dev/null)
+  if ! printf '%s\n' "$deps" | grep -qxF -- "$on"; then
+    # shellcheck disable=SC2046 # one item per line, none with a blank
+    peal_fm_set_list "$tmp/new" depends $(printf '%s\n' "$deps" | sed '/^$/d') "$on" || status=2
+  fi
+  if [ $status = 0 ]; then
+    _peal_issues_rewrite depend "$id" "$tmp/old" "$tmp/new" "$tmp" || status=$?
+  fi
+  if [ -n "$wt" ]; then
+    note="Deferred $(date -u +%Y-%m-%d) after a claim: waits for #$on"
+  else
+    note="$(date -u +%Y-%m-%d): waits for #$on"
+  fi
+  if [ $status = 0 ]; then
+    if cmp -s "$tmp/old" "$tmp/new"; then
+      _peal_issues_comment "$id" "$note" || status=1
+    else
+      _peal_issues_apply "$id" "$row" "$tmp" "$note" || status=$?
+    fi
+    if [ $status = 0 ]; then
+      [ -z "$wt" ] || _peal_issues_unlabel "$id"
+      echo "task $id: waits for $on"
+    fi
   fi
   rm -rf "$tmp"
   return $status
