@@ -155,3 +155,40 @@ tasks/done/0030-peal-next.md; tasks/backlog/0058-setup-points-at-next.md:1-40.
 ---
 
 ## Outcome
+
+Built the first piece of the split: the README rewritten for a stranger, `docs/getting-started.md`,
+`CONTRIBUTING.md`, the issue and pull request templates, and `tools/docs.test.sh`. The rest of
+the original scope is in 0105 (reference, design.md pruned), 0106 (guides) and 0107 (CHANGELOG
+kept by `/peal:release`, a generic feature).
+
+- **README**: the loop excerpt, why (three points) and what Peal is not, Start (the two
+  `/plugin` lines, then `/peal:setup`), a two-line status linking to docs/milestones/, Belfry in
+  three sentences, links to contributing and license. "Working on Peal" moved to CONTRIBUTING;
+  the pin-a-release JSON moved to getting-started.
+- **getting-started**: install, the four stages (what each adds, `peal init --remove` to take it
+  back), merging the setup branch before the first task, `/peal:next` and undoing its feature
+  suggestions by hand, then `/peal:idea`, `/peal:work`, `/peal:close`. It describes the end of
+  `/peal:setup` as it is today; 0058's Done when and touches now include updating this page.
+- **Templates**: `idea.md` replaces `task.md` (Security line kept), new `bug.md`, the PR template
+  links CONTRIBUTING by absolute URL (relative links do not resolve in a PR body).
+- **tools/docs.test.sh** (13 checks, run by `tools/test-all.sh`): every `peal <sub>` and
+  `/peal:<cmd>` in README, CONTRIBUTING and docs/ (not milestones/, decisions/) exists; relative
+  links and anchors resolve; blocks marked `<!-- docs-check: config -->` load through `peal
+  config`, `run` blocks run in a scratch repo and their quoted output must appear (a line ending
+  in " …" matches by prefix), `shape` compares the README's composed loop excerpt with real
+  `peal idea`/`claim`/close output, and `install` checks the `/plugin` lines against
+  `.claude-plugin/marketplace.json`. Negative cases on scratch copies prove each check fails.
+  design.md, migrating.md and security.md already pass.
+
+The review found a duplicated paragraph in CONTRIBUTING, a missing "merge the setup first" step
+in getting-started (`/peal:work` needs the setup commit on main), and unchecked install lines in
+getting-started. All three were fixed on the branch.
+
+Evidence for the first Done when: the CLI half of the path (init tasks, idea, claim, next, init
+milestones, `--remove`) ran against a scratch repo with a local bare remote, and runs in the
+harness. `/peal:setup`, `/peal:work` and `/peal:close` are Claude Code commands and could not be
+walked from this session; nor was a pull request opened from a scratch repo. That walk by hand
+is still open for the human, or for the m2 review (0046).
+
+For the next session: CLAUDE.md is untouched and still repeats part of the old "Working on Peal"
+text; 0106 repoints the README's Belfry link to its guide.
