@@ -1,7 +1,7 @@
 # shellcheck shell=bash
-# A milestone's end (docs/reference/cli.md, "peal milestone-review"): the review /peal:milestone-review
-# walks, told by `peal milestone-review` what a script can know, and the state change
-# the human decides, `peal milestone-state`, which Belfry's milestone actions call too.
+# A milestone's end (docs/reference/cli.md, "peal milestone-review"): the review
+# /peal:milestone-review walks, told by `peal milestone-review` what a script can know,
+# and the state change the human decides, `peal milestone-state`, which Belfry's milestone actions call too.
 
 PEAL_MS_STATES="done parked open"
 

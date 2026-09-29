@@ -1,6 +1,6 @@
 # shellcheck shell=bash
-# peal doctor (docs/reference/cli.md, "peal doctor"): when Peal does not work in a project,
-# nobody should have to guess why. One function per check, all reporting through
+# peal doctor (docs/reference/cli.md, "peal doctor"): when Peal does not work in a
+# project, nobody should have to guess why. One function per check, all reporting through
 # _peal_doctor_ok/_peal_doctor_fail/_peal_doctor_skip: "ok/FAIL/skip <check>: <sentence>",
 # a FAIL followed by "  fix: <what to run>", a last "doctor: N problem(s)" line.
 #

@@ -1,7 +1,7 @@
 # shellcheck shell=bash
-# Migrating an existing task-file process into Peal's (docs/migrating.md): converting a project's own task headers and milestone docs into
-# Peal's frontmatter, in place, changing nothing else. Neither converter commits; both
-# are safe to run again, since a file already in frontmatter is left alone.
+# Migrating an existing task-file process into Peal's (docs/migrating.md):
+# converting a project's own task headers and milestone docs into Peal's frontmatter, in
+# place, changing nothing else. Neither converter commits; both are safe to run again, since a file already in frontmatter is left alone.
 
 # _peal_migrate_valid_pools LIST -> status 0 if every comma-separated pool name in LIST
 # is safe to use as a milestone id and a file name (letters, digits, '.', '_' and '-',
