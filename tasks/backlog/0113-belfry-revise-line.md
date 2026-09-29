@@ -2,7 +2,7 @@
 milestone: m2
 plan: skipped
 size: S
-depends: [human]
+depends: []
 ---
 
 # 0113 — Peal's own .belfry.yml maps tasks.commands.revise to /peal:comment
@@ -25,6 +25,7 @@ Deferred 2026-09-29 after a claim: waits on an installed Peal release that ships
 
 - 2026-09-29, first claim: blocked. The newest release, v0.2.0, and the installed plugin (0.2.0) both predate 0103, so the installed plugin has no `commands/comment.md`. Adding the line before that would make triage "add" verdicts call a command that doesn't exist. The human chose to defer. `depends: human` stands for "cut a release (`/peal:release`) and update the installed plugin". Once `/peal:comment` shows up in the installed plugin, drop `human` from depends and claim again.
 - The line to add, under `tasks.commands` (as `plugin/lib/setup.test.sh` and `plugin/lib/init.test.sh` expect): `    revise: /peal:comment {task} {text}`.
+- Revised 2026-09-29: `human` dropped from depends. The installed plugin now ships `/peal:comment` (its `commands/comment.md` matches main's), so the wait is over and a claim is no longer refused as blocked.
 
 ## Raw
 
