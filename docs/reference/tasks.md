@@ -49,7 +49,7 @@ Peal's fields, all optional.
 | `release-note` | `none` leaves the task out of the release notes and the bump |
 | `priority` | `urgent`, `high`, `normal` or `low`; absent means normal; orders the offer within a milestone, never across; `/peal:idea` sets it only when the idea says so plainly, `/peal:revise` changes it |
 | `owner` | `ai` or `human`; absent means ai; a human task is never offered and `/peal:work` refuses it, while `peal claim` still makes its worktree |
-| `origin` | `outsider`, or absent for the project's own text (`writer`); written only by `peal create --origin outsider`; files only |
+| `origin` | `outsider`, or absent for the project's own text (`writer`); written only by `peal create --origin outsider` and `peal comment --origin outsider`; files only |
 | `merge` | `auto`, or absent for the project's default; the human agreed the pull request may merge itself once its checks are green; `/peal:work` writes it only on the human's word, `/peal:revise` can remove it, a close ending `merge-auto: withdraw` removes it |
 | `touches` | a list of paths, directories or globs (`*`, `?`, `[...]` within a directory, `**` across), relative to the repository's root, none absolute or holding a comma, and on issues none over GitHub's 50 label characters; written by the planner, a hint only |
 
