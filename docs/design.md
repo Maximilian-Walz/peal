@@ -1044,18 +1044,30 @@ waiting for a human's `/peal:setup guardrails` or `.peal/peal hooks install`
 
 **`/peal:next [all | ITEM]`** finds the rest once `tasks` is set up: `peal next` reads
 the stages recorded, the backlog and its history (tasks done, splits, deferrals), the
-milestones and one local read of the main branch's git history (never Belfry), and
+milestones, one local read of the main branch's git history, and the local files and one
+local tag list the features below check (never Belfry, never `gh`, never a fetch), and
 prints the one next thing with the best evidence for it, in fixed order (the stages of
-`peal init`, then the review task a current milestone is missing) — `guardrails` once a
-task is done or a commit on main carries no task id, `milestones` at ten tasks done or
-eight open, `belfry` at five done, `review-task` once the current milestone has none —
-with why this repository would profit and how to try it, and up to three runners-up. The
-human accepts (`/peal:setup <stage>` runs), declines (`declined.<item>: [DATE]` in
-`.peal/config.yml`, committed like a setup, not suggested again for 90 days unless asked
-by name with `/peal:next <item>`), or asks for more; nothing changes unasked. `all` also
-shows what is currently declined. The SessionStart orientation carries a one-line hint
-when there is a suggestion and the session is outside a task's worktree; `/peal:next`
-says more.
+`peal init`, then the review task a current milestone is missing, then the features
+within the stages) — `guardrails` once a task is done or a commit on main carries no task
+id, `milestones` at ten tasks done or eight open, `belfry` at five done, `review-task`
+once the current milestone has none, `decisions` once the module is off and either an
+ADR-like directory (`docs/adr`, `docs/decisions`, `doc/adr`) exists or twenty tasks are
+done, `drift` once there is no `.peal/drift.md` and either `context:` is set or other
+Markdown sits under `docs/`, with ten tasks done, `releases` once no local tag under
+`release.tag-prefix` is reachable from local main and five tasks are done, `reviewer`
+once there is no `.peal/reviewer.md` and either `context:` is empty while design-like
+documents exist or CI configuration exists while `checks.commit` and `checks.close` are
+both empty, `review-steps` once the milestones stage is recorded, a milestone is done,
+and there is no `.peal/review.md` — with why this repository would profit and how to try
+it, and up to three runners-up. The human accepts (`/peal:setup <stage>` runs for the
+first five; the features within the stages show the small change they would make and commit it
+themselves; `drift` writes the stub `.peal/drift.md` first, then runs `/peal:drift`
+once, and `releases` runs `/peal:release` once), declines
+(`declined.<item>: [DATE]` in `.peal/config.yml`, committed like a setup, not suggested
+again for 90 days unless asked by name with `/peal:next <item>`), or asks for more;
+nothing changes unasked. `all` also shows what is currently declined. The SessionStart
+orientation carries a one-line hint when there is a suggestion and the session is outside
+a task's worktree; `/peal:next` says more.
 
 ### `peal doctor`
 

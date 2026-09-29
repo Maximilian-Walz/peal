@@ -220,7 +220,7 @@ Next to adopt: review-task, m1 current, no review task. For the human: /peal:nex
 # startup/clear outside a task's worktree, silent otherwise, and (issues storage) no gh
 # call beyond what the orientation already makes.
 hint() {
-  local work wt out n1 n2
+  local work wt out n1 n2 n3
 
   work=$(peal_repo)
   put "$work" backlog 0001 solo-task
@@ -250,11 +250,14 @@ hint() {
   check "hint: state A, guardrails declined, names milestones" "1" \
     "$(hook "$work" session-start '{"source":"startup"}' | grep -c '^Next to adopt: milestones')"
 
-  # Everything this task's catalogue knows is set up, and m1's review task is filed: NONE.
+  # Everything this task's catalogue knows is set up, m1's review task is filed, and
+  # .peal/review.md already there (m0, the fixture's own milestone, is otherwise always
+  # done, so review-steps would fire): NONE.
   work=$(peal_repo)
   printf 'stages: [tasks, guardrails, milestones, belfry]\n' >>"$work/.peal/config.yml"
   publish "$work" >/dev/null 2>&1
   put "$work" backlog 0001 review-m1 "milestone: m1" "depends: [milestone]"
+  : >"$work/.peal/review.md"
   check "hint: silent once nothing is left" "0" \
     "$(hook "$work" session-start '{"source":"startup"}' | grep -c '^Next to adopt:')"
 
@@ -272,8 +275,11 @@ Task: none in this worktree. /peal:work claims one into a worktree of its own." 
   # of its own). A real baseline: the same worktree, the same startup (so the same fetch
   # and peal_reap's own re-list happen either way), only review-task qualifies (every
   # stage recorded, m1 current with no review task filed) so the first startup hints;
-  # declining it (a local file edit, no gh call) leaves NONE, so the second is silent.
-  # Equal gh call counts prove the hint itself, on or off, costs none of its own.
+  # declining it leaves review-steps (m0, closed in the issues fixture too, counts as
+  # done, and there is no .peal/review.md yet), a feature item within the stages, still
+  # with no .peal/review.md; declining that too (a local file edit each time, no gh call)
+  # finally leaves NONE, so the third is silent. Equal gh call counts throughout prove
+  # the hint itself, whatever it says, costs none of its own.
   command -v jq >/dev/null 2>&1 || return 0
   ISSUES_CONFIG=$'stages: [tasks, guardrails, milestones, belfry]\n' issues_repo
   : >"$FAKE_GH/log"
@@ -286,9 +292,17 @@ Task: none in this worktree. /peal:work claims one into a worktree of its own." 
   : >"$FAKE_GH/log"
   out=$(hook "$work" session-start '{"source":"startup"}')
   n2=$(wc -l <"$FAKE_GH/log" | tr -d ' ')
+  check "hint: issues storage, a feature item within the stages hints next" "1" \
+    "$(printf '%s\n' "$out" | grep -c '^Next to adopt: review-steps')"
+  check "hint: issues storage, no gh call of its own" "$n1" "$n2"
+
+  at "$work" "$PEAL" next --decline review-steps >/dev/null 2>&1
+  : >"$FAKE_GH/log"
+  out=$(hook "$work" session-start '{"source":"startup"}')
+  n3=$(wc -l <"$FAKE_GH/log" | tr -d ' ')
   check "hint: issues storage, the baseline run is silent" "0" \
     "$(printf '%s\n' "$out" | grep -c '^Next to adopt:')"
-  check "hint: issues storage, no gh call of its own" "$n1" "$n2"
+  check "hint: issues storage, still no gh call of its own" "$n1" "$n3"
 }
 
 cases() {

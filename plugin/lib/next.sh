@@ -6,20 +6,33 @@
 # runners-up, or NONE; `peal next` gathers the facts and runs it, the SessionStart hint
 # reuses the facts session_start already has.
 #
-# Catalogue, in the order they are offered (the stages of `peal init`, then review-task):
-#   guardrails  not recorded, and a task done or a non-merge commit on main without [ID]
-#   milestones  not recorded, and >=10 tasks done or >=8 open
-#   belfry      not recorded, and >=5 tasks done
-#   review-task a current milestone with no record holding it in milestone and
-#               "milestone" in depends
+# Catalogue, in the order they are offered (the stages of `peal init`, then review-task,
+# then the features within the stages):
+#   guardrails   not recorded, and a task done or a non-merge commit on main without [ID]
+#   milestones   not recorded, and >=10 tasks done or >=8 open
+#   belfry       not recorded, and >=5 tasks done
+#   review-task  a current milestone with no record holding it in milestone and
+#                "milestone" in depends
+#   decisions    the module off, and an ADR-like directory (docs/adr, docs/decisions,
+#                doc/adr) or >=20 tasks done
+#   drift        no .peal/drift.md, and (context: set, or other Markdown under docs/) and
+#                >=10 tasks done
+#   releases     no local tag under release.tag-prefix reachable from local main, and
+#                >=5 tasks done
+#   reviewer     no .peal/reviewer.md, and (context: empty with design-like docs) or
+#                (CI files with checks.commit and checks.close both empty)
+#   review-steps the milestones stage recorded, a milestone done, and no .peal/review.md
 # `tasks` is not in that loop: without it recorded nothing else can be, so it is the only
 # thing ever suggested then.
+#
+# Every check is cheap: local files already in the work tree and one local git log or
+# tag list, no `gh` and no fetch, because the SessionStart hint runs it on every startup.
 #
 # declined: {item: [DATE]} in .peal/config.yml blocks an item for 90 days from DATE (UTC
 # civil dates), day 90 itself free again. An item outside the catalogue there warns and is
 # skipped; a date that is not a real calendar date is refused, status 2, naming the item.
 
-PEAL_NEXT_ITEMS="tasks guardrails milestones review-task belfry"
+PEAL_NEXT_ITEMS="tasks guardrails milestones review-task belfry decisions drift releases reviewer review-steps"
 
 # _peal_next_valid_date DATE -> status 0 for a real calendar date, YYYY-MM-DD.
 _peal_next_valid_date() {
@@ -80,30 +93,151 @@ _peal_next_blocked() {
   [ "$since" -lt 90 ]
 }
 
-# _peal_next_try ITEM -> the command that would take it up.
+# _peal_next_try ITEM [FEATURES] -> the command, or the config line, that would take it
+# up; decisions names the ADR-like directory FEATURES found, else docs/decisions.
 _peal_next_try() {
-  case $1 in
+  local item=$1 features=${2-} adr
+  case $item in
     tasks) echo "/peal:setup" ;;
     guardrails) echo "/peal:setup guardrails" ;;
     milestones | review-task) echo "/peal:setup milestones" ;;
     belfry) echo "/peal:setup belfry" ;;
+    decisions)
+      adr=$(_peal_next_feat "$features" adr)
+      echo "decisions: ${adr:-docs/decisions}"
+      ;;
+    drift) echo "/peal:drift" ;;
+    releases) echo "/peal:release" ;;
+    reviewer) echo ".peal/reviewer.md" ;;
+    review-steps) echo ".peal/review.md" ;;
   esac
 }
 
-# peal_next_core RECORDS MILESTONES STAGES DECLINED UNTAGGED TODAY [ONLY [--all]]
+# _peal_next_feat FEATURES KEY -> KEY's value from FEATURES ("key<TAB>value" lines, one
+# of _peal_next_features' facts); empty when it is not there.
+_peal_next_feat() {
+  printf '%s\n' "$1" | awk -F '\t' -v k="$2" '$1 == k { print $2; exit }'
+}
+
+# _peal_next_adr_dir -> the first of docs/adr, docs/decisions, doc/adr that is a
+# directory here; empty for none.
+_peal_next_adr_dir() {
+  local d
+  for d in docs/adr docs/decisions doc/adr; do
+    [ -d "$d" ] && { printf '%s\n' "$d"; return; }
+  done
+}
+
+# _peal_next_design_docs -> design*.md or architecture*.md (case-insensitive) at the top
+# or in docs/, and docs/architecture/ itself when it is a directory, comma-joined.
+_peal_next_design_docs() {
+  local dir f base lower found=""
+  for dir in . docs; do
+    [ -d "$dir" ] || continue
+    for f in "$dir"/*; do
+      [ -f "$f" ] || continue
+      base=$(basename "$f")
+      lower=$(printf '%s' "$base" | tr '[:upper:]' '[:lower:]')
+      case $lower in
+        design*.md | architecture*.md) found="${found:+$found,}${f#./}" ;;
+      esac
+    done
+  done
+  [ -d docs/architecture ] && found="${found:+$found,}docs/architecture"
+  printf '%s\n' "$found"
+}
+
+# _peal_next_ci_files -> the CI configuration files peal_init_survey looks for
+# (init.sh), that exist here, comma-joined: a project with a build already running has
+# one less thing to explain to the reviewer.
+_peal_next_ci_files() {
+  local f found=""
+  for f in .github/workflows/*.yml .github/workflows/*.yaml .gitlab-ci.yml .circleci/config.yml \
+      .travis.yml Jenkinsfile azure-pipelines.yml .woodpecker.yml bitbucket-pipelines.yml; do
+    [ -f "$f" ] && found="${found:+$found,}$f"
+  done
+  printf '%s\n' "$found"
+}
+
+# _peal_next_docs_md -> Markdown files under docs/, outside the configured milestones,
+# tasks and decisions directories.
+_peal_next_docs_md() {
+  local milestones tasks decisions
+  milestones=$(peal_config_get milestones 2>/dev/null) || milestones=""
+  tasks=$(peal_config_get tasks 2>/dev/null) || tasks=""
+  decisions=$(peal_decisions_dir 2>/dev/null) || decisions=""
+  [ -d docs ] || { echo 0; return; }
+  find docs -type f -iname '*.md' 2>/dev/null | awk -F '\t' \
+    -v m="${milestones%/}/" -v t="${tasks%/}/" -v d="${decisions:+${decisions%/}/}" '
+    index($0, m) != 1 && index($0, t) != 1 && (d == "" || index($0, d) != 1) { n++ }
+    END { print n + 0 }'
+}
+
+# _peal_next_version_file -> the first of package.json, .claude-plugin/plugin.json at the
+# repository's root that exists; empty for none (release.version-files takes only
+# top-level fields, so a TOML manifest is never suggested).
+_peal_next_version_file() {
+  local f
+  for f in package.json .claude-plugin/plugin.json; do
+    [ -f "$f" ] && { printf '%s\n' "$f"; return; }
+  done
+}
+
+# _peal_next_release_tag -> a local tag under release.tag-prefix reachable from local
+# main, if any; no fetch.
+_peal_next_release_tag() {
+  local main prefix
+  main=$(peal_config_get main 2>/dev/null) || main=main
+  prefix=$(peal_config_get release.tag-prefix 2>/dev/null) || prefix=v
+  git rev-parse -q --verify "refs/heads/$main" >/dev/null 2>&1 || return 0
+  git tag -l --merged "$main" "${prefix}*" 2>/dev/null | head -n 1
+}
+
+# _peal_next_features -> "key<TAB>value" lines, the local facts the reviewer, decisions,
+# drift, releases and review-steps items check; empty (not an error) outside a work tree.
+# Everything here is a file already in the work tree or one local git call: no gh, no
+# fetch, so the SessionStart hint pays nothing extra for it.
+_peal_next_features() {
+  local top context close commit
+  top=$(peal_project_root 2>/dev/null) || return 0
+  (
+    cd "$top" || exit 0
+    context=$(peal_config_get context 2>/dev/null) || context=""
+    close=$(peal_config_get checks.close 2>/dev/null) || close=""
+    commit=$(peal_config_get checks.commit 2>/dev/null) || commit=""
+    printf 'adr\t%s\n' "$(_peal_next_adr_dir)"
+    if peal_decisions_dir >/dev/null 2>&1; then printf 'decisions_on\t1\n'; else printf 'decisions_on\t0\n'; fi
+    printf 'drift_md\t%s\n' "$([ -f .peal/drift.md ] && echo 1 || echo 0)"
+    printf 'reviewer_md\t%s\n' "$([ -f .peal/reviewer.md ] && echo 1 || echo 0)"
+    printf 'review_md\t%s\n' "$([ -f .peal/review.md ] && echo 1 || echo 0)"
+    printf 'docs_md\t%s\n' "$(_peal_next_docs_md)"
+    printf 'design\t%s\n' "$(_peal_next_design_docs)"
+    printf 'ci\t%s\n' "$(_peal_next_ci_files)"
+    printf 'version_file\t%s\n' "$(_peal_next_version_file)"
+    printf 'release_tag\t%s\n' "$(_peal_next_release_tag)"
+    printf 'context_set\t%s\n' "$([ -n "$context" ] && echo 1 || echo 0)"
+    printf 'checks_empty\t%s\n' "$([ -z "$close$commit" ] && echo 1 || echo 0)"
+  )
+}
+
+# peal_next_core RECORDS MILESTONES STAGES DECLINED UNTAGGED TODAY FEATURES [ONLY [--all]]
 #   RECORDS    peal_store_list's lines (id state ... milestone depends ...)
 #   MILESTONES peal_store_milestones's lines (id title state order due name reason)
 #   STAGES     the stages: setting, one per line
 #   DECLINED   _peal_next_declined's lines
 #   UNTAGGED   non-merge commits on main without [ID] (a local git log, counted once)
 #   TODAY      YYYY-MM-DD
+#   FEATURES   _peal_next_features' lines
 #   ONLY       an item: offer it regardless of the catalogue or a decline
 #   --all      after ONLY (which may be empty): also print DECLINED item date lines
 # Prints SUGGEST item try evidence, up to three ALSO item try evidence, or NONE; DECLINED
 # lines last when asked. Evidence holds counts and ids only, never a task's own text.
 peal_next_core() {
-  local records=$1 milestones=$2 stages=$3 declined=$4 untagged=$5 today=$6 only=${7-} all=${8-}
+  local records=$1 milestones=$2 stages=$3 declined=$4 untagged=$5 today=$6 features=$7
+  local only=${8-} all=${9-}
   local done_n open_n current_id has_review item evidence picked="" also=0
+  local adr decisions_on drift_md reviewer_md review_md docs_md design ci version_file
+  local release_tag context_set checks_empty has_done_milestone
 
   if [ -n "$only" ]; then
     if [[ " $PEAL_NEXT_ITEMS " != *" $only "* ]]; then
@@ -123,6 +257,19 @@ peal_next_core() {
     has_review=$(printf '%s\n' "$records" | awk -F '\t' -v id="$current_id" \
       '$6 == id && index("," $7 ",", ",milestone,") { print 1; exit }')
   fi
+  adr=$(_peal_next_feat "$features" adr)
+  decisions_on=$(_peal_next_feat "$features" decisions_on)
+  drift_md=$(_peal_next_feat "$features" drift_md)
+  reviewer_md=$(_peal_next_feat "$features" reviewer_md)
+  review_md=$(_peal_next_feat "$features" review_md)
+  docs_md=$(_peal_next_feat "$features" docs_md); docs_md=${docs_md:-0}
+  design=$(_peal_next_feat "$features" design)
+  ci=$(_peal_next_feat "$features" ci)
+  version_file=$(_peal_next_feat "$features" version_file)
+  release_tag=$(_peal_next_feat "$features" release_tag)
+  context_set=$(_peal_next_feat "$features" context_set)
+  checks_empty=$(_peal_next_feat "$features" checks_empty)
+  has_done_milestone=$(printf '%s\n' "$milestones" | awk -F '\t' '$3 == "done" { print 1; exit }')
 
   _evidence() {
     case $1 in
@@ -131,6 +278,17 @@ peal_next_core() {
       milestones) echo "$done_n done, $open_n open" ;;
       belfry) echo "$done_n done" ;;
       review-task) echo "$current_id current, no review task" ;;
+      decisions) if [ -n "$adr" ]; then echo "$adr found"; else echo "$done_n done"; fi ;;
+      drift) if [ "$context_set" = 1 ]; then echo "$done_n done, context set"; else echo "$done_n done, $docs_md docs"; fi ;;
+      releases) if [ -n "$version_file" ]; then echo "$done_n done, $version_file"; else echo "$done_n done"; fi ;;
+      reviewer)
+        if [ "$context_set" != 1 ] && [ -n "$design" ]; then echo "$design, no context"
+        else echo "$ci, no checks"
+        fi
+        ;;
+      review-steps)
+        printf '%s\n' "$milestones" | awk -F '\t' '$3 == "done" { print $1 " done"; exit }'
+        ;;
     esac
   }
   _qualifies() {
@@ -139,22 +297,32 @@ peal_next_core() {
       milestones) ! printf '%s\n' "$stages" | grep -qx milestones && { [ "$done_n" -ge 10 ] || [ "$open_n" -ge 8 ]; } ;;
       belfry) ! printf '%s\n' "$stages" | grep -qx belfry && [ "$done_n" -ge 5 ] ;;
       review-task) [ -n "$current_id" ] && [ "$has_review" != 1 ] ;;
+      decisions) [ "$decisions_on" != 1 ] && { [ -n "$adr" ] || [ "$done_n" -ge 20 ]; } ;;
+      drift) [ "$drift_md" != 1 ] && { [ "$context_set" = 1 ] || [ "$docs_md" -gt 0 ]; } && [ "$done_n" -ge 10 ] ;;
+      releases) [ -z "$release_tag" ] && [ "$done_n" -ge 5 ] ;;
+      reviewer)
+        [ "$reviewer_md" != 1 ] \
+          && { { [ "$context_set" != 1 ] && [ -n "$design" ]; } || { [ -n "$ci" ] && [ "$checks_empty" = 1 ]; }; }
+        ;;
+      review-steps)
+        printf '%s\n' "$stages" | grep -qx milestones && [ "$has_done_milestone" = 1 ] && [ "$review_md" != 1 ]
+        ;;
     esac
   }
 
   if [ -n "$only" ]; then
     evidence=$(_evidence "$only")
-    printf 'SUGGEST %s %s%s\n' "$only" "$(_peal_next_try "$only")" "${evidence:+ $evidence}"
+    printf 'SUGGEST %s %s%s\n' "$only" "$(_peal_next_try "$only" "$features")" "${evidence:+ $evidence}"
   else
-    for item in guardrails milestones belfry review-task; do
+    for item in guardrails milestones belfry review-task decisions drift releases reviewer review-steps; do
       _qualifies "$item" || continue
       _peal_next_blocked "$item" "$declined" "$today" && continue
       evidence=$(_evidence "$item")
       if [ -z "$picked" ]; then
         picked=$item
-        printf 'SUGGEST %s %s%s\n' "$item" "$(_peal_next_try "$item")" "${evidence:+ $evidence}"
+        printf 'SUGGEST %s %s%s\n' "$item" "$(_peal_next_try "$item" "$features")" "${evidence:+ $evidence}"
       elif [ "$also" -lt 3 ]; then
-        printf 'ALSO %s %s%s\n' "$item" "$(_peal_next_try "$item")" "${evidence:+ $evidence}"
+        printf 'ALSO %s %s%s\n' "$item" "$(_peal_next_try "$item" "$features")" "${evidence:+ $evidence}"
         also=$((also + 1))
       fi
     done
@@ -177,22 +345,24 @@ _peal_next_untagged() {
 
 # peal_next_hint RECORDS MILESTONES -> the SessionStart hint line ("Next to adopt: ..."),
 # reusing RECORDS and MILESTONES session_start already gathered (no second list, no
-# fetch, no gh) plus one local git log for guardrails' evidence. Nothing (status 0) for
-# NONE, an item currently declined, or any problem (a malformed declined date included),
-# so the hook is never held up by this; shown even without stages: recorded.
+# fetch, no gh), plus one local git log for guardrails' evidence and _peal_next_features'
+# own local files and git calls. Nothing (status 0) for NONE, an item currently declined,
+# or any problem (a malformed declined date included), so the hook is never held up by
+# this; shown even without stages: recorded.
 peal_next_hint() {
-  local records=$1 milestones=$2 stages declined today untagged line item try prefix evidence
+  local records=$1 milestones=$2 stages declined today untagged features line item try prefix evidence
   stages=$(peal_config_get stages 2>/dev/null) || return 0
   declined=$(_peal_next_declined 2>/dev/null) || return 0
   today=${PEAL_TODAY:-$(date -u +%Y-%m-%d)}
   untagged=$(_peal_next_untagged 2>/dev/null)
-  line=$(peal_next_core "$records" "$milestones" "$stages" "$declined" "$untagged" "$today" 2>/dev/null | head -n 1)
+  features=$(_peal_next_features 2>/dev/null)
+  line=$(peal_next_core "$records" "$milestones" "$stages" "$declined" "$untagged" "$today" "$features" 2>/dev/null | head -n 1)
   case $line in
     "SUGGEST "*) ;;
     *) return 0 ;;
   esac
   item=$(printf '%s\n' "$line" | awk '{ print $2 }')
-  try=$(_peal_next_try "$item")
+  try=$(_peal_next_try "$item" "$features")
   prefix="SUGGEST $item $try"
   evidence=${line#"$prefix"}
   evidence=${evidence# }
@@ -215,7 +385,7 @@ peal_next() {
       *) [ -z "$only$all" ] || { peal_err "next: --all or an item, not both"; return 2; }; only=$arg ;;
     esac
   done
-  local stages declined today records milestones untagged
+  local stages declined today records milestones untagged features
   stages=$(peal_config_get stages) || stages=""
   today=${PEAL_TODAY:-$(date -u +%Y-%m-%d)}
   if [ -z "$only" ] && ! printf '%s\n' "$stages" | grep -qx tasks; then
@@ -226,7 +396,8 @@ peal_next() {
   records=$(peal_store_list --no-pr 2>/dev/null)
   milestones=$(peal_store_milestones 2>/dev/null)
   untagged=$(_peal_next_untagged)
-  peal_next_core "$records" "$milestones" "$stages" "$declined" "$untagged" "$today" "$only" "$all"
+  features=$(_peal_next_features)
+  peal_next_core "$records" "$milestones" "$stages" "$declined" "$untagged" "$today" "$features" "$only" "$all"
 }
 
 # peal_next_decline ITEM -> declined.ITEM set to today in .peal/config.yml, every other

@@ -41,7 +41,7 @@ a task with the planner and implementer subagents, `/peal:idea`, `/peal:split`,
 reviews a task and opens its pull request, `/peal:milestone-review` closes a milestone
 once the human agrees, `/peal:drift` files what the documents and the repository
 disagree on, `/peal:release` makes a release from the tasks finished since the last, `/peal:setup`
-sets a project up in stages from inside your session, on `peal init`, which writes them and takes them back, `/peal:next` suggests the one next stage to adopt with the evidence for it, and the optional decisions module keeps a project's decision records. See
+sets a project up in stages from inside your session, on `peal init`, which writes them and takes them back, `/peal:next` suggests the one next stage or feature to adopt (decisions, drift, releases, the reviewer's own rules, the milestone review's own steps) with the evidence for it, and the optional decisions module keeps a project's decision records. See
 [docs/design.md](docs/design.md), the [milestones](docs/milestones/) and the backlog in
 [tasks/](tasks/).
 
