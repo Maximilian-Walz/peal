@@ -5,9 +5,12 @@
 # update.
 #
 # Where it looks, in order:
-#   1. $PEAL_ROOT, a Peal checkout or installation (an error if it holds no Peal);
+#   1. $PEAL_ROOT, a Peal checkout or installation, taken as it is (an error if it holds
+#      no Peal): whoever sets it chose what runs;
 #   2. the root the plugin's SessionStart hook recorded in this repository's git directory;
 #   3. the newest Peal in Claude Code's plugin cache.
+# A recorded or cached root runs only once it is verified (the block below): never a Peal
+# inside this repository, whatever the repository ships or records.
 set -u
 
 if [ -n "${PEAL_ROOT:-}" ]; then
@@ -18,24 +21,160 @@ if [ -n "${PEAL_ROOT:-}" ]; then
   exec "$PEAL_ROOT/bin/peal" "$@"
 fi
 
-here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-if common=$(cd "$here" && cd "$(git rev-parse --git-common-dir 2>/dev/null)" && pwd) \
-    && [ -r "$common/peal-root" ]; then
-  IFS= read -r root <"$common/peal-root"
-  if [ -n "$root" ] && [ -x "$root/bin/peal" ]; then
-    exec "$root/bin/peal" "$@"
-  fi
-fi
+_peal_me=peal
+_peal_base=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
+_peal_common=$(cd "$_peal_base" && cd "$(git rev-parse --git-common-dir 2>/dev/null)" && pwd -P) \
+  || _peal_common=""
 
-newest=""
-for dir in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/plugins/cache/*/peal/*/; do
-  [ -x "${dir}bin/peal" ] || continue
-  if [ -z "$newest" ] || [ "$dir" -nt "$newest" ]; then
-    newest=$dir
+# --- Finding Peal: this block is the same in templates/launcher and templates/githook ---
+# The caller sets _peal_me (the name its messages start with), _peal_base (a directory of
+# this repository's work tree) and _peal_common (its git directory, or empty). A candidate
+# root is taken only if it is an absolute path with an executable bin/peal, its
+# .claude-plugin/plugin.json names peal with a version, and it lies outside this
+# repository: every worktree git lists, the base, the git directory. A recorded or cached
+# root must also lie in Claude Code's plugin cache and, when installed_plugins.json is
+# there, be a path and version its peal@ entries list. A candidate refused is named on
+# stderr with the reason. Nothing here reads or runs a file of the work tree.
+_peal_config=${CLAUDE_CONFIG_DIR:-$HOME/.claude}
+_peal_root=""
+_peal_dirs=""
+
+# _peal_real DIR -> DIR's physical path; DIR itself when it cannot be entered.
+_peal_real() {
+  (cd "$1" 2>/dev/null && pwd -P) || printf '%s\n' "$1"
+}
+
+# _peal_inside PATH DIR -> status 0 if PATH is DIR or lies under it.
+_peal_inside() {
+  case "${1%/}/" in "${2%/}/"*) return 0 ;; esac
+  return 1
+}
+
+# _peal_repo_dirs -> _peal_dirs: this repository's directories, physical, one per line.
+_peal_repo_dirs() {
+  local line
+  [ -z "$_peal_dirs" ] || return 0
+  _peal_dirs=$(
+    git -C "$_peal_base" worktree list --porcelain 2>/dev/null | while IFS= read -r line; do
+      case $line in ("worktree "*) _peal_real "${line#worktree }" ;; esac
+    done
+    _peal_real "$_peal_base"
+    [ -z "$_peal_common" ] || _peal_real "$_peal_common"
+  )
+}
+
+# _peal_installed -> "PATH<TAB>VERSION" for each entry of a peal@ key in
+# installed_plugins.json.
+_peal_installed() {
+  awk '
+    { text = text $0 "\n" }
+    END {
+      n = length(text); depth = 0; peal = 0; haskey = 0
+      for (i = 1; i <= n; i++) {
+        c = substr(text, i, 1)
+        if (c == "\"") {
+          s = ""
+          for (i++; i <= n; i++) {
+            c = substr(text, i, 1)
+            if (c == "\\") { i++; s = s substr(text, i, 1); continue }
+            if (c == "\"") break
+            s = s c
+          }
+          if (haskey) {
+            if (peal && depth == peal + 1 && key == "installPath") path = s
+            if (peal && depth == peal + 1 && key == "version") version = s
+            haskey = 0
+          } else last = s
+        } else if (c == ":") { key = last; haskey = 1 }
+        else if (c == ",") haskey = 0
+        else if (c == "[" || c == "{") {
+          depth++
+          if (c == "[" && haskey && !peal && key ~ /^peal@/) peal = depth
+          if (c == "{" && peal && depth == peal + 1) { path = ""; version = "" }
+          haskey = 0
+        } else if (c == "]" || c == "}") {
+          if (c == "}" && peal && depth == peal + 1) print path "\t" version
+          if (c == "]" && depth == peal) peal = 0
+          depth--
+        }
+      }
+    }' "$_peal_config/plugins/installed_plugins.json" 2>/dev/null
+}
+
+# _peal_check ROOT KIND -> status 0 if ROOT holds the installed Peal; KIND is PEAL_ROOT
+# (need not be in the cache), recorded or cache.
+_peal_check() {
+  local root=${1%/} kind=$2 why="" name version real dir entry cache
+  case $root in /*) ;; *) why="not an absolute path" ;; esac
+  if [ -z "$why" ] && [ ! -x "$root/bin/peal" ]; then
+    why="it holds no executable bin/peal"
   fi
-done
-if [ -n "$newest" ]; then
-  exec "${newest}bin/peal" "$@"
+  if [ -z "$why" ]; then
+    name=$(sed -n 's/^[[:space:]]*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+      "$root/.claude-plugin/plugin.json" 2>/dev/null | sed -n 1p)
+    version=$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+      "$root/.claude-plugin/plugin.json" 2>/dev/null | sed -n 1p)
+    if [ "$name" != peal ] || [ -z "$version" ]; then
+      why="its .claude-plugin/plugin.json does not name peal with a version"
+    fi
+  fi
+  if [ -z "$why" ]; then
+    real=$(_peal_real "$root")
+    _peal_repo_dirs
+    while IFS= read -r dir; do
+      if [ -n "$dir" ] && _peal_inside "$real" "$dir"; then
+        why="it lies inside this repository ($dir)"
+        break
+      fi
+    done <<EOF
+$_peal_dirs
+EOF
+  fi
+  if [ -z "$why" ] && [ "$kind" != PEAL_ROOT ]; then
+    cache=$(_peal_real "$_peal_config/plugins/cache")
+    _peal_inside "$real" "$cache" || why="it is not in Claude Code's plugin cache ($cache)"
+  fi
+  if [ -z "$why" ] && [ "$kind" != PEAL_ROOT ] && [ -f "$_peal_config/plugins/installed_plugins.json" ]; then
+    why="installed_plugins.json lists no peal $version there"
+    while IFS=$'\t' read -r dir entry; do
+      if [ -n "$dir" ] && [ "$entry" = "$version" ] && [ "$(_peal_real "$dir")" = "$real" ]; then
+        why=""
+        break
+      fi
+    done <<EOF
+$(_peal_installed)
+EOF
+  fi
+  [ -n "$why" ] || return 0
+  printf '%s: skipped the Peal at %s (%s): %s\n' "$_peal_me" "$1" "$kind" "$why" >&2
+  return 1
+}
+
+# _peal_find -> _peal_root: the recorded root, else the newest cached Peal, the first
+# that passes _peal_check; status 1 if none does.
+_peal_find() {
+  local recorded="" dir newest=""
+  if [ -n "$_peal_common" ] && [ -r "$_peal_common/peal-root" ]; then
+    IFS= read -r recorded <"$_peal_common/peal-root"
+    if [ -n "$recorded" ] && _peal_check "$recorded" recorded; then
+      _peal_root=${recorded%/}
+      return 0
+    fi
+  fi
+  for dir in "$_peal_config"/plugins/cache/*/peal/*/; do
+    [ -d "$dir" ] || continue
+    _peal_check "$dir" cache || continue
+    if [ -z "$newest" ] || [ "$dir" -nt "$newest" ]; then
+      newest=$dir
+    fi
+  done
+  [ -n "$newest" ] || return 1
+  _peal_root=${newest%/}
+}
+# --- end of finding Peal ---
+
+if _peal_find; then
+  exec "$_peal_root/bin/peal" "$@"
 fi
 
 cat >&2 <<'EOF'
