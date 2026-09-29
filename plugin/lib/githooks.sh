@@ -158,7 +158,10 @@ peal_githook() {
 #                                              milestone's, and the one made current)
 #       chore(release): <tag>                  only files of release.version-files
 #                                              modified, each exactly as the version
-#                                              written into its parent's (peal ship bump)
+#                                              written into its parent's, and
+#                                              release.changelog modified (or added as
+#                                              "# Changelog") by one entry "## <tag>"
+#                                              inserted after its title (peal ship bump)
 # Rewriting main (not a fast-forward) and deleting it are refused. Git runs no pre-push
 # for a merge made on the server (a pull request's), so this never stands in its way.
 # Known limit: the main branch and the tasks and milestones directories are this
@@ -307,9 +310,11 @@ _peal_pre_push_index() {
 
 # _peal_pre_push_release SHA MAIN SHORT SUBJECT -> refused unless SHA's subject names a
 # release tag, and its diff only modifies files of release.version-files, each exactly
-# what setting its field to that version makes of its parent's (peal_version_edit).
+# what setting its field to that version makes of its parent's (peal_version_edit), and
+# release.changelog, the parent's with one entry of that tag inserted, or added as a new
+# changelog holding that entry (peal_changelog_shape: its shape, not its text).
 _peal_pre_push_release() {
-  local sha=$1 short=$3 subject=$4 prefix files version diff line mode path field why="" dir n=0
+  local sha=$1 short=$3 subject=$4 prefix files changelog version tag diff line mode path field why="" dir n=0 shape
   prefix=$(peal_config_get release.tag-prefix) || return 1
   version=${subject#"chore(release): "}
   if [ "${version#"$prefix"}" = "$version" ] && [ -n "$prefix" ] \
@@ -317,9 +322,14 @@ _peal_pre_push_release() {
     _peal_gate_refuse pre-push "$short reaches $2 directly as \"$subject\", which names no release tag (${prefix}MAJOR.MINOR.PATCH)"
     return
   fi
+  tag=$version
   version=${version#"$prefix"}
   if ! files=$(peal_version_files 2>&1); then
     _peal_gate_refuse pre-push "$short reaches $2 directly as \"$subject\", but release.version-files is not right:" "$files"
+    return
+  fi
+  if ! changelog=$(peal_changelog_file 2>&1); then
+    _peal_gate_refuse pre-push "$short reaches $2 directly as \"$subject\", but release.changelog is not right:" "$changelog"
     return
   fi
   diff=$(git diff-tree -r --raw --no-commit-id --no-renames --root "$sha")
@@ -330,7 +340,21 @@ _peal_pre_push_release() {
     path=${line#*$'\t'}
     mode=${line%%$'\t'*}
     field=$(awk -F '\t' -v p="$path" '$1 == p { print $2; exit }' <<<"$files")
-    if [ -z "$field" ]; then
+    if [ -n "$changelog" ] && [ "$path" = "$changelog" ]; then
+      if [[ "$mode" == ":100644 100644 "*" M" ]]; then
+        git show "$sha^:$path" >"$dir/old" 2>/dev/null || why="$path: not in the parent"
+      elif [[ "$mode" == ":000000 100644 "*" A" ]]; then
+        printf '%s' "$PEAL_CHANGELOG_NEW" >"$dir/old"
+      else
+        why="not a modified or added plain file: $path"
+      fi
+      if [ -z "$why" ] && ! git show "$sha:$path" >"$dir/new" 2>/dev/null; then
+        why="$path: not in the commit"
+      fi
+      if [ -z "$why" ] && ! shape=$(peal_changelog_shape "$dir/old" "$dir/new" "$tag"); then
+        why="$path: $shape"
+      fi
+    elif [ -z "$field" ]; then
       why="not a file of release.version-files: $path"
     elif [[ "$mode" != ":100644 100644 "*" M" ]]; then
       why="not a modified plain file: $path"

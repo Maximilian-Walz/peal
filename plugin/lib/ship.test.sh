@@ -12,8 +12,7 @@
 # release), the version files set before the tag (release.version-files: JSON, TOML and
 # YAML, directly and through a pull request, and their refusals), the changelog
 # (release.changelog: created, each entry above the last, tag refused without it), the
-# GitHub release
-# created and updated, the wait for the tag's workflow runs
+# GitHub release created and updated, the wait for the tag's workflow runs
 # and the release.report lines, and the fields breaking and release-note.
 set -uo pipefail
 # shellcheck source=test-lib.sh
