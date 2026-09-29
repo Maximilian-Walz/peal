@@ -58,4 +58,19 @@ Ranges: .belfry.yml:1-46, plugin/lib/init.sh:402-482, plugin/lib/init.test.sh:91
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Built:
+- `/peal:comment <id> <text>` (`plugin/commands/comment.md`): the prompt Belfry's triage runs to add to a task. It writes the text to a temporary file and runs `peal comment` with it. When the text starts with Belfry's `From outside (` header, it passes `--origin outsider`. When the task is claimed or done, the text is refused, or the write fails or times out, the final answer quotes the text and says it was not added.
+- `peal init --stage belfry` (the `/peal:setup belfry` stage) writes `revise: /peal:comment {task} {text}` for files storage; issues storage writes none, since Belfry comments on the issue itself.
+- `peal comment --origin outsider|writer`: outsider sets `origin: outsider` on the task in the same commit (files storage; issues storage accepts and ignores it). Both storages refuse, before anything is written (exit 2), text with a line that is `---` or starts with `## `.
+- Docs: design.md, reference/cli.md, reference/commands.md, reference/tasks.md, security.md.
+
+Decided, with the human (see Notes): `revise` is a *prompt* in Belfry's contract, not a shell line, so it points at a slash command rather than the Raw's `.peal/peal comment {task} {text}`. The worry that a sandboxed Belfry job cannot push to main was checked from inside such a job. With an HTTPS origin and `gh`'s credential helper, a script's push authenticates, so `revise` is wired now. SSH remotes may still hang there; the command reports a failed or timed-out write rather than losing the text silently.
+
+Left:
+- Peal's own `.belfry.yml` is unchanged: `.peal/peal` runs the installed release, which lacks `/peal:comment`. Idea `belfry-revise-line` adds the line after the release.
+- Belfry marks an "add" item as added when the job is created, not when it succeeds. This is reported to Belfry as friction, not filed as a Peal task.
+- Done when #1 (a live triage "add" landing as a dated line) cannot be checked before the release. After it, re-run the triage "add" verdicts for 0067 and 0068.
+
+### Reviewer findings not acted on
+
+- The `--origin outsider|writer` check in `plugin/bin/peal` repeats `create`'s few lines. The reviewer found it too small to block, and so do I.
