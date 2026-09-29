@@ -139,4 +139,27 @@ Ranges: plugin/lib/backlog.sh:1-58; plugin/lib/claim.sh:1-72, 163-259, 323-438; 
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+What was built:
+
+- **Deferred reads as released.**
+  - Files storage: `_peal_files_claims` (`plugin/lib/store-files.sh`) skips a claim when main's copy of the task holds more `Deferred YYYY-MM-DD after a claim:` lines than the claim's fork point (`_peal_files_deferred`, which counts occurrences). `list`, `offer` and the board then derive free or blocked, in any clone, as soon as the defer is on main. A claim made later forks after that line and reads `claimed-live` again, even on the same day. A deferred local branch whose name exists afresh on the remote reads `claimed-live remote:origin`.
+  - Issues storage: `peal defer` takes the `in progress` label off, and a local worktree marked `peal-deferred` no longer counts as `wt:`.
+- **Release in place.** A new verdict, `own-deferred`, lets `peal release` give a deferred claim back from inside its own worktree. From elsewhere, release falls back to the same path when `git worktree remove` fails on a clean worktree; a dirty one is refused as before. The path keeps the tip under `refs/reaped/`, detaches HEAD, writes `peal-released` into the worktree's admin dir, and deletes the local and remote branches (for issues, it also takes the label off). It exits 0 with one `released …` line that names the reaper. On git 2.53, a failed remove from elsewhere has already emptied the directory and dropped the worktree; release says so and leaves the empty directory.
+- **Reaper.** `_peal_reap_leftovers` (`plugin/lib/claim.sh`), a second pass of the SessionStart reaping, removes detached worktrees marked `peal-released` once their heartbeat is idle. It never forces, never removes the calling worktree, and prints `kept …` when git refuses.
+- **Claim over a leftover.** `peal_store_takeover` (new in `plugin/lib/store.sh`, implemented in both storages) releases a deferred leftover branch before a fresh claim. A leftover that exists only on the remote is deleted under a lease, with its tip kept. `peal_claim_clear` replaces the three "in the way" checks: a leftover released in place is removed, and an empty directory, such as the one git's failed remove leaves, is claimed into.
+- `peal defer`'s last line is `next: peal release ID`, and `/peal:defer` step 5 runs it in place with no ExitWorktree. The docs are updated: `docs/reference/{tasks,cli,storage}.md` and `docs/design.md`.
+
+Review:
+
+- The reviewer found that a task released in place read free, but a claim was refused because the leftover directory sat in its path. Fixed in e5d56b7, with harness cases for both storages.
+- The reviewer found that the planned note on 0064 was missing. It was added with `peal comment 0064` (pull request #185): 0064's planned note must never start with `Deferred <date> after a claim:`.
+- The reviewer found that the departures from the plan were not in Notes. They are now recorded there.
+
+Left for the next session:
+
+- Belfry's push policy for deleting the job's own branch from the sandbox, and Belfry's own cleanup of the leftover directory, were not verified, as agreed. If the delete is refused, release warns "could not delete" as before.
+- Claiming over a leftover does not check its heartbeat, as agreed. A leftover holding uncommitted or untracked files still stops the claim, because the removal is never forced.
+- Any empty directory at a claim's path is now used rather than refused, because git's emptied directory cannot be told apart from any other empty one.
+- A claim branch that merges main after its own defer reads as claimed again.
+
+Harnesses: backlog 309, claim 294, store-issues 636, store-files 561, tasks 204 and session 159 all pass, and `tools/lint.sh` passes.
