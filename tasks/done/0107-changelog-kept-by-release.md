@@ -128,4 +128,37 @@ tools/ci-changes.sh:1-37.
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Built: a generic, optional `release.changelog` setting (default empty = off). When it
+names a file, `peal ship bump <version>` inserts the release's entry into it in the same
+`chore(release): <tag>` commit as the version files, `peal ship tag` refuses until the
+entry is on main, and the pre-push gate accepts that commit by the entry's shape.
+
+- Code: `plugin/lib/ship.sh` (`peal_changelog_file`, the entry, the insertion, bump,
+  tag, and `peal_changelog_shape`, which the gate shares) and `plugin/lib/githooks.sh`
+  (`_peal_pre_push_release`). The path rules are now one shared `_peal_repo_path`, used
+  by both `peal_version_files` and `peal_changelog_file`.
+- Entry format: `## <tag> (<UTC date of the bump>)`, a blank line, then the notes of
+  `peal ship notes` with their section headings one level down (`### Features`). It goes
+  after a leading `# ...` title, or at the top of a file with no title. A missing file
+  is built as `# Changelog` plus the entry, and the gate checks that case (A) with the
+  same shape check as a modified file (M).
+- Decided with the human: the gate checks the entry's shape only (one block, headed by
+  the subject's tag, with no other `##` heading inside it and nothing else changed),
+  not its text. The limit is written into `docs/security.md`. The entry holds what
+  landed up to the bump: anything merged between bump and tag is in the tag's notes but
+  not in the entry (documented in `release.md` and `design.md`). Pre-releases get
+  entries too.
+- Departure from the plan, accepted by the reviewer: `release.changelog` must name a
+  `.md` file, on top of the path rules. Without that, hostile values (`*`, a 64 KB
+  name) would have been written onto main. It also keeps the key from ever naming a
+  script or a config file, since the gate lets any text through inside the entry.
+  Also, bump and tag now read their settings before the fetch, so a bad setting is
+  refused before anything happens.
+- `tools/ci-changes.sh` treats `CHANGELOG.md` as read by no harness, so a release PR
+  that changes only the changelog and the version stays fast.
+- `hostile.test.sh` gains a check that the remote's main is unchanged after a refused
+  command. The harness's own snapshot skips `remote.git`.
+- Next: the follow-up "Peal keeps its CHANGELOG.md" is filed with this close. It turns
+  the key on in `.peal/config.yml` and backfills v0.2.0, and it may only run after the
+  installed plugin is refreshed from a main that has 0107. The installed plugin refuses
+  config keys it does not know.
