@@ -18,6 +18,13 @@ When `/peal:next` exists, change `/peal:setup`'s ending to hand over to it inste
 
 This cannot start before `/peal:next` exists: task 0030, a task file, not an open issue.
 
+## Scope
+
+- `plugin/commands/setup.md`: the intro, step 1's "already set up" case and step 7 point at `/peal:next` instead of naming a next stage.
+- The survey's `next` line removed (`plugin/lib/init.sh`, `plugin/lib/init.test.sh`, `docs/reference/cli.md`): nothing reads it.
+- `docs/getting-started.md` and `docs/reference/commands.md` describe setup's new ending.
+- Checks in `plugin/commands/commands.test.sh` and `plugin/lib/setup.test.sh`.
+
 ## Done when
 
 - `plugin/commands/setup.md` step 7 points at `/peal:next` and no longer names `/peal:setup <next>` or the next stage's description.
