@@ -45,7 +45,12 @@
 #                                          (PEAL_CLAIM_PATH), or its parked claim resumed;
 #                                          status 3 for a claim that lost the race
 #   peal_store_release ID                  the claim's worktree and branch removed, the tip
-#                                          kept under refs/reaped/
+#                                          kept under refs/reaped/; the worktree left in
+#                                          place for the reaping when it cannot go
+#                                          (peal_release_worktree)
+#   peal_store_takeover ID                 a claim of the free task ID that a defer gave
+#                                          back but is still there ended, so the task can
+#                                          be claimed afresh; status 0 when there is none
 #   peal_store_branch_task                 the id of the task whose branch is checked out
 #                                          here; status 1 on any other branch
 #   peal_store_session_task                "id<TAB>file" when this worktree holds its

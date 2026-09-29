@@ -7,9 +7,11 @@
 #   bash plugin/lib/backlog.test.sh
 #
 # Phase 1 writes the task's text back under its number, and refuses work on the branch,
-# uncommitted changes that would go with the claim, and every check a revise makes; phase 2
-# is the release, which a deferred claim passes although its task is not done, and the
-# reaping, which lets it go once idle.
+# uncommitted changes that would go with the claim, and every check a revise makes. Once
+# on main, the claim reads as given back, whatever is left of its worktree. Phase 2 is the
+# release, which a deferred claim passes although its task is not done, in place from its
+# own worktree, and the reaping, which lets it or its leftover worktree go once idle; a
+# claim afresh takes a deferred claim's leftover over.
 set -uo pipefail
 # shellcheck source=test-lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/test-lib.sh"
@@ -23,7 +25,7 @@ in_wt() { at "$wt" "$PEAL" "$@"; }
 subject() { git -C "$work" fetch -q origin; git -C "$work" log -1 --format=%s origin/main; }
 
 files() {
-  local work wt out new before
+  local work wt out new before other admin
   work=$(repo)
   put "$work" backlog 0001 deferred-task "milestone: m1"
   put "$work" backlog 0002 blocking-task
@@ -95,29 +97,51 @@ files() {
 
   out=$(in_wt defer --reason "blocked on 0002" <<<"$new" 2>&1)
   check "defer" "0:deferred 0001 tasks/backlog/0001-deferred-task.md
-next, from outside this worktree: peal release 0001" "$?:$out"
+next: peal release 0001" "$?:$out"
   check "defer: the text on main" "$(printf '%s\n' "$new" | sed "s/^## Notes\$/## Notes\n\nDeferred $today after a claim: blocked on 0002/")" \
     "$(on_main "$work" tasks/backlog/0001-deferred-task.md)"
   check "defer: through the pre-push gate" "docs(tasks): defer 0001 deferred-task [0001]" "$(subject)"
   check "defer: the worktree left clean" "|wip: defer capture [0001]" \
     "$(git -C "$wt" status --porcelain)|$(git -C "$wt" log -1 --format=%s)"
-  check "defer: still claimed until released" "0001 claimed-live deferred-task wt:$wt" "$(peal list --no-pr 0001 2>&1)"
 
-  # Phase 2: the release, never from inside; once deferred, a task not done may go.
-  check_refused "release: from inside" "it is the worktree this runs in" in_wt release 0001
-  out=$(peal release 0001 2>&1)
-  check "release a deferred claim" "0:released 0001 task/0001-deferred-task, tip kept as refs/reaped/0001-deferred-task" "$?:$out"
-  check "release: branch and worktree gone" "||" \
-    "$(git -C "$work" branch --list 'task/0001-*')|$(git -C "$work" ls-remote origin 'refs/heads/task/0001-*')|$(git -C "$work" worktree list | grep 0001)"
-  check "release: blocked by its corrected depends" "0001 blocked deferred-task needs:0002" "$(peal list --no-pr 0001 2>&1)"
+  # Once the defer is on main, the claim reads as given back, its worktree still there:
+  # here, and in a clone that sees only the remote branch.
+  check "defer: released as soon as it is on main" "0001 blocked deferred-task needs:0002" "$(peal list --no-pr 0001 2>&1)"
+  other=$(dirname "$work")/other
+  git clone -q "$(dirname "$work")/remote.git" "$other" 2>/dev/null
+  check "defer: released, seen from a clone with the remote branch only" \
+    "origin/task/0001-deferred-task|0001 blocked deferred-task needs:0002" \
+    "$(git -C "$other" branch -r --list 'origin/task/0001-*' | tr -d ' ')|$(at "$other" "$PEAL" list --no-pr 0001 2>&1)"
 
-  # A claim not deferred still stays.
-  peal claim 0003 >/dev/null 2>&1
-  check_refused "release: not deferred" "task 0003 stays: task 0003 is not done" peal release 0003
+  # Phase 2 from inside: released in place, the worktree left detached for the reaping.
+  out=$(in_wt release 0001 2>&1)
+  check "release from inside" "0:released 0001 task/0001-deferred-task, tip kept as refs/reaped/0001-deferred-task; the worktree stays at $wt, the SessionStart reaping removes it once idle" "$?:$out"
+  check "release from inside: the branches gone, the tip kept" "||refs/reaped/0001-deferred-task" \
+    "$(git -C "$work" branch --list 'task/0001-*')|$(git -C "$work" ls-remote origin 'refs/heads/task/0001-*')|$(git -C "$work" for-each-ref --format='%(refname)' 'refs/reaped/0001-*')"
+  check "release from inside: the directory stays, detached" "HEAD|$(git -C "$work" rev-parse refs/reaped/0001-deferred-task)" \
+    "$(git -C "$wt" rev-parse --abbrev-ref HEAD)|$(git -C "$wt" rev-parse HEAD)"
+  check "release from inside: blocked by its corrected depends" "0001 blocked deferred-task needs:0002" "$(peal list --no-pr 0001 2>&1)"
 
-  # Reaping (in a repository that uses Peal) lets an idle deferred claim go, not a live one.
+  # The reaping (in a repository that uses Peal) keeps the leftover while its heartbeat is
+  # fresh, and removes it once idle.
   mkdir -p "$work/.peal"
+  admin=$(git -C "$wt" rev-parse --absolute-git-dir)
+  touch "$admin/peal-heartbeat"
+  out=$(peal hook session-start <<<'{"source":"startup"}' 2>&1 | grep -E '^(reaped|kept)')
+  check "reap: not a live leftover" "" "$out"
+  touch -t 202001010000 "$admin/peal-heartbeat"
+  out=$(peal hook session-start <<<'{"source":"startup"}' 2>&1 | grep -E '^(reaped|kept)')
+  check "reap: an idle leftover" "reaped leftover $wt" "$out"
+  check "reap: the leftover gone" "|" "$(ls -d "$wt" 2>/dev/null)|$(git -C "$work" worktree list | grep 0001)"
+
+  # A claim not deferred still stays, from elsewhere and from inside.
+  peal claim 0003 >/dev/null 2>&1
   wt=$(dirname "$work")/work-wt/0003-kept-task
+  check_refused "release: not deferred" "task 0003 stays: task 0003 is not done" peal release 0003
+  check_refused "release: not deferred, from inside" "it is the worktree this runs in" in_wt release 0003
+  check "release: not deferred, nothing removed" "0003 claimed-live kept-task wt:$wt" "$(peal list --no-pr 0003 2>&1)"
+
+  # Reaping lets an idle deferred claim go, not a live one.
   in_wt defer --reason "not now" < <(ID=0003 text) >/dev/null 2>&1
   touch "$(git -C "$wt" rev-parse --absolute-git-dir)/peal-heartbeat"
   out=$(peal hook session-start <<<'{"source":"startup"}' 2>&1 | grep -E '^(reaped|kept)')
@@ -126,6 +150,41 @@ next, from outside this worktree: peal release 0001" "$?:$out"
   out=$(peal hook session-start <<<'{"source":"startup"}' 2>&1 | grep -E '^(reaped|kept)')
   check "reap: an idle deferred claim" "reaped 0003 task/0003-kept-task, tip kept as refs/reaped/0003-kept-task" "$out"
   check "reap: free again" "0003 free kept-task -" "$(peal list --no-pr 0003 2>&1)"
+
+  # Claimed again the same day, the claim forks from a main that has the defer's line.
+  peal claim 0003 >/dev/null 2>&1
+  check "claim again after a defer, the same day" "0003 claimed-live kept-task wt:$wt" "$(peal list --no-pr 0003 2>&1)"
+
+  # A deferred claim's leftover, here, is taken over by the next claim.
+  in_wt defer --reason "again" < <(ID=0003 text) >/dev/null 2>&1
+  out=$(peal claim 0003 2>/dev/null)
+  check "claim over a local leftover" "0:released 0003 task/0003-kept-task, tip kept as refs/reaped/0003-kept-task
+claimed 0003 task/0003-kept-task $wt" "$?:$out"
+  check "claim over a local leftover: claimed" "0003 claimed-live kept-task wt:$wt" "$(peal list --no-pr 0003 2>&1)"
+
+  # And one that exists only on the remote, from another clone.
+  in_wt defer --reason "once more" < <(ID=0003 text) >/dev/null 2>&1
+  git -C "$other" fetch -q origin
+  check "defer: the remote-only leftover reads free" "0003 free kept-task -" "$(at "$other" "$PEAL" list --no-pr 0003 2>&1)"
+  out=$(at "$other" "$PEAL" claim 0003 2>&1)
+  check "claim over a remote-only leftover" "0:released 0003 origin/task/0003-kept-task, deferred, tip kept as refs/reaped/0003-kept-task
+claimed 0003 task/0003-kept-task $(dirname "$work")/other-wt/0003-kept-task" "$?:$(printf '%s\n' "$out" | grep -E '^(released|claimed) ')"
+  check "claim over a remote-only leftover: claimed there" "0003 claimed-live kept-task wt:$(dirname "$work")/other-wt/0003-kept-task" \
+    "$(at "$other" "$PEAL" list --no-pr 0003 2>&1)"
+  check "claim over a remote-only leftover: claimed elsewhere, seen here" "0003 claimed-live kept-task remote:origin" \
+    "$(peal list --fetch --no-pr 0003 2>&1)"
+
+  # Released from elsewhere, a clean worktree git cannot delete (its directory not
+  # writable) is dropped by git, emptied: the branches still go.
+  peal claim 0002 >/dev/null 2>&1
+  wt=$(dirname "$work")/work-wt/0002-blocking-task
+  in_wt defer --reason "stuck" < <(ID=0002 text) >/dev/null 2>&1
+  chmod a-w "$(dirname "$wt")"
+  out=$(peal release 0002 2>&1)
+  chmod u+w "$(dirname "$wt")"
+  check "release: a worktree git cannot delete" "0:released 0002 task/0002-blocking-task, tip kept as refs/reaped/0002-blocking-task; git dropped the worktree, but its emptied directory stays at $wt: remove it once nothing holds it" "$?:$out"
+  check "release: a worktree git cannot delete, the branches gone" "||0002 free blocking-task -" \
+    "$(git -C "$work" branch --list 'task/0002-*')|$(git -C "$work" ls-remote origin 'refs/heads/task/0002-*')|$(peal list --no-pr 0002 2>&1)"
 }
 
 files_own() {
@@ -208,15 +267,22 @@ issues() {
   check "issues defer --dry-run" "0:defer: a dry run; nothing changed" "$?:$(printf '%s\n' "$out" | tail -n 1)"
   out=$(in_wt defer --reason "needs 2" <<<"$new" 2>&1)
   check "issues defer" "0:deferred 1 https://github.com/acme/widgets/issues/1
-next, from outside this worktree: peal release 1" "$?:$out"
+next: peal release 1" "$?:$out"
   check "issues defer: the body" "Depends on #2" "$(gh_get '.[] | select(.number == 1) | .body' | head -n 1)"
   check "issues defer: the reason" "Deferred $today after a claim: needs 2" "$(gh_get '.[] | select(.issue == 1) | .body' comments)"
-  check_refused "issues release: from inside" "it is the worktree this runs in" in_wt release 1
-  # An untracked symlink to /dev/null left in the worktree does not keep git's own
-  # worktree remove from going through: it is not work, so it is cleared with the rest.
+  # Given back at once, its worktree still there: the label off, the mark on it.
+  check "issues defer: the label off" "" "$(labels 1)"
+  check "issues defer: released as soon as it is deferred" "1 blocked deferred-one needs:2" "$(peal list 1 2>&1)"
+  # Released from inside, in place; an untracked symlink to /dev/null left in the
+  # worktree is no obstacle.
   ln -s /dev/null "$wt/dev-null"
-  out=$(peal release 1 2>&1)
-  check "issues release a deferred claim, the link in its worktree no obstacle" "0:released 1 issue/1, tip kept as refs/reaped/issue-1" "$?:$out"
+  git -C "$wt" push -q -u origin issue/1 2>/dev/null
+  check "issues release: the branch on the remote before" "1" "$(git -C "$work" ls-remote origin 'refs/heads/issue/1' | wc -l | tr -d ' ')"
+  out=$(in_wt release 1 2>&1)
+  check "issues release from inside" "0:released 1 issue/1, tip kept as refs/reaped/issue-1; the worktree stays at $wt, the SessionStart reaping removes it once idle" "$?:$out"
+  check "issues release from inside: the branches gone" "|" \
+    "$(git -C "$work" branch --list 'issue/1')|$(git -C "$work" ls-remote origin 'refs/heads/issue/1')"
+  check "issues release from inside: detached" "HEAD" "$(git -C "$wt" rev-parse --abbrev-ref HEAD)"
   check "issues release: the label off" "" "$(labels 1)"
   check "issues release: blocked" "1 blocked deferred-one needs:2" "$(peal list 1 2>&1)"
 

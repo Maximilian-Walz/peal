@@ -15,7 +15,8 @@
 #   done            the issue is closed
 #   awaiting-merge  an open pull request says "Fixes #N" (closes, resolves ...), opened
 #                   from this repository or by someone with write access
-#   claimed-live    issue/N has a worktree here, or the issue carries the label
+#   claimed-live    issue/N has a worktree here not marked deferred (lib/backlog.sh), or
+#                   the issue carries the label, which a defer takes off
 #   parked          a local issue/N ahead of main without a worktree
 #   blocked, free   as for every storage (lib/task-state.awk)
 #
@@ -126,6 +127,7 @@ _peal_issues_claims() {
     git rev-parse -q --verify "refs/remotes/$PEAL_REMOTE/issue/$id" >/dev/null && rb=issue/$id
     [ -z "$lb" ] || wt=$(printf '%s\n' "$worktrees" | awk -F '\t' -v id="$id" '$1 == id { p = $3 } END { print p }')
     [ -z "$wt" ] || [ -d "$wt" ] || wt=""
+    [ -z "$wt" ] || ! peal_deferred "$wt" || wt=""
     if IFS="$(printf '\t')" read -r _ pr url draft < <(awk -F '\t' -v id="$id" '$1 == id' "$prs") && [ -n "$pr" ]; then
       detail="pr:$pr $url"
       [ "$draft" != true ] || detail="$detail draft"
@@ -674,7 +676,8 @@ peal_store_edit() {
 
 # peal_store_defer ID REASON TEXT [--dry-run] -> the claim of issue ID, checked out here,
 # given back: the issue rewritten from the task text in the file TEXT as a revise would,
-# and "Deferred <date> after a claim: REASON" as a comment. Refused: another branch, any
+# and "Deferred <date> after a claim: REASON" as a comment, the label "in progress" taken
+# off. Refused: another branch, any
 # commit on it beyond the remote's main (an issue's claim makes none, so a commit is
 # work), its remote branch holding more, anything uncommitted, a closed issue, and the
 # checks of a revise but "no change".
@@ -729,7 +732,7 @@ peal_store_defer() {
     else
       _peal_issues_apply "$id" "$row" "$tmp" "$note" || status=$?
     fi
-    [ $status != 0 ] || echo "deferred $id $(_peal_field "$row" 7)"
+    [ $status != 0 ] || { _peal_issues_unlabel "$id"; echo "deferred $id $(_peal_field "$row" 7)"; }
   fi
   rm -rf "$tmp"
   return $status
@@ -899,10 +902,11 @@ peal_store_claim() {
 }
 
 # peal_store_release ID -> issue ID's claim on this machine ended as for task files (the
-# tip kept as refs/reaped/issue-ID, the worktree and the local branch removed, the
-# remote's branch too when it holds nothing more), and the label taken off an open issue.
+# tip kept as refs/reaped/issue-ID, the worktree removed or left in place for the reaping,
+# the local branch removed, the remote's branch too when it holds nothing more), and the
+# label taken off an open issue.
 peal_store_release() {
-  local id=$1 branch=issue/$1 name=issue-$1 wt tip labels dev
+  local id=$1 branch=issue/$1 name=issue-$1 wt tip
   _peal_issues_settings || return 2
   if ! git rev-parse -q --verify "refs/heads/$branch" >/dev/null; then
     peal_err "release: no local branch of task $id"
@@ -914,17 +918,10 @@ peal_store_release() {
     return 2
   fi
   wt=$(peal_store_claim_worktrees | awk -F '\t' -v id="$id" '$1 == id { print $3; exit }')
+  # shellcheck disable=SC2034 # read by peal_release_said (lib/claim.sh)
+  PEAL_RELEASE_LEFT="" PEAL_RELEASE_STUCK=""
   if [ -n "$wt" ]; then
-    # An untracked character device (a sandbox's /dev/null mount) is not work, but git's
-    # own worktree remove refuses on any untracked path with no way to tell it apart from
-    # one that is; the whole worktree is going regardless, so it is deleted first.
-    while IFS= read -r dev; do
-      [ -n "$dev" ] && rm -f -- "$wt/$dev"
-    done < <(cd "$wt" && peal_untracked_devices 2>/dev/null)
-    if ! git worktree remove "$wt"; then
-      peal_err "release: git worktree remove refused $wt; the tip is kept, nothing else removed"
-      return 2
-    fi
+    peal_release_worktree "$wt" || return 2
   fi
   git branch -q -D "$branch" || return 2
   if git rev-parse -q --verify "refs/remotes/$PEAL_REMOTE/$branch" >/dev/null; then
@@ -934,15 +931,34 @@ peal_store_release() {
       peal_err "warning: could not delete $PEAL_REMOTE/$branch"
     fi
   fi
-  if labels=$(peal_gh "repos/$PEAL_REPO/issues/$id" --jq 'select(.state == "open") | .labels[].name'); then
+  _peal_issues_unlabel "$id"
+  echo "released $id $branch, tip kept as refs/reaped/$name$(peal_release_said)"
+}
+
+# _peal_issues_unlabel ID -> the claim label off issue ID if it is open and carries it;
+# a warning, not a failure, when that cannot be done.
+_peal_issues_unlabel() {
+  local labels
+  if labels=$(peal_gh "repos/$PEAL_REPO/issues/$1" --jq 'select(.state == "open") | .labels[].name'); then
     if printf '%s\n' "$labels" | grep -qxF "$PEAL_ISSUES_CLAIMED" \
-        && ! peal_gh --method DELETE "repos/$PEAL_REPO/issues/$id/labels/$(peal_urlencode "$PEAL_ISSUES_CLAIMED")" >/dev/null; then
-      peal_err "warning: could not take the label '$PEAL_ISSUES_CLAIMED' off issue $id"
+        && ! peal_gh --method DELETE "repos/$PEAL_REPO/issues/$1/labels/$(peal_urlencode "$PEAL_ISSUES_CLAIMED")" >/dev/null; then
+      peal_err "warning: could not take the label '$PEAL_ISSUES_CLAIMED' off issue $1"
     fi
   else
-    peal_err "warning: could not read issue $id; its label '$PEAL_ISSUES_CLAIMED' may still be on"
+    peal_err "warning: could not read issue $1; its label '$PEAL_ISSUES_CLAIMED' may still be on"
   fi
-  echo "released $id $branch, tip kept as refs/reaped/$name"
+}
+
+# peal_store_takeover ID -> the claim of the free issue ID given back by a defer but still
+# here, a local issue/ID whose worktree is marked deferred, released so the issue can be
+# claimed afresh. A branch without a worktree, here or on the remote, is simply continued
+# by the claim. Nothing to do and status 0 otherwise.
+peal_store_takeover() {
+  local id=$1 wt
+  _peal_issues_settings || return 2
+  wt=$(peal_store_claim_worktrees | awk -F '\t' -v id="$id" '$1 == id { print $3; exit }')
+  [ -n "$wt" ] && peal_deferred "$wt" || return 0
+  peal_store_release "$id"
 }
 
 peal_store_branch_task() {

@@ -8,10 +8,14 @@
 #   peal-turns, peal-nudged   the turn budget's count and whether it nudged (session.sh)
 #   peal-heartbeat            touched on every tool call; a worktree touched in the last
 #                             PEAL_IDLE_MINUTES is live and never reaped
+#   peal-deferred             the claim was given back (lib/backlog.sh)
+#   peal-released             the claim was released, but its worktree left in place,
+#                             detached, for the reaping (peal_release_worktree)
 # Released tips are kept as refs/reaped/<name> for PEAL_REAPED_DAYS, their times in the
 # common git directory's peal-reaped/.
 
 PEAL_IDLE_MINUTES=30
+PEAL_RELEASED=peal-released
 PEAL_REAPED_DAYS=30
 
 # peal_worktrees_dir -> the directory claims are made in: the worktrees setting, {repo}
@@ -248,6 +252,10 @@ _peal_claim_one() {
       return 2
     fi
   fi
+  # A defer's claim still here reads free: it is ended before the claim afresh.
+  if [ "$state" = free ]; then
+    peal_store_takeover "$id" || return 2
+  fi
   PEAL_CLAIM_PATH=""
   peal_store_claim "$id"
   status=$?
@@ -336,8 +344,70 @@ _peal_admin_dir() {
   return 1
 }
 
+# peal_is_here PATH -> status 0 if PATH is the worktree this runs in.
+peal_is_here() {
+  local top
+  [ -n "$1" ] && [ -d "$1" ] || return 1
+  top=$(git rev-parse --show-toplevel 2>/dev/null) && top=$(cd "$top" && pwd -P) || return 1
+  [ "$top" = "$(cd "$1" && pwd -P)" ]
+}
+
+# _peal_live ADMIN -> status 0 if a session touched the heartbeat in the git directory
+# ADMIN in the last PEAL_IDLE_MINUTES.
+_peal_live() {
+  [ -f "$1/peal-heartbeat" ] && [ -n "$(find "$1/peal-heartbeat" -mmin -"$PEAL_IDLE_MINUTES" 2>/dev/null)" ]
+}
+
+# peal_release_worktree WT -> the worktree at WT of a claim being released gone, or left
+# in place: detached at its tip, the marker peal-released in its git directory, for the
+# SessionStart reaping to remove once idle (PEAL_RELEASE_LEFT its path). In place when WT
+# is the worktree this runs in, or when git worktree remove fails on a clean worktree git
+# still knows. Git drops a worktree it could not delete once it has emptied it (a
+# directory busy or not writable): PEAL_RELEASE_STUCK is then the emptied directory.
+# Status 2, with nothing removed, when git refuses a worktree with uncommitted changes.
+peal_release_worktree() {
+  local wt=$1 dev out admin
+  PEAL_RELEASE_LEFT="" PEAL_RELEASE_STUCK=""
+  if ! peal_is_here "$wt"; then
+    # An untracked character device (a sandbox's /dev/null mount) is not work, but git's
+    # own worktree remove refuses on any untracked path with no way to tell it apart from
+    # one that is; the whole worktree is going regardless, so it is deleted first.
+    while IFS= read -r dev; do
+      [ -n "$dev" ] && rm -f -- "$wt/$dev"
+    done < <(cd "$wt" 2>/dev/null && peal_untracked_devices 2>/dev/null)
+    out=$(git worktree remove "$wt" 2>&1) && return 0
+    if ! _peal_admin_dir "$wt" >/dev/null; then
+      PEAL_RELEASE_STUCK=$wt
+      return 0
+    fi
+    if [ ! -d "$wt" ] || [ -n "$(cd "$wt" && peal_status_porcelain 2>/dev/null)" ]; then
+      [ -z "$out" ] || printf '%s\n' "$out" >&2
+      peal_err "release: git worktree remove refused $wt; the tip is kept, nothing else removed"
+      return 2
+    fi
+  fi
+  if ! admin=$(_peal_admin_dir "$wt") || ! git -C "$wt" checkout -q --detach; then
+    peal_err "release: could not detach $wt to leave it in place; the tip is kept, nothing else removed"
+    return 2
+  fi
+  date -u +%Y-%m-%dT%H:%M:%SZ >"$admin/$PEAL_RELEASED"
+  PEAL_RELEASE_LEFT=$wt
+}
+
+# peal_release_said -> what peal_release_worktree left behind, as the end of the release's
+# line.
+peal_release_said() {
+  if [ -n "${PEAL_RELEASE_LEFT-}" ]; then
+    printf '; the worktree stays at %s, the SessionStart reaping removes it once idle' "$PEAL_RELEASE_LEFT"
+  elif [ -n "${PEAL_RELEASE_STUCK-}" ]; then
+    printf '; git dropped the worktree, but its emptied directory stays at %s: remove it once nothing holds it' "$PEAL_RELEASE_STUCK"
+  fi
+}
+
 # peal_release_verdict ID BRANCH PATH STATE -> why the claim of task ID (its local BRANCH,
 # its worktree at PATH or none, the task's STATE) must stay, or "ok" if it may go:
+#   own-deferred PATH is the worktree asking, and holds a claim given back: it is released
+#               in place (peal_release_worktree)
 #   own         PATH is the worktree asking
 #   deferred    PATH holds a claim given back (lib/backlog.sh): it goes although its task is
 #               not done; deferred-live if a session worked there in the last
@@ -347,13 +417,12 @@ _peal_admin_dir() {
 #   dirty       PATH holds uncommitted changes
 #   unpushed    BRANCH has commits its remote branch does not
 peal_release_verdict() {
-  local id=$1 branch=$2 path=$3 state=$4 top admin up
-  if [ -n "$path" ] && [ -d "$path" ]; then
-    top=$(git rev-parse --show-toplevel 2>/dev/null) && top=$(cd "$top" && pwd -P)
-    if [ "$top" = "$(cd "$path" && pwd -P)" ]; then echo own; return; fi
+  local id=$1 branch=$2 path=$3 state=$4 admin up
+  if peal_is_here "$path"; then
+    if peal_deferred "$path"; then echo own-deferred; else echo own; fi
+    return
   fi
-  if [ -n "$path" ] && admin=$(_peal_admin_dir "$path") && [ -f "$admin/peal-heartbeat" ] \
-      && [ -n "$(find "$admin/peal-heartbeat" -mmin -"$PEAL_IDLE_MINUTES" 2>/dev/null)" ]; then
+  if [ -n "$path" ] && admin=$(_peal_admin_dir "$path") && _peal_live "$admin"; then
     if peal_deferred "$path"; then echo deferred-live; else echo live; fi
     return
   fi
@@ -403,7 +472,7 @@ peal_release() {
   path=$(peal_store_claim_worktrees | awk -F '\t' -v b="$branch" '!f && $2 == b { print $3; f = 1 }')
   verdict=$(peal_release_verdict "$id" "$branch" "$path" "$state")
   case $verdict in
-    ok | deferred | deferred-live) ;;
+    ok | deferred | deferred-live | own-deferred) ;;
     *)
       peal_err "release: task $id stays: $(_peal_verdict_words "$verdict" "$id")"
       return 2 ;;
@@ -414,7 +483,9 @@ peal_release() {
 # peal_reap -> every claim worktree under the worktrees directory that may go
 # (peal_release_verdict: landed, or deferred and idle) released, a line "reaped ID BRANCH, tip kept as REF" each; a
 # landed one that must stay gets "kept ID PATH: why". The others, still at work, pass
-# silently. Kept tips past their time expire.
+# silently. Then the worktrees a release left in place (peal_release_worktree) removed
+# once idle, "reaped leftover PATH" each, or "kept PATH: why" when git refuses; never the
+# worktree this runs in. Kept tips past their time expire.
 peal_reap() {
   local dir records id branch path state verdict out
   dir=$(peal_worktrees_dir) || return 0
@@ -434,5 +505,28 @@ peal_reap() {
       dirty | unpushed) printf 'kept %s %s: landed, but %s\n' "$id" "$path" "$(_peal_verdict_words "$verdict" "$id")" ;;
     esac
   done < <(peal_store_claim_worktrees)
+  _peal_reap_leftovers "$dir"
   peal_reaped_expire
+}
+
+# _peal_reap_leftovers DIR -> the detached worktrees under DIR marked peal-released, idle
+# and not the one this runs in, removed; git's own remove, never forced, so anything
+# uncommitted in one keeps it.
+_peal_reap_leftovers() {
+  local dir=$1 path admin dev out
+  while IFS= read -r path; do
+    case $path in "$dir"/*) ;; *) continue ;; esac
+    admin=$(_peal_admin_dir "$path") || continue
+    [ -f "$admin/$PEAL_RELEASED" ] || continue
+    ! peal_is_here "$path" || continue
+    ! _peal_live "$admin" || continue
+    while IFS= read -r dev; do
+      [ -n "$dev" ] && rm -f -- "$path/$dev"
+    done < <(cd "$path" 2>/dev/null && peal_untracked_devices 2>/dev/null)
+    if out=$(git worktree remove "$path" 2>&1); then
+      printf 'reaped leftover %s\n' "$path"
+    else
+      printf 'kept %s: %s\n' "$path" "$(printf '%s' "$out" | tail -n 1)"
+    fi
+  done < <(git worktree list --porcelain | awk '/^worktree / { path = substr($0, 10) } /^detached$/ { print path }')
 }

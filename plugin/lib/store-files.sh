@@ -115,6 +115,23 @@ _peal_files_branches() {
       done
 }
 
+# _peal_files_deferred REF BASE ID -> status 0 if the claim on REF was given back by a
+# defer: BASE's copy of task ID holds a line "Deferred <date> after a claim: ..." that the
+# copy at the fork point of REF and BASE lacks. A claim made after the defer forks from a
+# main that has the line already.
+_peal_files_deferred() {
+  local ref=$1 base=$2 id=$3 path fork forkpath
+  path=$(_peal_files_find "$base" "$id" 2>/dev/null) || return 1
+  fork=$(git merge-base "$ref" "$base" 2>/dev/null) || return 1
+  forkpath=$(_peal_files_find "$fork" "$id" 2>/dev/null) || forkpath=""
+  awk -v re='^Deferred [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] after a claim: ' '
+    FNR == 1 { f++ }
+    f == 1 && $0 ~ re { seen[$0] = 1 }
+    f == 2 && $0 ~ re && !($0 in seen) { found = 1 }
+    END { exit !found }' \
+    <(if [ -n "$forkpath" ]; then git show "$fork:$forkpath"; else echo; fi) <(git show "$base:$path")
+}
+
 # _peal_files_worktrees -> "branch<TAB>path" for every worktree on a branch whose
 # directory still exists.
 _peal_files_worktrees() {
@@ -132,7 +149,8 @@ _peal_files_worktrees() {
 #   claimed-live    the branch has a worktree (wt:<path>), or exists only on the remote
 #   parked          a local branch ahead of main without a worktree
 # A local branch with no worktree and nothing ahead of main claims nothing, unless the
-# remote has it too.
+# remote has it too. Nor does a branch whose claim was deferred (_peal_files_deferred),
+# whatever is left of its worktree.
 _peal_files_claims() {
   local base=$1 nopr=$2 branches worktrees id lb rb ref wt ahead detail done_files out=""
   branches=$(_peal_files_branches)
@@ -156,6 +174,11 @@ _peal_files_claims() {
         fi
       fi
       out="$out$id"$'\t'awaiting-merge$'\t'"$detail"$'\t'"${lb:-$rb}"$'\n'
+    elif _peal_files_deferred "$ref" "$base" "$id"; then
+      # A claim made afresh elsewhere, under the same name, is on the remote alone.
+      if [ -n "$lb" ] && [ -n "$rb" ] && ! _peal_files_deferred "refs/remotes/$PEAL_REMOTE/$rb" "$base" "$id"; then
+        out="$out$id"$'\t'claimed-live$'\t'"remote:$PEAL_REMOTE"$'\t'"$rb"$'\n'
+      fi
     elif [ -n "$lb" ] && [ -n "$wt" ]; then
       out="$out$id"$'\t'claimed-live$'\t'"wt:$wt"$'\t'"$lb"$'\n'
     elif [ -n "$lb" ] && ahead=$(git rev-list --count "$base..refs/heads/$lb") && [ "$ahead" -gt 0 ]; then
@@ -957,11 +980,12 @@ _peal_files_resume() {
 
 # peal_store_release ID -> task ID's claim on this machine ended: the local branch's tip
 # kept as refs/reaped/<branch without its prefix>, its worktree removed (refused if
-# anything in it is uncommitted), the local branch deleted, and the remote's too when it
-# holds nothing the local one does not. One line "released ID BRANCH, tip kept as REF".
+# anything in it is uncommitted) or left in place for the reaping (peal_release_worktree),
+# the local branch deleted, and the remote's too when it holds nothing the local one does
+# not. One line "released ID BRANCH, tip kept as REF", and what was left in place.
 # Whether a claim may end is not the storage's to judge; the caller has (lib/claim.sh).
 peal_store_release() {
-  local id=$1 branch wt name tip dev
+  local id=$1 branch wt name tip
   _peal_files_settings || return 2
   if ! branch=$(_peal_files_local_branch "$id"); then
     peal_err "release: no local branch of task $id"
@@ -976,17 +1000,10 @@ peal_store_release() {
   wt=$(git worktree list --porcelain | awk -v b="branch refs/heads/$branch" '
     /^worktree / { path = substr($0, 10) }
     !f && $0 == b { print path; f = 1 }')
+  # shellcheck disable=SC2034 # read by peal_release_said (lib/claim.sh)
+  PEAL_RELEASE_LEFT="" PEAL_RELEASE_STUCK=""
   if [ -n "$wt" ]; then
-    # An untracked character device (a sandbox's /dev/null mount) is not work, but git's
-    # own worktree remove refuses on any untracked path with no way to tell it apart from
-    # one that is; the whole worktree is going regardless, so it is deleted first.
-    while IFS= read -r dev; do
-      [ -n "$dev" ] && rm -f -- "$wt/$dev"
-    done < <(cd "$wt" && peal_untracked_devices 2>/dev/null)
-    if ! git worktree remove "$wt"; then
-      peal_err "release: git worktree remove refused $wt; the tip is kept, nothing else removed"
-      return 2
-    fi
+    peal_release_worktree "$wt" || return 2
   fi
   git branch -q -D "$branch" || return 2
   if git rev-parse -q --verify "refs/remotes/$PEAL_REMOTE/$branch" >/dev/null; then
@@ -996,7 +1013,38 @@ peal_store_release() {
       peal_err "warning: could not delete $PEAL_REMOTE/$branch"
     fi
   fi
-  echo "released $id $branch, tip kept as refs/reaped/$name"
+  echo "released $id $branch, tip kept as refs/reaped/$name$(peal_release_said)"
+}
+
+# peal_store_takeover ID -> the claim of the free task ID given back by a defer
+# (_peal_files_deferred) but still there, ended so the task can be claimed afresh: a local
+# branch released (peal_store_release), one only on the remote deleted there, its tip kept
+# as refs/reaped/<branch without its prefix> first and the delete refused if the branch
+# moved meanwhile. Nothing to do and status 0 when the task has no such claim.
+peal_store_takeover() {
+  local id=$1 base lb rb name tip
+  _peal_files_settings || return 2
+  base=$(_peal_files_base 2>/dev/null) || return 0
+  lb=$(_peal_files_branches | awk -F '\t' -v id="$id" '$1 == id && $2 == "local" { print $3; exit }')
+  rb=$(_peal_files_branches | awk -F '\t' -v id="$id" '$1 == id && $2 == "remote" { print $3; exit }')
+  if [ -n "$lb" ]; then
+    _peal_files_deferred "refs/heads/$lb" "$base" "$id" || return 0
+    peal_store_release "$id"
+    return
+  fi
+  [ -n "$rb" ] && _peal_files_deferred "refs/remotes/$PEAL_REMOTE/$rb" "$base" "$id" || return 0
+  name=${rb#"$PEAL_PREFIX"}
+  tip=$(git rev-parse "refs/remotes/$PEAL_REMOTE/$rb") || return 2
+  if ! peal_reaped_keep "$name" "$tip"; then
+    peal_err "claim: could not keep the tip of $PEAL_REMOTE/$rb as refs/reaped/$name; nothing removed"
+    return 2
+  fi
+  if ! peal_git_try git push -q --force-with-lease="refs/heads/$rb:$tip" "$PEAL_REMOTE" ":refs/heads/$rb"; then
+    peal_err "claim: could not delete the deferred $PEAL_REMOTE/$rb${PEAL_GIT_ERR:+ ($PEAL_GIT_ERR)}"
+    return 2
+  fi
+  git update-ref -d "refs/remotes/$PEAL_REMOTE/$rb" 2>/dev/null
+  echo "released $id $PEAL_REMOTE/$rb, deferred, tip kept as refs/reaped/$name"
 }
 
 peal_store_branch_task() {

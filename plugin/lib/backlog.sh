@@ -2,13 +2,15 @@
 # The backlog commands' steps above the storage: a revise, which on the task's own claim
 # narrows the claim's text (a split keeping its first piece), and defer.
 #
-# Defer gives a claim back without work, the task keeping its number. Two phases, since a
-# session cannot remove the worktree it stands in:
+# Defer gives a claim back without work, the task keeping its number. Two phases:
 #   1. `peal defer --reason R` in the claim's worktree: the task's text (on stdin, with
 #      what the session learned) goes back to the storage (peal_store_defer), and the
 #      worktree's git directory gets the marker peal-deferred.
-#   2. `peal release ID` from anywhere else: a marked claim is released although its task
-#      is not done (lib/claim.sh); the SessionStart reaping releases it too once idle.
+#   2. `peal release ID`, here or anywhere else: a marked claim is released although its
+#      task is not done (lib/claim.sh), here in place, its worktree left detached for the
+#      SessionStart reaping; the reaping releases it too once idle.
+# Once the defer is on the main branch, the claim reads as released already, whatever is
+# left of it (task-files: _peal_files_deferred; issues: the label off, the mark).
 
 PEAL_DEFERRED=peal-deferred
 
@@ -48,7 +50,7 @@ peal_defer() {
   if [ "$queued" -gt 0 ]; then
     peal_err "warning: $queued idea(s) queued here go with the worktree; file them now: peal ideas --flush"
   fi
-  echo "next, from outside this worktree: peal release $id"
+  echo "next: peal release $id"
 }
 
 # peal_deferred PATH -> status 0 if the worktree at PATH holds a claim phase 1 gave back.
