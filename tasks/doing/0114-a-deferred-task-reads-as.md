@@ -88,6 +88,11 @@ What the human wants:
     - `/peal:defer` no longer asks for ExitWorktree.
     - Belfry's push policy and its cleanup are left unverified and noted in the Outcome.
     - 0064's note must not start with `Deferred <date> after a claim:`. This goes on 0064 as a queued idea or comment, not an edit in this task.
+- 2026-09-29, departures from the plan made while building:
+  - When `git worktree remove` fails from elsewhere, git 2.53 has already emptied the directory and dropped the worktree, so it cannot be left in place. Release carries on and deletes the branches. A claim afresh reuses the emptied directory, because `git worktree add` into an empty directory works; the reaper does not sweep it.
+  - A deferred local branch whose name exists afresh on the remote reads `claimed-live remote:origin`, not free.
+  - New storage function `peal_store_takeover` (`plugin/lib/store.sh`, outside `touches`). New helper `peal_claim_clear`, which replaces the three "in the way" checks: a leftover released in place is removed (never forced), and an empty directory is used.
+  - `_peal_files_deferred` counts occurrences of each `Deferred` line, so a second defer with the same date and reason is also seen.
 
 ## Plan
 
