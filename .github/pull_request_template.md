@@ -4,3 +4,5 @@
 
 **Security:** <!-- does this touch an asset, attacker or boundary in docs/security.md?
 Say which, or "no". -->
+
+See [CONTRIBUTING.md](https://github.com/Maximilian-Walz/peal/blob/main/CONTRIBUTING.md).
