@@ -41,4 +41,22 @@ if they differ.
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Built: `.peal/peal` regenerated with the branch's CLI (`PEAL_ROOT=$PWD/plugin
+plugin/bin/peal init --stage tasks`). `cmp .peal/peal plugin/templates/launcher` finds them
+identical, and the branch's `peal doctor version` now reports the launcher ok (it
+reported FAIL before).
+
+Hook stubs: `peal doctor hooks` in this clone reports every stub stale. They are
+installed per clone, not committed, so there is nothing to commit; the fix is
+`.peal/peal hooks install` on each machine, run from `main` after this merges. It was not
+run from this worktree: the hooks directory is shared with the main checkout and the other
+worktrees, and installing from a branch would change the gates other sessions run under.
+
+Left:
+- CI does not check the launcher against its template yet: filed as an idea
+  (ci-launcher-template-check, plan required: plain `cmp` step or a launcher-only
+  doctor mode is its open question).
+- The branch's `peal doctor` still reports FAIL for the installed plugin version (0.1.0
+  installed, 0.2.0 on the branch; clears when the plugin is reinstalled from main) and
+  for `belfry.list`, `belfry.board` and `belfry.offer`, which this task did not look into.
+  Re-run `peal doctor` after the merge and the reinstall.
