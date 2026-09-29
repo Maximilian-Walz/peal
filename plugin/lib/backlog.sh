@@ -83,7 +83,7 @@ peal_depend() {
     peal_main_write_hint
     return 2
   fi
-  [ "$(_peal_field "$on_rec" 2)" != done ] || peal_err "depend: note: task $on is done already; the dependency is recorded all the same"
+  [ "$(_peal_field "$on_rec" 2)" != "done" ] || peal_err "depend: note: task $on is done already; the dependency is recorded all the same"
   state=$(_peal_field "$rec" 2)
   detail=$(_peal_field "$rec" 3)
   case $state in

@@ -346,7 +346,7 @@ depend_files() {
   put "$work" backlog 0006 built-task
   put "$work" backlog 0007 remote-task
   put "$work" backlog 0008 merging-task
-  put "$work" done 0009 finished-task
+  put "$work" "done" 0009 finished-task
   at "$work" "$PEAL" hooks install >/dev/null
 
   # A free task, through the installed pre-push gate.
@@ -401,7 +401,7 @@ task 0002: waits for 0009" "$?:$out"
 next: peal release 0006" "$?:$out"
   check "depend: the deferred note" "Deferred $today after a claim: waits for 0003" \
     "$(on_main "$work" tasks/backlog/0006-built-task.md | grep '^Deferred')"
-  check "depend: the marker" "1" "$(ls "$(git -C "$wt" rev-parse --absolute-git-dir)/peal-deferred" | wc -l | tr -d ' ')"
+  check "depend: the marker" "1" "$([ -f "$(git -C "$wt" rev-parse --absolute-git-dir)/peal-deferred" ] && echo 1)"
   check "depend: claim reads as given back" "0006 blocked built-task needs:0003" "$(peal list --no-pr 0006 2>&1)"
   peal release 0006 >/dev/null 2>&1
   check "depend: release" "0" "$?"
@@ -449,7 +449,7 @@ depend_issues() {
 next: peal release 1" "$?:$out"
   check "issues depend: the label off" "" "$(labels 1)"
   check "issues depend: the deferred note" "Deferred $today after a claim: waits for #2" "$(gh_get '.[] | select(.issue == 1) | .body' comments)"
-  check "issues depend: the marker" "1" "$(ls "$(git -C "$wt" rev-parse --absolute-git-dir)/peal-deferred" | wc -l | tr -d ' ')"
+  check "issues depend: the marker" "1" "$([ -f "$(git -C "$wt" rev-parse --absolute-git-dir)/peal-deferred" ] && echo 1)"
   check "issues depend: listed blocked" "1 blocked claimed-one needs:2" "$(peal list 1 2>&1)"
 }
 

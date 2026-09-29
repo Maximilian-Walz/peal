@@ -373,6 +373,27 @@ beyond the claim but those of the task's own file; for issues, the `in progress`
 taken off. Once on main the claim reads as given back
 ([Claim states](tasks.md#claim-states)). Then `peal release ID`, here or from elsewhere.
 
+## `peal depend`
+
+`peal depend ID ON`: task `ID` made to wait for task `ON`, written straight into the
+storage like `/peal:revise`; this is what Belfry's `tasks.commands.defer` runs, `{task}`
+and `{on}` checked ids. For task files it lands on `ID`'s backlog file on the main
+branch (subject `docs(tasks): defer NNNN slug, waits for MMMM [NNNN]`) with a dated line
+in `## Notes`; for issues, a `Depends on #N` line in the body and a comment.
+
+- `ID` free or blocked, or held by a claim of this clone (a worktree here): that claim is
+  given back as `peal defer` does, refused for the same reasons (work on the branch,
+  uncommitted changes), its worktree marked, then `peal release ID`.
+- Refused (status 2): a claim elsewhere (remote-only, label-only, parked), a task awaiting
+  merge or done, an unknown `ON` or `ID`, `ON` equal to `ID`, ids that are none. A depends
+  cycle: status 1, `depend: refused: depends cycle ...`, nothing written. An `ON` that is
+  done is accepted with a note.
+- An `ON` already in `depends` exits 0 and writes nothing (unless a claim of this clone
+  is still to be given back), so a re-run job is harmless.
+- Where writes to main go through pull requests, a write still open after about 90s
+  (`PEAL_MAIN_WRITE_BUDGET`) counts as done. Writing main's copy while the claim lives
+  can make the close's pull request conflict on the task file; resolve it there.
+
 ## `peal work`
 
 `peal work [ID | POOL]`, the steps of `/peal:work`.

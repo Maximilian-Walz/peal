@@ -50,7 +50,7 @@ following:
 
 | | Peal provides | Belfry expects |
 |---|---|---|
-| tasks | list, offer, claim (printing the worktree), board, idea and create commands | the `commands` backend of its contract |
+| tasks | list, offer, claim (printing the worktree), board, idea, create and depend (`tasks.commands.defer`) commands | the `commands` backend of its contract |
 | milestones | milestones as data; `peal milestone-state`; `/peal:milestone-review {milestone}` | a milestone list in the board output; `tasks.commands.milestone` for its Close, Park and Un-park; actions with the `milestone` trigger |
 | a session | `/peal:work` and `/peal:close` in the claimed worktree | claim before the session; finished means a PR open and green |
 | the human | questions through `AskUserQuestion` | routes them to its inbox |
@@ -73,6 +73,7 @@ tasks:
     milestone: .peal/peal milestone-state {id} {state} --reason {reason}
     retire: .peal/peal retire {task} --reason {reason}
     revise: /peal:comment {task} {text}
+    defer: .peal/peal depend {task} {on}
 actions:
   milestone-review:
     title: Milestone review
@@ -86,6 +87,10 @@ Where the pieces meet, and why:
   `milestone-state`) print exactly the shapes Belfry reads
   ([CLI](reference/cli.md#peal-list)). `claim` is idempotent, so a re-run job continues
   where the last one stopped.
+- `defer` (`peal depend {task} {on}`) is what Belfry's `task_defer` runs when a session
+  finds its task blocked on another: `{on}` goes into `{task}`'s `depends`, straight into
+  the storage, a depends cycle refused. A live claim of the clone it runs in is given back
+  as `peal defer` does. It is for task files; the `github-issues` backend defers natively.
 - The board's `after_deploy` list (pull requests a task waits on) is Belfry's contract
   too: Peal passes it through and never reads it.
 - `/peal:work NNNN` notices it is already inside NNNN's worktree and skips its own claim.
@@ -482,6 +487,7 @@ The interface:
 | `comment id text` | appended under `## Notes` | a comment |
 | `record id text` | the claimed task's file rewritten on its branch, committed | title, body and managed labels rewritten |
 | `defer id reason text` | the claim's text, the reason in `## Notes`, onto the backlog file on main; refused for any commit beyond the claim but those of its own file | title, body, milestone and managed labels rewritten, reason as a comment; refused for any commit on `issue/N` |
+| `depend id on wt` | `on` added to the backlog copy's `depends` and a dated note, onto main as a `defer`; a live claim of this clone (`wt`) given back | `Depends on #N` added to the body, a comment; the label taken off a claim given back |
 | `milestones` | the milestone files | the repository's milestones |
 | `milestone-text id` | the milestone's file on main | the milestone's description |
 | `milestone-state id state reason review` | the milestone's file (and the next current one's) rewritten on main | the milestone closed or opened, its "Parked" line and review in the description |
