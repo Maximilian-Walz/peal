@@ -25,6 +25,8 @@ From an idea a Belfry session filed while building Belfry #155 (PR #171).
 
 ## Notes
 
+2026-09-29: From 0114: 0114 reads a claim as deferred when main has a line starting `Deferred YYYY-MM-DD after a claim:` that the claim's fork point lacks. The note 0064 plans to add (`<date>: waits for <on> (deferred by its session)`) must never start that way.
+
 Deferred 2026-09-28 after a claim: stale claim: its session stopped; given back so auto mode picks it up again
 
 2026-09-26: Proposed plan (NOT agreed yet). The questions to the human timed out twice
