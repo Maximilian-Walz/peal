@@ -1,6 +1,7 @@
 ---
 plan: required
 touches: [.belfry.yml, plugin/commands/setup.md]
+milestone: m2
 ---
 
 # 0103 — Belfry can add to a Peal task: `tasks.commands.revise` in .belfry.yml and the belfry stage

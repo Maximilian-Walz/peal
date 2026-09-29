@@ -1,6 +1,7 @@
 ---
 plan: required
 touches: [plugin/lib/config.sh, plugin/lib/githooks.sh]
+milestone: m4
 ---
 
 # 0091 — Gate settings from the main branch, not the work tree

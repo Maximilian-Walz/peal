@@ -1,5 +1,5 @@
 ---
-milestone:
+milestone: m3
 plan: required
 size:
 depends: []

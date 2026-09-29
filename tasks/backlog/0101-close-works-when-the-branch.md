@@ -1,6 +1,7 @@
 ---
 plan: required
 touches: [plugin/lib/close.sh, plugin/lib/close.test.sh]
+milestone: m3
 ---
 
 # 0101 — Close works when the branch's upstream could not be recorded

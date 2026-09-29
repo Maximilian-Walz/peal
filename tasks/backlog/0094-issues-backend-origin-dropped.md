@@ -1,8 +1,9 @@
 ---
-milestone:
+milestone: m3
 plan: skipped
 size:
 depends: []
+priority: high
 ---
 
 # 0094 — `peal create --origin` silently drops on the issues backend

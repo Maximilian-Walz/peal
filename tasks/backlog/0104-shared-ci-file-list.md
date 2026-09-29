@@ -1,6 +1,7 @@
 ---
 plan: required
 touches: [plugin/lib/next.sh, plugin/lib/init.sh]
+milestone: later
 ---
 
 # 0104 — Share the CI file list between init's survey and next

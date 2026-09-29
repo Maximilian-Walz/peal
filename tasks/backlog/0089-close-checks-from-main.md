@@ -1,5 +1,6 @@
 ---
 plan: required
+milestone: m4
 ---
 
 # 0089 — checks.close from the main branch's config

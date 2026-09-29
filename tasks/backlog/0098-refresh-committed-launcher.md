@@ -1,6 +1,7 @@
 ---
 plan: skipped
 touches: [.peal/peal]
+milestone: m2
 ---
 
 # 0098 — Refresh this repository's committed launcher and hook stubs

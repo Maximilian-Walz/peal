@@ -1,6 +1,7 @@
 ---
 plan: required
 touches: [plugin/commands/work.md, plugin/lib/board.awk, plugin/lib/task-scan.awk, plugin/lib/task-state.awk, plugin/lib/store-files.sh, plugin/lib/store-files.test.sh, plugin/lib/store-issues.sh]
+milestone: m3
 ---
 
 # 0056 — Files storage: the board reads a claimed task's touches from its claim branch, not main

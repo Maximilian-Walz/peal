@@ -2,6 +2,7 @@
 plan: skipped
 depends: [0083]
 touches: [.belfry.yml]
+milestone: m3
 ---
 
 # 0095 — This repository's own .belfry.yml passes `--origin {origin}` to create

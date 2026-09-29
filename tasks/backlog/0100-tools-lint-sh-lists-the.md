@@ -1,6 +1,7 @@
 ---
 plan: required
 touches: [tools/lint.sh]
+milestone: m3
 ---
 
 # 0100 — tools/lint.sh lists the repository's files only, not sandbox placeholders
