@@ -16,7 +16,14 @@ if they differ.
 
 ## Scope
 
+- `.peal/peal` regenerated from `plugin/templates/launcher` with `peal init --stage tasks`.
+- The per-clone git hook stubs checked with `peal doctor hooks`; nothing of them is committed.
+
 ## Done when
+
+- `cmp .peal/peal plugin/templates/launcher` finds them identical, and the branch's
+  `peal doctor version` reports the launcher ok.
+- The Outcome says what, if anything, refreshing the hook stubs needs.
 
 ## Raw
 
