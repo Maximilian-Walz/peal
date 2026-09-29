@@ -1,6 +1,7 @@
 ---
 plan: required
 touches: [plugin/commands/idea.md, plugin/commands/release.md, plugin/lib/board.awk, plugin/lib/close.sh, plugin/lib/config-defaults.yml, plugin/lib/overview.awk, plugin/lib/ship.sh, plugin/lib/store-issues.sh, plugin/templates/task.md]
+milestone: m5
 ---
 
 # 0060 — Task kinds: a kind field from the config, shown as a pill, mapped to labels, and used by close and release

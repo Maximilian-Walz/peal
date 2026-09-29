@@ -1,6 +1,8 @@
 ---
 plan: skipped
 touches: [plugin/commands/idea.md, plugin/commands/commands.test.sh]
+milestone: m2
+priority: high
 ---
 
 # 0109 — /peal:idea under Belfry passes the whole composed text to task_create

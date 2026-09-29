@@ -1,6 +1,7 @@
 ---
 plan: skipped
 touches: [.peal/config.yml]
+milestone: m3
 ---
 
 # 0090 — Add docs/security.md to the project's context documents

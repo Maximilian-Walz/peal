@@ -1,6 +1,7 @@
 ---
 plan: required
 touches: [plugin/lib/close.sh, plugin/lib/close.test.sh, plugin/commands/close.md]
+milestone: m3
 ---
 
 # 0099 — `close finish` marks a draft pull request ready

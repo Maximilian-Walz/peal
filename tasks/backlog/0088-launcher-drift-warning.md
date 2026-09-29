@@ -1,5 +1,6 @@
 ---
 plan: required
+milestone: m4
 ---
 
 # 0088 — Warn when the committed launcher differs from the installed one

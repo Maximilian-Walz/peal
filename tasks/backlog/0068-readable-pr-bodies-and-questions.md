@@ -1,6 +1,7 @@
 ---
 plan: required
 touches: [plugin/commands/close.md, plugin/agents/planner.md, plugin/commands/commands.test.sh]
+milestone: m3
 ---
 
 # 0068 — Pull request bodies and questions that invite reading

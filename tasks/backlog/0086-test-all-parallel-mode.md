@@ -1,6 +1,7 @@
 ---
 plan: required
 touches: [tools/test-all.sh]
+milestone: later
 ---
 
 # 0086 — `tools/test-all.sh` runs harnesses in parallel with a `-j` flag

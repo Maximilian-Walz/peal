@@ -1,6 +1,7 @@
 ---
 plan: required
 touches: [plugin/lib/commit.sh, plugin/bin/peal]
+milestone: m3
 ---
 
 # 0102 — `peal commit` takes `-m` and answers `--help`
