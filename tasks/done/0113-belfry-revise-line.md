@@ -35,4 +35,12 @@ Split from 0103 by the human, 2026-09-29: Peal's own line after the release that
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Built: `.belfry.yml` now maps `tasks.commands.revise` to `/peal:comment {task} {text}`, under `tasks.commands` right after `retire:`. It is the exact line `peal init --stage belfry` writes (`plugin/lib/init.sh`, asserted by `plugin/lib/init.test.sh` and `plugin/lib/setup.test.sh`). The installed plugin (0.2.0 in the plugin cache) ships `commands/comment.md`, byte-identical to main's. The line no longer points at a missing command, which was why the first claim was deferred.
+
+Nothing else changed; no decision was made beyond the mapping 0103 already documents. The reviewer found the change correct and in scope.
+
+Next session: Belfry reads `.belfry.yml` from the default branch, so the one `## Done when` line can only be observed after this merges. Re-run triage on the items left waiting (0067, 0068). Then check that an "add" verdict lands as a dated line in the task's Notes. If it does not, the fault is in the Belfry contract or in `/peal:comment`, not in this line.
+
+### Escalations
+
+- The `## Done when` line ("a triage add verdict for a free task lands as a dated line in its Notes") cannot be met before merge: Belfry reads the contract from the merged default branch. It is left to the human as a post-merge check: re-run triage on 0067 and 0068 and look for the dated line.
