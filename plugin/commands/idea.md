@@ -131,8 +131,9 @@ over the network.
 Off a task branch (the main checkout, or anywhere else): never run `peal idea` here — a
 sandboxed session under Belfry has neither `gh`'s login nor SSH keys, and the shell
 command hangs with no output. Call the `task_create` tool instead, with `title` the
-title above, `body` the composed text (from `## Intent` on; not the frontmatter or
-heading) and `owner` the idea's owner (`ai` unless the idea plainly names a human).
+title above, `body` the whole composed text, frontmatter and the
+`# NNNN — Title` heading included (the same text `peal idea` and the `idea` tool get;
+`peal create` refuses a body without them) and `owner` the idea's owner (`ai` unless the idea plainly names a human).
 Report the id it returns, as `filed ...` above. If `task_create` refuses because this
 session is not a filing job, call the `idea` tool instead, with `text` the composed text
 and the same `owner`.
