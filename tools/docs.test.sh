@@ -15,9 +15,15 @@
 #     <!-- docs-check: run -->      its `$ ` lines run there, and the output lines quoted
 #                                   under each appear in its output (a line ending in " …"
 #                                   matches by its start)
+#     <!-- docs-check: frontmatter -->  the block is a task or milestone header `peal
+#                                 frontmatter check` accepts
 #     <!-- docs-check: shape -->    its `filed`, `claimed` and `closed` lines have the shape
 #                                   the commands print
 #     <!-- docs-check: install -->  its `/plugin` lines match the marketplace
+# - docs/reference/ is complete, both ways: a row in configuration.md for every key of
+#   plugin/lib/config-defaults.yml, a row in tasks.md for every Peal field of
+#   plugin/lib/task-check.awk, a heading in cli.md for every subcommand of `peal --help`
+#   (grouped second words too), a heading in commands.md for every plugin/commands/*.md;
 # Then negative cases on scratch copies: each mistake must be reported.
 # No network. bash and awk only.
 set -uo pipefail
@@ -268,12 +274,59 @@ docs_problems() {
         run)
           (cd "$(scratch_repo)" && run_block "$b") | sed "s|^|$file:$ln: |"
           ;;
+        frontmatter)
+          cp "$b" "$tmp/fm.md"
+          "$peal_bin" frontmatter check "$tmp/fm.md" 2>&1 | sed "s|^|$file:$ln: the frontmatter block: |"
+          ;;
         shape) shape_block "$b" | sed "s|^|$file:$ln: |" ;;
         install) install_block "$b" "$root" | sed "s|^|$file:$ln: |" ;;
         *) printf '%s:%s: unknown docs-check marker %s\n' "$file" "$ln" "$kind" ;;
       esac
     done
   done < <(doc_files "$root")
+  reference_problems "$root"
+}
+
+# reference_problems ROOT -> one line per way docs/reference/ falls short of the code.
+reference_problems() {
+  local root=$1 ref want have help x
+  ref=$root/docs/reference
+  # The settings: leaf keys of config-defaults.yml, dotted by indent (a key with no value
+  # on its line is a parent), against the first-column code spans of the settings table.
+  want=$(awk '
+    /^[ \t]*#/ || !NF { next }
+    { match($0, /^ */); ind = RLENGTH; line = substr($0, ind + 1)
+      k = line; sub(/:.*/, "", k)
+      v = line; sub(/^[^:]*:[ ]*/, "", v); sub(/[ ]*#.*/, "", v)
+      path[ind / 2] = k
+      if (v == "") next
+      key = path[0]
+      for (i = 1; i <= ind / 2; i++) key = key "." path[i]
+      print key }' "$root/plugin/lib/config-defaults.yml" | LC_ALL=C sort)
+  have=$(sed -n 's/^| `\([a-z][a-z.-]*\)` |.*/\1/p' "$ref/configuration.md" | LC_ALL=C sort)
+  LC_ALL=C comm -23 <(printf '%s\n' "$want") <(printf '%s\n' "$have") | sed 's|^\(.*\)$|docs/reference/configuration.md: no row for the setting \1|'
+  LC_ALL=C comm -13 <(printf '%s\n' "$want") <(printf '%s\n' "$have") | sed 's|^\(.*\)$|docs/reference/configuration.md: a row for \1, which config-defaults.yml lacks|'
+  # The task fields: Peal's, from task-check.awk, against the rows under "### Fields".
+  want=$(grep -o 'peal\["[a-z-]*"\]' "$root/plugin/lib/task-check.awk" | sed 's/peal\["\(.*\)"\]/\1/' | LC_ALL=C sort -u)
+  have=$(awk '/^#/ { on = ($0 == "### Fields"); next } on' "$ref/tasks.md" | sed -n 's/^| `\([a-z-]*\)` |.*/\1/p' | LC_ALL=C sort)
+  LC_ALL=C comm -23 <(printf '%s\n' "$want") <(printf '%s\n' "$have") | sed 's|^\(.*\)$|docs/reference/tasks.md: no row for the field \1|'
+  LC_ALL=C comm -13 <(printf '%s\n' "$want") <(printf '%s\n' "$have") | sed 's|^\(.*\)$|docs/reference/tasks.md: a row for the field \1, which task-check.awk lacks|'
+  # The CLI: every first word of the usage, and every second word of a grouped one (read
+  # from the synopsis column alone), has a heading.
+  help=$("$root/plugin/bin/peal" --help)
+  have=$(sed -n 's/^#\+ //p' "$ref/cli.md" | tr -d '`')
+  want=$(awk '/^  [a-z]/ { s = substr($0, 1, 32); n = split(s, w, " ")
+      print "peal " w[1]
+      if (n >= 2 && w[2] ~ /^[a-z][a-z-]*$/) print "peal " w[1] " " w[2] }' <<<"$help" | LC_ALL=C sort -u)
+  while IFS= read -r x; do
+    grep -q -x -F -- "$x" <<<"$have" || printf 'docs/reference/cli.md: no heading for `%s`\n' "$x"
+  done <<<"$want"
+  # The commands.
+  have=$(sed -n 's/^#\+ //p' "$ref/commands.md" | tr -d '`')
+  for x in "$root"/plugin/commands/*.md; do
+    x=/peal:$(basename "$x" .md)
+    grep -q -x -F -- "$x" <<<"$have" || printf 'docs/reference/commands.md: no heading for `%s`\n' "$x"
+  done
 }
 
 # The documents as they are.
@@ -282,8 +335,9 @@ files=$(doc_files "$REPO")
 check "the documents are checked" "CONTRIBUTING.md README.md docs/getting-started.md" \
   "$(grep -x -F -e README.md -e CONTRIBUTING.md -e docs/getting-started.md <<<"$files" | LC_ALL=C sort | tr '\n' ' ' | sed 's/ $//')"
 check "no milestone or decision record is checked" "0" "$(grep -c -E '^docs/(milestones|decisions)/' <<<"$files")"
-check "every marker kind is used" "config install run shape" \
-  "$(grep -h -o -E 'docs-check: [a-z]+' "$REPO/README.md" "$REPO/CONTRIBUTING.md" "$REPO"/docs/*.md | sed 's/docs-check: //' | sort -u | tr '\n' ' ' | sed 's/ $//')"
+check "the reference pages are checked" "6" "$(grep -c '^docs/reference/' <<<"$files")"
+check "every marker kind is used" "config frontmatter install run shape" \
+  "$(grep -h -o -E 'docs-check: [a-z]+' "$REPO/README.md" "$REPO/CONTRIBUTING.md" "$REPO"/docs/*.md "$REPO"/docs/reference/*.md | sed 's/docs-check: //' | sort -u | tr '\n' ' ' | sed 's/ $//')"
 
 # Negative cases, on a copy of the documents.
 mutant() { # mutant FILE SED-SCRIPT -> problems of a copy with FILE edited
@@ -310,5 +364,14 @@ has "an unknown config key is reported" "$(mutant docs/getting-started.md 's/^st
 has "a quoted output that changed is reported" "$(mutant docs/getting-started.md 's/^created .peal\/peal$/created .peal\/launcher/')" "did not print the line created .peal/launcher"
 has "a wrong filed line is reported" "$(mutant README.md 's/size: S/size: L/')" "the filed line is"
 has "a wrong install line is reported" "$(mutant README.md 's|install peal@peal|install peal@other|')" "the plugin is peal@peal"
+has "a setting without a row is reported" "$(mutant docs/reference/configuration.md '/^\| `remote` \|/d')" "no row for the setting remote"
+has "a row for a setting that is gone is reported" "$(mutant docs/reference/configuration.md 's/^\| `review.skip-paths` \|/| `review.nosuch` |/')" "a row for review.nosuch, which config-defaults.yml lacks"
+has "a nested setting without a row is reported" "$(mutant docs/reference/configuration.md '/^\| `storage.issues.label` \|/d')" "no row for the setting storage.issues.label"
+has "a field without a row is reported" "$(mutant docs/reference/tasks.md '/^\| `touches` \|/d')" "no row for the field touches"
+has "a row for a field that is gone is reported" "$(mutant docs/reference/tasks.md 's/^\| `priority` \|/| `prio` |/')" "a row for the field prio, which task-check.awk lacks"
+has "a subcommand without a heading is reported" "$(mutant docs/reference/cli.md '/^## `peal doctor`$/d')" 'no heading for `peal doctor`'
+has "a grouped subcommand without a heading is reported" "$(mutant docs/reference/cli.md '/^### `peal close wait`$/d')" 'no heading for `peal close wait`'
+has "a command without a heading is reported" "$(mutant docs/reference/commands.md '/^## `\/peal:drift`$/d')" 'no heading for `/peal:drift`'
+has "a frontmatter block that does not parse is reported" "$(mutant docs/reference/tasks.md 's/^depends: \[0271, human\]$/depends: [0271, human/')" "the frontmatter block"
 
 finish
