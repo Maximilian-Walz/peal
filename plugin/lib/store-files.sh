@@ -860,6 +860,74 @@ peal_store_comment() {
   return $status
 }
 
+# _peal_files_rewrite_depend OLD NEW -> NEW: OLD with $PEAL_DEPEND_ON added to its depends
+# (when not there) and $PEAL_DEPEND_NOTE under its Notes.
+_peal_files_rewrite_depend() {
+  local deps
+  cp "$1" "$2"
+  deps=$(peal_fm_get "$1" depends 2>/dev/null)
+  if ! printf '%s\n' "$deps" | grep -qxF -- "$PEAL_DEPEND_ON"; then
+    # shellcheck disable=SC2046 # one item per line, none with a blank
+    peal_fm_set_list "$2" depends $(printf '%s\n' "$deps" | sed '/^$/d') "$PEAL_DEPEND_ON" || return 2
+  fi
+  peal_text_add_note "$PEAL_DEPEND_NOTE" <"$2" >"$2.n" && mv "$2.n" "$2"
+}
+
+# peal_store_depend ID ON WT -> task ID's copy in the backlog on the main branch made to
+# wait for task ON: ON in its depends, and a dated line under its Notes, pushed as a
+# defer ("docs(tasks): defer NNNN slug, waits for MMMM [NNNN]"). WT, when not empty, is the
+# worktree of this clone's claim on ID, which is given back as a defer does: refused
+# unless it holds nothing but the claim (_peal_files_no_work), the note then "Deferred
+# <date> after a claim: waits for ON", which reads the claim as given back
+# (_peal_files_deferred); the caller marks the worktree. Refused: a task not in the
+# backlog, the checks of a revise, a depends cycle (status 1).
+peal_store_depend() {
+  local id=$1 on=$2 wt=${3-} base branch doing tmp slug status=0
+  _peal_files_settings || return 2
+  _peal_files_fetch || return 2
+  base=$(git rev-parse "refs/remotes/$PEAL_REMOTE/$PEAL_MAIN") || return 2
+  if ! PEAL_PATH=$(_peal_files_find "$base" "$id"); then
+    peal_err "depend: no task $id on $PEAL_REMOTE/$PEAL_MAIN"
+    peal_main_write_hint
+    return 2
+  fi
+  case $PEAL_PATH in
+    "$PEAL_TASKS"/backlog/*) ;;
+    *) peal_err "depend: task $id is not in the backlog on $PEAL_REMOTE/$PEAL_MAIN ($PEAL_PATH)"; return 2 ;;
+  esac
+  if [ -n "$wt" ]; then
+    branch=$(git -C "$wt" symbolic-ref -q --short HEAD)
+    case $branch in
+      "$PEAL_PREFIX$id"-*) ;;
+      *) peal_err "depend: $wt is not on task $id's branch ($PEAL_PREFIX$id-...)"; return 2 ;;
+    esac
+    doing=$PEAL_TASKS/doing/${PEAL_PATH##*/}
+    (cd "$wt" && _peal_files_no_work "$id" "$branch" "$base" "$PEAL_PATH" "$doing") || return 2
+    PEAL_DEPEND_NOTE="Deferred $(date -u +%Y-%m-%d) after a claim: waits for $on"
+  else
+    PEAL_DEPEND_NOTE="$(date -u +%Y-%m-%d): waits for $on"
+  fi
+  PEAL_DEPEND_ON=$on
+  tmp=$(mktemp -d) || return 2
+  git show "$base:$PEAL_PATH" >"$tmp/old"
+  _peal_files_rewrite_depend "$tmp/old" "$tmp/new" || status=2
+  [ $status != 0 ] || _peal_files_text_checks depend "$tmp/old" "$tmp/new" "$PEAL_PATH" "$base" "$id" || status=$?
+  if [ $status = 0 ]; then
+    slug=${PEAL_PATH##*/}
+    slug=${slug#"$id-"}
+    PEAL_EDIT_FILE=$tmp/edited PEAL_REWRITE=_peal_files_rewrite_depend
+    PEAL_EDIT_SUBJECT="docs(tasks): defer $id ${slug%.md}, waits for $on [$id]"
+    peal_push_main _peal_files_build_rewrite depend || status=$?
+    if peal_main_write_written $status; then
+      echo "task $id: waits for $on"
+      peal_main_write_report
+      status=0
+    fi
+  fi
+  rm -rf "$tmp"
+  return $status
+}
+
 # _peal_files_local_branch ID -> the local task branch of ID; status 1 if there is none.
 _peal_files_local_branch() {
   _peal_files_branches | awk -F '\t' -v id="$1" '!found && $1 == id && $2 == "local" { print $3; found = 1 }

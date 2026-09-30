@@ -221,6 +221,9 @@ issue-N on branch issue/N, labelled "in progress", as Belfry claims one):
   defer --reason R [--dry-run]  in a claim's worktree, give the claim back without work:
                                 the task's text (on stdin) written back under its number
                                 (lib/backlog.sh); then peal release ID from elsewhere
+  depend ID ON                  make task ID wait for task ON, written straight into the
+                                storage; a live claim of this clone on ID is given back
+                                as defer does (Belfry's tasks.commands.defer)
 
 /peal:work's steps (lib/work.sh):
   work [ID | POOL]              in a task's worktree: TASK <id> <file>, PLAN required,
@@ -500,6 +503,7 @@ main() {
     brief) with_store peal_brief "$@" ;;
     record) with_store peal_record "$@" ;;
     defer) with_store peal_defer "$@" ;;
+    depend) [ $# -eq 2 ] || { usage >&2; exit 2; }; with_id "$1" peal_depend "$1" "$2" ;;
     close)
       # Verify and wait read the branch and GitHub only, and answer anywhere with a verdict.
       case ${1-} in

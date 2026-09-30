@@ -53,6 +53,62 @@ peal_defer() {
   echo "next: peal release $id"
 }
 
+# peal_depend ID ON -> task ID made to wait for task ON (Belfry's tasks.commands.defer
+# contract), written to the storage as a revise is (peal_store_depend). ID free or blocked,
+# or held by a claim of this clone (a worktree here): that claim is given back as a defer
+# does, its worktree marked (peal-deferred). Refused: a remote-only, label-only or parked
+# claim (no worktree here to check and mark), a task awaiting merge or done, an unknown
+# ON, ON equal to ID, a depends cycle. ON done is accepted with a note. An ON already in
+# ID's depends writes nothing, unless a claim of this clone is still to be given back.
+# PEAL_MAIN_WRITE_BUDGET is capped to about 90s unless the caller set it, as for
+# peal_create_filed; a write still in an open pull request then counts as done.
+peal_depend() {
+  local id=${1-} on=${2-} rec on_rec state detail wt="" gitdir status=0
+  [ $# -eq 2 ] || { peal_err "depend: ID ON"; return 2; }
+  peal_valid_id "$on" || { peal_refuse "no task id" "$on"; return 2; }
+  if [ "$id" = "$on" ]; then
+    peal_err "depend: task $id cannot wait for itself"
+    return 2
+  fi
+  PEAL_RECORDS=$(peal_store_list --fetch --no-pr) || return 2
+  rec=$(printf '%s\n' "$PEAL_RECORDS" | awk -F '\t' -v id="$id" '$1 == id')
+  if [ -z "$rec" ]; then
+    peal_err "depend: no task $id"
+    peal_main_write_hint
+    return 2
+  fi
+  on_rec=$(printf '%s\n' "$PEAL_RECORDS" | awk -F '\t' -v id="$on" '$1 == id')
+  if [ -z "$on_rec" ]; then
+    peal_err "depend: no task $on to wait for"
+    peal_main_write_hint
+    return 2
+  fi
+  [ "$(_peal_field "$on_rec" 2)" != "done" ] || peal_err "depend: note: task $on is done already; the dependency is recorded all the same"
+  state=$(_peal_field "$rec" 2)
+  detail=$(_peal_field "$rec" 3)
+  case $state in
+    free | blocked) ;;
+    claimed-live)
+      case $detail in
+        wt:*) wt=${detail#wt:} ;;
+        *) peal_err "depend: task $id is claimed elsewhere ($detail); only a claim of this clone is given back"; return 2 ;;
+      esac ;;
+    *) peal_err "depend: task $id is $state${detail:+ ($detail)}; depend touches a task nobody has claimed, or this clone's live claim"; return 2 ;;
+  esac
+  if [ -z "$wt" ] && printf '%s\n' "$(_peal_field "$rec" 7)" | tr ',' '\n' | grep -qxF -- "$on"; then
+    echo "task $id: waits for $on already"
+    return 0
+  fi
+  : "${PEAL_MAIN_WRITE_BUDGET:=90}"
+  export PEAL_MAIN_WRITE_BUDGET
+  peal_store_depend "$id" "$on" "$wt" || status=$?
+  [ $status = 0 ] || return $status
+  if [ -n "$wt" ] && gitdir=$(_peal_admin_dir "$wt"); then
+    { date -u +%Y-%m-%dT%H:%M:%SZ; printf 'waits for %s\n' "$on"; } >"$gitdir/$PEAL_DEFERRED"
+    echo "next: peal release $id"
+  fi
+}
+
 # peal_deferred PATH -> status 0 if the worktree at PATH holds a claim phase 1 gave back.
 peal_deferred() {
   local admin

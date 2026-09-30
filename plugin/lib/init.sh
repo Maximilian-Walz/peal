@@ -431,6 +431,7 @@ tasks:
     milestone: .peal/peal milestone-state {id} {state} --reason {reason}
     retire: .peal/peal retire {task} --reason {reason}
     revise: /peal:comment {task} {text}
+    defer: .peal/peal depend {task} {on}
 EOF
   fi
   cat <<'EOF'

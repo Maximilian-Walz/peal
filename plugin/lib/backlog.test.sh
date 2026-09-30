@@ -333,11 +333,133 @@ claimed 2 issue/2 $wt" "$?:$out"
   check_refused "issues revise: claimed, from elsewhere" "revise: task 3 is claimed-live" peal revise 3 --reason x <<<"$new"
 }
 
+# depend (Belfry's tasks.commands.defer): a task made to wait for another, straight into
+# the storage; a live claim of this clone given back on the way.
+depend_files() {
+  local work wt out before
+  work=$(repo)
+  put "$work" backlog 0001 waits-for-four
+  put "$work" backlog 0002 blocking-task
+  put "$work" backlog 0003 claimed-task
+  put "$work" backlog 0004 waits-for-one "depends: [0001]"
+  put "$work" backlog 0005 free-task
+  put "$work" backlog 0006 built-task
+  put "$work" backlog 0007 remote-task
+  put "$work" backlog 0008 merging-task
+  put "$work" "done" 0009 finished-task
+  at "$work" "$PEAL" hooks install >/dev/null
+
+  # A free task, through the installed pre-push gate.
+  out=$(peal depend 0005 0002 2>&1)
+  check "depend: free task" "0:task 0005: waits for 0002" "$?:$out"
+  check "depend: the subject" "docs(tasks): defer 0005 free-task, waits for 0002 [0005]" "$(subject)"
+  check "depend: depends" "depends: [0002]" "$(on_main "$work" tasks/backlog/0005-free-task.md | grep '^depends:')"
+  check "depend: the note" "$today: waits for 0002" "$(on_main "$work" tasks/backlog/0005-free-task.md | grep 'waits for')"
+  check "depend: listed blocked" "0005 blocked free-task needs:0002" "$(peal list 0005 2>&1)"
+  before=$(on_main "$work" tasks/backlog/0005-free-task.md | git hash-object --stdin)
+  out=$(peal depend 0005 0002 2>&1)
+  check "depend: repeated" "0:task 0005: waits for 0002 already" "$?:$out"
+  check "depend: repeated writes nothing" "$before" "$(on_main "$work" tasks/backlog/0005-free-task.md | git hash-object --stdin)"
+  peal depend 0005 0003 >/dev/null 2>&1
+  check "depend: a second one added" "depends: [0002, 0003]" "$(on_main "$work" tasks/backlog/0005-free-task.md | grep '^depends:')"
+
+  # Refusals.
+  check_refused "depend: itself" "cannot wait for itself" peal depend 0002 0002
+  check_refused "depend: unknown ON" "no task 0099" peal depend 0002 0099
+  check_refused "depend: unknown ID" "no task 0099" peal depend 0099 0002
+  check_refused "depend: ON not an id" "no task id" peal depend 0002 '0002; x'
+  check_refused "depend: ID not an id" "no task id" peal depend 'x y' 0002
+  check_refused "depend: done ID" "task 0009 is done" peal depend 0009 0002
+  out=$(peal depend 0002 0009 2>&1)
+  check "depend: ON done accepted, with a note" "0:peal: depend: note: task 0009 is done already; the dependency is recorded all the same
+task 0002: waits for 0009" "$?:$out"
+  before=$(git -C "$work" rev-parse origin/main)
+  check_fails "depend: a depends cycle" 1 "depend: refused: depends cycle 0001 → 0004 → 0001" peal depend 0001 0004
+  git -C "$work" fetch -q origin
+  check "depend: a cycle writes nothing" "$before" "$(git -C "$work" rev-parse origin/main)"
+  git -C "$work" push -q origin main:refs/heads/task/0007-remote-task
+  check_refused "depend: a remote-only claim" "claimed elsewhere" peal depend 0007 0002
+  git -C "$work" checkout -q -b task/0008-merging-task
+  git -C "$work" mv tasks/backlog/0008-merging-task.md tasks/done/0008-merging-task.md
+  git -C "$work" commit -q -m "docs(tasks): done 0008 [0008]"
+  git -C "$work" checkout -q main
+  check_refused "depend: awaiting merge" "task 0008 is awaiting-merge" peal depend 0008 0002
+
+  # This clone's live claim with work on it, then with nothing built.
+  peal claim 0006 >/dev/null 2>&1
+  wt=$(dirname "$work")/work-wt/0006-built-task
+  echo code >"$wt/code.txt"
+  git -C "$wt" add code.txt
+  git -C "$wt" commit -q -m "feat: code [0006]"
+  check_refused "depend: work on the claim" "task/0006-built-task holds work beyond the claim" in_wt depend 0006 0003
+  git -C "$wt" reset -q --hard HEAD~1
+  echo scratch >"$wt/scratch.txt"
+  check_refused "depend: uncommitted beside the task" "uncommitted changes besides" in_wt depend 0006 0003
+  rm "$wt/scratch.txt"
+  out=$(in_wt depend 0006 0003 2>&1)
+  check "depend: the claim given back" "0:task 0006: waits for 0003
+next: peal release 0006" "$?:$out"
+  check "depend: the deferred note" "Deferred $today after a claim: waits for 0003" \
+    "$(on_main "$work" tasks/backlog/0006-built-task.md | grep '^Deferred')"
+  check "depend: the marker" "1" "$([ -f "$(git -C "$wt" rev-parse --absolute-git-dir)/peal-deferred" ] && echo 1)"
+  check "depend: claim reads as given back" "0006 blocked built-task needs:0003" "$(peal list --no-pr 0006 2>&1)"
+  peal release 0006 >/dev/null 2>&1
+  check "depend: release" "0" "$?"
+  git -C "$work" pull -q --rebase origin main 2>/dev/null
+  git -C "$work" mv tasks/backlog/0003-claimed-task.md tasks/done/0003-claimed-task.md
+  git -C "$work" commit -q -m "docs(tasks): 0003 done [0003]"
+  git -C "$work" push -q --no-verify origin main
+  out=$(peal claim 0006 2>&1)
+  check "depend: claimed afresh once 0003 is done" "0:claimed 0006 task/0006-built-task $(dirname "$work")/work-wt/0006-built-task" "$?:$(printf "%s\n" "$out" | tail -n 1)"
+
+  # create -> "filed:" -> depend, as Belfry chains them.
+  out=$(peal create --owner ai --title "Chained follow up task" < <(ID=NNNN text) 2>&1)
+  check "depend: create's filed line" "0:filed: 0010" "$?:$(printf '%s\n' "$out" | tail -n 1)"
+  out=$(peal depend 0010 0002 2>&1)
+  check "depend: on the filed task" "0:task 0010: waits for 0002" "$?:$out"
+}
+
+depend_issues() {
+  local work wt out body
+  issues_repo
+  body=$(printf '## Intent\n\nWhy.\n\n## Raw\n\nthe human said so\n\n## Notes\n')
+  issue 1 "Claimed one" --body "$body"
+  issue 2 "Blocking one" --body "$body"
+  issue 3 "Free one" --body "$body"
+  issue 4 "Waits for three" --body "$(printf 'Depends on #3\n\n%s' "$body")"
+  issue 5 "Labelled one" --body "$body"
+  out=$(peal depend 3 2 2>&1)
+  check "issues depend: free task" "0:task 3: waits for 2" "$?:$out"
+  check "issues depend: the body" "Depends on #2" "$(gh_get '.[] | select(.number == 3) | .body' | head -n 1)"
+  check "issues depend: the note" "$today: waits for #2" "$(gh_get '.[] | select(.issue == 3) | .body' comments)"
+  check "issues depend: listed blocked" "3 blocked free-one needs:2" "$(peal list 3 2>&1)"
+  out=$(peal depend 3 2 2>&1)
+  check "issues depend: repeated" "0:task 3: waits for 2 already" "$?:$out"
+  check "issues depend: repeated comments nothing" "1" "$(gh_get '.[] | select(.issue == 3) | .body' comments | wc -l | tr -d ' ')"
+  check_fails "issues depend: a depends cycle" 1 "depend: refused: depends cycle #3 → #4 → #3" peal depend 3 4
+
+  # The claim of this clone, nothing built: given back.
+  peal claim 1 >/dev/null 2>&1
+  wt=$(dirname "$work")/work-wt/issue-1
+  git -C "$wt" commit -q --allow-empty -m "feat: something [1]"
+  check_refused "issues depend: a commit is work" "issue/1 holds work beyond origin/main" in_wt depend 1 2
+  git -C "$wt" reset -q --hard HEAD~1
+  out=$(in_wt depend 1 2 2>&1)
+  check "issues depend: the claim given back" "0:task 1: waits for 2
+next: peal release 1" "$?:$out"
+  check "issues depend: the label off" "" "$(labels 1)"
+  check "issues depend: the deferred note" "Deferred $today after a claim: waits for #2" "$(gh_get '.[] | select(.issue == 1) | .body' comments)"
+  check "issues depend: the marker" "1" "$([ -f "$(git -C "$wt" rev-parse --absolute-git-dir)/peal-deferred" ] && echo 1)"
+  check "issues depend: listed blocked" "1 blocked claimed-one needs:2" "$(peal list 1 2>&1)"
+}
+
 cases() {
   files
   files_own
+  depend_files
   if command -v jq >/dev/null; then
     issues
+    depend_issues
   elif [ -n "${PEAL_REQUIRE_JQ-}" ]; then
     check "jq, which the fake gh needs" "jq" ""
   fi

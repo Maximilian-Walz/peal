@@ -28,11 +28,13 @@ tasks:
     board: .peal/peal board
     milestone: .peal/peal milestone-state {id} {state} --reason {reason}
     retire: .peal/peal retire {task} --reason {reason}
+    defer: .peal/peal depend {task} {on}
 ```
 
 Each line names a `peal` subcommand or a `/peal:` command that Belfry runs for you: it
 lists and offers tasks, claims one and starts a session on it, files an idea, draws the
-board, and changes a milestone or retires a task from its own screens. For a project
+board, changes a milestone, retires a task or records that one waits for another from its own
+screens ([`peal depend`](../reference/cli.md#peal-depend)). For a project
 whose tasks are GitHub issues, the contract names the `github-issues` backend instead.
 
 ## What changes for a session
