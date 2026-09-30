@@ -258,7 +258,8 @@ final once it merges`. A cycle through a task the text adds or changes exits 1 w
 - `peal create --owner OWNER --title TITLE [--origin outsider|writer]`: Belfry's
   `tasks.commands.create`. One task, its slug the first five words of `TITLE`. `OWNER`
   (`ai` or `human`) is written into `owner`, winning over the text's own; `outsider` is
-  written into `origin`, `writer` or none writes no field. Ends with `filed: <id>`.
+  written into `origin`, `writer` or none writes no field; the issues storage has no label for `origin`, so
+  `--origin outsider` is refused there. Ends with `filed: <id>`.
 
 ## `peal idea`
 

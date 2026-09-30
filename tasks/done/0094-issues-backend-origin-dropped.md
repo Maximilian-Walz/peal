@@ -50,3 +50,28 @@ Belfry's contract has no `create` command for `github-issues` at all, so no live
 reaches this today.
 
 ## Notes
+
+---
+
+## Outcome
+
+Refused rather than carried (the second option in Scope). `peal_create_filed`
+(`plugin/lib/backlog.sh`) now reads `storage.kind`. When the value is `issues` and
+`--origin outsider` is given, it exits with status 2 and files nothing. The message is
+"create: --origin outsider is not carried by the issues storage (origin is files only);
+nothing filed". `--origin writer`, or no `--origin` at all, still files as before.
+
+Why refuse: `docs/design.md` and `docs/reference/tasks.md` already record `origin` as
+files only, on purpose. Carrying the mark would have needed a new label and more round-trip
+code, for a path that Belfry's contract does not reach on `github-issues`. Refusing makes
+the code enforce what the docs already said, and nothing is dropped silently any more.
+
+Evidence: two new checks in `plugin/lib/store-issues.test.sh`. The first shows the
+refusal with its message, the second shows `--origin writer` still filing. That harness
+passes 642/0. `docs/reference/cli.md` now describes the refusal under `peal create`.
+
+Found and left: `peal comment --origin outsider` probably drops the mark the same way on
+the issues storage. It was not checked here, so it is queued as an idea
+(comment-origin-issues-storage).
+
+The reviewer had no findings.
