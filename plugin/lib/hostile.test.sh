@@ -622,6 +622,9 @@ arg_cases() {
   each "retire --reason R" "$WORK" retire 0002 --reason @
   with_input "$(ID=0001 text "milestone: m1")" each "revise ID" "$WORK" revise @ --reason why
   with_input "$(ID=0001 text "milestone: m1" "size: S")" each "revise --reason R" "$WORK" revise 0001 --reason @ --dry-run
+  cover depend
+  each "depend ID" "$WORK" depend @ 0002
+  each "depend ON" "$WORK" depend 0001 @
   cover comment
   each "comment ID" "$WORK" comment @ text
   each "comment TEXT" "$WORK" comment 0001 @
