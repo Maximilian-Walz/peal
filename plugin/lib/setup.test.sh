@@ -91,6 +91,8 @@ tasks/backlog/.gitkeep
 tasks/doing/.gitkeep
 tasks/done/.gitkeep" "$(git -C "$work" show --format= --name-only HEAD)"
   check "files: nothing left over" "" "$(git -C "$work" status --porcelain)"
+  check "files: /peal:next suggests the next stage, the survey names none" "SUGGEST guardrails|0" \
+    "$(peal next | head -n1 | cut -d' ' -f1-2)|$(peal init --survey | grep -c '^next ')"
   out=$(first_task install-in-readme "Say how to install in the README")
   check "files: the first task filed" "filed 0001 tasks/backlog/0001-install-in-readme.md" "$(printf '%s\n' "$out" | cut -d' ' -f1-3)"
 

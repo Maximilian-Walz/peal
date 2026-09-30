@@ -26,8 +26,8 @@ it created, updated, kept or removed. Each stage but `tasks` needs `tasks` first
 - `peal init --remove STAGE`: takes the stage back and leaves the tasks alone. `tasks` is
   refused while another stage is set up. `belfry` removes the file only while it is as
   the stage wrote it, else status 1.
-- `peal init --survey`: writes nothing; prints `key value` lines: the stages set up and
-  the next, the storage, the branch, the GitHub repository with open issues and
+- `peal init --survey`: writes nothing; prints `key value` lines: the stages set up, the
+  storage, the branch, the GitHub repository with open issues and
   milestones, commits closing issues, README, TODO lists, CI files, local-looking ignored
   files (`local-files`), a tasks directory, `.belfry.yml`, the storage to recommend.
 

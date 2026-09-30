@@ -507,7 +507,6 @@ _peal_init_list() {
 # peal_init_survey -> what /peal:setup decides from, one "key value" line each, writing
 # nothing:
 #   stages      the stages set up (comma list, - for none)
-#   next        the first stage not set up, - when all are
 #   storage     the storage set up, - before the tasks stage
 #   branch      the branch checked out (- when detached), then "main" and the main branch
 #   github      owner/name of the project's GitHub repository, - for none
@@ -527,18 +526,11 @@ _peal_init_list() {
 # issues and milestones are "unknown: why" when gh cannot tell (not installed, logged
 # out); both are left out without a GitHub repository.
 peal_init_survey() {
-  local stages s next=- storage=- branch main repo issues=0 closes readme f dir tasks n
+  local stages s storage=- branch main repo issues=0 closes readme f dir tasks n
   local -a found
   stages=$(_peal_init_stages) || return 2
-  for s in $PEAL_INIT_STAGES; do
-    if ! printf '%s\n' "$stages" | grep -qx -- "$s"; then
-      next=$s
-      break
-    fi
-  done
   # shellcheck disable=SC2086 # one stage per word
   echo "stages $(_peal_init_list $stages)"
-  echo "next $next"
   if printf '%s\n' "$stages" | grep -qx tasks; then
     storage=$(peal_config_get storage.kind) || return 2
   fi
