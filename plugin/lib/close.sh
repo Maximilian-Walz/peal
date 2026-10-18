@@ -433,8 +433,8 @@ _peal_close_checks() {
 # (an empty commit when the branch holds nothing else: a pull request needs one), the
 # open pull request of the branch marked ready for review when it is a draft (before the
 # push, so the close commit's CI runs on a ready pull request), the branch pushed, the
-# pull request opened or its title and body updated, the sentinel cleared. What fails after the flush leaves the sentinel: run finish again, it goes on
-# from where it stopped.
+# pull request opened or its title and body updated, the sentinel cleared. What fails
+# after the flush leaves the sentinel: run finish again, it goes on from where it stopped.
 peal_close_finish() {
   local top gitdir rel decisions dirty escalations out status branch ahead repo pr url title body draft node
   top=$(peal_project_root) || return 2
