@@ -17,7 +17,11 @@ boundary should have `docs/security.md` in its brief without having to know to r
 
 ## Scope
 
+Add `docs/security.md` to `.peal/config.yml`'s `context:` list, keeping the existing entries.
+
 ## Done when
+
+- `.peal/config.yml`'s `context:` lists `docs/security.md` besides the existing entries.
 
 ## Raw
 
