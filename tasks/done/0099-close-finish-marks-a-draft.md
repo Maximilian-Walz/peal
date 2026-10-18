@@ -73,4 +73,22 @@ Ranges: tasks/doing/0099-close-finish-marks-a-draft.md:1-40, docs/milestones/m3.
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+`peal close finish` now marks a draft pull request ready for review. After the close commit and **before the push**, it looks up the branch's open pull request, fetching `draft` and `node_id` along with the number and URL. If it is a draft, finish runs GraphQL `markPullRequestReadyForReview` through `peal_gh`, the same pattern as auto-merge in main-write.sh, and prints `marked pull request #N ready for review`. It then pushes and PATCHes the title and body, or creates the pull request when none was open, as before. A pull request that is not a draft gets no extra call.
+
+The human left the order to the session, which put mark-ready before the push. The close commit's CI then always runs on a ready pull request, so a project whose CI skips drafts never gets a skipped run that verify reads as passing. Because the lookup now runs before the push, its failure no longer prints the by-hand `gh pr create` fallback, which assumed the branch was pushed. It now says the close is committed here and returns 1. A failed mark-ready does the same. Both keep the sentinel, so running finish again resumes.
+
+The task's open questions:
+- Finish already rewrote the draft's body with the final Outcome.
+- `close wait` works on a draft that already ran CI. It reads the checks of the local HEAD's sha. Files storage pushes a new close commit and so starts a new run. Issues storage may push nothing, and the draft's checks on that same sha stand.
+- No separate `close draft` step: one `gh pr create --draft` is enough.
+
+Also changed:
+- plugin/lib/fake-gh fakes the mutation. It refuses a node id that is not an open pull request.
+- plugin/commands/close.md step 2 tells a session that needs a CI result for its Outcome how to get one: push, `gh pr create --draft --base <main branch> --fill`, then read it with `gh pr checks`, because `peal close wait` is refused once the sentinel is armed.
+- docs/reference/cli.md describes the new behaviour.
+
+Tests: new `draft_cases` in close.test.sh, on both storages. A failed mutation stops finish (status 1, sentinel armed, still a draft, nothing pushed). A re-run marks it ready, updates its body and pushes. The existing re-run case for a pull request that is not a draft checks that no graphql call is made. `bash plugin/lib/close.test.sh`: 915 passed, 0 failed.
+
+Left: `close verify` still reports READY for an open draft with green checks, filed as the idea close-verify-draft-verdict (a `BLOCKED:draft` verdict). The test does not assert that the graphql call comes before the push in the fake's log, because the log does not record a push. "Still ahead of upstream after the failed mutation" covers the order instead.
+
+The review found nothing. The only change after it was rewrapping an overlong doc-comment line in close.sh.
