@@ -1,11 +1,16 @@
 # Getting started
 
-This takes you from an installed plugin to a first task worked and closed. Each step says
-what it adds and how to take it back.
+This page takes you from nothing installed to your first task worked, reviewed and ready
+to merge. It assumes you use [Claude Code](https://claude.com/claude-code) in a git
+repository, and nothing else: you do not need to know anything about Peal or Belfry yet.
+
+Peal is a plugin for Claude Code. It keeps your to-do list as small Markdown files in the
+repository (each one a *task*) and adds commands, whose names start with `/peal:`, that you
+type into a Claude Code session to file, plan, build and close those tasks.
 
 ## Install
 
-In a Claude Code session:
+A plugin is added to Claude Code from inside a session. Type these two lines into one:
 
 <!-- docs-check: install -->
 ```text
@@ -13,107 +18,77 @@ In a Claude Code session:
 /plugin install peal@peal
 ```
 
-This tracks `main`. To pin a release instead, add its tag as the `ref` of the marketplace
-source in `.claude/settings.json`:
+The first line tells Claude Code where to find Peal; the second installs it. This follows
+Peal's `main` branch, so you get changes as they land. To stay on a released version
+instead, see [pinning a release](guides/setting-up.md#pin-a-release).
 
-<!-- docs-check: settings -->
-```json
-{
-  "extraKnownMarketplaces": {
-    "peal": {"source": {"source": "github", "repo": "Maximilian-Walz/peal", "ref": "vX"}}
-  },
-  "enabledPlugins": {"peal@peal": true}
-}
-```
+## Set up
 
-## Set up, one stage at a time
+In the repository you want to use Peal in, type `/peal:setup`
 
-Run `/peal:setup` in your repository. It reads the repository, recommends where the tasks
-should live, asks once, and writes the first stage as one commit on a `peal/setup-tasks`
-branch for you to review. It never commits to your main branch. Then it proposes one or
-two first tasks from what it read, and ends by saying what you can do now and that
-`/peal:next` suggests what to adopt next. Merge that branch into your main branch (setup
-offers to open the pull request) before working a task: `/peal:work` claims from the main
-branch.
+Peal reads the repository and suggests where your tasks should live: as files in a
+`tasks/` folder, which is the usual choice, or as GitHub issues. It asks you once. It then
+prepares everything as a single commit on a new branch called `peal/setup-tasks`, for you
+to look at. It never commits to your main branch (the branch your finished work lands on,
+usually `main`).
 
-`/peal:setup STAGE` sets up one stage. Every stage but `tasks` needs `tasks` first. Each
-is safe to run again, and `peal init --remove STAGE` takes it back; your tasks stay.
+When it has written the commit, it suggests one or two first tasks based on what it found
+in your repository, and says what you can do next.
 
-| Stage | Adds | Take it back |
-|---|---|---|
-| `tasks` | `.peal/config.yml`, the launcher `.peal/peal`, `tasks/` with `backlog/`, `doing/`, `done/` and `TEMPLATE.md`, and the plugin in `.claude/settings.json`. With the issues storage, tasks are GitHub issues instead of files. | `peal init --remove tasks`, once no other stage is set up |
-| `guardrails` | Git hooks that check commit subjects and pushes. | `peal init --remove guardrails` |
-| `milestones` | A first milestone, `docs/milestones/m1.md`. | `peal init --remove milestones` |
-| `belfry` | `.belfry.yml`, so [Belfry](https://github.com/Maximilian-Walz/belfry) can list and run the tasks. | `peal init --remove belfry` |
+Merge that branch into your main branch before you go on. Setup offers to open the pull
+request for you. This matters because Peal starts every task from the main branch, so a
+task cannot begin until the setup is there.
 
-`peal init` is what `/peal:setup` runs underneath. In a git repository it looks like
-this:
-
-<!-- docs-check: run -->
-```text
-$ peal init --stage tasks
-created .peal/config.yml
-created .peal/peal
-created tasks/backlog/.gitkeep
-created tasks/doing/.gitkeep
-created tasks/done/.gitkeep
-created tasks/TEMPLATE.md
-created .claude/settings.json (the peal plugin enabled for the project)
-$ git add -A && git commit -qm "chore(peal): set up the tasks stage"
-$ peal next
-SUGGEST guardrails /peal:setup guardrails …
-$ peal init --stage milestones
-created docs/milestones/m1.md
-$ peal init --remove milestones
-removed docs/milestones/m1.md
-removed docs/milestones/
-removed docs/
-```
-
-Nothing is committed by `peal init`; the lines show what changed, for you to commit.
-`.peal/config.yml` records the stages done, as `stages:`.
-
-## What to adopt next
-
-`/peal:next` looks at your repository and its task history and suggests the one next
-stage or feature, with the evidence for it, and up to three more. Besides the stages
-above it knows the features `decisions`, `drift`, `releases`, `reviewer` and
-`review-steps`. It suggests nothing your project has not earned: `guardrails` once a task
-is done, `milestones` at ten tasks done, and so on. It never asks GitHub or Belfry.
-
-You accept, decline or ask for more; nothing changes unasked. To decline, run `peal next
---decline ITEM`: it records `declined.ITEM` with today's date in `.peal/config.yml`, and
-the item is not suggested again for 90 days. To undo a feature, delete its file (for
-example `.peal/drift.md`) or its key from `.peal/config.yml`; nothing is filed. A
-decline looks like this:
-
-<!-- docs-check: config -->
-```yaml
-stages: [tasks, guardrails]
-declined:
-  drift: [2026-09-29]
-```
+Setup works in stages, and this first one, `tasks`, is all you need. Later you can add
+guards for commit messages, milestones, or Belfry (a separate tool that runs Claude Code
+sessions unattended). [Setting up in stages](guides/setting-up.md) lists them and how
+to take each back, and `/peal:next` suggests when one is worth adding.
 
 ## Your first task
 
-1. File an idea. `/peal:idea a health check endpoint` writes a task file in
-   `tasks/backlog/` and prints its `filed` line. On a task's branch the idea is queued
-   and filed when that task closes.
-2. Work it. `/peal:work 0001` claims the task into its own branch and worktree, has the
-   planner write a plan, asks you to agree it, and has the implementer build it. Without
-   a number, it offers the next task.
-3. Close it. `/peal:close` reviews the diff, writes the task's Outcome, moves the task to
-   `done/` and opens the pull request, then waits for its checks. You merge it. Opening
-   the pull request needs the `gh` command line tool, logged in to GitHub.
+A task goes through three commands. Here they are for a small example.
 
-`peal list` shows the backlog at any time.
+### 1. File an idea
 
-## Already have a task process
+Type `/peal:idea a health check endpoint`. You see a line starting `filed 0001`. Peal has written a file, `tasks/backlog/0001-...md`,
+holding your sentence and a template to fill in. The folder `backlog/` is where tasks wait
+until someone starts them, and `0001` is the task's number. An idea is simply a task you
+filed roughly; nobody has planned it yet. Open the file if you like: it is plain
+Markdown, and you can edit it.
 
-See [migrating an existing project](migrating.md).
+### 2. Work it
 
-## Where to look things up
+Type `/peal:work 0001`. This is where Peal does most of its work, and where it keeps your other work safe:
 
-The [guides](guides/README.md) take each workflow in turn, starting where this page ends;
-the [reference](reference/README.md) lists every command, `peal` subcommand, setting and
-task field; [the design](design.md) says why.
+- It *claims* the task: it creates a new git branch, `task/0001-...`, and a second
+  checkout of your repository in a separate folder next to it (git calls this a
+  *worktree*). Your own checkout stays as it was, so you can keep working there, and
+  several tasks can be worked at once without mixing.
+- It asks a helper, a Claude *subagent* called the planner, to read the task and the code
+  and write a plan. You see the plan and answer any questions in it. Nothing is built
+  until you agree.
+- Once you agree, another subagent, the implementer, builds the plan in the worktree and
+  commits as it goes.
+
+Without a number, `/peal:work` offers you the next task in the backlog.
+
+### 3. Close it
+
+Type `/peal:close`. Closing has a reviewer subagent check the changes against the task, writes a short
+summary of the result into the task file (its *Outcome*), moves the task to `done/`, and
+opens a pull request. It then waits for the pull request's checks to pass. You read the
+pull request and merge it; Peal never merges for you.
+
+Opening the pull request needs the `gh` command line tool, logged in to GitHub.
+
+To see the backlog at any time, type `peal list` in a terminal.
+
+## Next
+
+- Add the other stages and let `/peal:next` suggest what to adopt:
+  [setting up in stages](guides/setting-up.md).
+- Work with tasks day to day: the [guides](guides/README.md), starting with
+  [working a task](guides/working-a-task.md).
+- Look up a command, a setting or a task field: the [reference](reference/README.md).
+- Already have your own task process: [migrating an existing project](migrating.md).
+- Why Peal is built this way: [the design](design.md).
