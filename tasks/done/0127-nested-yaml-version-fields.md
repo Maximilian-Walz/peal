@@ -65,3 +65,26 @@ Ranges relied on: tasks/done/0117-release-bumps-template-peal-tag.md:19-160, plu
 ## Raw
 
 > Follow-up of task 0117: nested YAML fields in release.version-files, left out of it.
+
+---
+
+## Outcome
+
+Built: an item of `release.version-files` can now name a nested YAML field, `"values.yaml: image.tag"`. `peal ship bump` replaces only that value's characters, and the quoting and the trailing comment stay as they are. The chore(release) pre-push gate re-derives the commit through the same `peal_version_edit`. It accepts exactly that edit and refuses a commit that changes anything more (checked in `githooks.test.sh`). Every refusal leaves main unchanged (`bump_refused` in `ship.test.sh`; a `yamlfield` case in `hostile.test.sh`).
+
+- `plugin/lib/version-field.awk`: `yaml()` is now one walker over block mappings by indentation. Top-level fields go through it too, as a path of one segment. The value checks moved into `yaml_value()`. The check for a one-line value skips blank lines and compares indents.
+- Agreed at planning (see Notes):
+  - dotted fields reach only into YAML; JSON and TOML refuse them with "a dotted field reaches only into a YAML file"
+  - segments are `[A-Za-z0-9_-]+`, with no quoting
+  - nothing under a sequence is reachable
+  - a lone `&anchor` is a parent, while a `!tag` or a flow map refuses with "the field X is not a mapping"
+  - a path found twice, or in two documents, is refused
+  - a tab-indented line inside a region the walk reads is refused
+- Departures from the plan, all safe in the same direction: the result is a "no field" refusal, never a wrong edit.
+  - A column-0 line that is neither a key nor a list entry makes the rest of its document unreadable. That covers a scalar document, a `%` directive, a flow collection and `? key`.
+  - A `---` with content on it (`--- |`, `--- !!map`) does the same.
+  - Quoted keys are tracked, so the indentation stays right, but they never match a segment.
+  - So a few top-level-field files that used to be edited are now refused: `--- !!map`, a column-0 `? key` before the field, and a tab-indented line inside a region the walk reads. The reviewer verified this.
+- Fields inherited only through `<<: *base` are "no field". The docs do not say so.
+- The tests ran under mawk, nawk and busybox awk: ship 474, githooks 432, hostile 1431, docs 37, all passing, and lint is clean. gawk was not installed in the build session, so nothing ran under it; CI covers the default awk.
+- The review found one stale comment above `peal_ship_bump`, fixed in its own commit. Nothing else came out of the review.
