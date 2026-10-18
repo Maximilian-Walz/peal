@@ -164,7 +164,8 @@ peal_revise() {
 # the text itself set (owner: human kept or added for human, dropped for ai). ORIGIN
 # outsider writes origin: outsider, marking the text as one Belfry's contract says came
 # from outside the project; writer, or --origin left out, leaves the field out (absent,
-# as today: the text is the project's own). Refused (status 2), nothing written: an
+# as today: the text is the project's own); the issues storage has no label for it, so
+# --origin outsider is refused there. Refused (status 2), nothing written: an
 # option other than --owner, --title or --origin, either --owner or --title missing or
 # given twice, --origin given twice, OWNER not ai or human, ORIGIN not outsider or
 # writer, a slug of one word, no text on stdin, or a text that sets merge (only a human,
@@ -204,6 +205,14 @@ peal_create_filed() {
     *) peal_err "create: origin must be outsider or writer, not '$origin'"; return 2 ;;
   esac
   [ -n "$title" ] || { peal_err "create: --title is required"; return 2; }
+  # The issues storage has no label for origin: refuse rather than drop the mark.
+  if [ "$origin" = outsider ]; then
+    peal_config_load || return 2
+    if [ "$(peal_config_get storage.kind)" = issues ]; then
+      peal_err "create: --origin outsider is not carried by the issues storage (origin is files only); nothing filed"
+      return 2
+    fi
+  fi
   # _peal_slug_normalise (task-text.sh): the same normalisation peal_slugify does, the
   # first five words kept before the word count is judged, so a long title is never
   # refused for having too many.

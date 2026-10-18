@@ -562,6 +562,15 @@ filed 6 https://github.com/acme/widgets/issues/6 — milestone: -, plan: -, size
   check "belfry create form: filed, the id last" "1" \
     "$(printf '%s\n' "$out" | tail -n 1 | grep -c -E '^filed: [0-9]+$')"
 
+  # origin has no label on issues: refused, never dropped silently.
+  check_refused "belfry create form: origin outsider refused" "origin is files only" \
+    peal create --owner ai --title "Belfry files this one now" --origin outsider \
+    < <(TITLE="Belfry files this one now" text)
+  out=$(peal create --owner ai --title "Belfry files that one now" --origin writer \
+    < <(TITLE="Belfry files that one now" text) 2>&1)
+  check "belfry create form: origin writer filed" "1" \
+    "$(printf '%s\n' "$out" | tail -n 1 | grep -c -E '^filed: [0-9]+$')"
+
   # revise: the text rewritten, the reason a comment; the Raw section never.
   peal read 7 | sed 's/^Why\.$/Why, better./; s/^---$/---/' | awk '
     NR == 1 { print; print "milestone: m2"; print "size: L"; next } { print }' >"$work.new"
