@@ -39,4 +39,14 @@ Add `docs/security.md` to `.peal/config.yml`'s `context:` list, keeping the exis
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+`docs/security.md`, the threat model, is now on `.peal/config.yml`'s `context:` list, after
+`docs/design.md`. The planner's, implementer's and reviewer's briefs and `/peal:idea` now
+point at it. This close's own reviewer brief already listed it.
+
+When the task was filed, the list was `[docs/design.md, README.md]`. Since then it has
+grown to include the three `docs/reference/` files. Those entries stay, and the new entry
+goes between them and `docs/design.md`. No other file copies this project's context list,
+so nothing else changed. The task's empty `## Scope` and `## Done when` were filled in from
+what was built.
+
+The reviewer found nothing to act on.
