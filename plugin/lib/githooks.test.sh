@@ -379,6 +379,74 @@ pre_push_release() {
   git -C "$work" add pin.txt
   git -C "$work" commit -q --no-verify -m "chore(release): v0.3.0"
   check "release: a marked line, by hand" "0" "$(push_main 2>/dev/null; echo $?)"
+
+  # peal ship pin: the commit SHA of the tag.
+  fresh
+  old=8927e4644010042329fed4ddb2f8084aa98ebf02
+  printf 'run: fetch https://x/peal %s # v0.2.0\nother: v0.1.0\n' "$old" >"$work/pin.txt"
+  git -C "$work" add pin.txt && git -C "$work" commit -q --no-verify -m "chore: pin" && git -C "$work" push -q --no-verify origin main
+  fresh
+  printf 'release:\n  commit-files: ["pin.txt: \\"fetch https://x/peal\\""]\n' >"$work/.peal/config.yml"
+  git -C "$work" tag -a -m "v0.2.0" v0.2.0 HEAD
+  git -C "$work" push -q --no-verify origin refs/tags/v0.2.0
+  tsha=$(git -C "$work" rev-parse "v0.2.0^{commit}")
+  fresh
+  printf 'release:\n  commit-files: ["pin.txt: \\"fetch https://x/peal\\""]\n' >"$work/.peal/config.yml"
+  sed "s/$old/1111111111111111111111111111111111111111/" "$work/pin.txt" >"$work/pin.txt.new"
+  mv "$work/pin.txt.new" "$work/pin.txt"
+  git -C "$work" add pin.txt
+  commit_ungated "chore(release): pin v0.2.0"
+  check_fails "release: pin refused, another SHA" 1 "pin.txt changes more than its commit SHA to $tsha" push_main
+  fresh
+  printf 'release:\n  commit-files: ["pin.txt: \\"fetch https://x/peal\\""]\n' >"$work/.peal/config.yml"
+  sed "s/$old/$tsha/" "$work/pin.txt" >"$work/pin.txt.new"
+  mv "$work/pin.txt.new" "$work/pin.txt"
+  echo more >>"$work/README"
+  git -C "$work" add pin.txt README
+  commit_ungated "chore(release): pin v0.2.0"
+  check_fails "release: pin refused, another file too" 1 "not a file of release.commit-files: README" push_main
+  fresh
+  printf 'release:\n  commit-files: ["pin.txt: \\"fetch https://x/peal\\""]\n' >"$work/.peal/config.yml"
+  sed "s/$old/$tsha/" "$work/pin.txt" >"$work/pin.txt.new"
+  sed 's/# v0.2.0/# v0.9.0/' "$work/pin.txt.new" >"$work/pin.txt"
+  rm "$work/pin.txt.new"
+  git -C "$work" add pin.txt
+  commit_ungated "chore(release): pin v0.2.0"
+  check_fails "release: pin refused, more than the SHA" 1 "pin.txt changes more than its commit SHA" push_main
+  fresh
+  printf 'release:\n  commit-files: ["pin.txt: \\"fetch https://x/peal\\""]\n' >"$work/.peal/config.yml"
+  sed "s/$old/$tsha/" "$work/pin.txt" >"$work/pin.txt.new"
+  mv "$work/pin.txt.new" "$work/pin.txt"
+  git -C "$work" add pin.txt
+  commit_ungated "chore(release): pin v0.9.0"
+  check_fails "release: pin refused, tag not here" 1 "the tag v0.9.0 is not here" push_main
+  fresh
+  printf 'release:\n  commit-files: ["pin.txt: \\"fetch https://x/peal\\""]\n' >"$work/.peal/config.yml"
+  git -C "$work" tag v0.8.0 "$(git -C "$work" commit-tree -m side "HEAD^{tree}")"
+  sed "s/$old/$(git -C "$work" rev-parse "v0.8.0^{commit}")/" "$work/pin.txt" >"$work/pin.txt.new"
+  mv "$work/pin.txt.new" "$work/pin.txt"
+  git -C "$work" add pin.txt
+  commit_ungated "chore(release): pin v0.8.0"
+  check_fails "release: pin refused, tag not before it" 1 "the commit of v0.8.0 is not before it" push_main
+  fresh
+  printf 'release:\n  commit-files: ["pin.txt: \\"fetch https://x/peal\\""]\n' >"$work/.peal/config.yml"
+  sed "s/$old/$tsha/" "$work/pin.txt" >"$work/pin.txt.new"
+  mv "$work/pin.txt.new" "$work/pin.txt"
+  git -C "$work" add pin.txt
+  commit_ungated "chore(release): pin the next one"
+  check_fails "release: pin refused, no version" 1 "which names no release tag" push_main
+  fresh
+  printf 'release:\n  commit-files: ["pin.txt: \\"fetch https://x/peal\\""]\n' >"$work/.peal/config.yml"
+  sed "s/$old/$tsha/" "$work/pin.txt" >"$work/pin.txt.new"
+  mv "$work/pin.txt.new" "$work/pin.txt"
+  git -C "$work" add pin.txt
+  commit_ungated "chore(release): pin v0.2.0"
+  check "release: the pin, by hand, the same shape" "0" "$(push_main 2>/dev/null; echo $?)"
+  fresh
+  printf 'release:\n  commit-files: ["pin.txt: \\"fetch https://x/peal\\""]\n' >"$work/.peal/config.yml"
+  git -C "$work" tag -a -m "v0.3.0" v0.3.0 HEAD
+  git -C "$work" push -q --no-verify origin refs/tags/v0.3.0
+  check "release: the pin" "0|chore(release): pin v0.3.0" "$(peal ship pin 0.3.0 >/dev/null 2>&1; echo $?)|$(git -C "$work" log -1 --format=%s origin/main)"
 }
 
 # changelog_commit SUBJECT FILE ENTRY -> FILE written as the title and its blank line

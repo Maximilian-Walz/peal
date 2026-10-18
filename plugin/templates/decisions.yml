@@ -42,7 +42,7 @@ jobs:
         # release, take its commit from
         #   git ls-remote https://github.com/Maximilian-Walz/peal 'refs/tags/vX.Y.Z^{}'
         # and change both the SHA and the tag in the comment. Peal's own release sets the
-        # tag; the SHA is set by hand once the tag exists.
+        # tag (peal ship bump) and, once the tag exists, the SHA (peal ship pin).
         run: |
           git init -q "$RUNNER_TEMP/peal"
           git -C "$RUNNER_TEMP/peal" fetch -q --depth 1 https://github.com/Maximilian-Walz/peal 8927e4644010042329fed4ddb2f8084aa98ebf02 # v0.2.0

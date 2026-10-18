@@ -442,7 +442,10 @@ backstop for whatever `peal_hooks_ensure` could not fix, never the first word on
   field (or marked line) to the tag's version makes of its parent's, and `release.changelog`: its
   parent's with one entry inserted after the title, headed `## <tag>`, the parent
   holding none of that tag and the entry no other `##` heading, or added as
-  `# Changelog` and that entry (its shape, not its text: [Security](security.md)).
+  `# Changelog` and that entry (its shape, not its text: [Security](security.md));
+  `chore(release): pin <tag>` only modifies files of `release.commit-files`, each byte
+  for byte its parent's with the one SHA of its marked line set to the tag's commit
+  (the tag known locally, its commit before the pushed one).
   Merges whose other parents a pushed
   branch already holds pass too. Nothing else, no rewrite of main, no deletion. A pull
   request merged on the server runs no client hook, and a write through a pull request

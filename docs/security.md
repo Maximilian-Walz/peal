@@ -109,8 +109,8 @@ branch by hand, and `git lfs install --force` overwriting Peal's hooks with LFS'
 The `pre-push` gate walks every commit a push would add to main's first-parent line and
 refuses it unless it is a merge of a branch pushed first (never content made up as a
 merge parent), or one of Peal's own mechanical commits — filing, revising, deferring,
-retiring a task, a milestone's state, the decisions index, a release's version files (or marked lines) and
-changelog entry — whose diff has exactly the shape its subject claims. Rewriting or
+retiring a task, a milestone's state, the decisions index, a release's version files (or marked lines),
+changelog entry and commit SHAs — whose diff has exactly the shape its subject claims. Rewriting or
 deleting main is refused outright.
 
 Limit: a release's changelog entry is checked by its shape only. The gate refuses
@@ -119,6 +119,15 @@ headed `## <tag>` for the subject's tag, with no other `##` heading, the parent 
 no entry of that tag, and every other byte unchanged; it does not rebuild the entry
 from the release's notes, so text a local push writes within that entry passes. It
 lands on main as a visible commit of its own, in a file Peal never runs or trusts.
+
+Limit: a release's pin (`chore(release): pin <tag>`) is checked against the tag in the
+pusher's own clone, because a pre-push hook makes no network call. The gate refuses a
+tag it does not have (`git fetch --tags`), a tag whose commit is not before the pushed
+commit, and any change but the one SHA of a marked line of `release.commit-files` set
+to that commit; it cannot tell a tag made up locally from the remote's. A SHA of a
+local-only tag lands on main as a visible commit, in a file (the decisions workflow
+template) that a project copies and reviews. `peal ship pin` itself checks the tag on
+the remote.
 
 - Guard: `plugin/lib/githooks.sh` (`_peal_pre_push`).
 - Harness: `plugin/lib/githooks.test.sh`.
@@ -266,7 +275,7 @@ Every action runs at a pinned commit SHA, which Dependabot keeps current, and Op
 Scorecard checks the workflows weekly. The decisions workflow template
 (`plugin/templates/decisions.yml`) ships its action and its Peal pinned by SHA too:
 Dependabot keeps the action current across `/` and `/plugin/templates`, the Peal pin
-follows each release (its tag set by the release, its SHA by hand, checked by `tools/pins.test.sh`), and `tools/pins.sh` refuses an
+follows each release (its tag set by the release, its SHA by `peal ship pin` after the tag, checked by `tools/pins.test.sh`), and `tools/pins.sh` refuses an
 unpinned reference in the template or in Peal's workflows.
 
 - Guard: `.github/workflows/ci.yml` (`permissions:`, the pinned `uses:`),

@@ -73,8 +73,8 @@ peal_version_files() {
   items=$(peal_config_get release.version-files) || return 2
   while IFS= read -r item; do
     [ -n "$item" ] || continue
-    if [[ "$item" =~ ^([^[:space:][:cntrl:]:]+):\ +(\"[^\"[:cntrl:]\\]+\")$ ]]; then
-      path=${BASH_REMATCH[1]} field=${BASH_REMATCH[2]}
+    if _peal_marked_item "$item"; then
+      path=$PEAL_ITEM_PATH field=$PEAL_ITEM_TEXT
       _peal_repo_path release.version-files "$path" || return 2
     elif [[ "$item" =~ ^([^[:space:][:cntrl:]:]+):\ +([A-Za-z0-9_-]+)$ ]]; then
       path=${BASH_REMATCH[1]} field=${BASH_REMATCH[2]}
@@ -88,6 +88,31 @@ peal_version_files() {
       return 2
     fi
     printf '%s\t%s\n' "$path" "$field"
+  done <<<"$items"
+}
+
+# _peal_marked_item ITEM -> status 0 when ITEM is "PATH: \"TEXT\"" (PATH without blank,
+# control character or colon; TEXT non-empty, without control character, quote or
+# backslash), with PEAL_ITEM_PATH and PEAL_ITEM_TEXT (the quotes included) set.
+_peal_marked_item() {
+  [[ "$1" =~ ^([^[:space:][:cntrl:]:]+):\ +(\"[^\"[:cntrl:]\\]+\")$ ]] || return 1
+  PEAL_ITEM_PATH=${BASH_REMATCH[1]} PEAL_ITEM_TEXT=${BASH_REMATCH[2]}
+}
+
+# peal_commit_files -> release.commit-files as "PATH<TAB>"TEXT"" lines: the marked-line
+# form of release.version-files only, checked as it is (the bare FIELD form is refused).
+# Status 2 and a message for the first item that is not.
+peal_commit_files() {
+  local items item
+  items=$(peal_config_get release.commit-files) || return 2
+  while IFS= read -r item; do
+    [ -n "$item" ] || continue
+    if ! _peal_marked_item "$item"; then
+      peal_err "release.commit-files: '$item' is not \"PATH: \\\"TEXT\\\"\" (TEXT without control character, quote or backslash)"
+      return 2
+    fi
+    _peal_repo_path release.commit-files "$PEAL_ITEM_PATH" || return 2
+    printf '%s\t%s\n' "$PEAL_ITEM_PATH" "$PEAL_ITEM_TEXT"
   done <<<"$items"
 }
 
@@ -204,6 +229,16 @@ peal_version_edit() {
     *) peal_err "$path: not a JSON, TOML or YAML file"; return 2 ;;
   esac
   awk -v format="$format" -v field="$2" -v value="$3" -v eol="$eol" -v name="$path" \
+    -f "$PEAL_ROOT/lib/version-field.awk" "$4" || return 2
+}
+
+# peal_commit_edit PATH "TEXT" SHA FILE -> FILE (the content of PATH) with the one object
+# name on the one line holding TEXT replaced by SHA and nothing else changed
+# (lib/version-field.awk); status 2 and a message when the line is not exactly one.
+peal_commit_edit() {
+  local eol=0
+  [ -n "$(tail -c 1 "$4")" ] || eol=1
+  PEAL_MARK=${2:1:${#2}-2} awk -v format=sha -v value="$3" -v eol="$eol" -v name="$1" \
     -f "$PEAL_ROOT/lib/version-field.awk" "$4" || return 2
 }
 
@@ -731,6 +766,87 @@ peal_ship_tag() {
   echo "tagged $tag at $(git rev-parse --short "$sha") ($PEAL_REMOTE/$PEAL_MAIN), pushed: $msg"
 }
 
+# peal_ship_pin VERSION -> the object name of the tag's commit set in each file of
+# release.commit-files (the one marked line of each), on the remote's main branch, in one
+# commit "chore(release): pin <tag>"; waited for as peal ship bump's is. Refused: a tag
+# that is not here and on the remote (peal ship tag first), or whose commit the remote's
+# main does not hold; a file that is missing, or whose marked line is not exactly one
+# holding exactly one object name: main unchanged. Nothing when every file holds it
+# already, or when the setting is empty. Status 3 as for peal ship bump.
+peal_ship_pin() {
+  local tag dir status=0 files
+  [ $# -eq 1 ] || { peal_err "ship pin: VERSION"; return 2; }
+  PEAL_PREFIX=$(peal_config_get release.tag-prefix) || return 2
+  tag=$(_peal_ship_version "$1") || return 2
+  PEAL_PIN_FILES=$(peal_commit_files) || return 2
+  _peal_ship_settings || return 2
+  if [ -z "$PEAL_PIN_FILES" ]; then
+    echo "no release.commit-files: nothing to pin"
+    return 0
+  fi
+  if ! git rev-parse -q --verify "refs/tags/$tag" >/dev/null \
+      || [ -z "$(git ls-remote --tags "$PEAL_REMOTE" "refs/tags/$tag" 2>/dev/null)" ]; then
+    peal_err "ship pin: $tag is not tagged, here and on $PEAL_REMOTE; peal ship tag $tag first"
+    return 2
+  fi
+  PEAL_PIN_SHA=$(git rev-parse "refs/tags/$tag^{commit}") || return 2
+  if ! git merge-base --is-ancestor "$PEAL_PIN_SHA" "$PEAL_REMOTE/$PEAL_MAIN"; then
+    peal_err "ship pin: $tag's commit is not on $PEAL_REMOTE/$PEAL_MAIN"
+    return 2
+  fi
+  dir=$(mktemp -d) || return 2
+  PEAL_SHIP_DIR=$dir
+  PEAL_SHIP_TAG=$tag
+  PEAL_MAIN_WRITE_WAIT=merged peal_push_main _peal_ship_pin_build "ship pin" "chore(release): pin $tag" || status=$?
+  files=$(cut -f1 <<<"$PEAL_PIN_FILES" | paste -s -d ' ' -)
+  rm -rf "$dir"
+  case $status in
+    0)
+      if [ -n "$PEAL_MW_PR" ]; then
+        echo "pinned $files to $(git rev-parse --short "$PEAL_PIN_SHA"): $(peal_main_write_report)"
+      else
+        echo "pinned $files to $(git rev-parse --short "$PEAL_PIN_SHA") on $PEAL_REMOTE/$PEAL_MAIN: $(git rev-parse --short "$PEAL_REMOTE/$PEAL_MAIN") chore(release): pin $tag"
+      fi
+      ;;
+    4) echo "already at $(git rev-parse --short "$PEAL_PIN_SHA"): $files"; status=0 ;;
+    3)
+      if [ -n "$PEAL_MW_PR" ]; then
+        echo "not merged yet: $(peal_main_write_report "run peal ship pin $tag again once it merged")"
+      fi
+      ;;
+  esac
+  return $status
+}
+
+# _peal_ship_pin_build BASE -> PEAL_TREE and PEAL_SUBJECT for peal_push_main: BASE with
+# each commit file set to PEAL_PIN_SHA; status 4 when they hold it already.
+_peal_ship_pin_build() {
+  local base=$1 dir=$PEAL_SHIP_DIR n=0 path text entry args=() changed=0
+  while IFS=$'\t' read -r path text; do
+    [ -n "$path" ] || continue
+    n=$((n + 1))
+    entry=$(git ls-tree -z "$base" -- "$path" | tr '\0' '\n')
+    if [ -z "$entry" ] || [ "${entry#*$'\t'}" != "$path" ]; then
+      peal_err "$path is not on $PEAL_REMOTE/$PEAL_MAIN (release.commit-files)"
+      return 2
+    fi
+    case $entry in
+      "100644 blob "*) ;;
+      *) peal_err "$path on $PEAL_REMOTE/$PEAL_MAIN is not a plain file (release.commit-files)"; return 2 ;;
+    esac
+    git show "$base:$path" >"$dir/old" || return 2
+    peal_commit_edit "$path" "$text" "$PEAL_PIN_SHA" "$dir/old" >"$dir/$n" || return 2
+    if ! cmp -s "$dir/old" "$dir/$n"; then
+      args+=(add "$path" "$dir/$n")
+      changed=1
+    fi
+  done <<<"$PEAL_PIN_FILES"
+  [ $changed = 1 ] || return 4
+  peal_write_tree "$base" "${args[@]}" || return 2
+  # shellcheck disable=SC2034 # read by peal_push_main
+  PEAL_SUBJECT="chore(release): pin $PEAL_SHIP_TAG"
+}
+
 # _peal_ship_gh ARGS... -> gh ARGS (within a minute, where timeout exists); status 2 and
 # gh's message when it fails.
 _peal_ship_gh() {
@@ -865,7 +981,7 @@ peal_ship_wait() {
   done
 }
 
-# peal_ship propose | notes VERSION | bump VERSION | tag VERSION | publish VERSION | wait VERSION
+# peal_ship propose | notes VERSION | bump VERSION | tag VERSION | pin VERSION | publish VERSION | wait VERSION
 peal_ship() {
   local sub=${1-}
   [ $# -eq 0 ] || shift
@@ -874,8 +990,9 @@ peal_ship() {
     notes) peal_ship_notes "$@" ;;
     bump) peal_ship_bump "$@" ;;
     tag) peal_ship_tag "$@" ;;
+    pin) peal_ship_pin "$@" ;;
     publish) peal_ship_publish "$@" ;;
     wait) peal_ship_wait "$@" ;;
-    *) peal_err "ship: propose | notes VERSION | bump VERSION | tag VERSION | publish VERSION | wait VERSION"; return 2 ;;
+    *) peal_err "ship: propose | notes VERSION | bump VERSION | tag VERSION | pin VERSION | publish VERSION | wait VERSION"; return 2 ;;
   esac
 }

@@ -62,3 +62,7 @@ tagged v0.1.0 …
 ```
 
 With a changelog set, `bump` comes before `tag`: the tag is refused without its entry.
+
+A commit SHA a release cannot hold in its own commit (a pinned reference to the release)
+goes into `release.commit-files` as a marked line; `peal ship pin <version>` sets it to
+the tag's commit once the tag exists, as a commit of its own.
