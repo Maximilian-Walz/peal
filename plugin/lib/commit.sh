@@ -9,9 +9,31 @@
 # (git add -A first). The commit reported. Refused: on the main branch or a detached HEAD,
 # without Peal's git hooks installed (the commit would go ungated), a new backlog task file
 # among the named paths (those are filed onto main, never on a branch), and nothing to
-# commit among the named paths.
+# commit among the named paths. A refusal after the git add (a new backlog file, the
+# commit-msg gate) puts the index back byte for byte as it was before the call; nothing
+# staged leaves it alone, as the add changed nothing.
+
+# _peal_commit_restore INDEX SNAPSHOT -> the index put back from the snapshot (removed
+# when there was none: an empty SNAPSHOT), atomically; the snapshot removed. A failure
+# keeps the snapshot and names it.
+_peal_commit_restore() {
+  local index=$1 snap=$2 tmp
+  if [ -z "$snap" ]; then
+    rm -f "$index" && return 0
+    peal_err "commit: could not remove the index $index"
+    return 1
+  fi
+  tmp=$(mktemp "$index.peal.XXXXXX") && cp -p "$snap" "$tmp" && mv -f "$tmp" "$index" && {
+    rm -f "$snap"
+    return 0
+  }
+  rm -f "$tmp" 2>/dev/null
+  peal_err "commit: could not restore the index; the original is kept at $snap"
+  return 1
+}
+
 peal_commit() {
-  local subject=${1-} body="" main branch tasks added top prefix path
+  local subject=${1-} body="" main branch tasks added top prefix path index snap=""
   if [ -z "$subject" ]; then
     peal_err 'commit: "<type>(<area>): <what> [NNNN]" [--body TEXT | --body-file FILE] [PATH...]'
     return 2
@@ -68,10 +90,15 @@ peal_commit() {
     peal_err "commit: Peal's git hooks are not installed here, so nothing would gate the commit; run: .peal/peal hooks install"
     return 2
   fi
+  index=$(git rev-parse --git-path index) || return 2
+  if [ -f "$index" ]; then
+    snap=$(mktemp) || return 2
+    cp -p "$index" "$snap" || { rm -f "$snap"; peal_err "commit: could not snapshot the index"; return 2; }
+  fi
   if [ ${#paths[@]} -gt 0 ]; then
-    git add -- "${paths[@]}" || { peal_err "commit: git add failed"; return 2; }
+    git add -- "${paths[@]}" || { [ -z "$snap" ] || rm -f "$snap"; peal_err "commit: git add failed"; return 2; }
   else
-    git add -A || { peal_err "commit: git add failed"; return 2; }
+    git add -A || { [ -z "$snap" ] || rm -f "$snap"; peal_err "commit: git add failed"; return 2; }
   fi
   if [ ${#paths[@]} -gt 0 ]; then
     # A second pathspec would OR, not AND: filter the named paths' own additions down to
@@ -82,26 +109,30 @@ peal_commit() {
     added=$(git diff --cached --name-only --no-renames --diff-filter=A -- "$tasks/backlog/")
   fi
   if [ -n "$added" ]; then
-    printf '%s\n' "$added" | while IFS= read -r top; do git reset -q -- "$top"; done
-    peal_err "commit: refused: a new backlog task file is filed onto $main (peal idea), never committed on a branch; unstaged:"
+    peal_err "commit: refused: a new backlog task file is filed onto $main (peal idea), never committed on a branch; the index is as it was; the file:"
     printf '  %s\n' "$added" >&2
+    _peal_commit_restore "$index" "$snap" || return 1
     return 2
   fi
   if [ ${#paths[@]} -gt 0 ]; then
     if git diff --cached --quiet -- "${paths[@]}"; then
       peal_err "commit: nothing staged, nothing to commit"
+      rm -f "$snap"
       return 2
     fi
   elif git diff --cached --quiet; then
     peal_err "commit: nothing staged, nothing to commit"
+    rm -f "$snap"
     return 2
   fi
   set -- -q -m "$subject"
   [ -z "$body" ] || set -- "$@" -m "$body"
   [ ${#paths[@]} -eq 0 ] || set -- "$@" -- "${paths[@]}"
   if ! git commit "$@"; then
-    peal_err "commit: the commit was refused (above); nothing was committed"
+    peal_err "commit: the commit was refused (above); nothing was committed, the index is as it was"
+    _peal_commit_restore "$index" "$snap" || return 1
     return 1
   fi
+  rm -f "$snap"
   git log -1 --stat --format='committed %h %s'
 }
