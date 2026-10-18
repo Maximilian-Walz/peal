@@ -27,7 +27,25 @@ cases() {
   git -C "$work" checkout -q --detach
   check_refused "detached" "refused on a detached HEAD" peal commit "feat: x [0001]"
   git -C "$work" checkout -q task/0001-some-task
-  check_refused "no subject" "commit: \"<type>(<area>): <what>" peal commit
+  check_refused "no subject" "\"<type>(<area>): <what>" peal commit
+  # Options: --help and -h print the usage and change nothing; -m is the subject; others refused.
+  echo h >"$work/h"
+  sha=$(git -C "$work" rev-parse HEAD)
+  for o in --help -h; do
+    out=$(peal commit "$o" 2>&1)
+    check "$o: exit and usage" "0:yes" "$?:$(case $out in *'<type>(<area>): <what>'*) echo yes ;; *) echo "no: $out" ;; esac)"
+    check "$o: HEAD unchanged" "$sha" "$(git -C "$work" rev-parse HEAD)"
+    check "$o: nothing staged" "" "$(git -C "$work" diff --cached --name-only)"
+  done
+  out=$(cd "$(scratch_dir)" && "$PEAL" commit --help 2>&1)
+  check "--help outside a project" "0:yes" "$?:$(case $out in *'<type>(<area>)'*) echo yes ;; *) echo "no: $out" ;; esac)"
+  check_refused "unknown option --amend" "unknown option --amend" peal commit --amend
+  check_refused "unknown option -x shows usage" "<type>(<area>): <what>" peal commit -x
+  check_refused "-- is unknown" "unknown option --" peal commit -- a
+  check_refused "-m alone" "-m needs a subject" peal commit -m
+  check_refused "second -m" "-m goes first, once" peal commit -m "feat: x [0001]" a -m b
+  check "options: nothing staged, HEAD unchanged" "$sha:" "$(git -C "$work" rev-parse HEAD):$(git -C "$work" diff --cached --name-only)"
+  rm -f "$work/h"
   check_refused "nothing staged" "nothing staged, nothing to commit" peal commit "feat: x [0001]"
   check_refused "--body without a text" "--body needs a text" peal commit "feat: x [0001]" --body
   check_refused "--body after paths" "--body goes right after the subject, once" peal commit "feat: x [0001]" a --body b
@@ -43,6 +61,16 @@ cases() {
  a | 1 +
  1 file changed, 1 insertion(+)" "$?:$(printf '%s\n' "$out" | grep -v '^commit-msg:')"
   check "paths: b left alone" "?? b" "$(git -C "$work" status --porcelain)"
+
+  # -m SUBJECT, with paths and a body.
+  echo m1 >"$work/m1"
+  echo m2 >"$work/m2"
+  peal commit -m "feat: m1 [0001]" m1 >/dev/null 2>&1
+  check "-m: subject and path" "feat: m1 [0001]:m1" "$(git -C "$work" log -1 --format=%s):$(git -C "$work" show --format= --name-only HEAD)"
+  peal commit -m "feat: m2 [0001]" --body "Why m2." m2 >/dev/null 2>&1
+  check "-m: the body" "feat: m2 [0001]
+
+Why m2." "$(git -C "$work" log -1 --format=%B)"
 
   # Everything, from a subdirectory, with a body.
   mkdir -p "$work/sub"

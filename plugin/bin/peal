@@ -156,7 +156,7 @@ Git gates (lib/githooks.sh):
                                 that were in use before
   hooks uninstall               Peal's git hooks removed, core.hooksPath put back
   githook NAME ARGS...          run the gate of git hook NAME (pre-push, commit-msg)
-  commit SUBJECT [--body TEXT | --body-file FILE] [PATH...]
+  commit [-m] SUBJECT [--body TEXT | --body-file FILE] [PATH...]
                                 PATHs, relative to the current directory, staged and
                                 committed on their own, the rest of the index left staged
                                 (everything, without any); refused on the main branch
@@ -482,7 +482,10 @@ main() {
     init) peal_init "$@" ;;
     migrate) peal_config_load || exit 2; cmd_migrate "$@" ;;
     githook) need 1 "$@"; peal_githook "$@" ;;
-    commit) peal_config_load || exit 2; peal_commit "$@" ;;
+    commit)
+      case ${1-} in -h | --help) ;; *) peal_config_load || exit 2 ;; esac
+      peal_commit "$@"
+      ;;
     milestones) cmd_milestones "$@" ;;
     list) with_store peal_list "$@" ;;
     board) with_store peal_board "$@" ;;
