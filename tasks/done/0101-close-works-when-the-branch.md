@@ -76,4 +76,21 @@ Ranges: tasks/doing/0101-close-works-when-the-branch.md:1-47, docs/milestones/m3
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Close now finds a branch on the remote even when git could not record its upstream, as happens in a sandbox where the repository's config is locked.
+
+- `_peal_close_remote_ref BRANCH` (`plugin/lib/close.sh`) answers with `BRANCH@{upstream}` when one is recorded, else `refs/remotes/$PEAL_REMOTE/BRANCH`, which the push updates without writing config. finish's already-pushed check, verify (and so wait) and the Stop hook all use it.
+- finish always pushes with remote and branch spelled out (`-q -u REMOTE BRANCH`). When the push succeeds but no upstream got recorded, it prints one stdout `NOTE: pushed; the upstream could not be recorded (above), ...` line, so git's "could not lock config file" error on stderr does not read as a failed push.
+- A push whose only failure is the upstream write already counts as a success: git's `set_upstreams()` ignores the config write's result and runs after the exit code is fixed. No extra check was needed. The new test keeps this so.
+- Decided: verify's `BLOCKED:no-upstream` is renamed `BLOCKED:not-pushed`, because it now only means "nothing of this branch on the remote". The human left the naming to the session ("whatever is cleanest long-term"), and there are no users yet. `plugin/commands/close.md` lists it with the verdicts a push fixes.
+- Test: `no_upstream_cases` in `plugin/lib/close.test.sh`, for both storages, simulates the sandbox with a regular file at the common git dir's `config.lock`. It covers the following: finish exits 0 and prints the NOTE; one pull request; no upstream configured; the tracking ref at HEAD; `WAIT:no-checks-yet` from verify; the Stop hook does not say "never pushed"; a rerun of finish with the remote gone does not push; a later commit gives `BLOCKED:unpushed`. The case lifts the lock briefly around `git remote set-url`, which writes config itself.
+- The reap's "could not delete origin/task/..." warnings have a different cause: a stale remote-tracking ref of a branch the remote already deleted, so the push that deletes it fails with "remote ref does not exist". Not fixed here. Backlog task 0121 (filed in the m2 review) already covers exactly this, so the idea this session queued for it was dropped as a duplicate. The reproduction, for 0121: a scratch bare remote; a branch pushed, then deleted in the remote only; the local branch deleted; the tracking ref kept; then the reap's delete:
+
+  > stale tracking ref: 2757580
+  > error: unable to delete 'task/x': remote ref does not exist
+  > error: failed to push some refs to '.../r.git'
+  > delete status: 1
+
+### Reviewer findings not acted on
+
+- The same upstream-else-tracking-ref fallback is still inline in `peal_release_verdict` (`plugin/lib/claim.sh:467-468`). Sharing it means changing claim.sh, which is outside this task's touches. The reviewer did not block on it.
+- For the next session: `close.test.sh` runs for more than two minutes.
