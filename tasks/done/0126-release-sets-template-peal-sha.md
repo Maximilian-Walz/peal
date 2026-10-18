@@ -125,3 +125,47 @@ Ranges: `plugin/lib/ship.sh:65-104,187-254,579-732,868-881`,
 `docs/guides/releases.md:1-65`, `plugin/lib/ship.test.sh:299-331`,
 `plugin/lib/githooks.test.sh:320-382`, `plugin/lib/hostile.test.sh:659-677`,
 `tasks/done/0117-release-bumps-template-peal-tag.md:42-160`.
+
+---
+
+## Outcome
+
+Built `peal ship pin VERSION`. It runs after `peal ship tag`, and `/peal:release` runs it
+after publish and before wait. It sets the tag's commit as the SHA on each marked line
+listed in the new setting `release.commit-files`. That setting takes marked lines only,
+parsed by `_peal_marked_item`, which `release.version-files` now shares. A new SHA token
+mode in `version-field.awk` makes the edit: exactly one marked line, exactly one
+full-length object name on it with no alphanumeric neighbour, and only that token
+changes. The change reaches main as `chore(release): pin <tag>`. A new pre-push shape,
+`_peal_pre_push_pin`, accepts that commit only if:
+
+- the tag exists locally;
+- the tag's commit is an ancestor of the parent;
+- the diff is byte for byte the recomputed edit of the commit-files.
+
+The pin and bump gates share one tag check, `_peal_release_tag`, the fix for the review
+finding. The docs cover the command, the setting, the gate shape and its limit: the gate
+trusts the local tag and makes no network call; `ship pin` itself checks the remote. The
+failure message of `tools/pins.test.sh` now names `peal ship pin`.
+
+The human decided the names, the form, the SHA rule, the subject, the step order, the
+local-only gate trust, accepting pre-releases, and no coupling to the line's version
+(A1–A9 under Notes).
+
+Left open and what the next session needs to know:
+
+- **Peal's own config does not list the template yet.** The installed plugin (from main)
+  refuses the unknown setting, so `.peal/config.yml` could not get it on this branch. The
+  human chose a follow-up task, queued at this close ("Peal's config lists the template
+  under release.commit-files"). Until it lands, `/peal:release` finds nothing to pin, and
+  the "Done when" holds for the mechanism but not yet for Peal's own releases.
+- **No end-to-end release was run on the real template.** The scratch-clone simulation of
+  a bump, tag and pin was not run. Covering it: `ship.test.sh` runs bump, tag and pin on a
+  fixture under every awk, and `peal_commit_edit` run on the real template changes only
+  the SHA token.
+- **Built-in limit (A10).** The tagged commit itself still carries the previous SHA, so
+  `pins.test.sh` run on a checkout of the tag, with tags fetched, fails its SHA check. CI
+  does not fetch tags.
+
+Tests: `ship.test.sh` 480, `githooks.test.sh` 444 (both after the refactor, every awk),
+`hostile.test.sh`, `docs.test.sh` and `pins.test.sh` green, `tools/lint.sh` clean.
