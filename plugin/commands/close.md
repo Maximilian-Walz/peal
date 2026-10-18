@@ -59,6 +59,12 @@ withdraw`, decides whether the pull request may still merge itself, and finish r
 to the reviewer for it. Review before writing the Outcome:
 a finding caught now is an edit, one caught later a rewrite.
 
+When the Outcome must quote a real CI run (the Done when asks for one), get it before
+writing the Outcome: push the branch, open a draft pull request with `gh pr create
+--draft --base <main branch> --fill`, and read its result with `gh pr checks` (`peal
+close wait` is refused once `close begin` has armed the sentinel). `finish` then finds
+that pull request, marks it ready and updates its body.
+
 ## 3. Route every finding
 
 Each finding goes into exactly one of:

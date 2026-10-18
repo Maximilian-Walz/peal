@@ -11,7 +11,7 @@
 # head branch's real sha from $FAKE_GH/remote (empty without one, or the branch there).
 # A pull request's merge (PUT pulls/N/merge, a squash) and a branch's deletion (DELETE
 # git/refs/heads/B) act on the bare repository $FAKE_GH/remote; `gh api graphql` knows
-# the mutation enablePullRequestAutoMerge, refused
+# the mutations enablePullRequestAutoMerge, refused
 # while $FAKE_GH/no-auto-merge exists, and the re-label check's edits query (the
 # timelineItems of each issue it names, one alias "iN: issue(number: N)" per issue, all
 # in one answer; an issue that does not exist fails the call), answered from an issue's
@@ -191,6 +191,13 @@ if [ "$path" = graphql ]; then
       save pulls 'map(if .node_id == $id then . + {auto_merge: {merge_method: "squash"}} else . end)' --arg id "$id"
       out '{"data":{"enablePullRequestAutoMerge":{"clientMutationId":null}}}'
       ;;
+    *markPullRequestReadyForReview*)
+      id=$(field id)
+      jq -e --arg id "$id" 'any(.[]; .node_id == $id and .state == "open")' "$FAKE_GH/pulls.json" >/dev/null \
+        || { printf 'GraphQL: Could not resolve to a node with the global id of %s\n' "$id" >&2; exit 1; }
+      save pulls 'map(if .node_id == $id then . + {draft: false} else . end)' --arg id "$id"
+      out '{"data":{"markPullRequestReadyForReview":{"clientMutationId":null}}}'
+      ;;
     *timelineItems*)
       nums=$(field query | grep -oE 'i[0-9]+: issue\(number: [0-9]+\)' | sed -E 's/^i([0-9]+): issue\(number: ([0-9]+)\)$/\1 \2/' \
         | awk '$1 != $2 { exit 1 } { print $1 }') || die "graphql: an alias iN that is not issue(number: N)"
@@ -210,7 +217,7 @@ if [ "$path" = graphql ]; then
             )}
           }}] | from_entries)}}' "$FAKE_GH/issues.json")"
       ;;
-    *) die "graphql: only enablePullRequestAutoMerge and the re-label check's edits query are faked" ;;
+    *) die "graphql: only enablePullRequestAutoMerge, markPullRequestReadyForReview and the re-label check's edits query are faked" ;;
   esac
   exit 0
 fi

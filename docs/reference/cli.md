@@ -448,7 +448,8 @@ file. `FILE` is the reviewer's report.
   git hooks, and a failing `checks.close` command.
 - Then: files the queued ideas in one push; on `merge-auto: withdraw` removes
   `merge: auto`; commits the move to `done/` as `docs(tasks): close ID [ID]` (empty when
-  nothing else changed); pushes; opens the pull request or updates the open one.
+  nothing else changed); marks an open draft pull request ready for review; pushes;
+  opens the pull request or updates the open one.
 - Whatever fails after the flush keeps the close in progress; run it again.
 - Ends with `closed NNNN: pull request #N URL`.
 

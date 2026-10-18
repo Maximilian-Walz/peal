@@ -720,11 +720,47 @@ check_cases() {
   check "check: an indented, quoted placeholder passes" "0:" "$(at "$work" "$PEAL" check 2>&1; echo "$?:")"
 }
 
+# draft_cases -> finish marks an open draft pull request of the branch ready for review
+# before it pushes; a failing mutation stops it with the sentinel armed, a re-run resumes.
+draft_cases() {
+  local out status head
+  new_repo
+  ready 1 first-task
+  build
+  git -C "$wt" push -q -u origin HEAD 2>/dev/null
+  head=$(git -C "$wt" symbolic-ref --short HEAD)
+  gh_save pulls '. + [{number: 50, node_id: "PR_50", title: "wip", body: "", state: "open", draft: true, merged: false,
+      html_url: "https://example.test/pull/50", head: {ref: $h}, base: {ref: "main"}}]' --arg h "$head"
+  begin >/dev/null
+  outcome "Built a.txt."
+  printf 'POST graphql' >"$FAKE_GH/fail"
+  out=$(close_finish 2>&1)
+  status=$?
+  check "draft: a failing mutation stops finish" "1|armed|true" "$status|$(sentinel)|$(jq -r '.[0].draft' "$FAKE_GH/pulls.json")"
+  check "draft: nothing pushed before the mutation" "$([ $kind = files ] && echo 1 || echo 0)" "$(git -C "$wt" rev-list --count '@{upstream}..HEAD')"
+  rm -f "$FAKE_GH/fail"
+  out=$(close_finish 2>&1)
+  status=$?
+  check "draft: finish done" "0" "$status"
+  check "draft: marked ready" "false|1" "$(jq -r '.[0].draft' "$FAKE_GH/pulls.json")|$(prs)"
+  check "draft: said so" "marked pull request #50 ready for review" "$(printf '%s\n' "$out" | grep '^marked')"
+  check "draft: updated too" "updated the title and body of pull request #50" "$(printf '%s\n' "$out" | grep '^updated')"
+  check "draft: the final Outcome in the body" "Built a.txt." "$(jq -r '.[0].body' "$FAKE_GH/pulls.json" | grep Built)"
+  check "draft: the sentinel cleared" "clear" "$(sentinel)"
+  check "draft: pushed" "0" "$(git -C "$wt" rev-list --count '@{upstream}..HEAD')"
+  # Not a draft: no mutation, no message.
+  : >"$FAKE_GH/log"
+  rearm_sentinel
+  out=$(close_finish 2>&1)
+  check "ready already: no mutation, no message" "0|0" "$(grep -c 'POST graphql' "$FAKE_GH/log")|$(printf '%s\n' "$out" | grep -c '^marked')"
+}
+
 cases() {
   begin_cases
   begin_unreachable_cases
   finish_cases
   push_skip_cases
+  draft_cases
   char_device_cases
   merge_cases
   rerun_cases
