@@ -26,7 +26,8 @@ _peal_hooks_dir() {
 
 # peal_hooks_install -> the stubs written, core.hooksPath pointed at them, a hooks path
 # set before kept as peal.projectHooks for the stubs to chain to, and this Peal's root
-# recorded for the stubs to find; refused for a Peal inside this repository, which the
+# recorded for the stubs to find (unless the record names a verified newer Peal,
+# peal_write_root); refused for a Peal inside this repository, which the
 # stubs would refuse to run.
 peal_hooks_install() {
   local dir prev name chain
@@ -48,7 +49,7 @@ peal_hooks_install() {
     git config peal.projectHooks "$prev" || return 2
   fi
   git config core.hooksPath "$dir" || return 2
-  printf '%s\n' "$PEAL_ROOT" >"${dir%/hooks}/../peal-root" || return 2
+  peal_write_root "${dir%/peal/hooks}" || return 2
   chain=$(git config peal.projectHooks) || chain="${dir%/peal/hooks}/hooks"
   echo "installed Peal's git hooks in $dir (core.hooksPath); they chain to the hooks in $chain"
 }

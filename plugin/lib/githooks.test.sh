@@ -15,6 +15,21 @@ set -uo pipefail
 # shellcheck source=task-fixtures.sh
 . "$PEAL_ROOT/lib/task-fixtures.sh"
 
+# fake_cached CONFIG VERSION -> a stand-in Peal in CONFIG's plugin cache at VERSION, listed
+# by CONFIG's installed_plugins.json (unless LIST=no); prints its root.
+fake_cached() {
+  local root=$1/plugins/cache/m/peal/$2
+  mkdir -p "$root/bin" "$root/.claude-plugin"
+  printf '#!/bin/sh\n' >"$root/bin/peal"
+  chmod +x "$root/bin/peal"
+  printf '{\n  "name": "peal",\n  "version": "%s"\n}\n' "$2" >"$root/.claude-plugin/plugin.json"
+  if [ "${LIST:-yes}" = yes ]; then
+    printf '{"plugins": {"peal@m": [{"installPath": "%s", "version": "%s"}]}}\n' "$root" "$2" \
+      >"$1/plugins/installed_plugins.json"
+  fi
+  printf '%s\n' "$root"
+}
+
 peal() { at "$work" "$PEAL" "$@"; }
 
 # fresh -> the work tree back on the remote's main, clean.
@@ -65,6 +80,34 @@ install() {
     at "$work" "$work-linked/peal/bin/peal" hooks install
   check "install refused: the root recorded before stays" "$PEAL_ROOT" "$(cat "$work/.git/peal-root")"
   rm -rf "$work/vendor" "$work-linked/peal"
+
+  # A verified record of a higher version stays; an older, unlisted, gone or invalid one is replaced.
+  cfg=$(cd "$(mktemp -d)" && pwd -P)
+  scratch+=("$cfg")
+  mkdir -p "$cfg/plugins"
+  hinst() { (cd "$work" && CLAUDE_CONFIG_DIR="$cfg" "$PEAL" hooks install >/dev/null 2>&1); }
+  newer=$(fake_cached "$cfg" 99.0.0)
+  printf '%s\n' "$newer" >"$work/.git/peal-root"
+  hinst
+  check "install: a verified newer record stays" "$newer" "$(cat "$work/.git/peal-root")"
+  older=$(fake_cached "$cfg" 0.0.1)
+  printf '%s\n' "$older" >"$work/.git/peal-root"
+  hinst
+  check "install: a record older than this Peal is replaced" "$PEAL_ROOT" "$(cat "$work/.git/peal-root")"
+  newer=$(LIST=no fake_cached "$cfg" 99.0.0)
+  printf '{"plugins": {"peal@m": [{"installPath": "/elsewhere", "version": "99.0.0"}]}}\n' >"$cfg/plugins/installed_plugins.json"
+  printf '%s\n' "$newer" >"$work/.git/peal-root"
+  hinst
+  check "install: an unlisted newer record is replaced" "$PEAL_ROOT" "$(cat "$work/.git/peal-root")"
+  printf '%s\n' "$cfg/plugins/cache/m/peal/gone" >"$work/.git/peal-root"
+  hinst
+  check "install: a gone newer record is replaced" "$PEAL_ROOT" "$(cat "$work/.git/peal-root")"
+  printf '{"name": "other", "version": "99.0.0"}\n' >"$newer/.claude-plugin/plugin.json"
+  rm -f "$cfg/plugins/installed_plugins.json"
+  printf '%s\n' "$newer" >"$work/.git/peal-root"
+  hinst
+  check "install: an invalid newer record is replaced" "$PEAL_ROOT" "$(cat "$work/.git/peal-root")"
+  printf '%s\n' "$PEAL_ROOT" >"$work/.git/peal-root"
 
   # Uninstall leaves nothing of Peal's in the git directory or the config.
   git -C "$work" config peal.extra.key one
