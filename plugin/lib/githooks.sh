@@ -319,6 +319,19 @@ _peal_pre_push_index() {
   fi
 }
 
+# _peal_release_tag LEAD PREFIX SHORT MAIN SUBJECT -> PEAL_GATE_TAG, the release tag
+# (PREFIX, then MAJOR.MINOR.PATCH with an optional pre-release) that follows LEAD in
+# SUBJECT; status 1 and a refusal when SUBJECT names none.
+_peal_release_tag() {
+  local tag=${5#"$1"}
+  if [ "${tag#"$2"}" = "$tag" ] && [ -n "$2" ] \
+      || ! [[ "${tag#"$2"}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]; then
+    _peal_gate_refuse pre-push "$3 reaches $4 directly as \"$5\", which names no release tag ($2MAJOR.MINOR.PATCH)"
+    return 1
+  fi
+  PEAL_GATE_TAG=$tag
+}
+
 # _peal_pre_push_release SHA MAIN SHORT SUBJECT -> refused unless SHA's subject names a
 # release tag, and its diff only modifies files of release.version-files, each exactly
 # what setting its field or marked line to that version makes of its parent's
@@ -328,14 +341,9 @@ _peal_pre_push_index() {
 _peal_pre_push_release() {
   local sha=$1 short=$3 subject=$4 prefix files changelog version tag diff line mode path field why="" dir n=0 shape
   prefix=$(peal_config_get release.tag-prefix) || return 1
-  version=${subject#"chore(release): "}
-  if [ "${version#"$prefix"}" = "$version" ] && [ -n "$prefix" ] \
-      || ! [[ "${version#"$prefix"}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]; then
-    _peal_gate_refuse pre-push "$short reaches $2 directly as \"$subject\", which names no release tag (${prefix}MAJOR.MINOR.PATCH)"
-    return
-  fi
-  tag=$version
-  version=${version#"$prefix"}
+  _peal_release_tag "chore(release): " "$prefix" "$short" "$2" "$subject" || return
+  tag=$PEAL_GATE_TAG
+  version=${tag#"$prefix"}
   if ! files=$(peal_version_files 2>&1); then
     _peal_gate_refuse pre-push "$short reaches $2 directly as \"$subject\", but release.version-files is not right:" "$files"
     return
@@ -392,13 +400,8 @@ _peal_pre_push_release() {
 _peal_pre_push_pin() {
   local sha=$1 short=$3 subject=$4 prefix files version tag diff line mode path text why="" dir n=0 tsha
   prefix=$(peal_config_get release.tag-prefix) || return 1
-  version=${subject#"chore(release): pin "}
-  if [ "${version#"$prefix"}" = "$version" ] && [ -n "$prefix" ] \
-      || ! [[ "${version#"$prefix"}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]; then
-    _peal_gate_refuse pre-push "$short reaches $2 directly as \"$subject\", which names no release tag (${prefix}MAJOR.MINOR.PATCH)"
-    return
-  fi
-  tag=$version
+  _peal_release_tag "chore(release): pin " "$prefix" "$short" "$2" "$subject" || return
+  tag=$PEAL_GATE_TAG
   if ! tsha=$(git rev-parse -q --verify "refs/tags/$tag^{commit}"); then
     _peal_gate_refuse pre-push "$short reaches $2 directly as \"$subject\", but the tag $tag is not here" "git fetch --tags"
     return
