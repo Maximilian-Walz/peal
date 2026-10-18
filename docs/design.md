@@ -439,7 +439,7 @@ backstop for whatever `peal_hooks_ensure` could not fix, never the first word on
   with the decisions module on, `docs(decisions): regenerate the index` changes the index
   alone; `docs(tasks): milestone` only modifies milestone files; `chore(release): <tag>`
   only modifies files of `release.version-files`, each byte for byte what setting its
-  field to the tag's version makes of its parent's, and `release.changelog`: its
+  field (or marked line) to the tag's version makes of its parent's, and `release.changelog`: its
   parent's with one entry inserted after the title, headed `## <tag>`, the parent
   holding none of that tag and the entry no other `##` heading, or added as
   `# Changelog` and that entry (its shape, not its text: [Security](security.md)).

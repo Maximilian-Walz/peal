@@ -88,9 +88,9 @@ tag_matches() {
     echo "the template pins Peal $tag but plugin.json is v$version: set the fetch line's SHA (git rev-parse v$version^{commit}) and tag comment in plugin/templates/decisions.yml"
 }
 check "the template's Peal tag is plugin.json's version" "" "$(tag_matches "$template")"
-sed "s/# v$version\$/# v0.3.0/" "$template" >"$dir/bumped.yml"
+sed "s/# v$version\$/# v99.0.0/" "$template" >"$dir/bumped.yml"
 check "a different tag is reported" \
-  "the template pins Peal v0.3.0 but plugin.json is v$version: set the fetch line's SHA (git rev-parse v$version^{commit}) and tag comment in plugin/templates/decisions.yml" \
+  "the template pins Peal v99.0.0 but plugin.json is v$version: set the fetch line's SHA (git rev-parse v$version^{commit}) and tag comment in plugin/templates/decisions.yml" \
   "$(tag_matches "$dir/bumped.yml")"
 if tag_sha=$(git -C "$REPO" rev-parse -q --verify "v$version^{commit}" 2>/dev/null); then
   check "the pinned SHA is v$version's commit" "$tag_sha" "$(pinned_sha "$template")"

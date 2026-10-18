@@ -8,7 +8,15 @@
 # the key at depth 1 of the top object; for TOML, "F = ..." before the first [table];
 # for YAML, "F: ..." at column 0. The value must be a string: JSON's "...", TOML's
 # basic or literal string on one line, YAML's plain, double- or single-quoted scalar on
-# one line; its quoting is kept. Refused (status 2, a message, nothing on stdout): no
+# one line; its quoting is kept.
+#
+#   PEAL_MARK=TEXT awk -v format=line -v value=V -v eol=1|0 -v name=PATH \
+#     -f version-field.awk FILE
+#
+# is the marked-line form, for any plain file: exactly one line contains TEXT (a literal,
+# read from the environment so that no escape is interpreted), and that line holds
+# exactly one version MAJOR.MINOR.PATCH(-pre)? with no digit or dot right before or
+# after it; only that version is replaced, a "v" before it kept. Refused (status 2, a message, nothing on stdout): no
 # such field, a field there twice, a value that is not such a string. V is written as
 # it is: the caller passes a version, which needs no escaping.
 
@@ -145,8 +153,37 @@ function yaml(    i, l, p, e, t, v, c) {
   }
 }
 
+# line -> the one version on the one line holding the marker.
+function marked(    mark, i, l, rest, off, s, e, cands, ok) {
+  mark = ENVIRON["PEAL_MARK"]
+  if (mark == "") refuse("the marker is empty")
+  for (i = 1; i <= n; i++) {
+    if (!index(line[i], mark)) continue
+    if (hits++) refuse("the marker \"" mark "\" is on more than one line")
+    at = i
+  }
+  if (!hits) refuse("no line holds the marker \"" mark "\"")
+  l = line[at]; rest = l; off = 0
+  while (match(rest, /[0-9]+[.][0-9]+[.][0-9]+(-[0-9A-Za-z.-]+)?/)) {
+    s = off + RSTART; e = off + RSTART + RLENGTH - 1
+    cands++
+    if (!(s > 1 && substr(l, s - 1, 1) ~ /[0-9.]/) && !(substr(l, e + 1, 1) ~ /[0-9.]/)) { ok++; from = s; to = e }
+    off = e; rest = substr(l, e + 1)
+  }
+  if (cands != 1 || ok != 1) refuse(cands ? "the line holding the marker \"" mark "\" does not hold exactly one version" : "the line holding the marker \"" mark "\" holds no version")
+}
+
 END {
   if (failed) exit 2
+  if (format == "line") {
+    marked()
+    for (i = 1; i <= n; i++) {
+      l = line[i]
+      if (i == at) l = substr(l, 1, from - 1) value substr(l, to + 1)
+      printf "%s%s", l, (i < n || eol ? "\n" : "")
+    }
+    exit
+  }
   if (field !~ /^[A-Za-z0-9_-]+$/) refuse("'" field "' is no top-level field name")
   if (format == "json") json()
   else if (format == "toml") toml()

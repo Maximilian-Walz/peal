@@ -282,7 +282,7 @@ release.tag-prefix and the version):
                                 NOTHING since <tag>
   ship notes VERSION            the release notes: Breaking, Features, Fixes, a line per
                                 task (release-note: none left out)
-  ship bump VERSION             each file of release.version-files set to VERSION, and
+  ship bump VERSION             each file (or marked line) of release.version-files set to VERSION, and
                                 the release's entry inserted into release.changelog, on
                                 the remote's main branch in one commit, chore(release):
                                 <tag>, through a pull request where main refuses pushes,

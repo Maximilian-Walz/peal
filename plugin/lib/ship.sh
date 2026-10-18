@@ -63,24 +63,30 @@ _peal_ship_version() {
 }
 
 # peal_version_files -> release.version-files as "PATH<TAB>FIELD" lines, each item
-# "PATH: FIELD" checked: PATH relative, inside the repository, no blank or colon in it,
-# a .json, .toml, .yml or .yaml file; FIELD a top-level field name. Status 2 and a
-# message for the first that is not.
+# "PATH: FIELD" or "PATH: \"TEXT\"" checked: PATH relative, inside the repository, no
+# blank or colon in it; FIELD a top-level field name of a .json, .toml, .yml or .yaml
+# file (then the column holds FIELD), or TEXT a literal marker (non-empty, no control
+# character, tab, quote or backslash) of any plain file (the column holds "TEXT", quotes
+# included). Status 2 and a message for the first that is not.
 peal_version_files() {
   local items item path field
   items=$(peal_config_get release.version-files) || return 2
   while IFS= read -r item; do
     [ -n "$item" ] || continue
-    if ! [[ "$item" =~ ^([^[:space:][:cntrl:]:]+):\ +([A-Za-z0-9_-]+)$ ]]; then
-      peal_err "release.version-files: '$item' is not \"PATH: FIELD\", FIELD a top-level field (letters, digits, _ and -)"
+    if [[ "$item" =~ ^([^[:space:][:cntrl:]:]+):\ +(\"[^\"[:cntrl:]\\]+\")$ ]]; then
+      path=${BASH_REMATCH[1]} field=${BASH_REMATCH[2]}
+      _peal_repo_path release.version-files "$path" || return 2
+    elif [[ "$item" =~ ^([^[:space:][:cntrl:]:]+):\ +([A-Za-z0-9_-]+)$ ]]; then
+      path=${BASH_REMATCH[1]} field=${BASH_REMATCH[2]}
+      _peal_repo_path release.version-files "$path" || return 2
+      case $path in
+        *.json | *.toml | *.yml | *.yaml) ;;
+        *) peal_err "release.version-files: '$path' is not a .json, .toml, .yml or .yaml file"; return 2 ;;
+      esac
+    else
+      peal_err "release.version-files: '$item' is not \"PATH: FIELD\" (FIELD a top-level field: letters, digits, _ and -) nor \"PATH: \\\"TEXT\\\"\" (TEXT without control character, quote or backslash)"
       return 2
     fi
-    path=${BASH_REMATCH[1]} field=${BASH_REMATCH[2]}
-    _peal_repo_path release.version-files "$path" || return 2
-    case $path in
-      *.json | *.toml | *.yml | *.yaml) ;;
-      *) peal_err "release.version-files: '$path' is not a .json, .toml, .yml or .yaml file"; return 2 ;;
-    esac
     printf '%s\t%s\n' "$path" "$field"
   done <<<"$items"
 }
@@ -180,16 +186,23 @@ peal_changelog_shape() {
 
 # peal_version_edit PATH FIELD VALUE FILE -> FILE (the content of PATH) with its
 # top-level FIELD set to VALUE and nothing else changed (lib/version-field.awk); status 2
-# and a message when it has no such field holding a string.
+# and a message when it has no such field holding a string. A FIELD in double quotes is
+# a marker: the one line holding that text has its one version replaced by VALUE.
 peal_version_edit() {
   local path=$1 format eol=0
+  [ -n "$(tail -c 1 "$4")" ] || eol=1
+  case $2 in
+    \"*\")
+      PEAL_MARK=${2:1:${#2}-2} awk -v format=line -v value="$3" -v eol="$eol" -v name="$path" \
+        -f "$PEAL_ROOT/lib/version-field.awk" "$4" || return 2
+      return ;;
+  esac
   case $path in
     *.json) format=json ;;
     *.toml) format=toml ;;
     *.yml | *.yaml) format=yaml ;;
     *) peal_err "$path: not a JSON, TOML or YAML file"; return 2 ;;
   esac
-  [ -n "$(tail -c 1 "$4")" ] || eol=1
   awk -v format="$format" -v field="$2" -v value="$3" -v eol="$eol" -v name="$path" \
     -f "$PEAL_ROOT/lib/version-field.awk" "$4" || return 2
 }
