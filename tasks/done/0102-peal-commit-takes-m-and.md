@@ -77,4 +77,10 @@ Ranges relied on:
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+`peal commit` now reads its first argument as an option when it starts with `-`. `-m SUBJECT` sets the subject. `-h`/`--help` prints the usage to stdout and exits 0 without staging or committing; it works outside a configured project too, because `plugin/bin/peal` skips the config load for it. Any other leading option, `--` included, is refused (exit 2) with the usage on stderr. A second `-m` after the subject is refused with "commit: -m goes first, once; the body is --body". Both help and the refusals use one helper, `_peal_commit_usage` in `plugin/lib/commit.sh`, so there is one copy of the usage text: the old string with `[-m] ` inserted. The positional form and its internal caller in `store-files.sh` are unchanged. `docs/reference/cli.md` shows the new signature.
+
+Decided with the human at plan time: `-m` is accepted only as the first argument (not git-style anywhere), the usage text is the old one with `[-m]` added, and cli.md is updated even though it was outside the written Scope.
+
+`plugin/lib/commit.test.sh` covers `--help`, `-h`, `--help` outside a project, `--amend`/`-x`/`--`, a bare `-m`, a second `-m`, `-m SUBJECT PATH` and `-m` with `--body`; 180 passed, 0 failed, under every installed awk. `plugin/commands/commands.test.sh` passes. Implementer departures: the empty-subject refusal no longer doubles its `commit:` prefix, and the existing "no subject" test matches on `"<type>(<area>): <what>` because `[-m]` would be a glob class in the pattern.
+
+The reviewer found nothing blocking. Its two cosmetic points (a trailing space in the unknown-option message, an over-long line in cli.md) were fixed in a commit of their own. No ideas were filed.
