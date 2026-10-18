@@ -1,7 +1,8 @@
 ---
 milestone: m3
 plan: required
-touches: [plugin/templates/launcher, plugin/lib/session.sh]
+touches: [plugin/templates/launcher, plugin/templates/githook, plugin/templates/launcher.test.sh, plugin/lib/session.sh, plugin/lib/githooks.sh, plugin/bin/peal.test.sh, .peal/peal, docs/design.md, docs/security.md, CONTRIBUTING.md]
+size: M
 ---
 
 # 0115 — Refresh the installed plugin from main in one step; a stale peal-root does not pin old code
@@ -14,7 +15,19 @@ The task makes it one step for a session that needs the latest main. Two routes 
 
 ## Scope
 
+- Route B: the launcher and the git-hook stub (one shared finding block) take the highest-version verified Peal root among the recorded `.git/peal-root` and the cache entries; ties or incomparable versions fall back to today's order (recorded root, then newest mtime). The set of roots allowed to run is unchanged.
+- SessionStart (`peal_record_root`) and `peal hooks install` never downgrade `peal-root`: they leave a record that names a verified root of a higher version than the running plugin, through one shared helper.
+- This repository's `.peal/peal` regenerated from the new template.
+- Docs: the new order in `docs/design.md`, the 0040 answer and the newest-wins limits in `docs/security.md`, the refresh recipe in `CONTRIBUTING.md` "Running on itself".
+- Out of scope: per-merge versions (route A1), automatic refresh of stale stubs, deleting `peal-root`.
+
 ## Done when
+
+- `plugin/templates/launcher.test.sh`, launcher and stub: a recorded 0.1.0 with a cached, listed 0.2.0 runs 0.2.0; a recorded 0.2.0 with a newer-mtime cached 0.1.0 runs the recorded one; equal versions across marketplaces: recorded, then mtime; an unlisted recorded root is skipped; an `.orphaned_at` cache dir is skipped; every existing row stays green.
+- `plugin/bin/peal.test.sh`: a newer running plugin overwrites the record; an older one leaves a verified newer record alone; an older one overwrites a newer record that is unlisted, gone or invalid.
+- `plugin/lib/githooks.test.sh`: the same rule for `hooks install`.
+- `cmp .peal/peal plugin/templates/launcher` is identical.
+- The refresh recipe is in `CONTRIBUTING.md`, its commands tried in a scratch `CLAUDE_CONFIG_DIR`; `tools/docs.test.sh` and `tools/lint.sh` pass.
 
 ## Raw
 
@@ -52,6 +65,23 @@ The task makes it one step for a session that needs the latest main. Two routes 
 - Open question: what "newer" means when comparing roots: the plugin version, an embedded commit, or something else. With equal versions (the case that caused this), a version comparison alone cannot tell them apart.
 - Context: `docs/design.md` (Peal runs on itself from the installed plugin), `docs/reference/configuration.md`.
 - Milestone m3 because the idea names it.
+- 2026-10-18, the human, at planning: "one step" means route B plus a recipe in the docs; per-merge versions (A1) are a separate idea. The newest verified root wins even over a deliberate project-scope pin of an older Peal (the limit documented in security.md). `peal hooks install` follows the same no-downgrade rule through a shared helper. Versions compare as numeric dot fields with a prerelease below its release; anything else is incomparable. The cache scan skips `.orphaned_at` directories. Candidates are not limited to the recorded root's marketplace (documented). The recipe goes in CONTRIBUTING.md, including re-running `.peal/peal hooks install`; no automatic stub refresh. Keeping or deleting `peal-root` was left to the session: kept as the tie-break (deleting it touches init, doctor, githooks, many harnesses, and it still covers roots outside the cache).
+
+## Plan
+
+Route B, "prefer the newest verified root".
+
+1. `plugin/templates/launcher` and identically `plugin/templates/githook` (`launcher.test.sh:24` requires the blocks byte-identical): `_peal_find` gathers the recorded root (if `_peal_check recorded` passes) and every cache entry that passes `_peal_check cache` and has no `.orphaned_at`, and takes the highest `plugin.json` version. Comparator: portable awk over numeric dot fields, a `-prerelease` below its release; not `sort -V` (macOS). Ties or incomparable versions: recorded root first, then newest mtime (today's order). `_peal_check` exposes the version it already reads (e.g. `_peal_version`) instead of parsing twice. Header comment updated.
+2. `plugin/lib/session.sh` `peal_record_root`: leave the record when it names a verified root (exists, names peal, listed in `installed_plugins.json` when that file exists) whose version is higher than the running plugin's; otherwise write as today. One shared helper.
+3. `plugin/lib/githooks.sh:51` `peal_hooks_install` writes `peal-root` through the same helper.
+4. Regenerate `.peal/peal` with `PEAL_ROOT=$PWD/plugin plugin/bin/peal init --stage tasks` (as 0098).
+5. Docs: `docs/design.md` "Finding Peal's scripts" (595-611) the new order and peal-root as tie-break; `docs/security.md` first boundary (30-55): no weakening of 0040, the set of runnable roots is unchanged, only the choice among verified roots; limits: project-scope pins and other marketplaces' higher versions win; `CONTRIBUTING.md` "Running on itself" (62-68): the refresh recipe (forced reinstall of the pinned version, restart, `.peal/peal hooks install` in existing clones), its commands tried in a scratch `CLAUDE_CONFIG_DIR` as `tools/install.test.sh` does, only what worked written down.
+
+Verification: as `## Done when`; the existing end-to-end block of `launcher.test.sh` (188-203) still passes.
+
+Ranges: plugin/templates/launcher:1-187, plugin/templates/githook:1-30, plugin/templates/launcher.test.sh:21-24, plugin/templates/launcher.test.sh:105-205, plugin/lib/session.sh:1-47, plugin/bin/peal:300-310, plugin/bin/peal:377-392, plugin/bin/peal.test.sh:1-45, plugin/lib/githooks.sh:27-113, plugin/lib/doctor.sh:112-190, plugin/lib/init.sh:269, plugin/lib/init.sh:327, plugin/.claude-plugin/plugin.json:1-11, .claude-plugin/marketplace.json:1-17, .peal/config.yml:15, tools/install.test.sh:1-81, docs/security.md:28-86, docs/security.md:97-104, docs/design.md:595-611, CONTRIBUTING.md:62-68, tasks/done/0098-refresh-committed-launcher.md:42-62. External: Claude Code plugin docs, "Versions and updates" (https://code.claude.com/docs/en/plugins/loading).
+
+Model default; size M; merge default (security boundary).
 
 ---
 
