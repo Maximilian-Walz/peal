@@ -50,9 +50,15 @@ Every script has a harness next to it, `<script>.test.sh`, runnable on its own w
 `bash`. `tools/test-all.sh` runs them all, or the ones you name, and `tools/lint.sh` runs
 `shellcheck`, `tools/pins.sh` (a workflow's action or Peal fetch must be pinned by SHA) and
 `peal check`. `tools/docs.test.sh` checks the documentation: every
-command and relative link it names exists, and the blocks marked
-`<!-- docs-check: run -->`, `<!-- docs-check: config -->`, `<!-- docs-check: shape -->`
-and `<!-- docs-check: install -->` run or load, so a copied example works.
+command and relative link it names exists, and every fenced block carries a marker
+comment, `<!-- docs-check: KIND -->` right above it, so a copied example works. The kinds:
+`run` (its `$ ` lines run), `config` (loads as `.peal/config.yml`), `frontmatter` (a header
+`peal frontmatter check` accepts), `shape` (the `filed`, `claimed` and `closed` lines),
+`install` (the `/plugin` lines match the marketplace), `settings` (a `.claude/settings.json`
+as `peal init` writes it), `migrate` (the `peal migrate` lines run on a pre-Peal project),
+`sections` (the task template's sections), `belfry` (a `.belfry.yml` as `peal init` writes
+it) and `decision` (an entry `peal decision check` accepts). A block with no marker is
+reported, and there is no exempt one.
 
 CI runs the lint and every harness on each pull request; a pull request that changes only
 tasks or milestones skips the harnesses. The slow harnesses are split into shards, and

@@ -74,6 +74,7 @@ blocked with the cycle, and `peal check` names it.
 
 The body after the title:
 
+<!-- docs-check: sections -->
 ```markdown
 ## Intent
 ## Scope

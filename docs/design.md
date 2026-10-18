@@ -58,6 +58,7 @@ following:
 
 A project's `.belfry.yml` for Peal is then:
 
+<!-- docs-check: belfry -->
 ```yaml
 tasks:
   backend: commands
@@ -531,6 +532,7 @@ An entry is `<dir>/NNNN-slug.md`, in the reference's shape, so its entries move 
 unchanged:
 
 
+<!-- docs-check: decision -->
 ```markdown
 # 0042 — Title
 Date: 2026-09-24
@@ -581,6 +583,7 @@ This repository is a Claude Code plugin marketplace with one plugin, `peal`. A p
 installs it for everyone working on it, sessions Belfry starts included, through its
 `.claude/settings.json`:
 
+<!-- docs-check: settings -->
 ```json
 {
   "extraKnownMarketplaces": {
