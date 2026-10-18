@@ -41,6 +41,7 @@ release.tag-prefix: v
 release.wait-ci: false
 release.report: []
 release.version-files: []
+release.commit-files: []
 release.changelog:
 decisions: false
 stages: []
