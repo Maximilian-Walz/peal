@@ -7,8 +7,9 @@
 # Where it looks, in order:
 #   1. $PEAL_ROOT, a Peal checkout or installation, taken as it is (an error if it holds
 #      no Peal): whoever sets it chose what runs;
-#   2. the root the plugin's SessionStart hook recorded in this repository's git directory;
-#   3. the newest Peal in Claude Code's plugin cache.
+#   2. otherwise the highest version among the root the plugin's SessionStart hook recorded
+#      in this repository's git directory and the Peals in Claude Code's plugin cache;
+#      equal or incomparable versions: the recorded root, then the newest cache directory.
 # A recorded or cached root runs only once it is verified (the block below): never a Peal
 # inside this repository, whatever the repository ships or records.
 set -u
@@ -33,11 +34,13 @@ _peal_common=$(cd "$_peal_base" && cd "$(git rev-parse --git-common-dir 2>/dev/n
 # .claude-plugin/plugin.json names peal with a version, and it lies outside this
 # repository: every worktree git lists, the base, the git directory. A recorded or cached
 # root must also lie in Claude Code's plugin cache and, when installed_plugins.json is
-# there, be a path and version its peal@ entries list. A candidate refused is named on
-# stderr with the reason. Nothing here reads or runs a file of the work tree.
+# there, be a path and version its peal@ entries list. Of the candidates that pass, the
+# highest version runs (_peal_find). A candidate refused is named on stderr with the reason. Nothing here reads or runs a file of the work tree.
 _peal_config=${CLAUDE_CONFIG_DIR:-$HOME/.claude}
 _peal_root=""
 _peal_dirs=""
+_peal_version=""       # the version _peal_check last accepted
+_peal_best_version=""
 
 # _peal_real DIR -> DIR's physical path; DIR itself when it cannot be entered.
 _peal_real() {
@@ -145,31 +148,78 @@ EOF
 $(_peal_installed)
 EOF
   fi
-  [ -n "$why" ] || return 0
+  if [ -z "$why" ]; then
+    _peal_version=$version
+    return 0
+  fi
   printf '%s: skipped the Peal at %s (%s): %s\n' "$_peal_me" "$1" "$kind" "$why" >&2
   return 1
 }
 
-# _peal_find -> _peal_root: the recorded root, else the newest cached Peal, the first
-# that passes _peal_check; status 1 if none does.
+# _peal_vcmp A B -> ">", "<" or "=" on stdout; "?" when either is not comparable. A version
+# is numeric dot fields (1.2.3), optionally with a -prerelease, which ranks below its
+# release; fields missing count as 0. Two different prereleases, or any other shape, are
+# incomparable. Portable awk (no sort -V).
+_peal_vcmp() {
+  awk -v a="$1" -v b="$2" '
+    function parse(v, out,   i, core, pre, n, p) {
+      pre = ""; core = v
+      i = index(v, "-")
+      if (i) { core = substr(v, 1, i - 1); pre = substr(v, i + 1); if (pre == "") return 0 }
+      if (core !~ /^[0-9]+(\.[0-9]+)*$/) return 0
+      if (pre != "" && pre !~ /^[0-9A-Za-z.-]+$/) return 0
+      n = split(core, p, ".")
+      for (i = 1; i <= n; i++) out[i] = p[i] + 0
+      out["n"] = n; out["pre"] = pre
+      return 1
+    }
+    BEGIN {
+      if (!parse(a, x) || !parse(b, y)) { print "?"; exit }
+      n = x["n"] > y["n"] ? x["n"] : y["n"]
+      for (i = 1; i <= n; i++) {
+        xi = (i in x) ? x[i] : 0; yi = (i in y) ? y[i] : 0
+        if (xi > yi) { print ">"; exit }
+        if (xi < yi) { print "<"; exit }
+      }
+      if (x["pre"] == y["pre"]) print "="
+      else if (x["pre"] == "") print ">"
+      else if (y["pre"] == "") print "<"
+      else print "?"
+    }'
+}
+
+# _peal_find -> _peal_root: of the recorded root and the cached Peals that pass
+# _peal_check (a cache directory marked .orphaned_at is skipped), the one with the highest
+# version. Equal or incomparable versions: the recorded root, then the newest cache
+# directory. Status 1 if none passes.
 _peal_find() {
-  local recorded="" dir newest=""
+  local recorded="" dir best="" best_recorded="" rel
   if [ -n "$_peal_common" ] && [ -r "$_peal_common/peal-root" ]; then
     IFS= read -r recorded <"$_peal_common/peal-root"
     if [ -n "$recorded" ] && _peal_check "$recorded" recorded; then
-      _peal_root=${recorded%/}
-      return 0
+      best=${recorded%/}
+      best_recorded=1
+      _peal_best_version=$_peal_version
     fi
   fi
   for dir in "$_peal_config"/plugins/cache/*/peal/*/; do
     [ -d "$dir" ] || continue
+    [ ! -e "${dir}.orphaned_at" ] || continue
     _peal_check "$dir" cache || continue
-    if [ -z "$newest" ] || [ "$dir" -nt "$newest" ]; then
-      newest=$dir
+    if [ -z "$best" ]; then
+      best=${dir%/}
+      _peal_best_version=$_peal_version
+      continue
+    fi
+    rel=$(_peal_vcmp "$_peal_version" "$_peal_best_version")
+    if [ "$rel" = ">" ] || { [ "$rel" != "<" ] && [ -z "$best_recorded" ] && [ "$dir" -nt "$best/" ]; }; then
+      best=${dir%/}
+      best_recorded=""
+      _peal_best_version=$_peal_version
     fi
   done
-  [ -n "$newest" ] || return 1
-  _peal_root=${newest%/}
+  [ -n "$best" ] || return 1
+  _peal_root=$best
 }
 # --- end of finding Peal ---
 

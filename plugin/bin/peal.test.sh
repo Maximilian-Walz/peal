@@ -38,6 +38,51 @@ out=$(cd / && CLAUDE_PROJECT_DIR="$project-wt" "$PEAL" hook session-start </dev/
 check "hook: from a worktree, into the common git directory" "$PEAL_ROOT" "$(cat "$project/.git/peal-root")"
 check "hook: in a Peal worktree, the orientation" "Peal:" "$(printf '%s\n' "$out" | head -n 1)"
 
+# fake_cached CONFIG VERSION -> a stand-in Peal in CONFIG's plugin cache at VERSION, listed
+# by CONFIG's installed_plugins.json (when LIST is not set to no); prints its root.
+fake_cached() {
+  local root=$1/plugins/cache/m/peal/$2
+  mkdir -p "$root/bin" "$root/.claude-plugin"
+  printf '#!/bin/sh\n' >"$root/bin/peal"
+  chmod +x "$root/bin/peal"
+  printf '{\n  "name": "peal",\n  "version": "%s"\n}\n' "$2" >"$root/.claude-plugin/plugin.json"
+  if [ "${LIST:-yes}" = yes ]; then
+    printf '{"plugins": {"peal@m": [{"installPath": "%s", "version": "%s"}]}}\n' "$root" "$2" \
+      >"$1/plugins/installed_plugins.json"
+  fi
+  printf '%s\n' "$root"
+}
+
+# The record never goes back to an older Peal: a verified record of a higher version than
+# the running plugin stays; one that is unlisted, gone or invalid is overwritten.
+cfg=$(cd "$(scratch_dir)" && pwd -P)
+mkdir -p "$cfg/plugins"
+rec() { (cd "$project" && CLAUDE_CONFIG_DIR="$cfg" "$PEAL" hook session-start </dev/null >/dev/null 2>&1); }
+newer=$(fake_cached "$cfg" 99.0.0)
+printf '%s\n' "$newer" >"$project/.git/peal-root"
+rec
+check "hook: a verified newer record stays" "$newer" "$(cat "$project/.git/peal-root")"
+older=$(fake_cached "$cfg" 0.0.1)
+printf '%s\n' "$older" >"$project/.git/peal-root"
+rec
+check "hook: a running plugin newer than the record overwrites it" "$PEAL_ROOT" "$(cat "$project/.git/peal-root")"
+newer=$(LIST=no fake_cached "$cfg" 99.0.0)
+printf '{"plugins": {"peal@m": [{"installPath": "/elsewhere", "version": "99.0.0"}]}}\n' >"$cfg/plugins/installed_plugins.json"
+printf '%s\n' "$newer" >"$project/.git/peal-root"
+rec
+check "hook: an unlisted newer record is overwritten" "$PEAL_ROOT" "$(cat "$project/.git/peal-root")"
+rm -f "$cfg/plugins/installed_plugins.json"
+printf '%s\n' "$newer" >"$project/.git/peal-root"
+rec
+check "hook: with no installed_plugins.json, the cached newer record stays" "$newer" "$(cat "$project/.git/peal-root")"
+printf '%s\n' "$cfg/plugins/cache/m/peal/gone" >"$project/.git/peal-root"
+rec
+check "hook: a gone newer record is overwritten" "$PEAL_ROOT" "$(cat "$project/.git/peal-root")"
+printf '{\n  "name": "other",\n  "version": "99.0.0"\n}\n' >"$newer/.claude-plugin/plugin.json"
+printf '%s\n' "$newer" >"$project/.git/peal-root"
+rec
+check "hook: an invalid newer record is overwritten" "$PEAL_ROOT" "$(cat "$project/.git/peal-root")"
+
 outside=$(scratch_dir)
 out=$(cd "$outside" && GIT_CEILING_DIRECTORIES=$outside "$PEAL" hook session-start </dev/null 2>&1)
 check "hook: outside a repository, silent and fine" "0:" "$?:$out"
