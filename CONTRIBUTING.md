@@ -54,7 +54,7 @@ command and relative link it names exists, and every fenced block carries a mark
 comment, `<!-- docs-check: KIND -->` right above it, so a copied example works. The kinds:
 `run` (its `$ ` lines run), `config` (loads as `.peal/config.yml`), `frontmatter` (a header
 `peal frontmatter check` accepts), `shape` (the `filed`, `claimed` and `closed` lines),
-`install` (the `/plugin` lines match the marketplace), `settings` (a `.claude/settings.json`
+`install` (the `/plugin` and `claude plugin` lines match the marketplace and plugin), `settings` (a `.claude/settings.json`
 as `peal init` writes it), `migrate` (the `peal migrate` lines run on a pre-Peal project),
 `sections` (the task template's sections), `belfry` (a `.belfry.yml` as `peal init` writes
 it) and `decision` (an entry `peal decision check` accepts). A block with no marker is
@@ -78,6 +78,7 @@ branch's CLI, run `PEAL_ROOT=$PWD/plugin plugin/bin/peal`.
 Merges to main do not change the plugin's version, so `/plugin` update can keep a cached
 copy that predates tasks merged since. To get the latest main in one go:
 
+<!-- docs-check: install -->
 ```sh
 claude plugin marketplace update peal
 claude plugin uninstall peal@peal --scope project

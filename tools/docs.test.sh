@@ -22,7 +22,8 @@
 #                                 frontmatter check` accepts
 #     <!-- docs-check: shape -->    its `filed`, `claimed` and `closed` lines have the shape
 #                                   the commands print
-#     <!-- docs-check: install -->  its `/plugin` lines match the marketplace
+#     <!-- docs-check: install -->  its `/plugin` and `claude plugin` lines match the
+#                                 marketplace (name, repo, plugin, an optional --scope)
 #     <!-- docs-check: settings -->  a .claude/settings.json block: valid JSON, the plugin
 #                                 enabled, the marketplace repo and a `vX` or `vN.N.N` ref
 #     <!-- docs-check: migrate -->   its `peal migrate` lines run, in order, on a pre-Peal
@@ -232,7 +233,7 @@ shape_block() {
 
 # install_block BLOCK ROOT -> problems for /plugin lines that do not match the marketplace.
 install_block() {
-  local block=$1 root=$2 want_repo name market line
+  local block=$1 root=$2 want_repo name market line verb arg words
   market=$root/.claude-plugin/marketplace.json
   want_repo=$(sed -n 's|.*"homepage": *"https://github.com/\([^"]*\)".*|\1|p' "$market")
   name=$(sed -n 's/^  "name": *"\([^"]*\)".*/\1/p' "$market")
@@ -247,6 +248,32 @@ install_block() {
           printf 'install: %s, but the plugin is peal@%s\n' "$line" "$name"
         grep -q -F 'install peal@peal' "$root/tools/install.test.sh" ||
           printf 'install: tools/install.test.sh no longer installs peal@peal\n'
+        ;;
+      'claude plugin '*)
+        read -r -a words <<<"${line#claude plugin}"
+        set -- "${words[@]}"
+        verb=${1-}
+        shift
+        case $verb in
+          marketplace)
+            verb=${1-} arg=${2-}
+            case $verb in
+              add) [ "$arg" == "$want_repo" ] || printf 'install: %s, but the marketplace is %s\n' "$line" "$want_repo" ;;
+              update) [ "$arg" == "$name" ] || printf 'install: %s, but the marketplace is named %s\n' "$line" "$name" ;;
+              *) printf 'install: %s is not claude plugin marketplace add or update\n' "$line" ;;
+            esac
+            shift 2
+            ;;
+          install | uninstall)
+            [ "${1-}" == "peal@$name" ] || printf 'install: %s, but the plugin is peal@%s\n' "$line" "$name"
+            shift
+            ;;
+          *) printf 'install: %s is not a claude plugin subcommand the guide uses\n' "$line"; continue ;;
+        esac
+        if [ "${1-}" == --scope ]; then
+          case ${2-} in user | project | local) shift 2 ;; *) printf 'install: %s has a --scope that is not user, project or local\n' "$line"; continue ;; esac
+        fi
+        [ $# -eq 0 ] || printf 'install: %s has more than expected: %s\n' "$line" "$*"
         ;;
     esac
   done <"$block"
@@ -518,6 +545,8 @@ has "a grouped subcommand without a heading is reported" "$(mutant docs/referenc
 has "a command without a heading is reported" "$(mutant docs/reference/commands.md '/^## `\/peal:drift`$/d')" 'no heading for `/peal:drift`'
 has "a frontmatter block that does not parse is reported" "$(mutant docs/reference/tasks.md 's/^depends: \[0271, human\]$/depends: [0271, human/')" "the frontmatter block"
 
+has "a claude plugin line for another plugin is reported" "$(mutant CONTRIBUTING.md 's|uninstall peal@peal|uninstall peal@other|')" "the plugin is peal@peal"
+has "a claude plugin line with a bad scope is reported" "$(mutant CONTRIBUTING.md 's|install peal@peal --scope project|install peal@peal --scope global|')" "has a --scope that is not"
 has "a fenced block with no marker is reported" "$(mutant docs/getting-started.md '/^<!-- docs-check: install -->$/d')" "a fenced block with no docs-check marker"
 has "a settings block for another repo is reported" "$(mutant docs/getting-started.md 's|Maximilian-Walz/peal", "ref"|other/peal", "ref"|')" 'the repo is "other/peal"'
 has "a settings block in the design for another repo is reported" "$(mutant docs/design.md 's|"repo": "Maximilian-Walz/peal"\}|"repo": "other/peal"}|')" 'the repo is "other/peal"'
