@@ -199,8 +199,9 @@ Every refusal names its reason. The rules are in [the design](../design.md#git-g
 
 ## `peal commit`
 
-`peal commit SUBJECT [--body TEXT | --body-file FILE] [PATH...]` stages, commits and
-reports. With PATHs, resolved from the caller's directory, only those are committed
+`peal commit [-m] SUBJECT [--body TEXT | --body-file FILE] [PATH...]` stages, commits and
+reports. `-m` is optional and only valid first. `--help` (`-h`) prints the usage and commits
+nothing; any other leading option is refused with the usage. With PATHs, resolved from the caller's directory, only those are committed
 (`git commit --`); the rest of the index stays staged. Without, everything staged is
 committed. Refused on the main branch, without the git hooks, and for a new backlog file.
 A refusal after the staging (a new backlog file, the commit-msg gate) puts the index back

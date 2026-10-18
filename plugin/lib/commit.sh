@@ -3,7 +3,7 @@
 # what is one step. It decides nothing about when to commit; the commit-msg gate still
 # judges the commit.
 
-# peal_commit SUBJECT [--body TEXT | --body-file FILE] [PATH...] -> with PATHs, given
+# peal_commit [-m] SUBJECT [--body TEXT | --body-file FILE] [PATH...] -> with PATHs, given
 # staged and committed, resolved from the caller's directory as git's own are; everything
 # else in the index stays staged and out of the commit. Without any, everything staged
 # (git add -A first). The commit reported. Refused: on the main branch or a detached HEAD,
@@ -32,13 +32,39 @@ _peal_commit_restore() {
   return 1
 }
 
+# _peal_commit_usage -> the one usage line.
+_peal_commit_usage() {
+  printf '%s\n' 'commit [-m] "<type>(<area>): <what> [NNNN]" [--body TEXT | --body-file FILE] [PATH...]'
+}
+
+# -h/--help print the usage and commit nothing; -m SUBJECT (first only) is the subject;
+# any other leading option is refused rather than taken as a subject.
 peal_commit() {
-  local subject=${1-} body="" main branch tasks added top prefix path index snap=""
+  local subject body="" main branch tasks added top prefix path index snap=""
+  case ${1-} in
+    -h | --help)
+      _peal_commit_usage
+      return 0
+      ;;
+    -m)
+      [ $# -ge 2 ] || { peal_err "commit: -m needs a subject"; return 2; }
+      subject=$2
+      shift 2
+      ;;
+    -*)
+      peal_err "commit: unknown option $1; 
+  $(_peal_commit_usage)"
+      return 2
+      ;;
+    *)
+      subject=${1-}
+      [ $# -eq 0 ] || shift
+      ;;
+  esac
   if [ -z "$subject" ]; then
-    peal_err 'commit: "<type>(<area>): <what> [NNNN]" [--body TEXT | --body-file FILE] [PATH...]'
+    peal_err "$(_peal_commit_usage)"
     return 2
   fi
-  shift
   case ${1-} in
     --body)
       [ $# -ge 2 ] || { peal_err "commit: --body needs a text"; return 2; }
@@ -59,6 +85,7 @@ peal_commit() {
   for added in "$@"; do
     case $added in
       --body | --body-file) peal_err "commit: $added goes right after the subject, once"; return 2 ;;
+      -m) peal_err "commit: -m goes first, once; the body is --body"; return 2 ;;
     esac
   done
   local -a paths=()
