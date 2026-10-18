@@ -52,7 +52,7 @@ peal_commit() {
       shift 2
       ;;
     -*)
-      peal_err "commit: unknown option $1; 
+      peal_err "commit: unknown option $1;
   $(_peal_commit_usage)"
       return 2
       ;;
