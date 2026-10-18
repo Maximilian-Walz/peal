@@ -49,6 +49,11 @@ on that line, as its own gated commit.
   - A10: the tagged commit itself still pins the previous SHA, so `pins.test.sh` on a
     checkout of the tag with tags present fails its SHA check; documented, not worked
     around.
+- 2026-10-18, after the build: the installed Peal (from main) refuses the unknown
+  setting `release.commit-files`, so `.peal/config.yml` cannot list the template on this
+  branch. The human chose a follow-up task, queued at close, to add after merge:
+  `commit-files: ["plugin/templates/decisions.yml: \"fetch -q --depth 1 https://github.com/Maximilian-Walz/peal\""]`
+  under `release:`, with its commented default.
 
 ## Plan
 
