@@ -26,6 +26,8 @@ From Belfry's Friction page: `peal close wait` answering `WAIT:checks-pending` s
 
 ## Notes
 
+2026-10-18: 2026-10-18, from Belfry's Friction page (2 sessions): under Belfry's sandbox `peal close wait` can never settle, not just cost GitHub budget. Its gh calls reach cafe.github.com, which the sandbox denies, so it answers `WAIT:checks-pending` every round, and step 6's "run it again" turns into an endless loop. Both sessions got out with `mcp__belfry__wait_ci`. This means the fallback matters too: when `wait_ci` is missing or fails, `peal close wait` should not be retried forever on a sandbox denial. Close should report that it cannot reach GitHub and stop, or `peal close verify` should name the denied host. This also bears on open question 3: a verify run after `wait_ci` hits the same denial inside the sandbox, so it may need to trust `wait_ci`'s answer.
+
 Deferred 2026-09-28 after a claim: stale claim: its session stopped; given back so auto mode picks it up again
 
 Proposed plan, not agreed yet (the human did not answer on 2026-09-26; ask again):
