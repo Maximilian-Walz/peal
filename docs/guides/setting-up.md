@@ -30,7 +30,7 @@ back; your tasks stay.
 
 | Stage | Adds | Take it back |
 |---|---|---|
-| `tasks` | `.peal/config.yml`, the launcher `.peal/peal`, `tasks/` with `backlog/`, `doing/`, `done/` and `TEMPLATE.md`, and the plugin in `.claude/settings.json`. With the issues storage, tasks are GitHub issues instead of files. | `peal init --remove tasks`, once no other stage is set up |
+| `tasks` | `.peal/config.yml`, the launcher `.peal/peal`, `tasks/` with `backlog/`, `doing/`, `done/` and `TEMPLATE.md`, and the plugin in `.claude/settings.json`. Peal supports two storages for tasks: the files described here, or GitHub issues (`peal init --stage tasks --storage issues`), where tasks are issues instead of files. | `peal init --remove tasks`, once no other stage is set up |
 | `guardrails` | Git hooks that check commit subjects and pushes. | `peal init --remove guardrails` |
 | `milestones` | A first milestone, `docs/milestones/m1.md`. | `peal init --remove milestones` |
 | `belfry` | `.belfry.yml`, so [Belfry](https://github.com/Maximilian-Walz/belfry) can list and run the tasks. | `peal init --remove belfry` |

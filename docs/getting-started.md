@@ -4,9 +4,12 @@ This page takes you from nothing installed to your first task worked, reviewed a
 to merge. It assumes you use [Claude Code](https://claude.com/claude-code) in a git
 repository, and nothing else: you do not need to know anything about Peal or Belfry yet.
 
-Peal is a plugin for Claude Code. It keeps your to-do list as small Markdown files in the
-repository (each one a *task*) and adds commands, whose names start with `/peal:`, that you
-type into a Claude Code session to file, plan, build and close those tasks.
+Peal is a plugin for Claude Code. It is a process for the work on a project: each piece
+of work is a *task*, and Peal adds commands, whose names start with `/peal:`, that take a
+task from an idea through a plan you agree, a build on its own branch and a review to a
+pull request you merge. Where the tasks are kept is a choice between two backends today:
+Markdown files in the repository, or GitHub issues. The steps below are the same for
+both, and the examples show the files.
 
 ## Install
 
@@ -26,8 +29,9 @@ instead, see [pinning a release](guides/setting-up.md#pin-a-release).
 
 In the repository you want to use Peal in, type `/peal:setup`
 
-Peal reads the repository and suggests where your tasks should live: as files in a
-`tasks/` folder, which is the usual choice, or as GitHub issues. It asks you once. It then
+Peal reads the repository and suggests where your tasks should live, as Markdown
+files in a `tasks/` folder or as GitHub issues (the storage; both work the same from the
+commands' side). It asks you once. It then
 prepares everything as a single commit on a new branch called `peal/setup-tasks`, for you
 to look at. It never commits to your main branch (the branch your finished work lands on,
 usually `main`).
@@ -46,12 +50,13 @@ to take each back, and `/peal:next` suggests when one is worth adding.
 
 ## Your first task
 
-A task goes through three commands. Here they are for a small example.
+A task goes through three steps, two of them commands you type. Here they are for a small
+example.
 
 ### 1. File an idea
 
-Type `/peal:idea a health check endpoint`. You see a line starting `filed 0001`. Peal has written a file, `tasks/backlog/0001-...md`,
-holding your sentence and a template to fill in. The folder `backlog/` is where tasks wait
+Type `/peal:idea a health check endpoint`. You see a line starting `filed 0001`. Peal has written the task, here a file `tasks/backlog/0001-...md`
+(with GitHub issues it opens an issue instead), holding your sentence and a template to fill in. The folder `backlog/` is where tasks wait
 until someone starts them, and `0001` is the task's number. An idea is simply a task you
 filed roughly; nobody has planned it yet. Open the file if you like: it is plain
 Markdown, and you can edit it. If you file an idea while on another task's branch, it is queued and
@@ -71,14 +76,19 @@ Type `/peal:work 0001`. This is where Peal does most of its work, and where it k
 - Once you agree, another subagent, the implementer, builds the plan in the worktree and
   commits as it goes.
 
-Without a number, `/peal:work` offers you the next task in the backlog.
+Without a number, `/peal:work` offers you the next task in the backlog. When the build
+is done it carries on to the close, described next.
 
-### 3. Close it
+### 3. Review and pull request
 
-Type `/peal:close`. Closing has a reviewer subagent check the changes against the task, writes a short
-summary of the result into the task file (its *Outcome*), moves the task to `done/`, and
-opens a pull request. It then waits for the pull request's checks to pass. You read the
-pull request and merge it; Peal never merges for you.
+You do not type anything for this step. When the implementer is done, the same session
+closes the task: a reviewer subagent checks the changes against the task, a short summary
+of the result is written into the task (its *Outcome*), the task is moved to `done/`
+(with files), and a pull request is opened. The session then waits for the pull request's
+checks to pass. You read the pull request and merge it; Peal never merges for you.
+
+Closing is also a command, `/peal:close`. You would run it by hand only in a session you
+drive yourself, for instance one that stopped before the close.
 
 Opening the pull request needs the `gh` command line tool, logged in to GitHub.
 
