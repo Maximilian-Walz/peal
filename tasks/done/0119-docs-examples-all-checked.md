@@ -114,4 +114,44 @@ Ranges: `tools/docs.test.sh:1-399`, `docs/getting-started.md:6-26`,
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+`tools/docs.test.sh` now refuses any fenced block, at column 0 and in any language,
+that has no `docs-check` marker comment. This is the rest of m2's criterion 4.
+Every block in the checked documents now gets a check that can fail. There is no exempt
+marker.
+
+The new marker kinds:
+- `settings`: the settings.json pin in getting-started.md and the copy in design.md must
+  be valid JSON (checked with `settings-json.awk`), must enable `peal@peal`, must name the
+  marketplace repo `PEAL_INIT_MARKETPLACE`, and may carry a `ref` only as `vX` or `vN.N.N`.
+- `migrate`: both `peal migrate` lines in migrating.md run in order against one pre-Peal
+  fixture per document. Each must exit 0 with empty stderr, and the pool files must exist
+  afterwards.
+- `sections`: the skeleton in reference/tasks.md must match `plugin/templates/task.md`,
+  with `## Plan` right after `## Notes`.
+- `belfry`: the `tasks:` part of design.md's `.belfry.yml` must be byte-equal to what
+  `peal init --stage belfry` writes. Each action must equal one of init's commented
+  suggestions.
+- `decision`: design.md's decision-entry shape goes through the real
+  `peal decision check` in a scratch repo. The structural fallback the plan allowed for
+  was not needed.
+
+Each new kind has a negative case, and "every marker kind is used" lists all ten kinds.
+CONTRIBUTING.md now describes all of them, including `frontmatter`, which it had left
+out. The harness now handles a document's blocks in line order; the glob sorted them as
+text, which put line 100 before line 67.
+
+The m2 review said four blocks had no marker. There were seven: design.md's three were
+missed, and they are now checked here. Merging main brought in a fourth: the
+`claude plugin` lines in CONTRIBUTING.md (0115). As the human decided, the `install` kind
+now checks `claude plugin` lines as well:
+- `marketplace add` takes the marketplace repo, and `marketplace update` takes the name
+  `peal`;
+- `install` and `uninstall` take `peal@peal`;
+- `--scope` must be user, project or local;
+- any other subcommand or extra argument is reported.
+
+Two negative cases cover it.
+
+For the next session: the full harness now takes about six minutes. Each mutant reruns
+the check of every document. The idea "The docs harness runs faster" is queued for this.
+Nothing under `plugin/` changed, and the m2 and m3 milestone documents are untouched.
