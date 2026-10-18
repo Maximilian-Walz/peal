@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2016 # literal text, patterns and sed scripts with backticks and $
+# shellcheck disable=SC2030,SC2031 # PATH and PEAL_ROOT are set in subshells on purpose
+# shellcheck disable=SC2012 # the names listed are line numbers
 # Harness for the documentation a newcomer reads: README.md, CONTRIBUTING.md and docs/
 # (not docs/milestones/, docs/decisions/, which are records):
 #
@@ -20,7 +22,18 @@
 #                                 frontmatter check` accepts
 #     <!-- docs-check: shape -->    its `filed`, `claimed` and `closed` lines have the shape
 #                                   the commands print
-#     <!-- docs-check: install -->  its `/plugin` lines match the marketplace
+#     <!-- docs-check: install -->  its `/plugin` and `claude plugin` lines match the
+#                                 marketplace (name, repo, plugin, an optional --scope)
+#     <!-- docs-check: settings -->  a .claude/settings.json block: valid JSON, the plugin
+#                                 enabled, the marketplace repo and a `vX` or `vN.N.N` ref
+#     <!-- docs-check: migrate -->   its `peal migrate` lines run, in order, on a pre-Peal
+#                                 project: exit 0, nothing on stderr
+#     <!-- docs-check: sections -->  the body skeleton of a task: the template's sections
+#     <!-- docs-check: belfry -->    a .belfry.yml: its `tasks:` part is what `peal init
+#                                 --stage belfry` writes, its actions are init's suggestions
+#     <!-- docs-check: decision -->  a decisions entry that `peal decision check` accepts
+#   A fenced block (a fence at column 0, whatever its language) with no marker is reported:
+#   there is no way to exempt one, every example is checked.
 # - docs/reference/ is complete, both ways: a row in configuration.md for every key of
 #   plugin/lib/config-defaults.yml, a row in tasks.md for every Peal field of
 #   plugin/lib/task-check.awk, a heading in cli.md for every subcommand of `peal --help`
@@ -131,14 +144,16 @@ facts() {
   ' "$1"
 }
 
-# blocks FILE OUTDIR -> each fenced block after a docs-check marker, written as
-# OUTDIR/<line>.<kind>.
+# blocks FILE OUTDIR -> each fenced block, written as OUTDIR/<line>.<kind> after a
+# docs-check marker, OUTDIR/<line>.unmarked without one.
 blocks() {
   awk -v out="$2" '
     /^<!-- docs-check: [a-z]+ -->$/ { kind = $3; pending = 1; next }
     /^```/ {
       if (open) { close(path); open = 0; next }
-      if (pending) { path = out "/" NR "." kind; printf "" > path; open = 1; pending = 0 }
+      if (pending) { path = out "/" NR "." kind; pending = 0 }
+      else path = out "/" NR ".unmarked"
+      printf "" > path; open = 1
       next
     }
     open { print > path; next }
@@ -218,7 +233,7 @@ shape_block() {
 
 # install_block BLOCK ROOT -> problems for /plugin lines that do not match the marketplace.
 install_block() {
-  local block=$1 root=$2 want_repo name market line
+  local block=$1 root=$2 want_repo name market line verb arg words
   market=$root/.claude-plugin/marketplace.json
   want_repo=$(sed -n 's|.*"homepage": *"https://github.com/\([^"]*\)".*|\1|p' "$market")
   name=$(sed -n 's/^  "name": *"\([^"]*\)".*/\1/p' "$market")
@@ -234,8 +249,131 @@ install_block() {
         grep -q -F 'install peal@peal' "$root/tools/install.test.sh" ||
           printf 'install: tools/install.test.sh no longer installs peal@peal\n'
         ;;
+      'claude plugin '*)
+        read -r -a words <<<"${line#claude plugin}"
+        set -- "${words[@]}"
+        verb=${1-}
+        shift
+        case $verb in
+          marketplace)
+            verb=${1-} arg=${2-}
+            case $verb in
+              add) [ "$arg" == "$want_repo" ] || printf 'install: %s, but the marketplace is %s\n' "$line" "$want_repo" ;;
+              update) [ "$arg" == "$name" ] || printf 'install: %s, but the marketplace is named %s\n' "$line" "$name" ;;
+              *) printf 'install: %s is not claude plugin marketplace add or update\n' "$line" ;;
+            esac
+            shift 2
+            ;;
+          install | uninstall)
+            [ "${1-}" == "peal@$name" ] || printf 'install: %s, but the plugin is peal@%s\n' "$line" "$name"
+            shift
+            ;;
+          *) printf 'install: %s is not a claude plugin subcommand the guide uses\n' "$line"; continue ;;
+        esac
+        if [ "${1-}" == --scope ]; then
+          case ${2-} in user | project | local) shift 2 ;; *) printf 'install: %s has a --scope that is not user, project or local\n' "$line"; continue ;; esac
+        fi
+        [ $# -eq 0 ] || printf 'install: %s has more than expected: %s\n' "$line" "$*"
+        ;;
     esac
   done <"$block"
+}
+
+# settings_block BLOCK -> problems for a .claude/settings.json example that Peal's own
+# `peal init` would not write: not JSON, no plugin, another repo, a ref that is no tag.
+settings_block() {
+  local block=$1 want_repo repo ref
+  jhas() { awk -v op=has -v "path=$1" -f "$REPO/plugin/lib/settings-json.awk" "$block" >/dev/null 2>&1; }
+  want_repo=$(sed -n 's/^PEAL_INIT_MARKETPLACE=//p' "$REPO/plugin/lib/init.sh")
+  jhas "" || { printf 'settings: the block is not a JSON object\n'; return; }
+  jhas extraKnownMarketplaces.peal || printf 'settings: no extraKnownMarketplaces.peal\n'
+  jhas enabledPlugins.peal@peal || printf 'settings: no enabledPlugins "peal@peal"\n'
+  repo=$(sed -n 's/.*"repo": *"\([^"]*\)".*/\1/p' "$block")
+  [ "$repo" == "$want_repo" ] || printf 'settings: the repo is "%s", but peal init writes "%s"\n' "$repo" "$want_repo"
+  ref=$(sed -n 's/.*"ref": *"\([^"]*\)".*/\1/p' "$block")
+  [ -z "$ref" ] || grep -q -E '^v(X|[0-9]+\.[0-9]+\.[0-9]+)$' <<<"$ref" ||
+    printf 'settings: the ref "%s" is neither vX nor vN.N.N\n' "$ref"
+}
+
+# migrate_fixture DIR -> a pre-Peal project: pools as directories, `key: value` headers,
+# numbered milestone docs. Every pool the migrating guide names is used by a task.
+migrate_fixture() {
+  local dir=$1 pool n=0
+  mkdir -p "$dir/tasks/backlog" "$dir/tasks/doing" "$dir/tasks/done" "$dir/docs/milestones"
+  printf '# Milestone 01\n' >"$dir/docs/milestones/milestone-01.md"
+  printf '# Milestone 02\n' >"$dir/docs/milestones/milestone-02.md"
+  for pool in 02 unassigned later any process; do
+    n=$((n + 1))
+    printf '# 000%s — Task %s\n\nmilestone: %s\nsize: S\ndepends: \n\n## Intent\n\nWhy.\n' \
+      "$n" "$n" "$pool" >"$dir/tasks/backlog/000$n-task-$n.md"
+  done
+  printf '# 0007 — Doing\n\nmilestone: 02\n\n## Intent\n\nWhy.\n' >"$dir/tasks/doing/0007-doing.md"
+  printf '# 0008 — Done\n\nmilestone: 01\n\n## Intent\n\nWhy.\n\n## Outcome\n\nDone.\n' >"$dir/tasks/done/0008-done.md"
+}
+
+# migrate_block BLOCK -> problems for `peal migrate` lines that fail or report anything,
+# run in order on $migrate_dir, one pre-Peal project for all the blocks of a document; after the milestones line the pool files exist.
+migrate_block() {
+  local block=$1 dir=$migrate_dir line err status pool
+  while IFS= read -r line; do
+    [[ "$line" == 'peal migrate '* ]] || { printf 'migrate: not a peal migrate line: %s\n' "$line"; continue; }
+    err=$(cd "$dir" && PATH="$bindir:$PATH" PEAL_ROOT=$REPO/plugin bash -c "$line" 2>&1 >/dev/null)
+    status=$?
+    [ "$status" -eq 0 ] || printf 'migrate: "%s" exits %s\n' "$line" "$status"
+    [ -z "$err" ] || printf 'migrate: "%s" reports: %s\n' "$line" "$(tr '\n' ' ' <<<"$err")"
+    if [[ "$line" == 'peal migrate milestones'* ]]; then
+      for pool in $(grep -o -E -- '--(parked|open) [a-z,]+' <<<"$line" | cut -d' ' -f2 | tr ',' ' '); do
+        [ -e "$dir/docs/milestones/$pool.md" ] || printf 'migrate: "%s" made no docs/milestones/%s.md\n' "$line" "$pool"
+      done
+    fi
+  done <"$block"
+}
+
+# sections_block BLOCK -> problems for a task body skeleton that is not the template's:
+# the same `## ` sections, `## Plan` (not in the template) right after `## Notes`, and a
+# rule before `## Outcome`.
+sections_block() {
+  local block=$1 want have
+  want=$(grep '^## ' "$REPO/plugin/templates/task.md")
+  have=$(grep '^## ' "$block" | grep -v -x '## Plan')
+  [ "$want" == "$have" ] || printf 'sections: the sections are\n%s\nbut plugin/templates/task.md has\n%s\n' "$have" "$want"
+  [ "$(grep '^## ' "$block" | grep -A1 -x '## Notes')" == "$(printf '## Notes\n## Plan')" ] ||
+    printf 'sections: ## Plan does not follow ## Notes\n'
+  [ "$(grep -v '^$' "$block" | grep -B1 -x '## Outcome' | head -1)" == --- ] ||
+    printf 'sections: no --- before ## Outcome\n'
+}
+
+# belfry_block BLOCK -> problems for a .belfry.yml example that `peal init --stage belfry`
+# would not write: the tasks: part byte for byte, the actions: entries among its suggestions.
+belfry_block() {
+  local block=$1 dir real mine
+  dir=$(scratch_repo)
+  (cd "$dir" && export PATH="$bindir:$PATH" PEAL_ROOT=$REPO/plugin &&
+    peal init --stage tasks >/dev/null 2>&1 && peal init --stage belfry >/dev/null 2>&1) ||
+    { printf 'belfry: peal init could not write a .belfry.yml\n'; return; }
+  real=$(sed -n '/^tasks:/,/^#/p' "$dir/.belfry.yml" | grep -v '^#')
+  mine=$(sed -n '/^tasks:/,/^actions:/p' "$block" | grep -v '^actions:')
+  [ "$real" == "$mine" ] || printf 'belfry: the tasks: part is\n%s\nbut peal init writes\n%s\n' "$mine" "$real"
+  # The suggested actions, one entry per line (newlines as \n), against the block's.
+  entries() {
+    awk '/^  [a-z]/ { if (e != "") print e; e = $0; next } /^    / { e = e "\\n" $0 } END { if (e != "") print e }'
+  }
+  sed -n '/^# actions:/,$p' "$dir/.belfry.yml" | sed '1d; s/^# //' | entries >"$dir/.suggested"
+  sed -n '/^actions:/,$p' "$block" | sed 1d | entries | while IFS= read -r mine; do
+    grep -q -x -F -- "$mine" "$dir/.suggested" || printf 'belfry: an action that peal init does not suggest: %s\n' "$mine"
+  done
+}
+
+# decision_block BLOCK -> problems `peal decision check` finds in the block as an entry.
+decision_block() {
+  local block=$1 dir out
+  dir=$(scratch_repo --remote)
+  mkdir -p "$dir/.peal" "$dir/docs/decisions"
+  printf 'decisions: docs/decisions\n' >"$dir/.peal/config.yml"
+  cp "$block" "$dir/docs/decisions/0042-title.md"
+  git -C "$dir" add -A && git -C "$dir" commit -qm entry
+  out=$(cd "$dir" && PATH="$bindir:$PATH" PEAL_ROOT=$REPO/plugin peal decision check 2>&1) ||
+    printf 'decision: %s\n' "$(grep -v 'warning: could not fetch' <<<"$out" | tr '\n' ' ')"
 }
 
 # anchors FILE -> the heading anchors of a Markdown file.
@@ -275,8 +413,13 @@ docs_problems() {
 
     mkdir -p "$tmp/$file"
     blocks "$root/$file" "$tmp/$file"
-    for b in "$tmp/$file"/*; do
-      [ -e "$b" ] || continue
+    migrate_dir=
+    if compgen -G "$tmp/$file/*.migrate" >/dev/null; then
+      migrate_dir=$(scratch_repo)
+      migrate_fixture "$migrate_dir"
+    fi
+    # In document order: by line number, which a glob does not sort.
+    for b in $(cd "$tmp/$file" && ls | sort -n | sed "s|^|$tmp/$file/|"); do
       ln=$(basename "$b")
       kind=${ln##*.}
       ln=${ln%.*}
@@ -298,6 +441,12 @@ docs_problems() {
           ;;
         shape) shape_block "$b" | sed "s|^|$file:$ln: |" ;;
         install) install_block "$b" "$root" | sed "s|^|$file:$ln: |" ;;
+        settings) settings_block "$b" | sed "s|^|$file:$ln: |" ;;
+        migrate) migrate_block "$b" | sed "s|^|$file:$ln: |" ;;
+        sections) sections_block "$b" | sed "s|^|$file:$ln: |" ;;
+        belfry) belfry_block "$b" | sed "s|^|$file:$ln: |" ;;
+        decision) decision_block "$b" | sed "s|^|$file:$ln: |" ;;
+        unmarked) printf '%s:%s: a fenced block with no docs-check marker\n' "$file" "$ln" ;;
         *) printf '%s:%s: unknown docs-check marker %s\n' "$file" "$ln" "$kind" ;;
       esac
     done
@@ -357,7 +506,7 @@ check "the reference pages are checked" "6" "$(grep -c '^docs/reference/' <<<"$f
 check "the guides are checked" "6" "$(grep -c '^docs/guides/' <<<"$files")"
 check "every guide has a marked block" "" "$(for g in "$REPO"/docs/guides/*.md; do
   [ "$(basename "$g")" == README.md ] || grep -q '^<!-- docs-check: ' "$g" || basename "$g"; done)"
-check "every marker kind is used" "config frontmatter install run shape" \
+check "every marker kind is used" "belfry config decision frontmatter install migrate run sections settings shape" \
   "$(grep -h -o -E 'docs-check: [a-z]+' "$REPO/README.md" "$REPO/CONTRIBUTING.md" "$REPO"/docs/*.md "$REPO"/docs/reference/*.md "$REPO"/docs/guides/*.md | sed 's/docs-check: //' | sort -u | tr '\n' ' ' | sed 's/ $//')"
 
 # Negative cases, on a copy of the documents.
@@ -395,5 +544,17 @@ has "a subcommand without a heading is reported" "$(mutant docs/reference/cli.md
 has "a grouped subcommand without a heading is reported" "$(mutant docs/reference/cli.md '/^### `peal close wait`$/d')" 'no heading for `peal close wait`'
 has "a command without a heading is reported" "$(mutant docs/reference/commands.md '/^## `\/peal:drift`$/d')" 'no heading for `/peal:drift`'
 has "a frontmatter block that does not parse is reported" "$(mutant docs/reference/tasks.md 's/^depends: \[0271, human\]$/depends: [0271, human/')" "the frontmatter block"
+
+has "a claude plugin line for another plugin is reported" "$(mutant CONTRIBUTING.md 's|uninstall peal@peal|uninstall peal@other|')" "the plugin is peal@peal"
+has "a claude plugin line with a bad scope is reported" "$(mutant CONTRIBUTING.md 's|install peal@peal --scope project|install peal@peal --scope global|')" "has a --scope that is not"
+has "a fenced block with no marker is reported" "$(mutant docs/getting-started.md '/^<!-- docs-check: install -->$/d')" "a fenced block with no docs-check marker"
+has "a settings block for another repo is reported" "$(mutant docs/getting-started.md 's|Maximilian-Walz/peal", "ref"|other/peal", "ref"|')" 'the repo is "other/peal"'
+has "a settings block in the design for another repo is reported" "$(mutant docs/design.md 's|"repo": "Maximilian-Walz/peal"\}|"repo": "other/peal"}|')" 'the repo is "other/peal"'
+has "a settings block with a ref that is no tag is reported" "$(mutant docs/getting-started.md 's|"ref": "vX"|"ref": "main"|')" 'the ref "main"'
+has "a misspelt migrate flag is reported" "$(mutant docs/migrating.md 's/^peal migrate headers --none unassigned --parked/peal migrate headers --none unassigned --parkd/')" 'peal migrate headers --none unassigned --parkd later,any --open process" exits 2'
+has "a renamed task section is reported" "$(mutant docs/reference/tasks.md 's/^## Done when$/## Finished when/')" "plugin/templates/task.md has"
+has "a changed line of the belfry block is reported" "$(mutant docs/design.md 's|^    claim: .peal/peal claim|    claim: .peal/peal take|')" "the tasks: part is"
+has "an action that init does not suggest is reported" "$(mutant docs/design.md 's|^    title: Milestone review$|    title: Review|')" "an action that peal init does not suggest"
+has "a decision entry with a broken Status is reported" "$(mutant docs/design.md 's|^Status: accepted$|Status: maybe|')" "its Status is"
 
 finish

@@ -16,6 +16,7 @@ In a Claude Code session:
 This tracks `main`. To pin a release instead, add its tag as the `ref` of the marketplace
 source in `.claude/settings.json`:
 
+<!-- docs-check: settings -->
 ```json
 {
   "extraKnownMarketplaces": {
