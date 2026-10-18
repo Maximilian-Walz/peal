@@ -54,7 +54,8 @@ Type `/peal:idea a health check endpoint`. You see a line starting `filed 0001`.
 holding your sentence and a template to fill in. The folder `backlog/` is where tasks wait
 until someone starts them, and `0001` is the task's number. An idea is simply a task you
 filed roughly; nobody has planned it yet. Open the file if you like: it is plain
-Markdown, and you can edit it.
+Markdown, and you can edit it. If you file an idea while on another task's branch, it is queued and
+filed when that task closes.
 
 ### 2. Work it
 
@@ -81,7 +82,7 @@ pull request and merge it; Peal never merges for you.
 
 Opening the pull request needs the `gh` command line tool, logged in to GitHub.
 
-To see the backlog at any time, type `peal list` in a terminal.
+To see the backlog at any time, run `.peal/peal list` in a terminal (the plain `peal` command is only on the path inside Claude Code).
 
 ## Next
 

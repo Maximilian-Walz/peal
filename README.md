@@ -9,7 +9,8 @@ leave the terminal to open. Work started in one session is hard to pick up in th
 and two pieces of work in one checkout get tangled.
 
 Peal moves that list into the repository. Each piece of work is a *task*: a short
-Markdown file that sits next to your code and is reviewed and versioned like it. Peal
+Markdown file, with a small header of fields at the top (YAML frontmatter), that sits
+next to your code and is reviewed and versioned like it. Peal
 adds a few commands to Claude Code that take a task from "someone should do this" to a
 pull request you can merge.
 
@@ -32,13 +33,14 @@ closed 0001: pull request #12 https://github.com/you/myproject/pull/12
 ```
 
 1. `/peal:idea` writes your thought down as a task file in `tasks/backlog/`. The line it
-   prints names the file and its fields (a milestone, a plan, a size), which you can
-   ignore for now.
+   prints names the file and its fields: a *milestone* (a goal that
+   groups tasks, such as a release you are working toward; `-` means none yet), a plan
+   (whether one is needed) and a size. You can ignore them for now.
 2. `/peal:work` *claims* the task: it gives it its own git branch and a second checkout
    of your repository in a separate folder (git calls that a *worktree*), so your own
-   checkout and other tasks are left alone. Claude then writes a plan, which you read and
-   agree or change. Only after that does a *subagent*, a helper session Claude starts
-   for one job, write the code.
+   checkout and other tasks are left alone. A planner *subagent* (a helper session Claude
+   starts for one job) writes a plan, which you read and agree or change. Only after
+   that does an implementer subagent build it.
 3. `/peal:close` has a second subagent review the change, records the result in the task
    file and opens the pull request.
 
@@ -48,7 +50,7 @@ Nothing merges by itself.
 ## What Peal is not
 
 It is not a tracker with a screen of its own, and it does not replace GitHub issues: it
-can keep the tasks in them. It is not an autonomous agent. And it does not need Belfry.
+can keep the tasks in them. It is not an autonomous agent. And it works without Belfry, a separate tool described [below](#peal-and-belfry).
 
 ## Start
 
