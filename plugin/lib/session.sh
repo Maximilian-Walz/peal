@@ -27,9 +27,80 @@ EOF
   return 1
 }
 
+# _peal_vcmp A B -> ">", "<" or "=" on stdout; "?" when either is not comparable. The same
+# rule as the launcher's (templates/launcher): numeric dot fields, a -prerelease below its
+# release, anything else incomparable.
+_peal_vcmp() {
+  awk -v a="$1" -v b="$2" '
+    function parse(v, out,   i, core, pre, n, p) {
+      pre = ""; core = v
+      i = index(v, "-")
+      if (i) { core = substr(v, 1, i - 1); pre = substr(v, i + 1); if (pre == "") return 0 }
+      if (core !~ /^[0-9]+(\.[0-9]+)*$/) return 0
+      if (pre != "" && pre !~ /^[0-9A-Za-z.-]+$/) return 0
+      n = split(core, p, ".")
+      for (i = 1; i <= n; i++) out[i] = p[i] + 0
+      out["n"] = n; out["pre"] = pre
+      return 1
+    }
+    BEGIN {
+      if (!parse(a, x) || !parse(b, y)) { print "?"; exit }
+      n = x["n"] > y["n"] ? x["n"] : y["n"]
+      for (i = 1; i <= n; i++) {
+        xi = (i in x) ? x[i] : 0; yi = (i in y) ? y[i] : 0
+        if (xi > yi) { print ">"; exit }
+        if (xi < yi) { print "<"; exit }
+      }
+      if (x["pre"] == y["pre"]) print "="
+      else if (x["pre"] == "") print ">"
+      else if (y["pre"] == "") print "<"
+      else print "?"
+    }'
+}
+
+# _peal_record_newer COMMON -> status 0 if COMMON's peal-root names a verified Peal of a
+# higher version than the running plugin: a root that exists with an executable bin/peal,
+# whose plugin.json names peal, lying in Claude Code's plugin cache and, when
+# installed_plugins.json is there, listed by it. The launcher would run it, over this one.
+_peal_record_newer() {
+  local rec="" config cache real manifest version
+  [ -r "$1/$PEAL_ROOT_RECORD" ] || return 1
+  IFS= read -r rec <"$1/$PEAL_ROOT_RECORD"
+  rec=${rec%/}
+  case $rec in /*) ;; *) return 1 ;; esac
+  [ -x "$rec/bin/peal" ] || return 1
+  manifest=$rec/.claude-plugin/plugin.json
+  [ "$(sed -n 's/^[[:space:]]*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" 2>/dev/null | sed -n 1p)" = peal ] || return 1
+  version=$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" 2>/dev/null | sed -n 1p)
+  [ -n "$version" ] || return 1
+  config=${CLAUDE_CONFIG_DIR:-$HOME/.claude}
+  real=$(cd "$rec" && pwd -P) || return 1
+  cache=$(cd "$config/plugins/cache" 2>/dev/null && pwd -P) || return 1
+  case "$real/" in "$cache/"*) ;; *) return 1 ;; esac
+  if [ -f "$config/plugins/installed_plugins.json" ]; then
+    grep -F -e "\"$rec\"" -e "\"$rec/\"" -e "\"$real\"" "$config/plugins/installed_plugins.json" >/dev/null 2>&1 || return 1
+  fi
+  [ "$(_peal_vcmp "$version" "$(peal_version)")" = ">" ]
+}
+
+# peal_write_root COMMON -> PEAL_ROOT written to COMMON/peal-root, unless the record names
+# a verified Peal of a higher version than this one (_peal_record_newer): a record never
+# goes back to an older Peal. Status 1 if the write fails.
+peal_write_root() {
+  if _peal_record_newer "$1"; then
+    return 0
+  fi
+  if printf '%s\n' "$PEAL_ROOT" >"$1/$PEAL_ROOT_RECORD.$$" 2>/dev/null; then
+    mv -f "$1/$PEAL_ROOT_RECORD.$$" "$1/$PEAL_ROOT_RECORD" 2>/dev/null && return 0
+  fi
+  rm -f "$1/$PEAL_ROOT_RECORD.$$" 2>/dev/null
+  return 1
+}
+
 # peal_record_root DIR -> writes PEAL_ROOT into the git directory shared by all of DIR's
 # worktrees, if DIR is in a repository that uses Peal (has .peal/) and PEAL_ROOT lies
-# outside it (the launcher would refuse it; said on stderr). Never fails a session: a
+# outside it (the launcher would refuse it; said on stderr) and the record does not already
+# name a verified Peal of a higher version (peal_write_root). Never fails a session: a
 # missing record only makes the launcher search the cache.
 peal_record_root() {
   local top common
@@ -40,9 +111,7 @@ peal_record_root() {
     peal_err "not recording $PEAL_ROOT as Peal's root: it lies inside this repository"
     return 0
   fi
-  if printf '%s\n' "$PEAL_ROOT" >"$common/$PEAL_ROOT_RECORD.$$" 2>/dev/null; then
-    mv -f "$common/$PEAL_ROOT_RECORD.$$" "$common/$PEAL_ROOT_RECORD" 2>/dev/null
-  fi
+  peal_write_root "$common"
   return 0
 }
 
