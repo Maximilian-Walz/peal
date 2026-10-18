@@ -98,3 +98,49 @@ plugin/agents/implementer.md:23-28, tasks/backlog/0102-peal-commit-takes-m-and.m
 (same function; a textual merge conflict is possible).
 
 Touches: plugin/lib/commit.sh, plugin/lib/commit.test.sh, docs/reference/cli.md.
+
+---
+
+## Outcome
+
+Built: when a refusal follows `peal commit`'s own `git add`, the index is put back the way
+it was before the call. `peal_commit` (`plugin/lib/commit.sh`) takes a byte copy of the
+index file (`git rev-parse --git-path index`, so worktrees and `GIT_INDEX_FILE` work)
+right before `git add`. `_peal_commit_restore` puts it back atomically (copy to a sibling,
+then `mv`). If there was no index file before the call, it removes the index instead. Two
+refusals restore:
+- the gate refusal, exit 1, message "…nothing was committed, the index is as it was";
+- the backlog refusal, exit 2 as before, which now restores the whole index instead of
+  unstaging only the backlog file.
+
+The nothing-staged refusal and a failing `git add` only remove the snapshot. If the
+restore itself fails, `peal commit` returns 1, keeps the snapshot and names its path.
+`docs/reference/cli.md` says all this in the `peal commit` paragraph.
+
+Decided, with the human at planning:
+- Restore rather than leave the stage, as m3's criterion promises.
+- An exact byte-for-byte restore. Anything a hook or check staged during the refused
+  commit is undone too.
+- `write-tree`/`read-tree` was rejected because it loses intent-to-add entries,
+  skip-worktree bits and the stat cache.
+- Unstaging each path was rejected because it would drop the caller's own staged content
+  for a path edited after staging.
+- The backlog refusal was brought into scope. So a backlog file the caller staged before
+  the call now stays staged; the "backlog named" test changed to say so.
+
+Tests (`plugin/lib/commit.test.sh`):
+- the gate refusal, in paths mode and in everything mode: a path staged as "p1" and edited
+  to "p2" on disk stays staged at "p1", and the added file is untracked again;
+- the backlog refusal: the added file is unstaged again, a path staged before the call
+  stays staged.
+
+All 135 pass, and shellcheck is clean.
+
+Not tested: a refusal by a failing `checks.commit` item (it takes the same commit-msg
+failure path as a bad subject), and a failed restore.
+
+The review found that a failing `git add` left the snapshot in `$TMPDIR`. Fixed in its own
+commit.
+
+For the next session: 0102 changes the same function (argument parsing), so expect a
+textual merge conflict there.
