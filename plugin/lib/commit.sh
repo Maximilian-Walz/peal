@@ -96,9 +96,9 @@ peal_commit() {
     cp -p "$index" "$snap" || { rm -f "$snap"; peal_err "commit: could not snapshot the index"; return 2; }
   fi
   if [ ${#paths[@]} -gt 0 ]; then
-    git add -- "${paths[@]}" || { peal_err "commit: git add failed"; return 2; }
+    git add -- "${paths[@]}" || { [ -z "$snap" ] || rm -f "$snap"; peal_err "commit: git add failed"; return 2; }
   else
-    git add -A || { peal_err "commit: git add failed"; return 2; }
+    git add -A || { [ -z "$snap" ] || rm -f "$snap"; peal_err "commit: git add failed"; return 2; }
   fi
   if [ ${#paths[@]} -gt 0 ]; then
     # A second pathspec would OR, not AND: filter the named paths' own additions down to
