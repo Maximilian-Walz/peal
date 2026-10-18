@@ -107,4 +107,53 @@ docs/design.md:435-450, docs/security.md:97-114, docs/security.md:251-264,
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+`release.version-files` now also takes a marked line, `"PATH: \"TEXT\""`. A bare word
+is a top-level field, as before. A double-quoted literal is a marker: exactly one line
+of the file must contain it, and that line must hold exactly one version token
+(`MAJOR.MINOR.PATCH(-pre)?`, with no digit or dot right before or after it).
+`peal ship bump` replaces only that token. Anything else is refused with status 2:
+- no line holds the marker, or two lines do
+- the line holds no version, two versions, or one cut by a dot (`1.2.3.4`)
+- the marker is empty, or contains a control character, tab, backslash or `"`
+
+The marker reaches `version-field.awk` through `ENVIRON` and is matched with `index()`,
+so it is taken literally. The extension check does not apply to marked lines.
+
+The chore(release) gate re-derives the edit through the same `peal_version_edit`. It
+accepts exactly the token change and refuses a commit that changes more, such as the
+SHA on the same line. The gate needed only a comment change.
+
+Peal's own `.peal/config.yml` lists `plugin/templates/decisions.yml` with the Get Peal
+fetch line as its marker. The next release sets the `# vX.Y.Z` comment there along with
+`plugin.json`.
+
+Decided with the human at planning: the release bumps the tag only (option A).
+- The SHA on that line is still set by hand once the tag exists. Until then the
+  template's SHA and tag disagree.
+- CI never sees that: its harness jobs check out without tags, so `tools/pins.test.sh`
+  skips its SHA check there. Local clones with tags fail it until the SHA is updated.
+- Fixing this needs a narrow write after `peal ship tag` that sets the SHA (option D),
+  filed as an idea.
+- The template comment and `docs/reference/configuration.md` say this.
+
+Nested YAML fields were left out: the target line is text inside a `run: |` block, not a
+YAML field. They are filed as an idea of their own, and the docs keep saying a dotted
+field is refused. `tools/ci-changes.sh` was left as it is, so a release commit runs all
+harnesses.
+
+`tools/pins.test.sh` changed, although it is outside the plan's touches: its "a
+different tag is reported" case used v0.3.0, which would equal the version after the
+next release. It now uses v99.0.0.
+
+Checks:
+- `ship.test.sh`, `githooks.test.sh` and `hostile.test.sh` pass, also under mawk, nawk
+  and busybox awk.
+- In a scratch copy, `plugin.json` and the template were bumped to 0.3.0;
+  `pins.test.sh` and `pins.sh` stayed green.
+- `peal_version_edit` on the real template changes exactly line 48's tag.
+
+### Reviewer findings not acted on
+
+- The gate's "changes more than its $field" message was not reworded as the plan said.
+  For a marker it reads `its "TEXT" to X`, which is clear enough. The stale gate comment
+  the reviewer noted was fixed.
