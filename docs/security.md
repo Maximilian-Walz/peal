@@ -41,13 +41,18 @@ plugin cache, and listed at that version by `installed_plugins.json` when that i
 The git hooks' stub runs the same check on `$PEAL_ROOT` too, so an in-repository
 `PEAL_ROOT` is skipped; it sources nothing, reads no file of the work tree, calls no
 network, and names every root it refuses and every reason it refuses a commit or a push.
+Among the verified roots the highest version runs (ties: the recorded root, then the
+newest cache directory). That changes which verified root is chosen, not which roots may
+run, so it does not weaken the guarantee: a recorded root can no longer pin an older
+Peal over a newer installed one, and `peal hooks install` and the `SessionStart` hook do
+not move the record back to a verified higher version.
 `peal hooks install` and the `SessionStart` hook refuse to record a root inside the
 repository, and `peal init --remove` takes the hooks, the recorded root and every
 `peal.*` key back out.
 
 - Guard: `plugin/templates/launcher`, `plugin/templates/githook` (the same verifying
   block in both), `plugin/lib/githooks.sh` (`peal_hooks_install`,
-  `peal_hooks_uninstall`), `plugin/lib/session.sh` (`peal_record_root`).
+  `peal_hooks_uninstall`), `plugin/lib/session.sh` (`peal_record_root`, `peal_write_root`).
 - Harness: `plugin/templates/launcher.test.sh` (one table against launcher and stub),
   `plugin/templates/githook.test.sh` (a hostile clone driven by real git: a planted
   plugin, launcher and hooks directory, a recorded root and `PEAL_ROOT` in the work tree,
@@ -77,6 +82,11 @@ Limits this boundary does not cover, accepted for now:
   runs, at the same verified root, and never over a `core.hooksPath` already set to
   something else (that is only warned about). Accepted: the write is exactly the one the
   project's own committed config already asked for.
+- **Newest wins, whatever pinned the older one.** The highest verified version runs even
+  over a deliberate project-scope pin of an older Peal, and candidates are not limited to
+  the recorded root's marketplace: another marketplace's `peal` with a higher version in
+  the cache wins. Versions are compared by number only; a version of another shape is
+  incomparable and never wins on version.
 - **The committed launcher.** `.peal/peal` is a file of the repository: a branch can
   replace it, and whoever runs `.peal/peal` by hand runs the branch's copy. The git hooks
   never run it; they find Peal themselves.

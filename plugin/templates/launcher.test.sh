@@ -4,9 +4,9 @@
 #
 #   bash plugin/templates/launcher.test.sh
 #
-# Both look at the root recorded in the git directory, then the newest Peal in Claude
-# Code's plugin cache, and take a root only once it is verified: a Peal with a plugin.json,
-# outside this repository (its worktrees, its git directory), in the plugin cache, and
+# Both take the highest version among the root recorded in the git directory and the Peals
+# in Claude Code's plugin cache (ties: the recorded root, then the newest), and take a
+# root only once it is verified: a Peal with a plugin.json, outside this repository (its worktrees, its git directory), in the plugin cache, and
 # listed by installed_plugins.json when that is there. A root refused is named on stderr.
 # $PEAL_ROOT comes first; the launcher takes it as it is, the stub verifies it too.
 set -uo pipefail
@@ -184,6 +184,45 @@ check "PEAL_ROOT in the repository: the stub goes on" "old githook commit-msg x"
 check_fails "PEAL_ROOT in the repository: the stub says so" 0 \
   "skipped the Peal at $project/plugin (PEAL_ROOT): it lies inside this repository" \
   inp env PEAL_ROOT="$project/plugin" "$stubs/commit-msg" x
+
+# The highest version wins over the recorded root; equal or incomparable versions fall
+# back to the recorded root, then the newest cache directory.
+rm -rf "$cache" && mkdir -p "$cache"
+installed
+fake "$cache/peal/peal/0.1.0" v010 0.1.0
+fake "$cache/peal/peal/0.2.0" v020 0.2.0
+touch -t 202601010000 "$cache/peal/peal/0.2.0"
+touch -t 202602010000 "$cache/peal/peal/0.1.0"
+printf '%s\n' "$cache/peal/peal/0.1.0" >"$project/.git/peal-root"
+both "version: a recorded 0.1.0, a cached 0.2.0 (listed)" v020
+installed "$cache/peal/peal/0.1.0" 0.1.0 "$cache/peal/peal/0.2.0" 0.2.0
+both "version: the same, both listed" v020
+printf '%s\n' "$cache/peal/peal/0.2.0" >"$project/.git/peal-root"
+both "version: a recorded 0.2.0, a cached 0.1.0 of newer mtime" v020
+installed "$cache/peal/peal/0.1.0" 0.1.0
+both "version: a recorded root that is unlisted is skipped" v010 "skipped the Peal at $cache/peal/peal/0.2.0 (recorded): installed_plugins.json lists no peal 0.2.0 there"
+installed "$cache/peal/peal/0.1.0" 0.1.0 "$cache/peal/peal/0.2.0" 0.2.0
+: >"$cache/peal/peal/0.2.0/.orphaned_at"
+printf '%s\n' "$cache/peal/peal/0.1.0" >"$project/.git/peal-root"
+both "version: an orphaned cache directory is skipped" v010
+rm -rf "$cache/peal/peal/0.2.0"
+installed
+fake "$cache/market-b/peal/0.1.0" other 0.1.0
+touch -t 202603010000 "$cache/market-b/peal/0.1.0"
+both "version: equal versions, the recorded root first" v010
+printf '%s\n' "$project-gone" >"$project/.git/peal-root"
+both "version: equal versions, no record: the newest by time" other
+fake "$cache/market-b/peal/0.1.0-rc.1" rc 0.1.0-rc.1
+touch -t 202604010000 "$cache/market-b/peal/0.1.0-rc.1"
+both "version: a prerelease ranks below its release" other
+fake "$cache/market-b/peal/0.1.1-rc.1" rc2 0.1.1-rc.1
+both "version: a prerelease of a higher version wins" rc2
+fake "$cache/market-b/peal/0.10.0" ten 0.10.0
+both "version: numeric, not textual" ten
+fake "$cache/market-b/peal/nightly" nightly nightly
+touch -t 202605010000 "$cache/market-b/peal/nightly"
+both "version: an incomparable one does not win" ten
+rm -rf "${cache:?}"/*
 
 # End to end: a real copy of the plugin in the cache, recorded by its own hook, run by
 # the launcher.

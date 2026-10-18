@@ -73,6 +73,30 @@ automatic install only warned about. The process runs the installed plugin, not 
 checkout's `plugin/`, so a branch cannot change the gates it is checked by. To try a
 branch's CLI, run `PEAL_ROOT=$PWD/plugin plugin/bin/peal`.
 
+### Refreshing the installed plugin from main
+
+Merges to main do not change the plugin's version, so `/plugin` update can keep a cached
+copy that predates tasks merged since. To get the latest main in one go:
+
+```sh
+claude plugin marketplace update peal
+claude plugin uninstall peal@peal --scope project
+claude plugin install peal@peal --scope project
+```
+
+Use the scope the plugin is installed at (`claude plugin list`). The reinstall fetches a
+fresh copy into the cache (an uninstalled copy is marked `.orphaned_at`, which the
+launcher skips). Then restart the Claude Code session; its SessionStart hook records the
+new root. A stale `.git/peal-root` no longer pins old code: the launcher and the git hooks
+run the highest version among the recorded root and the cache, and the record is never
+moved back to an older Peal. Between two builds of the same version, the recorded root
+wins, which is the same path after a reinstall. Clones whose git hooks were installed
+before need `.peal/peal hooks install` once, to replace the stubs with the current ones.
+
+The reinstall and `.peal/peal hooks install` were tried against a scratch
+`CLAUDE_CONFIG_DIR` with this checkout as the marketplace; `marketplace update` was tried
+there too, but not against GitHub.
+
 ## Commits and pull requests
 
 Commit with `peal commit "<type>(<area>): <what> [NNNN]" [PATH...]`: the type is one of

@@ -601,10 +601,15 @@ Finding Peal's scripts at run time:
   installed plugin's directory.
 - **Outside** (git hooks, Belfry's `commands` backend, a human in a shell): the committed
   launcher `.peal/peal`, a short script that finds the plugin and runs its `peal` CLI.
-  It tries `$PEAL_ROOT` (taken as it is: whoever sets it chose what runs), then the root
-  the SessionStart hook records in the repository's git directory each session, then the
-  newest Peal in Claude Code's plugin cache (any marketplace's `peal`), and fails with an
-  install hint otherwise. A recorded or cached root runs only once verified: an absolute
+  It tries `$PEAL_ROOT` (taken as it is: whoever sets it chose what runs), then the
+  highest version among the root the SessionStart hook records in the repository's git
+  directory each session and the Peals in Claude Code's plugin cache (any marketplace's
+  `peal`; a directory marked `.orphaned_at` is skipped). Versions compare as numeric dot
+  fields with a prerelease below its release; equal or incomparable versions fall back to
+  the recorded root, then the newest cache directory, so a stale record does not pin old
+  code. It fails with an install hint if none is usable. The SessionStart hook and
+  `peal hooks install` never move the record back to a verified root of a higher version
+  than the running plugin. A recorded or cached root runs only once verified: an absolute
   path with an executable `bin/peal`, a `.claude-plugin/plugin.json` naming `peal` with a
   version, outside every worktree of the repository and its git directory, inside
   `${CLAUDE_CONFIG_DIR:-~/.claude}/plugins/cache/`, and, when Claude Code's
