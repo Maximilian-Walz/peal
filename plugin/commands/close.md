@@ -146,9 +146,9 @@ its one line:
 - **`BLOCKED:<why>`**: stay and fix it here, where the context is. `checks-failing`,
   `conflicts`, `uncommitted`, `unpushed`: fix, commit, push (the close is finished, so
   this is ordinary work on the branch), then wait again. `close-unfinished`: finish did
-  not run through; run it again. `no-pr`: finish opened none; run it again. `no-gh`,
-  `gh-failed`: report it and stay. The others (`not-a-repo`, `detached-head`, `on-main`,
-  `no-upstream`): find out where this session is first.
+  not run through; run it again. `not-pushed`: the branch is not on the remote; run finish again. `no-pr`: finish opened
+  none; run it again. `no-gh`, `gh-failed`: report it and stay. The others (`not-a-repo`, `detached-head`, `on-main`):
+  find out where this session is first.
 
 ## Closing without building
 

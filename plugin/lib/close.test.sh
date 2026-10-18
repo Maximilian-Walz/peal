@@ -361,6 +361,43 @@ push_skip_cases() {
   check "push skip: the pull request still just the one, updated" "1" "$(prs)"
 }
 
+# no_upstream_cases -> a sandbox that cannot write the repository's config (a lock file
+# in the way) still lets finish push: git exits 0 and the remote-tracking ref moves, only
+# the branch's upstream is missing. Verify, the Stop hook and finish's own already-pushed
+# check go by that ref.
+no_upstream_cases() {
+  local out status b lock
+  new_repo
+  ready 1 first-task
+  build
+  begin >/dev/null
+  outcome "Built a.txt."
+  git -C "$wt" branch --unset-upstream 2>/dev/null
+  b=$(git -C "$wt" symbolic-ref --short HEAD)
+  lock=$(git -C "$wt" rev-parse --path-format=absolute --git-common-dir)/config.lock
+  : >"$lock"
+  out=$(close_finish 2>&1)
+  status=$?
+  check "no upstream: finish succeeds" "0" "$status"
+  check "no upstream: the push is not reported failed" "0" "$(printf '%s\n' "$out" | grep -c 'the push failed')"
+  check "no upstream: finish says the upstream was not recorded" "1" "$(printf '%s\n' "$out" | grep -c '^NOTE: pushed; the upstream could not be recorded')"
+  check "no upstream: one pull request" "1" "$(prs)"
+  check "no upstream: no upstream configured" "" "$(git -C "$wt" config "branch.$b.merge")"
+  check "no upstream: the tracking ref is at HEAD" "$(git -C "$wt" rev-parse HEAD)" "$(git -C "$wt" rev-parse "refs/remotes/origin/$b")"
+  check "no upstream: verify finds the push" "WAIT:no-checks-yet 3" "$(verdict)"
+  rearm_sentinel
+  check "no upstream: stop does not say never pushed" "0" "$(stop | grep -c 'was never pushed')"
+  rm -f "$lock"
+  git -C "$wt" remote set-url origin "$(scratch_dir)/gone.git"
+  : >"$lock"
+  out=$(close_finish 2>&1)
+  status=$?
+  check "no upstream: finish skips the push at the tracking ref" "0|0|1" "$status|$(printf '%s\n' "$out" | grep -c 'the push failed')|$(prs)"
+  git -C "$wt" commit -q --allow-empty -m "feat: more [$(id 1)]"
+  check "no upstream: a commit beyond the tracking ref" "BLOCKED:unpushed 1" "$(verdict)"
+  rm -f "$lock"
+}
+
 # char_device_cases -> an untracked symlink to /dev/null (what a sandbox's /dev/null mount
 # over a protected path looks like to git and to [ -c ] alike; git lists only regular
 # files, symlinks and directories as untracked, so a real mknod device never reaches this
@@ -644,7 +681,7 @@ verify_cases() {
   git -C "$wt" add -A
   git -C "$wt" commit -q -m "feat: build [$(id 1)]"
   if [ $kind = issues ]; then
-    check "verify: no upstream" "BLOCKED:no-upstream 1" "$(verdict)"
+    check "verify: not pushed" "BLOCKED:not-pushed 1" "$(verdict)"
     git -C "$wt" push -q -u origin issue/1 2>/dev/null
     git -C "$wt" commit -q --allow-empty -m "feat: more [1]"
   fi
@@ -760,6 +797,7 @@ cases() {
   begin_unreachable_cases
   finish_cases
   push_skip_cases
+  no_upstream_cases
   draft_cases
   char_device_cases
   merge_cases
