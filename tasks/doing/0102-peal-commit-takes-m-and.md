@@ -40,6 +40,7 @@ Sessions call `peal commit` the way they call git: `peal commit -m "<subject>" <
 - The human wrote Scope and Done when themselves, so those sections are kept as written rather than left empty.
 - Open question: should `-m` also be accepted after paths or after `--body` (git allows options anywhere), or only as the first argument, as the Scope says? And should `-m` together with a positional subject be refused?
 - The usage line printed by `--help` should be the one `peal_commit` already prints on an empty subject, so there is only one copy.
+- Plan answers (2026-10-18, human): `-m` only as the first argument; a second `-m` after the subject is refused clearly ("commit: -m goes first, once; the body is --body"); the usage text stays the current string with `[-m] ` inserted (stdout for `--help`, stderr through `peal_err` for refusals); `docs/reference/cli.md` is updated too. Planner defaults kept: `--` first is an unknown option; `--help` works outside a configured project. The note above saying the task has no milestone is stale: it is in m3.
 
 ## Plan
 
