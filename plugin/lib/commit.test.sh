@@ -62,12 +62,24 @@ Why: because." "$(git -C "$work" log -1 --format=%B)"
   : >"$body"
   check_refused "--body-file empty" "is empty" peal commit "feat: d [0001]" --body-file "$body"
 
-  # The gate's refusal is reported; nothing is committed.
-  echo e >"$work/e"
+  # The gate's refusal is reported; nothing is committed; the index is as it was: what was
+  # staged before stays (as staged, not as on disk), what the call added is gone.
   sha=$(git -C "$work" rev-parse HEAD)
+  echo p1 >"$work/p"
+  git -C "$work" add p
+  echo p2 >"$work/p"
+  echo e >"$work/e"
   check_fails "the gate refuses" 1 "the commit was refused (above)" peal commit "no grammar" e
   check "the gate refuses: nothing committed" "$sha" "$(git -C "$work" rev-parse HEAD)"
+  check "the gate refuses: only p staged" "p" "$(git -C "$work" diff --cached --name-only)"
+  check "the gate refuses: p as staged" "p1" "$(git -C "$work" show :p)"
+  check "the gate refuses: e untracked" "?? e" "$(git -C "$work" status --porcelain e)"
+  check_fails "the gate refuses, everything" 1 "the index is as it was" peal commit "no grammar"
+  check "everything: only p staged" "p" "$(git -C "$work" diff --cached --name-only)"
+  check "everything: p as staged" "p1" "$(git -C "$work" show :p)"
+  check "everything: e untracked" "?? e" "$(git -C "$work" status --porcelain e)"
   git -C "$work" reset -q
+  rm -f "$work/p"
 
   # A new backlog task file is filed onto main, never committed on a branch.
   mkdir -p "$work/tasks/backlog"
@@ -75,7 +87,14 @@ Why: because." "$(git -C "$work" log -1 --format=%B)"
   check_refused "a new backlog file" "a new backlog task file is filed onto main" peal commit "feat: e [0001]"
   check "a new backlog file: unstaged again" "" "$(git -C "$work" diff --cached --name-only -- tasks)"
   check "a new backlog file: nothing committed" "$sha" "$(git -C "$work" rev-parse HEAD)"
+  check "a new backlog file: e unstaged too" "?? e" "$(git -C "$work" status --porcelain e)"
+  # A path staged before the call stays staged after the backlog refusal.
+  echo q >"$work/q"
+  git -C "$work" add q
+  check_refused "backlog refusal, q pre-staged" "the index is as it was" peal commit "feat: e [0001]"
+  check "backlog refusal: q stays staged" "q" "$(git -C "$work" diff --cached --name-only)"
   git -C "$work" reset -q
+  rm -f "$work/q"
   rm -f "$work/e" "$work/tasks/backlog/0009-sneaky-task.md"
 
   # Named paths, from here down: a file staged elsewhere rides along no more (the 0057
@@ -117,7 +136,7 @@ Why: because." "$(git -C "$work" log -1 --format=%B)"
   check "backlog unnamed: the backlog file stays staged" "tasks/backlog/0010-sneaky.md" "$(git -C "$work" diff --cached --name-only)"
   sha=$(git -C "$work" rev-parse HEAD)
   check_refused "backlog named" "a new backlog task file is filed onto main" peal commit "feat: j [0001]" tasks/backlog/0010-sneaky.md
-  check "backlog named: unstaged" "" "$(git -C "$work" diff --cached --name-only -- tasks)"
+  check "backlog named: staged before the call, stays staged" "tasks/backlog/0010-sneaky.md" "$(git -C "$work" diff --cached --name-only -- tasks)"
   check "backlog named: nothing committed" "$sha" "$(git -C "$work" rev-parse HEAD)"
   rm -f "$work/tasks/backlog/0010-sneaky.md"
 
