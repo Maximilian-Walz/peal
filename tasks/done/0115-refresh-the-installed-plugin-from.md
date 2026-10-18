@@ -87,4 +87,25 @@ Model default; size M; merge default (security boundary).
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Built route B, as agreed at planning.
+
+- **Launcher and git-hook stub** (`plugin/templates/launcher`, `plugin/templates/githook`, one byte-identical finding block): `_peal_find` now takes the highest `plugin.json` version among the recorded `.git/peal-root` (when it passes `_peal_check recorded`) and every cache entry that passes `_peal_check cache` and has no `.orphaned_at`. Ties and incomparable versions fall back to the old order: recorded root, then newest mtime. The comparator is portable awk (numeric dot fields, a prerelease below its release, anything else incomparable and never winning). `_peal_check` now sets `_peal_version` instead of the version being parsed twice. The set of roots allowed to run is unchanged.
+- **The record never downgrades:** `peal_write_root` in `plugin/lib/session.sh` is the one helper SessionStart (`peal_record_root`) and `peal hooks install` (`plugin/lib/githooks.sh`) write `peal-root` through. It keeps a record that names a verified root of a higher version than the running plugin, and writes as before otherwise (record older, unlisted, gone or invalid).
+- **`.peal/peal`** regenerated from the new template (`cmp` identical).
+- **Docs:** `docs/design.md` "Finding Peal's scripts" has the new order, with `peal-root` kept as the tie-break. `docs/security.md` answers the human's open question: 0040 is not weakened, because only the choice among already-verified roots changes; it states the accepted limits (the newest verified root wins over a deliberate older project-scope pin, and over another marketplace's higher version). `CONTRIBUTING.md` "Refreshing the installed plugin from main" has the recipe: forced reinstall of the pinned version, restart, and `.peal/peal hooks install` in existing clones.
+
+Decided at planning (see Notes): per-merge versions (route A1) are not done here, since they reverse 0066; `peal-root` stays as the tie-break rather than being deleted, because it covers roots outside the cache and deleting it would spread over init, doctor, githooks and many harnesses.
+
+Departures from the plan, made by the implementer and accepted at review:
+- `peal_write_root` carries its own shell copy of the version comparator (`_peal_vcmp`, `plugin/lib/session.sh`). The templates can source nothing, so the copy cannot be shared. Nothing pins the two copies together yet: filed as an idea (pin the comparator copies).
+- Its "verified" check also requires the recorded root to lie inside the plugin cache, matching the launcher's own check. This is stricter than the plan.
+- Its listing check is a quoted-path substring match against `installed_plugins.json` (`grep -F`), not a parse with a version match. It decides only whether a record is kept, never what runs: a kept record that the launcher refuses is skipped with a stderr note, and the launcher falls back to the cache.
+
+For the next session:
+- Hook stubs and `.peal/peal` copies installed before this change keep the old order (recorded root first) until `.peal/peal hooks install` is re-run from the updated plugin. The recipe says so.
+- The recipe was tried in a scratch `CLAUDE_CONFIG_DIR`, with this checkout as a local-path marketplace. `claude plugin marketplace update` against the real GitHub marketplace was not tried (no network in the sandbox), and `CONTRIBUTING.md` says so.
+- Verification: `launcher.test.sh` 99 passed, `peal.test.sh` 21, `githooks.test.sh` 411, `tools/docs.test.sh` 26, `tools/lint.sh` clean.
+
+### Reviewer findings not acted on
+
+- The listing check is weaker than the launcher's path-and-version match. Kept as is, because it only governs keeping a record, and the launcher still verifies what runs.
