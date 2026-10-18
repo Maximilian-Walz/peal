@@ -1,8 +1,9 @@
 ---
 milestone: m3
 plan: required
-size:
+size: S
 depends: []
+touches: [plugin/lib/commit.sh, plugin/lib/commit.test.sh, docs/reference/cli.md]
 ---
 
 # 0093 — Restore peal commit's own `git add` when the gate refuses
@@ -19,8 +20,10 @@ does for a new backlog file), and if so, build it.
 
 ## Scope
 
-`plugin/lib/commit.sh` (`peal_commit`), the gate-refusal path only (`git commit` returning
-non-zero). Not the backlog refusal, which already unstages; not a refusal before `git add`
+`plugin/lib/commit.sh` (`peal_commit`): the gate-refusal path (`git commit` returning
+non-zero) and the backlog refusal, which today unstages only the backlog file and leaves
+the rest of a `git add -A` staged (widened by the human, 2026-10-18). Not the
+nothing-staged refusal (snapshot cleaned up, no restore); not a refusal before `git add`
 runs (main branch, detached HEAD, no hooks).
 
 ## Done when
@@ -30,7 +33,9 @@ runs (main branch, detached HEAD, no hooks).
   staged) is fine.
 - If built, covered by a case in `plugin/lib/commit.test.sh` alongside "the gate refuses"
   (something already staged before the call stays staged; what `peal_commit` added is
-  gone), and the design doc's `peal commit` bullet says so.
+  gone), and the `peal commit` paragraph of `docs/reference/cli.md` says so (there is no
+  `peal commit` bullet in `docs/design.md`).
+- The backlog refusal restores the index the same way, covered by a test.
 
 ## Raw
 
@@ -41,3 +46,55 @@ runs (main branch, detached HEAD, no hooks).
 ## Notes
 
 Related: 0078, which built the paths-only commit and could not take this on too.
+
+Human's answers at planning (2026-10-18):
+- Decision: restore (m3 promises "a refused commit leaves the index as it was").
+- Document in `docs/reference/cli.md` only; `docs/design.md` has no `peal commit` bullet.
+- Exact restore of the index (byte copy), even if a hook or check staged something itself.
+- The backlog refusal restores the index the same way too (in scope now), with a test.
+  A backlog file staged before the call therefore stays staged after it.
+- Nothing-staged refusal: clean the snapshot up, no restore.
+- `plugin/agents/implementer.md` unchanged.
+- Message: keep "the commit was refused (above)", append "the index is as it was"; exit 1.
+- A failed restore: exit 1, keep the snapshot and name its path.
+- No index file before the call: a refusal removes the index. No split-index handling.
+
+## Plan
+
+Approach: just before `git add` (`plugin/lib/commit.sh:71-75`), copy the index file
+(`git rev-parse --git-path index`, which handles worktrees and `GIT_INDEX_FILE`) to a
+`mktemp` file; remember when there was no index file. On the gate refusal
+(`commit.sh:102-105`) and the backlog refusal (`commit.sh:84-89`, replacing its per-file
+unstage), put it back atomically (copy to a sibling temp file, `mv` over the index; or
+remove the index if there was none), report and return 1. Remove the snapshot on every
+exit after it is taken (success, backlog, nothing staged, gate); no `trap ... RETURN`
+that would leak into the sourcing shell. A failed restore says so, names the snapshot
+path, keeps the file and returns 1. Gate refusal message: "commit: the commit was refused
+(above); nothing was committed, the index is as it was". Update the header comment
+(`commit.sh:6-12`).
+
+Rejected: `write-tree`/`read-tree` (loses intent-to-add entries, skip-worktree bits, stat
+cache; fails on unmerged entries); per-path `git reset` (drops the caller's own staged
+content of a path edited after staging).
+
+Files: `plugin/lib/commit.sh`, `plugin/lib/commit.test.sh`, `docs/reference/cli.md`
+(`peal commit` paragraph, lines 200-205).
+
+Verification, in `plugin/lib/commit.test.sh` replacing "the gate refuses" (lines 65-70,
+dropping the `git reset -q` at line 70) and adjusting the backlog-refusal case:
+1. Paths mode: `p` staged as "p1", then edited on disk to "p2"; new `e`;
+   `peal commit "no grammar" e` exits 1 with the refusal text; HEAD unchanged; `git diff
+   --cached --name-only` is exactly `p`; `git show :p` is "p1"; `e` is `??`.
+2. Everything mode (no paths): same setup and checks.
+3. Optionally a refusal by a failing `checks.commit` item.
+4. Backlog refusal with `-A`: other files `git add -A` staged are unstaged again; a path
+   staged before the call stays staged.
+5. Existing cases pass. Run `bash plugin/lib/commit.test.sh` and shellcheck.
+
+Ranges: tasks/doing/0093-restore-index-on-commit-refusal.md:1-43,
+plugin/lib/commit.sh:1-107, plugin/lib/commit.test.sh:1-142, plugin/lib/test-lib.sh:43-60,
+docs/milestones/m3.md:1-27, docs/reference/cli.md:200-205, docs/design.md:425-457,
+plugin/agents/implementer.md:23-28, tasks/backlog/0102-peal-commit-takes-m-and.md:1-41
+(same function; a textual merge conflict is possible).
+
+Touches: plugin/lib/commit.sh, plugin/lib/commit.test.sh, docs/reference/cli.md.
