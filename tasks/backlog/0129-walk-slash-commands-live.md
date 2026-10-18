@@ -1,6 +1,7 @@
 ---
 milestone: m3
 plan: skipped
+depends: [0123]
 ---
 
 # 0129 — Walk the slash commands live on a scratch repository
@@ -24,4 +25,9 @@ Task 0118 walked the README to a first task with the CLI only. Walk `/peal:setup
 
 ## Notes
 
+Deferred 2026-10-18 after a claim: the rewrite it walks (0123, PR #216) has not merged
+
 - Queued by the implementer of 0123.
+- Depends on 0123 (README and getting-started rewrite, PR #216): the walk follows the
+  rewritten documents, and fixes to them would conflict with that pull request while it
+  is open. Claimed once before 0123 merged and given back with nothing built.
