@@ -51,4 +51,14 @@ Ranges relied on: tools/lint.sh:1-28, .gitignore:1-30, .github/workflows/ci.yml:
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+`tools/lint.sh` now builds its file list from `git ls-files -co --exclude-standard -z` (stderr silenced, `sort -zu`) instead of `find . -type f`. It quietly skips anything that is not a readable regular file: tracked files deleted from the work tree, symlinks, submodule gitlinks, sandbox placeholder mounts and unreadable files. In a sandbox it no longer prints `head: cannot open ... Permission denied`. An empty list still exits 2 ("the search is broken"), which is also what a git failure ends in.
+
+`tools/lint.sh --list` prints the scripts found and stops before shellcheck, pins and `peal check`. The new harness `tools/lint.test.sh` uses `plugin/lib/test-lib.sh` and drives `--list` in a scratch repository: a `.sh` file and bash and sh shebangs are listed; an ignored script, a mode-000 script (that case is skipped as root), an untracked symlink and a deleted tracked file are not; stderr stays empty; outside a git repository the exit is 2. CI's computed "rest" shard picks it up without a workflow change.
+
+Decided with the human (see Notes): an unreadable tracked script is skipped, not reported, because in a sandbox a tracked path can sit under a mount and reporting it would fail the close; git's own stderr is silenced; the harness was added. Accepted on purpose: ignored files are no longer linted, symlinks stay unlinted (as with `find -type f`), and paths lose their `./` prefix, which changes shellcheck's messages only. The skip test is an `if ... continue` rather than `A && B || continue`, for shellcheck SC2015.
+
+Verification: in a clean `git clone --shared` of the base, the old `find` loop (from origin/main) and the new `--list` both found 72 scripts, with an empty diff after stripping `./`. The reviewer repeated the comparison at HEAD: 73 and 73 (the extra one is the new harness), empty diff. `bash tools/lint.test.sh` reports 4 passed. The full `tools/lint.sh` in the sandboxed worktree prints no `head:` and no "Permission denied".
+
+### Reviewer findings not acted on
+
+None; the review found nothing to act on.
