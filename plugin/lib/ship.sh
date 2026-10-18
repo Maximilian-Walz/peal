@@ -65,7 +65,8 @@ _peal_ship_version() {
 # peal_version_files -> release.version-files as "PATH<TAB>FIELD" lines, each item
 # "PATH: FIELD" or "PATH: \"TEXT\"" checked: PATH relative, inside the repository, no
 # blank or colon in it; FIELD a top-level field name of a .json, .toml, .yml or .yaml
-# file (then the column holds FIELD), or TEXT a literal marker (non-empty, no control
+# file, or for a .yml or .yaml file also a dotted path of keys, KEY.KEY (then the column
+# holds FIELD), or TEXT a literal marker (non-empty, no control
 # character, tab, quote or backslash) of any plain file (the column holds "TEXT", quotes
 # included). Status 2 and a message for the first that is not.
 peal_version_files() {
@@ -76,15 +77,20 @@ peal_version_files() {
     if [[ "$item" =~ ^([^[:space:][:cntrl:]:]+):\ +(\"[^\"[:cntrl:]\\]+\")$ ]]; then
       path=${BASH_REMATCH[1]} field=${BASH_REMATCH[2]}
       _peal_repo_path release.version-files "$path" || return 2
-    elif [[ "$item" =~ ^([^[:space:][:cntrl:]:]+):\ +([A-Za-z0-9_-]+)$ ]]; then
+    elif [[ "$item" =~ ^([^[:space:][:cntrl:]:]+):\ +([A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*)$ ]]; then
       path=${BASH_REMATCH[1]} field=${BASH_REMATCH[2]}
       _peal_repo_path release.version-files "$path" || return 2
       case $path in
-        *.json | *.toml | *.yml | *.yaml) ;;
+        *.yml | *.yaml) ;;
+        *.json | *.toml)
+          if [[ "$field" == *.* ]]; then
+            peal_err "release.version-files: '$item': a dotted field reaches only into a YAML file"
+            return 2
+          fi ;;
         *) peal_err "release.version-files: '$path' is not a .json, .toml, .yml or .yaml file"; return 2 ;;
       esac
     else
-      peal_err "release.version-files: '$item' is not \"PATH: FIELD\" (FIELD a top-level field: letters, digits, _ and -) nor \"PATH: \\\"TEXT\\\"\" (TEXT without control character, quote or backslash)"
+      peal_err "release.version-files: '$item' is not \"PATH: FIELD\" (FIELD a top-level field, or KEY.KEY for a YAML file: letters, digits, _ and -) nor \"PATH: \\\"TEXT\\\"\" (TEXT without control character, quote or backslash)"
       return 2
     fi
     printf '%s\t%s\n' "$path" "$field"
@@ -185,7 +191,7 @@ peal_changelog_shape() {
 }
 
 # peal_version_edit PATH FIELD VALUE FILE -> FILE (the content of PATH) with its
-# top-level FIELD set to VALUE and nothing else changed (lib/version-field.awk); status 2
+# FIELD (top-level, or a dotted path of keys in a YAML file) set to VALUE and nothing else changed (lib/version-field.awk); status 2
 # and a message when it has no such field holding a string. A FIELD in double quotes is
 # a marker: the one line holding that text has its one version replaced by VALUE.
 peal_version_edit() {

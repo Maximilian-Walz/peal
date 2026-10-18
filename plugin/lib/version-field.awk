@@ -1,14 +1,16 @@
-# version-field.awk: a version file with one top-level field's string value set, and
-# nothing else changed; what `peal ship bump` writes and the pre-push gate re-derives.
+# version-field.awk: a version file with one field's string value set, and nothing else
+# changed; what `peal ship bump` writes and the pre-push gate re-derives.
 #
 #   awk -v format=json|toml|yaml -v field=F -v value=V -v eol=1|0 -v name=PATH \
 #     -f version-field.awk FILE
 #
-# eol says whether FILE ends with a newline (awk cannot tell). Top level is, for JSON,
-# the key at depth 1 of the top object; for TOML, "F = ..." before the first [table];
-# for YAML, "F: ..." at column 0. The value must be a string: JSON's "...", TOML's
-# basic or literal string on one line, YAML's plain, double- or single-quoted scalar on
-# one line; its quoting is kept.
+# eol says whether FILE ends with a newline (awk cannot tell). F is a top-level field:
+# for JSON, the key at depth 1 of the top object; for TOML, "F = ..." before the first
+# [table]; for YAML, "F: ..." at column 0. For YAML only, F may also be a path of
+# "."-separated keys (image.tag), reached through block mappings by indentation (see
+# yaml() below). The value must be a string: JSON's "...", TOML's basic or literal
+# string on one line, YAML's plain, double- or single-quoted scalar on one line; its
+# quoting is kept.
 #
 #   PEAL_MARK=TEXT awk -v format=line -v value=V -v eol=1|0 -v name=PATH \
 #     -f version-field.awk FILE
@@ -16,9 +18,11 @@
 # is the marked-line form, for any plain file: exactly one line contains TEXT (a literal,
 # read from the environment so that no escape is interpreted), and that line holds
 # exactly one version MAJOR.MINOR.PATCH(-pre)? with no digit or dot right before or
-# after it; only that version is replaced, a "v" before it kept. Refused (status 2, a message, nothing on stdout): no
-# such field, a field there twice, a value that is not such a string. V is written as
-# it is: the caller passes a version, which needs no escaping.
+# after it; only that version is replaced, a "v" before it kept. Refused (status 2, a
+# message, nothing on stdout): no such field, a field there twice (in a YAML file, also
+# in two of its documents), a value that is not such a string, a YAML path through a
+# key that is no block mapping, a tab-indented line where the YAML walk reads. V is
+# written as it is: the caller passes a version, which needs no escaping.
 
 function refuse(msg) {
   printf "peal: %s: %s\n", name, msg > "/dev/stderr"
@@ -122,35 +126,97 @@ function toml(    i, l, p, e, ml, k, pre, t) {
   }
 }
 
-function yaml(    i, l, p, e, t, v, c) {
+# yaml -> the string value at the path field (its "."-separated keys, one for a top-level
+# field), by one walk over the block mappings by indentation. Blank and comment lines
+# are skipped; "---" starts a document afresh, "..." ends one. A key with no value, or
+# only an anchor (&name) and a comment, is a mapping the walk goes into; a key with a
+# value is a leaf, and the lines indented beyond it are its value's, never read (block
+# scalars, multi-line scalars and flow collections, tagged values). So are the lines
+# indented beyond a list entry ("- "): no list is reached; and the rest of the document
+# after a line at column 0 that is no key.
+function yaml(    nseg, seg, i, j, l, k, r, kt, v, e, d, top, kind, sind, son, opq, dop, path, p, c, l2) {
+  nseg = split(field, seg, ".")
+  top = 0; opq = -1; dop = 0
   for (i = 1; i <= n; i++) {
     l = line[i]
-    if (!match(l, "^" field "[ \t]*:([ \t]|\r?$)")) continue
-    p = RLENGTH + 1
-    t = substr(l, p)
-    match(t, /^[ \t]*/); p += RLENGTH
-    c = substr(l, p, 1)
-    if (c == "\"" || c == "'") {
-      e = quoted(l, p, 1)
-      if (!e || !rest_ok(l, e)) refuse("the field " field " is not a string on one line")
-      found(i, p + 1, e - 1)
+    if (l ~ /^(---|[.][.][.])([ \t]|\r?$)/) {
+      top = 0; opq = -1
+      # A document whose content starts on its "---" line is not a block mapping.
+      dop = substr(l, 1, 3) == "---" && !rest_ok(l, 3)
       continue
     }
-    v = substr(l, p)
-    # A plain scalar ends at " #" (a comment) and before trailing blanks.
-    if (match(v, /[ \t]#/)) v = substr(v, 1, RSTART - 1)
-    sub(/[ \t\r]+$/, "", v)
-    if (v == "" || index("[]{}>|&*!%@`#,'\"", substr(v, 1, 1)) || v ~ /^[-?:]([ \t]|$)/)
-      refuse("the field " field " is not a plain string")
-    if (v ~ /^(~|null|Null|NULL|true|True|TRUE|false|False|FALSE)$/ \
-        || v ~ /^[-+]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][-+]?[0-9]+)?$/ \
-        || v ~ /^0[xo][0-9a-fA-F]+$/ || v ~ /^[-+]?[.](inf|Inf|INF)$/ || v ~ /^[.](nan|NaN|NAN)$/)
-      refuse("the field " field " is not a string")
-    # The next line indented and not a comment: the scalar goes on.
-    if (i < n && line[i + 1] ~ /^[ \t]+[^ \t\r#]/)
-      refuse("the field " field " is not a string on one line")
-    found(i, p, p + length(v) - 1)
+    if (dop || l ~ /^[ \t]*(#.*)?\r?$/) continue
+    match(l, /^ */); k = RLENGTH
+    if (opq >= 0 && k > opq) continue
+    opq = -1
+    if (substr(l, k + 1, 1) == "\t") refuse("line " i " is indented with a tab")
+    while (top > 0 && sind[top] >= k) top--
+    r = substr(l, k + 1)
+    if (r ~ /^-([ \t]|\r?$)/) { opq = k; continue }
+    # The key: a quoted one, or a plain one up to the first ":" before a blank.
+    kt = ""; v = ""
+    c = substr(r, 1, 1)
+    if (c == "\"" || c == "'") {
+      e = quoted(r, 1, 1)
+      if (e && match(substr(r, e + 1), /^[ \t]*:([ \t]|\r?$)/)) {
+        kt = substr(r, 1, e); v = substr(r, e + RLENGTH + 1)
+      }
+    } else if (index("#[]{},?|>%@`", c) == 0 && match(r, /:([ \t]|\r?$)/)) {
+      kt = substr(r, 1, RSTART - 1); v = substr(r, RSTART + 1)
+      if (kt ~ /[ \t]#/) kt = ""
+      sub(/[ \t]+$/, "", kt)
+    }
+    if (kt == "") {
+      if (k == 0) dop = 1
+      else opq = k
+      continue
+    }
+    match(v, /^[ \t]*/); p = length(l) - length(v) + RLENGTH + 1
+    d = top + 1
+    son[d] = d <= nseg && kt == seg[d] && (d == 1 || son[d - 1])
+    sind[d] = k; top = d
+    kind = rest_ok(v, 0) || v ~ /^[ \t]*&[^ \t]+[ \t\r]*(#.*)?$/
+    if (son[d] && d == nseg) {
+      # The next line that is not blank, indented beyond the key and not a comment:
+      # the scalar goes on.
+      for (j = i + 1; j <= n && line[j] ~ /^[ \t\r]*$/; j++) ;
+      l2 = j <= n ? line[j] : ""
+      match(l2, /^[ \t]*/)
+      yaml_value(i, l, p, RLENGTH > k && substr(l2, RLENGTH + 1, 1) != "#")
+      opq = k
+      continue
+    }
+    if (son[d] && !kind) {
+      path = seg[1]
+      for (j = 2; j <= d; j++) path = path "." seg[j]
+      refuse("the field " path " is not a mapping")
+    }
+    if (!kind) opq = k
   }
+}
+
+# yaml_value(i, l, p, more) -> the scalar at position p of line i (l) the value of field,
+# when it is a string on that one line (more: the line after goes on with it).
+function yaml_value(i, l, p, more,    c, e, v) {
+  c = substr(l, p, 1)
+  if (c == "\"" || c == "'") {
+    e = quoted(l, p, 1)
+    if (!e || !rest_ok(l, e)) refuse("the field " field " is not a string on one line")
+    found(i, p + 1, e - 1)
+    return
+  }
+  v = substr(l, p)
+  # A plain scalar ends at " #" (a comment) and before trailing blanks.
+  if (match(v, /[ \t]#/)) v = substr(v, 1, RSTART - 1)
+  sub(/[ \t\r]+$/, "", v)
+  if (v == "" || index("[]{}>|&*!%@`#,'\"", substr(v, 1, 1)) || v ~ /^[-?:]([ \t]|$)/)
+    refuse("the field " field " is not a plain string")
+  if (v ~ /^(~|null|Null|NULL|true|True|TRUE|false|False|FALSE)$/ \
+      || v ~ /^[-+]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][-+]?[0-9]+)?$/ \
+      || v ~ /^0[xo][0-9a-fA-F]+$/ || v ~ /^[-+]?[.](inf|Inf|INF)$/ || v ~ /^[.](nan|NaN|NAN)$/)
+    refuse("the field " field " is not a string")
+  if (more) refuse("the field " field " is not a string on one line")
+  found(i, p, p + length(v) - 1)
 }
 
 # line -> the one version on the one line holding the marker.
@@ -184,12 +250,13 @@ END {
     }
     exit
   }
-  if (field !~ /^[A-Za-z0-9_-]+$/) refuse("'" field "' is no top-level field name")
+  if (field !~ /^[A-Za-z0-9_-]+([.][A-Za-z0-9_-]+)*$/) refuse("'" field "' is no field name")
+  if (index(field, ".") && format != "yaml") refuse("a dotted field reaches only into a YAML file")
   if (format == "json") json()
   else if (format == "toml") toml()
   else if (format == "yaml") yaml()
   else refuse("not a JSON, TOML or YAML file")
-  if (!hits) refuse("no top-level field " field)
+  if (!hits) refuse(index(field, ".") ? "no field " field : "no top-level field " field)
   for (i = 1; i <= n; i++) {
     l = line[i]
     if (i == at) l = substr(l, 1, from - 1) value substr(l, to + 1)
