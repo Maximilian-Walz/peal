@@ -109,7 +109,7 @@ branch by hand, and `git lfs install --force` overwriting Peal's hooks with LFS'
 The `pre-push` gate walks every commit a push would add to main's first-parent line and
 refuses it unless it is a merge of a branch pushed first (never content made up as a
 merge parent), or one of Peal's own mechanical commits — filing, revising, deferring,
-retiring a task, a milestone's state, the decisions index, a release's version files and
+retiring a task, a milestone's state, the decisions index, a release's version files (or marked lines) and
 changelog entry — whose diff has exactly the shape its subject claims. Rewriting or
 deleting main is refused outright.
 
@@ -266,7 +266,7 @@ Every action runs at a pinned commit SHA, which Dependabot keeps current, and Op
 Scorecard checks the workflows weekly. The decisions workflow template
 (`plugin/templates/decisions.yml`) ships its action and its Peal pinned by SHA too:
 Dependabot keeps the action current across `/` and `/plugin/templates`, the Peal pin
-follows each release (checked by `tools/pins.test.sh`), and `tools/pins.sh` refuses an
+follows each release (its tag set by the release, its SHA by hand, checked by `tools/pins.test.sh`), and `tools/pins.sh` refuses an
 unpinned reference in the template or in Peal's workflows.
 
 - Guard: `.github/workflows/ci.yml` (`permissions:`, the pinned `uses:`),

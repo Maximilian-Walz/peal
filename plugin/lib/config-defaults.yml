@@ -42,7 +42,8 @@ release:
   report: []                    # texts whose lines in those runs' logs the release reports,
                                 # e.g. "digest: sha256:"
   version-files: []             # files the release sets to its version before the tag, each
-                                # "PATH: FIELD", a top-level field of a JSON, TOML or YAML file
+                                # "PATH: FIELD", a top-level field of a JSON, TOML or YAML file, or
+                                # "PATH: \"TEXT\"", the one line of a file holding TEXT
   changelog: ""                 # a Markdown file (e.g. CHANGELOG.md) each release's entry,
                                 # its notes, goes into with the version files; empty: none
 decisions: false                # the decisions module, or its directory to turn it on

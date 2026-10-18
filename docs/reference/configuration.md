@@ -46,7 +46,7 @@ under `storage`.
 | `release.tag-prefix` | `v` | release tags are `<prefix>MAJOR.MINOR.PATCH` |
 | `release.wait-ci` | `false` | `/peal:release` waits for the workflow runs of the tag |
 | `release.report` | `[]` | texts whose lines in those runs' logs the release reports, e.g. `"digest: sha256:"` |
-| `release.version-files` | `[]` | files the release sets to its version before the tag, each `"PATH: FIELD"`, a top-level field of a JSON, TOML or YAML file |
+| `release.version-files` | `[]` | files the release sets to its version before the tag, each `"PATH: FIELD"`, a top-level field of a JSON, TOML or YAML file, or `"PATH: \"TEXT\""`, the one line of any file that holds the literal `TEXT`, whose one `X.Y.Z` version is replaced |
 | `release.changelog` | `""` | a Markdown file (e.g. `CHANGELOG.md`) each release's entry, its notes, goes into with the version files; empty: none |
 | `decisions` | `false` | the decisions module: `false`, or its directory to turn it on |
 | `stages` | `[]` | the setup stages `peal init` has done; belongs to it |
@@ -54,6 +54,13 @@ under `storage`.
 
 The issues storage writes no task onto main: with the decisions module off and neither
 `release.version-files` nor `release.changelog`, a `main-writes` other than `auto` only warns.
+
+A marked line (`"PATH: \"TEXT\""`, in YAML single-quoted or with the inner quotes escaped)
+needs `TEXT` non-empty, without control character, tab, double quote or backslash. Exactly
+one line of the file holds it, and that line holds exactly one `MAJOR.MINOR.PATCH(-pre)`
+with no digit or dot right before or after; only that version changes, a `v` before it
+stays. Peal's own list marks the Get Peal fetch of the decisions workflow template, so a
+release sets its tag (not the commit before it, which is set by hand once the tag exists).
 
 ## Conventions with no setting
 

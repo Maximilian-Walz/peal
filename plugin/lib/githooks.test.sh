@@ -359,6 +359,26 @@ pre_push_release() {
   printf 'release:\n  version-files: []\n' >"$work/.peal/config.yml"
   release_commit 0.4.0 "chore(release): v0.4.0"
   check_fails "release: refused, not listed" 1 "not a file of release.version-files: plugin.json" push_main
+
+  # A marked line.
+  fresh
+  printf 'release:\n  version-files: ["pin.txt: \\"fetch https://x/peal\\""]\n' >"$work/.peal/config.yml"
+  printf 'run: fetch https://x/peal abc123 # v0.1.0\nother: v0.1.0\n' >"$work/pin.txt"
+  git -C "$work" add -A && git -C "$work" commit -q --no-verify -m "chore: pin" && git -C "$work" push -q --no-verify origin main
+  fresh
+  check "release: a marked line" "0|chore(release): v0.2.0" "$(peal ship bump 0.2.0 >/dev/null 2>&1; echo $?)|$(git -C "$work" log -1 --format=%s origin/main)"
+  fresh
+  sed 's/abc123 # v0.2.0/def456 # v0.3.0/' "$work/pin.txt" >"$work/pin.txt.new"
+  mv "$work/pin.txt.new" "$work/pin.txt"
+  git -C "$work" add pin.txt
+  git -C "$work" commit -q --no-verify -m "chore(release): v0.3.0"
+  check_fails "release: refused, a marked line changes more than the version" 1 "pin.txt changes more than its \"fetch https://x/peal\" to 0.3.0" push_main
+  fresh
+  sed 's/ abc123 # v0.2.0$/ abc123 # v0.3.0/' "$work/pin.txt" >"$work/pin.txt.new"
+  mv "$work/pin.txt.new" "$work/pin.txt"
+  git -C "$work" add pin.txt
+  git -C "$work" commit -q --no-verify -m "chore(release): v0.3.0"
+  check "release: a marked line, by hand" "0" "$(push_main 2>/dev/null; echo $?)"
 }
 
 # changelog_commit SUBJECT FILE ENTRY -> FILE written as the title and its blank line

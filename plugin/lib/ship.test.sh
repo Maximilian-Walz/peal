@@ -232,7 +232,7 @@ bump_refused() {
 
 # listing ITEM... -> release.version-files of work's settings those items.
 listing() {
-  { echo "release:"; echo "  version-files:"; printf '    - "%s"\n' "$@"; } >"$work/.peal/config.yml"
+  { echo "release:"; echo "  version-files:"; printf "    - '%s'\n" "$@"; } >"$work/.peal/config.yml"
 }
 
 bump() {
@@ -295,6 +295,33 @@ appVersion: '"'0.2.0'"'' "$(at_version v0.2.0)"
   bump_refused "a dotted field" "is not \"PATH: FIELD\""
   listing "plugin.json: version" "number.yml: version"
   bump_refused "one good file, one bad" "number.yml: the field version is not a string"
+
+  # A marked line of a plain file.
+  git -C "$work" merge -q --ff-only origin/main
+  printf 'a: 1.0.0\nrun: fetch https://x/peal 8927e46 # v0.1.0\nrun: fetch https://x/other # v0.1.0\nnone: fetch https://x/bare\ntwo: fetch https://x/two 1.2.3 4.5.6\ndigit: fetch https://x/dig 1.2.3.4\n' >"$work/pin.txt"
+  git -C "$work" add pin.txt && git -C "$work" commit -q -m "chore: pin" && git -C "$work" push -q origin main 2>/dev/null
+  listing "pin.txt: \"https://x/peal\""
+  main=$(git -C "$work" rev-parse origin/main)
+  check_refused "tag: marked line stale" "pin.txt on origin/main does not hold 0.4.0" peal ship tag 0.4.0
+  out=$(peal ship bump 0.4.0 2>&1)
+  check "bump: a marked line" "0|-run: fetch https://x/peal 8927e46 # v0.1.0
++run: fetch https://x/peal 8927e46 # v0.4.0" "$?|$(git -C "$work" diff -U0 "$main" origin/main | grep '^[-+][^-+]')"
+  out=$(peal ship bump 0.4.0 2>&1)
+  check "bump: a marked line, again" "0:already at 0.4.0: pin.txt" "$?:$out"
+  listing "pin.txt: \"nowhere\""
+  bump_refused "a marker on no line" "no line holds the marker"
+  listing "pin.txt: \"fetch https://x/\""
+  bump_refused "a marker on two lines" "is on more than one line"
+  listing "pin.txt: \"https://x/bare\""
+  bump_refused "a line without a version" "holds no version"
+  listing "pin.txt: \"https://x/two\""
+  bump_refused "a line with two versions" "does not hold exactly one version"
+  listing "pin.txt: \"https://x/dig\""
+  bump_refused "a line with a version cut by a dot" "does not hold exactly one version"
+  listing 'pin.txt: \"https://x\"'
+  bump_refused "a backslashed marker" "is not \"PATH: FIELD\""
+  listing "pin.txt: \"\""
+  bump_refused "an empty marker" "is not \"PATH: FIELD\""
 
   # Without version files, a release is as before.
   printf 'release:\n  version-files: []\n' >"$work/.peal/config.yml"

@@ -312,9 +312,10 @@ _peal_pre_push_index() {
 
 # _peal_pre_push_release SHA MAIN SHORT SUBJECT -> refused unless SHA's subject names a
 # release tag, and its diff only modifies files of release.version-files, each exactly
-# what setting its field to that version makes of its parent's (peal_version_edit), and
-# release.changelog, the parent's with one entry of that tag inserted, or added as a new
-# changelog holding that entry (peal_changelog_shape: its shape, not its text).
+# what setting its field or marked line to that version makes of its parent's
+# (peal_version_edit), and release.changelog, the parent's with one entry of that tag
+# inserted, or added as a new changelog holding that entry (peal_changelog_shape: its
+# shape, not its text).
 _peal_pre_push_release() {
   local sha=$1 short=$3 subject=$4 prefix files changelog version tag diff line mode path field why="" dir n=0 shape
   prefix=$(peal_config_get release.tag-prefix) || return 1
