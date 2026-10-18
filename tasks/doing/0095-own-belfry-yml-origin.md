@@ -19,7 +19,13 @@ their filing job, so the gap is safe but the mark is inert.
 
 ## Scope
 
+- `.belfry.yml`: the `tasks.commands.create` line gains `--origin {origin}`, as
+  `peal init --stage belfry` writes it.
+
 ## Done when
+
+- The installed Peal release accepts `peal create --origin`.
+- `.belfry.yml`'s create line ends in `--origin {origin}`.
 
 ## Raw
 
