@@ -58,6 +58,11 @@ them, and make the harness fail on an unmarked block so a new example cannot sli
   sections compared to the task template; `ref` accepts `vX` or `vN.N.N`, no lookup;
   migrate lines share one fixture in document order, exit 0 and empty stderr required.
   Defaults agreed: every fence at column 0 whatever its language; m2.md and m3 untouched.
+- 2026-10-18, human (close): the merge of main brought an unmarked `claude plugin` block
+  into `CONTRIBUTING.md` (0115's refresh section). `install` is extended to check
+  `claude plugin` lines too (marketplace `peal`, plugin `peal@peal`, subcommands
+  marketplace add/update and install/uninstall, `--scope` user/project/local), with a
+  negative case; `CONTRIBUTING.md` marks that block `install`.
 
 ## Plan
 
