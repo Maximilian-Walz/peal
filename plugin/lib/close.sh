@@ -431,11 +431,12 @@ _peal_close_checks() {
 # withdraw, the uncommitted decision entries committed on their own
 # (peal_decisions_commit), the storage's finish committed as "docs(tasks): close ID [ID]"
 # (an empty commit when the branch holds nothing else: a pull request needs one), the
-# branch pushed, the pull request opened or its title and body updated, the sentinel
-# cleared. What fails after the flush leaves the sentinel: run finish again, it goes on
+# open pull request of the branch marked ready for review when it is a draft (before the
+# push, so the close commit's CI runs on a ready pull request), the branch pushed, the
+# pull request opened or its title and body updated, the sentinel cleared. What fails after the flush leaves the sentinel: run finish again, it goes on
 # from where it stopped.
 peal_close_finish() {
-  local top gitdir rel decisions dirty escalations out status branch ahead repo pr url title body
+  local top gitdir rel decisions dirty escalations out status branch ahead repo pr url title body draft node
   top=$(peal_project_root) || return 2
   cd "$top" || return 2
   _peal_close_args finish "$@" || return 2
@@ -516,6 +517,24 @@ peal_close_finish() {
   else
     set -- git push -q -u "$PEAL_REMOTE" "$branch"
   fi
+  repo=$(peal_github_repo) || return 2
+  if ! out=$(peal_gh "repos/$repo/pulls?state=open&head=${repo%%/*}:$(peal_urlencode "$branch")" \
+      --jq '.[0] | select(. != null) | [(.number | tostring), .html_url, (.draft | tostring), .node_id] | @tsv'); then
+    peal_err "close finish: the open pull request of $branch could not be looked up (above); the close is committed here. Run finish again once it can."
+    return 1
+  fi
+  if [ -n "$out" ]; then
+    IFS=$'\t' read -r pr url draft node <<<"$out"
+    if [ "$draft" = true ]; then
+      # shellcheck disable=SC2016 # GraphQL's $variables
+      if ! peal_gh graphql -f query='mutation($id: ID!) { markPullRequestReadyForReview(input: {pullRequestId: $id}) { clientMutationId } }' \
+          -f id="$node" >/dev/null; then
+        peal_err "close finish: pull request #$pr is a draft and could not be marked ready (above). Run finish again once it can."
+        return 1
+      fi
+      echo "marked pull request #$pr ready for review"
+    fi
+  fi
   if [ $# -gt 0 ] && ! "$@"; then
     peal_err "close finish: the push failed (above): the close is committed here, not on $PEAL_REMOTE. Run finish again once it can push."
     return 1
@@ -524,14 +543,7 @@ peal_close_finish() {
   body=$gitdir/$PEAL_CLOSE_BODY
   peal_close_body "$PEAL_ID" >"$body" || return 2
   title="$PEAL_TITLE [$PEAL_ID]"
-  repo=$(peal_github_repo) || return 2
-  if ! out=$(peal_gh "repos/$repo/pulls?state=open&head=${repo%%/*}:$(peal_urlencode "$branch")" \
-      --jq '.[0] | select(. != null) | [(.number | tostring), .html_url] | @tsv'); then
-    _peal_close_by_hand "$branch" "$title" "$body"
-    return 1
-  fi
   if [ -n "$out" ]; then
-    pr=${out%%	*} url=${out#*	}
     if ! peal_json s:title "$title" f:body "$body" \
         | peal_gh --method PATCH "repos/$repo/pulls/$pr" --input - --jq '.number' >/dev/null; then
       _peal_close_by_hand "$branch" "$title" "$body"
