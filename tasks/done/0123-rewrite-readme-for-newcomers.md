@@ -70,4 +70,38 @@ step is finding it with them.
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+The plan was skipped, but the first step was finding out with the human what read
+badly. The implementer read both documents as a newcomer would. It found they were
+ordered the way Peal is built, not the way someone uses it: mechanism before motivation,
+the transcript before any explanation, terms used before they were explained,
+Belfry introduced only as a denial, and getting-started's first task arriving after
+about 80 lines of optional material. It drafted the README opening in two styles. The
+human chose style A (narrative, problem-first, terms explained where they first appear),
+agreed with every diagnosed problem, and agreed to move the optional material out of
+getting-started (Notes, 2026-10-18).
+
+Built:
+- README.md: it opens with the name's meaning as a one-line aside, then the problem Peal
+  solves, then one task's round trip (idea, work, close) explained in plain words. Each
+  term is explained where it first appears: task with its YAML frontmatter, worktree,
+  milestone, planner and implementer subagents. Then come "What Peal is not" (Belfry
+  explained in place, with a link down) and "Peal and Belfry".
+- docs/getting-started.md: now Install, Set up, Your first task (each step says what you
+  see and do), Next.
+- docs/guides/setting-up.md (new, listed in docs/guides/README.md): version pinning, the
+  stage table, the `peal init` transcript and "What to adopt next", moved word for word
+  and linked from getting-started.
+- tools/docs.test.sh: the guide count goes from 6 to 7, and the negative-case mutants for
+  the moved `docs-check` blocks now point at the new guide. The harness passes, 37 of 37.
+
+The review found two terms (milestone, Belfry) used before they were explained, a wrong
+command (`peal list` in a shell; it is `.peal/peal list` there), two dropped facts (an
+idea filed on a task branch is queued until that task closes; a task's YAML
+frontmatter), and the README contradicting getting-started on who writes the plan. All
+six were fixed on the branch.
+
+For the next session: the slash-command half of task 0118's walk (`/peal:setup`,
+`/peal:work`, `/peal:close` live on a scratch repository) is filed as an idea
+(walk-slash-commands-live). It is the natural check that a newcomer gets through with
+these two documents alone. The tone of the other guides was not touched; they may want
+the same treatment.
