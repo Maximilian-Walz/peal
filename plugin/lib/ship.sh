@@ -590,7 +590,7 @@ peal_ship_notes() {
 # and waits for it instead of opening a second one.
 # Nothing when every file holds the version already and the changelog an entry of the
 # tag. Refused as peal ship tag refuses the version, and for a file missing, or with no
-# top-level field holding a string, or a changelog that is not a plain file: main
+# field (or marked line) holding a string, or a changelog that is not a plain file: main
 # unchanged. Status 3 when the pull request is still open after the budget
 # (PEAL_MAIN_WRITE_BUDGET): run it again once it merged.
 peal_ship_bump() {
