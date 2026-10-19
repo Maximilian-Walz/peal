@@ -104,6 +104,14 @@ The task's text before planning narrowed it (0132 and 0133 hold the rest):
   - `fold` and `dismiss`: answered `invalid`, never a silent `done`.
   - Split: 0132 (milestone kinds), 0133 (single commands, own `.belfry.yml`).
 
+- 2026-10-19, review. The human's answers:
+  - The `why` texts stay in the commit and pull request bodies (so
+    `plugin/lib/main-write.sh` gets the `PEAL_BODY` change), but closing keywords and
+    @mentions in them are defused, and `docs/security.md` says so.
+  - The rules `apply.sh` copied from the single commands (unclaimed check, add note,
+    depends rewrite, retire Outcome, dependents scan) are refactored into shared
+    old-text → new-text helpers that both paths call, in this task.
+
 ## Plan
 
 **Contract.** Input on stdin, ids resolved by Belfry:
