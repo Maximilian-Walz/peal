@@ -605,7 +605,11 @@ _peal_apply_files() {
 
   : "${PEAL_MAIN_WRITE_BUDGET:=90}"
   export PEAL_MAIN_WRITE_BUDGET
-  PEAL_MW_TAKEN=_peal_files_create_taken
+  # A batch that files tasks takes numbers a rival filing may take first.
+  PEAL_MW_TAKEN=""
+  for ((i = 1; i <= PA_COUNT; i++)); do
+    [ "$(_pa_val "$i" kind)" != file ] || { PEAL_MW_TAKEN=_peal_files_create_taken; break; }
+  done
   peal_push_main _pa_build apply || status=$?
   # shellcheck disable=SC2034 # read by peal_push_main
   PEAL_MW_TAKEN=""
