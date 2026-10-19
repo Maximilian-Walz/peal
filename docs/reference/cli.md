@@ -290,9 +290,9 @@ issue is closed as not planned, `R` a comment.
 
 ## `peal set-milestone`
 
-`peal set-milestone ID [M]` sets an unclaimed task's milestone, or removes it. A move that puts the task on a depends
-cycle it was not on before (through `milestone` in a `depends`) is refused with status 1,
-naming the cycle; nothing is changed.
+`peal set-milestone ID [M]` sets an unclaimed task's milestone, or removes it. A move
+that puts the task on a depends cycle it was not on before (through `milestone` in a
+`depends`) is refused with status 1, naming the cycle; nothing is changed.
 
 ## `peal comment`
 

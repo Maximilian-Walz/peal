@@ -826,7 +826,7 @@ _peal_files_rewrite_milestone() {
   else
     peal_fm_unset "$2" milestone
   fi || return 2
-  peal_cycle_check_text set-milestone "$PEAL_MS_ID" "$2"
+  peal_cycle_check_text set-milestone "$PEAL_MOVE_ID" "$2"
 }
 
 _peal_files_rewrite_comment() {
@@ -855,7 +855,7 @@ _peal_files_rewrite() {
 
 peal_store_set_milestone() {
   local id=$1 state status=0
-  PEAL_NEW_MILESTONE=${2-} PEAL_MS_ID=$id
+  PEAL_NEW_MILESTONE=${2-} PEAL_MOVE_ID=$id
   _peal_files_settings || return 2
   if [ -n "$PEAL_NEW_MILESTONE" ]; then
     _peal_files_fetch || return 2
