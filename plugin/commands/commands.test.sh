@@ -126,6 +126,7 @@ check "close: step 6 falls back to peal close wait" "1" "$(has6 'If `wait_ci` fa
 check "close: step 6 runs verify once after a done wait_ci" "1" "$(has6 'run `peal close verify` once')"
 check "close: step 6 trusts wait_ci on gh-failed/no-gh" "1" "$(has6 'means trust')"
 check "close: step 6 is capped both ways" "1|1" "$(has6 'After the sixth `WAIT` in a row')|$(has6 'also answers `done: false`')"
+check "close: step 6 caps verify's WAIT after a done wait_ci" "1" "$(has6 'after the third `WAIT` from verify in a row')"
 check "close: step 6 handles conflict: true" "1" "$(has6 '`conflict: true`')"
 
 finish
