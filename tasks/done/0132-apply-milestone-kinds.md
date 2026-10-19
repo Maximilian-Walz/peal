@@ -164,4 +164,55 @@ docs/milestones/m3.md:1-27.
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+`peal apply` now carries out three milestone kinds on the files storage, in the same
+single commit (or pull request) as the rest of the batch: `milestone_create`,
+`milestone_update` and `milestone_state` (park → parked, unpark/reopen → open,
+close → done). `split_milestone` is still answered `invalid: not yet`. It needs
+`apply.awk` to read arrays of strings, which is a change to a security-relevant parser,
+so it went into a follow-up task, filed by this close (`apply-split-milestone`, which
+depends on 0132).
+
+What was built (the human's answers A1-A16 are under Notes):
+- `plugin/lib/apply.sh`:
+  - Static checks for the three kinds.
+  - `@<proposal id>` for milestones, resolved only against earlier `milestone_create`
+    proposals. It also works in `file` and `move`.
+  - New ids are `m` + (highest numeric N + 1), padded only when every existing
+    numeric id is padded (`_pa_ms_ids`).
+  - The compose step works on main's milestone files extracted to `$PA_S/ms`.
+  - The checks run against the end state:
+    - `peal_ms_load` on the composed milestones;
+    - task-check.awk fed the composed milestone lines;
+    - the parked rule (A9);
+    - a close is refused while a task neither done nor retired still names the
+      milestone (A8). The milestone's review task (`depends: [milestone]`) is exempt,
+      through `peal_ms_open_tasks`, shared with `peal review`.
+  - Answers carry a `"milestone"` key.
+- `plugin/lib/milestones.sh`:
+  - `peal_ms_text` is the new milestone's text. It was init's template, which init
+    now calls.
+  - `peal_ms_next_current` is the "none current → first open by order" rule, shared
+    with `peal milestone-state` (A15). It runs only when a batch contains a
+    `milestone_state` (A13). Because no proposal of its own carries the change, the
+    "milestone X: current" note is appended to the last `milestone_state` answer.
+- `plugin/lib/githooks.sh`: the pre-push `apply` shape also accepts adding and
+  modifying `<milestones>/<name>.md` (mode 100644). Subdirectories, deletions, renames
+  and other modes are still refused. `docs/security.md` says the same.
+- Choices beyond the plan:
+  - Moving a task out of a milestone that was open at the start, even if the batch
+    parks it, is allowed. A9 only forbids leaving milestones parked at the start.
+  - An empty goal string is invalid rather than falling back to the placeholder.
+- Docs: `docs/reference/cli.md`, `docs/design.md` and `docs/security.md`.
+
+Review: the reviewer found that the close rule read `needs` instead of `depends` for
+the review-task exemption, so it refused the normal close of a milestone whose review
+task was still open. It is fixed, with a test of exactly that case. The reviewer also
+found a date check copied from `next.sh`; it is now one shared function, `peal_valid_date` in `common.sh`.
+
+For the next session:
+- Two rival pull requests that both create a milestone can pick the same `mN` (A2:
+  nothing is reserved). The clash shows up as a merge conflict or in `peal check`.
+- The `split_milestone` follow-up should reuse `_pa_ms_item`, `_pa_ms_ids` and
+  `_pa_ms_resolve`.
+- Pitfall: under pipefail, a while loop whose last command is a `peal_fm_get`
+  returning 1 makes the whole pipeline fail.
