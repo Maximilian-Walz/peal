@@ -58,3 +58,20 @@ Stalls found:
   own `.gitignore` job; not documented.
 - Setup did not offer a first task here (a repository with a bare README, no TODOs): as
   the command describes; no stall.
+
+---
+
+## Outcome
+
+- The live walk ran `/peal:setup` (tasks stage), `/peal:idea` and `/peal:work` in nested `claude -p` sessions. The sessions loaded this checkout's plugin with `--plugin-dir`, in a scratch repository whose origin was a local bare repository.
+  - The second `/peal:work`, inside the worktree, built the task, reviewed it, wrote its Outcome and ran `peal close finish`.
+  - The walk stopped at `BLOCKED:close-unfinished`: there was no GitHub remote for the pull request.
+  - Not exercised: the marketplace install, the interactive `AskUserQuestion` (it does not exist in `-p`), and the pull request with its checks. A later walk with a real GitHub scratch repository could cover these.
+- Fixed in docs/getting-started.md:
+  - An idea filed from the main branch lands on the remote's main, not in the checkout, so update the checkout to see it. When main refuses direct pushes, the idea arrives as a pull request instead; the reviewer found that case and it is fixed in its own commit.
+  - An idea comes out `plan: skipped` with empty Scope and Done when. No planner runs, and the implementer asks its questions with proposed answers.
+  - A stopgap: run `.peal/peal hooks install` after merging the setup.
+- README step 2 now says a small task can skip the plan.
+- Filed as idea tasks-stage-hooks-gap: only the `guardrails` stage installs the git hooks (`peal_hooks_ensure` returns early otherwise), yet `peal commit` and `peal close` refuse without them. A tasks-only project therefore stalls at its first commit. The reviewer confirmed this in plugin/lib/githooks.sh, commit.sh and close.sh. When that idea lands, remove the stopgap line from getting-started.
+- Left as is: test runs left `__pycache__` in the scratch project and blocked the clean-tree check. That is the project's own `.gitignore` job, and the refusal names the files.
+- For the next session: the repository's CLAUDE.md line "a fresh clone installs the git gates itself" holds only for projects that set up `guardrails`. Peal itself does.
