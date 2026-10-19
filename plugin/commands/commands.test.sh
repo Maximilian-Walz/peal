@@ -122,11 +122,16 @@ step6=$(awk '/^## 6\./ { f = 1; next } /^## / { f = 0 } f' "$commands/close.md" 
 has6() { grep -c -F -- "$1" <<<"$step6"; }
 check "close: step 6 names wait_ci and ToolSearch" "1|1" \
   "$([ "$(has6 'mcp__belfry__wait_ci')" -ge 1 ] && echo 1)|$([ "$(has6 'ToolSearch')" -ge 1 ] && echo 1)"
+# shellcheck disable=SC2016 # the literal backticks
 check "close: step 6 falls back to peal close wait" "1" "$(has6 'If `wait_ci` fails')"
+# shellcheck disable=SC2016 # the literal backticks
 check "close: step 6 runs verify once after a done wait_ci" "1" "$(has6 'run `peal close verify` once')"
 check "close: step 6 trusts wait_ci on gh-failed/no-gh" "1" "$(has6 'means trust')"
+# shellcheck disable=SC2016 # the literal backticks
 check "close: step 6 is capped both ways" "1|1" "$(has6 'After the sixth `WAIT` in a row')|$(has6 'also answers `done: false`')"
+# shellcheck disable=SC2016 # the literal backticks
 check "close: step 6 caps verify's WAIT after a done wait_ci" "1" "$(has6 'after the third `WAIT` from verify in a row')"
+# shellcheck disable=SC2016 # the literal backticks
 check "close: step 6 handles conflict: true" "1" "$(has6 '`conflict: true`')"
 
 finish

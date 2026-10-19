@@ -80,3 +80,20 @@ Ranges:
 
 ## Outcome
 
+
+Built: `/peal:close` step 6 now waits two ways. (a) When the session has `mcp__belfry__wait_ci` (listed, or deferred and loaded through ToolSearch), close calls it with the pull request's number from finish's `closed` line. On `conflict: true` it merges main in, pushes and calls again. On `done: false` it calls once more, then reports and ends. On `done: true` it runs `peal close verify` once. If verify answers `BLOCKED:no-gh`/`gh-failed`, close trusts `wait_ci`'s answer: verify runs its local checks before its first gh call, so the local state is already good. If verify answers `WAIT`, close calls `wait_ci` again, and the third such `WAIT` in a row ends it. (b) When the tool is missing or fails, close falls back to `peal close wait`, now capped: after six `WAIT`s in a row it reports the PR's URL and the last verdict and ends. Step 2's draft-PR wait uses `wait_ci` too when the session has it. `plugin/lib/close.sh`'s `Next:` line after finish is tool-neutral, so no session starts the old loop before reading step 6. `plugin/commands/commands.test.sh` checks both branches and each cap. `docs/design.md`, `docs/reference/commands.md` and `docs/guides/belfry.md` state the rule.
+
+Decided, with the human (Notes, 2026-10-19):
+- Close is the second deliberate Belfry exception after `/peal:idea`. It keys on the tool, not on `BELFRY_SESSION`, because the tool is what it needs. design.md now says "two deliberate exceptions".
+- There is no general Belfry-tools rule: the Intent's gallery claim was wrong, since Peal handles no gallery tool.
+- `release.md` stays on `peal ship wait`, because `wait_ci` takes only a pull request.
+
+Found and left:
+- The 2026-10-18 note's mechanism does not match the code. A denied or failed gh call makes verify print `BLOCKED:gh-failed`, not `WAIT:checks-pending`. The caps hold whatever the cause.
+- The idea `close-verify-names-denied-host` is queued to reproduce the friction and, if it is real, have verify name the denied host.
+
+Next session: the waits are prompt prose. Nothing exercises a real `wait_ci` call; the harness only checks that the text holds each branch and cap.
+
+### Reviewer findings not acted on
+
+None. The reviewer's one finding was fixed in ad54ccb: `wait_ci` kept answering `done: true` while verify answered `WAIT` (for example `mergeability-unknown`), which made an endless loop. That path now has its own cap and a harness check.
