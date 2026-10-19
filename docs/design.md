@@ -241,9 +241,9 @@ A project may add its own fields, declared under `task.fields`. Peal carries the
 every command and refuses undeclared keys when filing, so a typo fails at once instead of
 being ignored for ever.
 
-**A depends cycle is refused** where a task is filed, revised or deferred, since every
-task on it would stay blocked for ever. One made by hand is shown, not refused, so it can
-be found and fixed.
+**A depends cycle is refused** where a task is filed, revised, deferred or moved to
+another milestone (set-milestone), since every task on it would stay blocked for ever. One
+made by hand is shown, not refused, so it can be found and fixed.
 
 **`touches`** is carried on the board so that a scheduler like Belfry does not start two
 tasks on the same files side by side. It is a hint: a wrong one costs a missed parallel

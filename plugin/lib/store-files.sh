@@ -809,7 +809,7 @@ _peal_files_build_rewrite() {
     return 2
   fi
   git show "$1:$PEAL_PATH" >"$PEAL_EDIT_FILE.old"
-  "$PEAL_REWRITE" "$PEAL_EDIT_FILE.old" "$PEAL_EDIT_FILE" || return 2
+  "$PEAL_REWRITE" "$PEAL_EDIT_FILE.old" "$PEAL_EDIT_FILE" || { [ $? != 1 ] || return 1; return 2; }
   if cmp -s "$PEAL_EDIT_FILE.old" "$PEAL_EDIT_FILE"; then
     peal_err "$PEAL_PATH already reads so: nothing to change"
     return 2
@@ -825,7 +825,8 @@ _peal_files_rewrite_milestone() {
     peal_fm_set "$2" milestone "$PEAL_NEW_MILESTONE"
   else
     peal_fm_unset "$2" milestone
-  fi
+  fi || return 2
+  peal_cycle_check_text set-milestone "$PEAL_MS_ID" "$2"
 }
 
 _peal_files_rewrite_comment() {
@@ -854,7 +855,7 @@ _peal_files_rewrite() {
 
 peal_store_set_milestone() {
   local id=$1 state status=0
-  PEAL_NEW_MILESTONE=${2-}
+  PEAL_NEW_MILESTONE=${2-} PEAL_MS_ID=$id
   _peal_files_settings || return 2
   if [ -n "$PEAL_NEW_MILESTONE" ]; then
     _peal_files_fetch || return 2

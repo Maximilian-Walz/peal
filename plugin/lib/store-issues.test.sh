@@ -804,7 +804,12 @@ cycles() {
     peal create --part-of 3 a-piece < <(text "part-of: ORIGIN" "depends: [4]")
   check_fails "cycles: revise" 1 "revise: refused: depends cycle #3 → #4 → #3" \
     peal revise 3 --reason x < <(printf -- '---\ndepends: [4]\n---\n\n'; peal read 3 2>/dev/null)
-  check "cycles: nothing filed or changed" "4|$body" "$(gh_get 'length')|$(gh_get '.[] | select(.number == 3) | .body')"
+  issue 5 "Review one" --body "Depends on milestone" --milestone m1
+  issue 6 "Review two" --body "Depends on milestone" --milestone m2
+  check_fails "cycles: set-milestone" 1 "set-milestone: refused: depends cycle #5 → #6 → #5" peal set-milestone 5 m2
+  check "cycles: nothing filed or changed" "6|$body|m1" "$(gh_get 'length')|$(gh_get '.[] | select(.number == 3) | .body')|$(gh_get '.[] | select(.number == 5) | .milestone.title')"
+  check_fails "cycles: set-milestone, no cycle" 0 "" peal set-milestone 4 m2
+  check_fails "cycles: set-milestone, a task on a cycle made by hand" 0 "" peal set-milestone 1 m1
 }
 
 # Priority as labels: read (the higher of two; normal is none), written by create and
