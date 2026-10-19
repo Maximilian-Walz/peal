@@ -164,6 +164,11 @@ peal_githook() {
 #                                              release.changelog modified (or added as
 #                                              "# Changelog") by one entry "## <tag>"
 #                                              inserted after its title (peal ship bump)
+#       chore(release): pin <tag>              only files of release.commit-files
+#                                              modified, each exactly as the SHA of the
+#                                              tag's commit written into its parent's;
+#                                              the tag known locally, its commit before
+#                                              this one (peal ship pin)
 # Rewriting main (not a fast-forward) and deleting it are refused. Git runs no pre-push
 # for a merge made on the server (a pull request's), so this never stands in its way.
 # Known limit: the main branch and the tasks and milestones directories are this
@@ -239,6 +244,10 @@ _peal_pre_push_direct() {
       return
       ;;
     'docs(tasks): milestone '*) shape=milestone ;;
+    'chore(release): pin '*)
+      _peal_pre_push_pin "$sha" "$main" "$short" "$subject"
+      return
+      ;;
     'chore(release): '*)
       _peal_pre_push_release "$sha" "$main" "$short" "$subject"
       return
@@ -310,6 +319,19 @@ _peal_pre_push_index() {
   fi
 }
 
+# _peal_release_tag LEAD PREFIX SHORT MAIN SUBJECT -> PEAL_GATE_TAG, the release tag
+# (PREFIX, then MAJOR.MINOR.PATCH with an optional pre-release) that follows LEAD in
+# SUBJECT; status 1 and a refusal when SUBJECT names none.
+_peal_release_tag() {
+  local tag=${5#"$1"}
+  if [ "${tag#"$2"}" = "$tag" ] && [ -n "$2" ] \
+      || ! [[ "${tag#"$2"}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]; then
+    _peal_gate_refuse pre-push "$3 reaches $4 directly as \"$5\", which names no release tag ($2MAJOR.MINOR.PATCH)"
+    return 1
+  fi
+  PEAL_GATE_TAG=$tag
+}
+
 # _peal_pre_push_release SHA MAIN SHORT SUBJECT -> refused unless SHA's subject names a
 # release tag, and its diff only modifies files of release.version-files, each exactly
 # what setting its field or marked line to that version makes of its parent's
@@ -319,14 +341,9 @@ _peal_pre_push_index() {
 _peal_pre_push_release() {
   local sha=$1 short=$3 subject=$4 prefix files changelog version tag diff line mode path field why="" dir n=0 shape
   prefix=$(peal_config_get release.tag-prefix) || return 1
-  version=${subject#"chore(release): "}
-  if [ "${version#"$prefix"}" = "$version" ] && [ -n "$prefix" ] \
-      || ! [[ "${version#"$prefix"}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]; then
-    _peal_gate_refuse pre-push "$short reaches $2 directly as \"$subject\", which names no release tag (${prefix}MAJOR.MINOR.PATCH)"
-    return
-  fi
-  tag=$version
-  version=${version#"$prefix"}
+  _peal_release_tag "chore(release): " "$prefix" "$short" "$2" "$subject" || return
+  tag=$PEAL_GATE_TAG
+  version=${tag#"$prefix"}
   if ! files=$(peal_version_files 2>&1); then
     _peal_gate_refuse pre-push "$short reaches $2 directly as \"$subject\", but release.version-files is not right:" "$files"
     return
@@ -366,6 +383,54 @@ _peal_pre_push_release() {
       why="$path: $(sed 's/^peal: //' "$dir/err" 2>/dev/null)"
     elif ! git show "$sha:$path" | cmp -s - "$dir/new"; then
       why="$path changes more than its $field to $version"
+    fi
+    [ -z "$why" ] || break
+  done <<<"$diff"
+  rm -rf "$dir"
+  [ -n "$why" ] || [ $n -gt 0 ] || why="the diff is empty"
+  [ -z "$why" ] || _peal_gate_refuse pre-push "$short reaches $2 directly as \"$subject\", but its diff is not that shape:" "$why"
+}
+
+# _peal_pre_push_pin SHA MAIN SHORT SUBJECT -> refused unless SHA's subject names a
+# release tag that exists locally, whose commit is an ancestor of SHA's parent, and its
+# diff only modifies files of release.commit-files, each exactly what setting its marked
+# line's object name to the tag's commit makes of its parent's (peal_commit_edit). The
+# tag is looked up locally only (a push runs no network): a tag made up locally passes
+# as far as this goes (docs/security.md).
+_peal_pre_push_pin() {
+  local sha=$1 short=$3 subject=$4 prefix files version tag diff line mode path text why="" dir n=0 tsha
+  prefix=$(peal_config_get release.tag-prefix) || return 1
+  _peal_release_tag "chore(release): pin " "$prefix" "$short" "$2" "$subject" || return
+  tag=$PEAL_GATE_TAG
+  if ! tsha=$(git rev-parse -q --verify "refs/tags/$tag^{commit}"); then
+    _peal_gate_refuse pre-push "$short reaches $2 directly as \"$subject\", but the tag $tag is not here" "git fetch --tags"
+    return
+  fi
+  if ! git merge-base --is-ancestor "$tsha" "$sha^" 2>/dev/null; then
+    _peal_gate_refuse pre-push "$short reaches $2 directly as \"$subject\", but the commit of $tag is not before it"
+    return
+  fi
+  if ! files=$(peal_commit_files 2>&1); then
+    _peal_gate_refuse pre-push "$short reaches $2 directly as \"$subject\", but release.commit-files is not right:" "$files"
+    return
+  fi
+  diff=$(git diff-tree -r --raw --no-commit-id --no-renames --root "$sha")
+  dir=$(mktemp -d) || return 1
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    n=$((n + 1))
+    path=${line#*$'\t'}
+    mode=${line%%$'\t'*}
+    text=$(awk -F '\t' -v p="$path" '$1 == p { print $2; exit }' <<<"$files")
+    if [ -z "$text" ]; then
+      why="not a file of release.commit-files: $path"
+    elif [[ "$mode" != ":100644 100644 "*" M" ]]; then
+      why="not a modified plain file: $path"
+    elif ! git show "$sha^:$path" >"$dir/old" 2>/dev/null \
+        || ! peal_commit_edit "$path" "$text" "$tsha" "$dir/old" >"$dir/new" 2>"$dir/err"; then
+      why="$path: $(sed 's/^peal: //' "$dir/err" 2>/dev/null)"
+    elif ! git show "$sha:$path" | cmp -s - "$dir/new"; then
+      why="$path changes more than its commit SHA to $tsha"
     fi
     [ -z "$why" ] || break
   done <<<"$diff"

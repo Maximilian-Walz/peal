@@ -604,7 +604,24 @@ pre-release gets an entry of its own.
 
 `peal ship tag VERSION` tags the remote's main, annotated, and pushes. Refused for a tag
 that exists, a version not above the last release, a version file not at the version, and
-a `release.changelog` without an entry `## <tag>` (`peal ship bump` first).
+a `release.changelog` without an entry `## <tag>` (`peal ship bump` first). The commit
+of the tag still holds the previous SHA of `release.commit-files`; `peal ship pin` sets it
+after.
+
+### `peal ship pin`
+
+`peal ship pin VERSION` sets the tag's commit SHA (the full `git rev-parse <tag>^{commit}`)
+on the one marked line of each file of `release.commit-files`, on the remote's main, in
+one commit `chore(release): pin <tag>`, after `peal ship tag`: a release commit cannot
+hold its own SHA. Only that SHA changes, and the line's `# vX.Y.Z` is not checked against
+the tag (the two settings are independent). Waits as `peal ship bump` does (status 3 if a
+pull request is still open: run it again). `already at <sha>` when every file holds it;
+`nothing to pin` with the setting empty. Refused for a tag not here and on the remote
+(`peal ship tag` first), a tag whose commit the remote's main does not hold, a missing
+file, a marker held by no line or by two, a line without exactly one hexadecimal
+run as long as the object name (40 digits) with no letter or digit next to it (so a
+longer or a short SHA never matches), and a setting item that is not the marked
+form.
 
 ### `peal ship publish`
 

@@ -47,6 +47,7 @@ under `storage`.
 | `release.wait-ci` | `false` | `/peal:release` waits for the workflow runs of the tag |
 | `release.report` | `[]` | texts whose lines in those runs' logs the release reports, e.g. `"digest: sha256:"` |
 | `release.version-files` | `[]` | files the release sets to its version before the tag, each `"PATH: FIELD"`, a top-level field of a JSON, TOML or YAML file (in YAML also `KEY.KEY`, a nested field, e.g. `"values.yaml: image.tag"`), or `"PATH: \"TEXT\""`, the one line of any file that holds the literal `TEXT`, whose one `X.Y.Z` version is replaced |
+| `release.commit-files` | `[]` | files whose one marked line `"PATH: \"TEXT\""` holds a commit SHA that `peal ship pin` sets to the tag's commit, after the tag; the bare `"PATH: FIELD"` form is refused |
 | `release.changelog` | `""` | a Markdown file (e.g. `CHANGELOG.md`) each release's entry, its notes, goes into with the version files; empty: none |
 | `decisions` | `false` | the decisions module: `false`, or its directory to turn it on |
 | `stages` | `[]` | the setup stages `peal init` has done; belongs to it |
@@ -60,7 +61,8 @@ needs `TEXT` non-empty, without control character, tab, double quote or backslas
 one line of the file holds it, and that line holds exactly one `MAJOR.MINOR.PATCH(-pre)`
 with no digit or dot right before or after; only that version changes, a `v` before it
 stays. Peal's own list marks the Get Peal fetch of the decisions workflow template, so a
-release sets its tag (not the commit before it, which is set by hand once the tag exists).
+release sets its tag (`peal ship bump`) and, once the tag exists, its commit
+(`peal ship pin`, `release.commit-files`: the same marked line, the form checked as above, the SHA a full object name with no letter or digit next to it; the `# vX.Y.Z` after it is not compared with the tag). The commit of the tag itself holds the previous SHA, so `tools/pins.test.sh` on a checkout of the tag, tags present, reports the SHA stale.
 
 ## Conventions with no setting
 

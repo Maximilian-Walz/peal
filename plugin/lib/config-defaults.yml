@@ -45,6 +45,8 @@ release:
                                 # "PATH: FIELD", a top-level field of a JSON, TOML or YAML file
                                 # (in YAML also KEY.KEY, a nested one), or "PATH: \"TEXT\"",
                                 # the one line of a file holding TEXT
+  commit-files: []              # files with one marked line holding a commit SHA, each
+                                # "PATH: \"TEXT\""; peal ship pin sets it to the tag's commit
   changelog: ""                 # a Markdown file (e.g. CHANGELOG.md) each release's entry,
                                 # its notes, goes into with the version files; empty: none
 decisions: false                # the decisions module, or its directory to turn it on

@@ -23,6 +23,13 @@
 # in two of its documents), a value that is not such a string, a YAML path through a
 # key that is no block mapping, a tab-indented line where the YAML walk reads. V is
 # written as it is: the caller passes a version, which needs no escaping.
+#
+#   PEAL_MARK=TEXT awk -v format=sha -v value=SHA -v eol=1|0 -v name=PATH \
+#     -f version-field.awk FILE
+#
+# is the same for a commit's object name (`peal ship pin`): the one marked line holds
+# exactly one run of letters and digits as long as SHA, all hexadecimal (so a longer or
+# shorter run next to it is no match), and only that run is replaced by SHA.
 
 function refuse(msg) {
   printf "peal: %s: %s\n", name, msg > "/dev/stderr"
@@ -219,8 +226,8 @@ function yaml_value(i, l, p, more,    c, e, v) {
   found(i, p, p + length(v) - 1)
 }
 
-# line -> the one version on the one line holding the marker.
-function marked(    mark, i, l, rest, off, s, e, cands, ok) {
+# markline() -> at, the one line holding the marker.
+function markline(    mark, i) {
   mark = ENVIRON["PEAL_MARK"]
   if (mark == "") refuse("the marker is empty")
   for (i = 1; i <= n; i++) {
@@ -229,6 +236,12 @@ function marked(    mark, i, l, rest, off, s, e, cands, ok) {
     at = i
   }
   if (!hits) refuse("no line holds the marker \"" mark "\"")
+}
+
+# line -> the one version on the one line holding the marker.
+function marked(    mark, l, rest, off, s, e, cands, ok) {
+  markline()
+  mark = ENVIRON["PEAL_MARK"]
   l = line[at]; rest = l; off = 0
   while (match(rest, /[0-9]+[.][0-9]+[.][0-9]+(-[0-9A-Za-z.-]+)?/)) {
     s = off + RSTART; e = off + RSTART + RLENGTH - 1
@@ -239,10 +252,26 @@ function marked(    mark, i, l, rest, off, s, e, cands, ok) {
   if (cands != 1 || ok != 1) refuse(cands ? "the line holding the marker \"" mark "\" does not hold exactly one version" : "the line holding the marker \"" mark "\" holds no version")
 }
 
+# sha -> the one object name on the one line holding the marker: a maximal run of
+# letters and digits, as long as value and hexadecimal.
+function sha(    mark, l, rest, off, s, e, cands, len) {
+  markline()
+  mark = ENVIRON["PEAL_MARK"]
+  len = length(value)
+  if (value !~ /^[0-9a-f]+$/ || len < 40) refuse("'" value "' is no object name")
+  l = line[at]; rest = l; off = 0
+  while (match(rest, /[0-9A-Za-z]+/)) {
+    s = off + RSTART; e = off + RSTART + RLENGTH - 1
+    if (RLENGTH == len && substr(l, s, len) ~ /^[0-9A-Fa-f]+$/) { cands++; from = s; to = e }
+    off = e; rest = substr(l, e + 1)
+  }
+  if (cands != 1) refuse(cands ? "the line holding the marker \"" mark "\" holds more than one object name" : "the line holding the marker \"" mark "\" holds no object name of " len " hexadecimal digits")
+}
+
 END {
   if (failed) exit 2
-  if (format == "line") {
-    marked()
+  if (format == "line" || format == "sha") {
+    if (format == "line") marked(); else sha()
     for (i = 1; i <= n; i++) {
       l = line[i]
       if (i == at) l = substr(l, 1, from - 1) value substr(l, to + 1)

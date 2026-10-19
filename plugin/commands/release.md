@@ -71,6 +71,13 @@ again for it; the first line and links change with the version, the items do not
 3. `peal ship publish <version>`: the GitHub release with the notes, created or brought
    up to date. On a remote not on GitHub it says so, and the tag is the release. When it
    fails (no `gh`, not logged in), the tag stands: report the command to run again.
+4. When `peal config release.commit-files` prints anything, `peal ship pin <version>`:
+   the tag's commit SHA set on the marked line of each of those files, on the remote's
+   main branch in one commit `chore(release): pin <tag>`, as `bump` writes its own (a
+   pull request where main refuses direct pushes, waited for). `already at <sha>` means
+   they hold it (a rerun). A file it refuses stops here, the tag and release standing:
+   report it. Status 3, its pull request still open: report it as for the bump, and that
+   `peal ship pin <version>` run again once it merged finishes the release.
 
 ## 4. The release's CI
 
@@ -89,5 +96,6 @@ The `RUN` lines name each run, and each `REPORT` line is what the project asked 
 ## 5. Report
 
 End with the version, the bump's commit or pull request (when there were version files
-or a changelog, naming them), the tag's commit, the release URL (or that the tag is the release), the CI's
+or a changelog, naming them), the tag's commit, the pin's commit or pull request (when there
+were commit files), the release URL (or that the tag is the release), the CI's
 verdict with its `REPORT` lines, and the notes' first line.

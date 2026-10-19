@@ -656,6 +656,7 @@ arg_cases() {
   each "ship notes VERSION" "$WORK" ship notes @
   each "ship bump VERSION" "$WORK" ship bump @
   each "ship tag VERSION" "$WORK" ship tag @
+  each "ship pin VERSION" "$WORK" ship pin @
   # Hostile items of release.version-files, as its path, its field, a nested YAML
   # field's key and its marker.
   local i item what config main
@@ -672,6 +673,9 @@ arg_cases() {
       printf '%s\nrelease:\n  version-files: [%s]\n' "$config" "'${item//\'/\'\'}'" >"$WORK/.peal/config.yml"
       try "ship bump, a hostile version file's $what [${H_NAMES[i]}]" "$WORK" ship bump 9.0.0
       try "ship tag, a hostile version file's $what [${H_NAMES[i]}]" "$WORK" ship tag 9.0.0
+      # The same item as a commit file (only its path and marker are the form's).
+      printf '%s\nrelease:\n  commit-files: [%s]\n' "$config" "'${item//\'/\'\'}'" >"$WORK/.peal/config.yml"
+      try "ship pin, a hostile commit file's $what [${H_NAMES[i]}]" "$WORK" ship pin 9.0.0
     done
     # A hostile release.changelog: refused before anything is written.
     printf '%s\nrelease:\n  changelog: %s\n' "$config" "'${H[i]//\'/\'\'}'" >"$WORK/.peal/config.yml"

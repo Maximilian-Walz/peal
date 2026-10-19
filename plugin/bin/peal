@@ -295,6 +295,12 @@ release.tag-prefix and the version):
                                 last release, a file of release.version-files there not
                                 at the version, or release.changelog there without the
                                 tag's entry (ship bump first)
+  ship pin VERSION              the tag's commit SHA set on the one marked line of each file
+                                of release.commit-files, on the remote's main branch in
+                                one commit, chore(release): pin <tag>, as ship bump
+                                writes (3: still open; run it again once merged);
+                                "already at" when they hold it; refused for a tag not
+                                made yet (ship tag first)
   ship publish VERSION          the GitHub release of the tag, created or updated with
                                 the notes (nothing for a remote not on GitHub)
   ship wait VERSION             wait for the tag's workflow runs: READY (0), FAILED:<run>

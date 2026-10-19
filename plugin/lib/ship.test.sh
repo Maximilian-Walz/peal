@@ -12,7 +12,7 @@
 # release), the version files set before the tag (release.version-files: JSON, TOML and
 # YAML, directly and through a pull request, and their refusals), the changelog
 # (release.changelog: created, each entry above the last, tag refused without it), the
-# GitHub release created and updated, the wait for the tag's workflow runs
+# commit SHA pinned after the tag (release.commit-files), the GitHub release created and updated, the wait for the tag's workflow runs
 # and the release.report lines, and the fields breaking and release-note.
 set -uo pipefail
 # shellcheck source=test-lib.sh
@@ -374,6 +374,73 @@ appVersion: '"'0.2.0'"'' "$(at_version v0.2.0)"
   check "tag: no version files" "0" "$?"
 }
 
+# commit_listing ITEM... -> release.commit-files of work's settings those items.
+commit_listing() {
+  { echo "release:"; echo "  commit-files:"; printf "    - '%s'\n" "$@"; } >"$work/.peal/config.yml"
+}
+
+# pin_refused NAME PATTERN -> peal ship pin 0.2.0 refused with PATTERN, main unchanged.
+pin_refused() {
+  local before
+  before=$(git -C "$(dirname "$work")/remote.git" rev-parse main)
+  check_refused "pin: $1" "$2" peal ship pin 0.2.0
+  check "pin: $1, main unchanged" "$before" "$(git -C "$(dirname "$work")/remote.git" rev-parse main)"
+}
+
+pin() {
+  local work out main tsha old h40 h41
+  work=$(repo)
+  old=8927e4644010042329fed4ddb2f8084aa98ebf02
+  h40=0123456789abcdef0123456789abcdef01234567
+  h41=${h40}8
+  printf 'run: fetch https://x/peal %s # v0.1.0\nother: %s\n' "$old" "$old" >"$work/pin.txt"
+  versioned "$work"
+  commit_listing "pin.txt: \"fetch https://x/peal\""
+
+  check_refused "pin: not tagged" "v0.2.0 is not tagged, here and on origin; peal ship tag v0.2.0 first" peal ship pin 0.2.0
+  peal ship bump 0.2.0 >/dev/null 2>&1
+  peal ship tag 0.2.0 >/dev/null 2>&1
+  tsha=$(git -C "$work" rev-parse "v0.2.0^{commit}")
+  main=$(git -C "$work" rev-parse origin/main)
+  out=$(peal ship pin 0.2.0 2>&1)
+  check "pin: one commit" "0:pinned pin.txt to $(git -C "$work" rev-parse --short "$tsha") on origin/main: $(git -C "$work" rev-parse --short origin/main) chore(release): pin v0.2.0" "$?:$out"
+  check "pin: on main" "$main chore(release): pin v0.2.0" "$(git -C "$work" log -1 --format='%P %s' origin/main)"
+  check "pin: only the marked SHA" "-run: fetch https://x/peal $old # v0.1.0
++run: fetch https://x/peal $tsha # v0.1.0" "$(git -C "$work" diff -U0 "$main" origin/main | grep '^[-+][^-+]')"
+  out=$(peal ship pin 0.2.0 2>&1)
+  check "pin: again, nothing" "0:already at $(git -C "$work" rev-parse --short "$tsha"): pin.txt" "$?:$out"
+  check_refused "pin: the version is bad" "'banana' is no version" peal ship pin banana
+
+  git -C "$work" merge -q --ff-only origin/main
+  printf 'a: fetch https://x/none\nb: fetch https://x/two %s %s\nc: fetch https://x/long %s\nd: fetch https://x/short 8927e46\ne: fetch https://x/ok %s\n' \
+    "$h40" "$h40" "$h41" "$h40" >"$work/more.txt"
+  git -C "$work" add more.txt && git -C "$work" commit -q -m "chore: more" && git -C "$work" push -q origin main 2>/dev/null
+  commit_listing "more.txt: \"https://x/none\""
+  pin_refused "no SHA" "holds no object name"
+  commit_listing "more.txt: \"https://x/two\""
+  pin_refused "two SHAs" "holds more than one object name"
+  commit_listing "more.txt: \"https://x/long\""
+  pin_refused "a run of 41 digits" "holds no object name of 40 hexadecimal digits"
+  commit_listing "more.txt: \"https://x/short\""
+  pin_refused "a short SHA" "holds no object name of 40 hexadecimal digits"
+  commit_listing "more.txt: \"nowhere\""
+  pin_refused "a marker on no line" "no line holds the marker"
+  commit_listing "more.txt: \"https://x/\""
+  pin_refused "a marker on many lines" "is on more than one line"
+  commit_listing "gone.txt: \"x\""
+  pin_refused "a missing file" "gone.txt is not on origin/main"
+  commit_listing 'more.txt: \"https://x\"'
+  pin_refused "a backslashed marker" "release.commit-files: "
+  commit_listing "more.txt: \"\""
+  pin_refused "an empty marker" "release.commit-files: "
+  commit_listing "pin.txt: version"
+  pin_refused "the FIELD form" "release.commit-files: 'pin.txt: version' is not"
+
+  printf 'release:\n  commit-files: []\n' >"$work/.peal/config.yml"
+  out=$(peal ship pin 0.2.0 2>&1)
+  check "pin: no commit files" "0:no release.commit-files: nothing to pin" "$?:$out"
+}
+
 # changelog_of REF -> work's CHANGELOG.md at REF, byte for byte, its end marked.
 changelog_of() {
   git -C "$work" show "$1:CHANGELOG.md"
@@ -652,6 +719,7 @@ ITEM feature 2 #11 the second subject" "$(peal ship propose 2>/dev/null | grep '
 
 for_each_awk files
 for_each_awk bump
+for_each_awk pin
 for_each_awk changelog
 for_each_awk bump_protected
 for_each_awk issues
