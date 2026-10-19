@@ -238,3 +238,63 @@ budget with auto-merge on answers `done` with `change` set, as `peal create` doe
 `plugin/lib/json-get.awk:1-98`, `plugin/lib/fake-gh:240-260`,
 `plugin/commands/setup.md:118-130`, `tools/docs.test.sh:16-34`,
 `docs/guides/belfry.md:14-31`.
+
+---
+
+## Outcome
+
+`peal apply` is built for the task kinds on the files storage. It reads Belfry's
+accepted proposals as one JSON document on stdin
+(`{"proposals":[{id, kind, …, why}]}`, the format agreed in the Plan as Peal's proposal
+for Belfry's `tasks.commands.apply`, #434). It checks the whole batch against main as it
+will be afterwards. Then it writes one commit through `peal_push_main` (one auto-merging
+pull request where main is protected) and answers one JSON line per proposal: `done`,
+`invalid`, `not_applied` or `failed`, with exit 0, 2 or 1.
+
+- **Files.**
+  - New: `plugin/lib/apply.awk` (a JSON reader: no jq, `LC_ALL=C`, `\uXXXX` to UTF-8
+    with surrogate pairs, each value written to a file of its own), `plugin/lib/apply.sh`
+    and `plugin/lib/apply.test.sh`.
+  - `peal_store_apply` is in `store-files.sh`. `store-issues.sh` refuses: Belfry writes
+    github-issues projects itself (the human's call; the Done-when's issues half is
+    struck).
+- **Kinds.**
+  - Carried out: `file`, `add`, `move`, `priority`, `depends` (add or remove) and
+    `retire` (with a reason or a duplicate).
+  - Answered `invalid` "not yet": the milestone kinds, until 0132.
+  - Answered `invalid`: `fold` and `dismiss`.
+  - `@<id>` names a task filed earlier in the batch, in `task`, `on` and `duplicate`.
+    A filed text's own `depends` cannot name one.
+- **Shared rules.** On review, the rules apply had copied were turned into helpers in
+  `store-files.sh` that both the single commands and apply call: `_peal_files_no_claim`,
+  `_peal_files_in_backlog`, `_peal_files_add_depend`, `_peal_files_retire_text` and
+  `_peal_files_dependents`. As a result, apply's `invalid` details use the single
+  commands' wording.
+- **The `why` texts.** Each `why` goes into the commit and pull request bodies through a
+  new optional `PEAL_BODY` in `main-write.sh`. `_pa_defuse` puts a zero-width joiner
+  after `#`, `@`, `issues/` and `pull/`, so outside text cannot close an issue or ping
+  anyone when the pull request merges unread. `docs/security.md` says so.
+- **Gate, release notes and setup.**
+  - The pre-push gate has an exact-subject `docs(tasks): apply N proposals` shape: only
+    added or modified backlog files, and backlog → done moves under the same name.
+  - `ship.sh` leaves out done files added by any `docs(tasks)` commit, so a retire inside
+    an apply is no release item.
+  - `peal init --stage belfry` and `/peal:setup belfry` write
+    `apply: .peal/peal apply`. This repository's own `.belfry.yml` is left to 0133.
+- **Departures from the plan.**
+  - `depends` proposals write no Notes line; the why goes into the commit body.
+  - A `depends remove` of an id not in the list, and a batch that changes nothing, answer
+    `done` with no commit.
+  - A problem found after the whole batch is applied is marked on the last proposal that
+    touched that task, or on the `depends add` proposals for a cycle.
+- **Planning.** `peal record` could not record the plan, because the task had no
+  `## Raw` section and adding one counts as a change. The plan commit was made with git
+  under record's subject, with a Raw quoting the task's text before planning (friction
+  reported; 0134).
+- **Tests.**
+  - apply: 159 checks, under mawk, nawk and busybox awk.
+  - store-files 187, githooks 157, backlog 145, docs 37 and hostile 2257, all passing.
+  - Lint is clean.
+- **Next.** 0132 (milestone kinds) and 0133 (fold the single commands into `apply`
+  once Belfry's #434 decides, and `apply:` in this repository's `.belfry.yml`). Belfry
+  should take the input and answer format from the Plan into its contract.
