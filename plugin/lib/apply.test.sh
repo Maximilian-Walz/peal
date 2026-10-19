@@ -347,8 +347,8 @@ split_invalids() {
   publish "$work"
   git -C "$work" fetch -q origin
   invalid "split: a task not in from" "{\"proposals\": [$ok, $pre, \"tasks\": [\"0006\", \"0002\"]}]}" 2 "task 0002 is not in milestone m1"
-  invalid "split: a task in no milestone" "{\"proposals\": [$ok, $pre, \"tasks\": [\"0004\"]}]}" 2 "task 0004 is claimed"
-  invalid "split: a task of no milestone" "{\"proposals\": [$ok, $pre, \"tasks\": [\"0003\"]}]}" 2 "task 0003 is not in milestone m1"
+  invalid "split: a claimed task" "{\"proposals\": [$ok, $pre, \"tasks\": [\"0004\"]}]}" 2 "task 0004 is claimed"
+  invalid "split: a task in no milestone" "{\"proposals\": [$ok, $pre, \"tasks\": [\"0003\"]}]}" 2 "task 0003 is not in milestone m1"
   invalid "split: an unknown from" "{\"proposals\": [$ok, {\"id\": \"s\", \"kind\": \"split_milestone\", \"title\": \"Half\", \"from\": \"m9\", \"tasks\": [\"0001\"]}]}" 2 "milestone m9 does not exist"
   invalid "split: no from" "{\"proposals\": [$ok, {\"id\": \"s\", \"kind\": \"split_milestone\", \"title\": \"Half\", \"tasks\": [\"0001\"]}]}" 2 "no from"
   invalid "split: no title" "{\"proposals\": [$ok, {\"id\": \"s\", \"kind\": \"split_milestone\", \"from\": \"m1\", \"tasks\": [\"0001\"]}]}" 2 "no title"
