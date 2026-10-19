@@ -300,6 +300,48 @@ task's `origin: outsider` (files storage). A TEXT with a line that is `---` or s
 `## ` is refused (status 2). Belfry reaches it through `/peal:comment`, the
 `tasks.commands.revise` prompt.
 
+## `peal apply`
+
+`peal apply` is Belfry's `tasks.commands.apply`: the changes a triage or planning run
+ends with, once the human accepted them, read as one JSON document on stdin,
+`{"proposals": [...]}`, and written as one commit (one pull request where main takes pull
+requests only), subject `docs(tasks): apply N proposals`, each proposal's `why` in its
+body. Task files only; the issues storage refuses (status 2), since Belfry writes a
+`github-issues` project itself.
+
+Each proposal is an object with an `id` (Belfry's, echoed back), a `kind`, an optional
+`why`, and the kind's fields:
+
+| kind | fields | what it does |
+|---|---|---|
+| `file` | `title`, `text`, `milestone`, `priority`, `owner`, `origin` | files `text` as `peal create` does (`NNNN` for its number); the four fields go into the frontmatter, winning over the text's; `title` gives the slug, its first five words |
+| `add` | `task`, `text`, `origin` | a dated line under the task's `## Notes`, as `peal comment`; `origin: outsider` marks the task |
+| `move` | `task`, `milestone` | sets the milestone, `null` removes it |
+| `priority` | `task`, `priority` | `urgent`, `high`, `normal` (removes the field) or `low` |
+| `depends` | `task`, `on`, `op` | adds `on` to the task's `depends` (`op: add`), or takes it out (`remove`) |
+| `retire` | `task`, `reason` or `duplicate` | moves the task to `done/`, its Outcome "Retired <date> without being claimed: <reason>" or "...: duplicate of <id>" |
+
+A `task`, `on` or `duplicate` written `@<id>` is the task the `file` proposal `<id>` of
+the same batch files (for `task`, an earlier one). The milestone kinds
+(`milestone_create`, `milestone_update`, `milestone_state`, `split_milestone`) are not
+taken yet; `fold` and `dismiss` are Belfry's own, no backlog change. Both are answered
+`invalid`.
+
+Everything is checked against the main branch as the whole batch leaves it, as the
+single commands check it: a task in the backlog and claimed by nobody; a milestone that
+exists, is not done and is no parked one a task moves into or out of; a frontmatter
+`peal create` accepts (and no `merge`); no depends cycle the batch closes; no retired task
+that one not done still names (the batch may re-point those first).
+
+The answer is one JSON line per proposal, in input order: `id`, `status`, and `task`,
+`detail` and `change` where they apply. `status` is `done`; `invalid`, the proposal failed
+a check, `detail` says which; `not_applied`, valid but another was not, so nothing was
+written; or `failed`, the write failed. `change` is the pull request, when the write went
+through one; one still open at the budget (`PEAL_MAIN_WRITE_BUDGET`, 90 s unless set)
+with auto-merge on answers `done` too. Exit 0 all done, 2 an invalid batch with nothing
+changed, 1 a failed write. A document that is no JSON is one `invalid` line with an empty
+`id`.
+
 ## `peal finish`
 
 `peal finish ID` on the task's branch: moves its file from `doing/` to `done/`, staged.
