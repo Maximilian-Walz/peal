@@ -24,6 +24,8 @@ tracking ref, no warning) apart from a real failure (warn as now).
 
 ## Notes
 
+2026-10-19: Also seen (friction from a sandboxed session, 2026-10-18): in a sandbox, git config writes fail with "could not lock config file .../.git/config: File exists". At session start, the reap's stale-ref delete then fails and warns, and git's hint names a wrong ref (`origin/refs/heads/...`). Close's half of this, the upstream that could not be recorded, is done in 0101. When the delete fails, tell three cases apart: already gone (prune, no warning), a locked config (one clear line saying so), and a real failure (warn as now). Where possible, avoid config writes in the reap altogether.
+
 - The code: `plugin/lib/store-files.sh` around the `could not delete` warning in the
   release path, and its twin in `plugin/lib/store-issues.sh`.
 - Open: `git ls-remote` after a failed delete costs a network call; matching the error
