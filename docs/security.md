@@ -109,7 +109,7 @@ branch by hand, and `git lfs install --force` overwriting Peal's hooks with LFS'
 The `pre-push` gate walks every commit a push would add to main's first-parent line and
 refuses it unless it is a merge of a branch pushed first (never content made up as a
 merge parent), or one of Peal's own mechanical commits — filing, revising, deferring,
-retiring a task, a milestone's state, the decisions index, a release's version files (or marked lines),
+retiring a task, a batch of those (`peal apply`), a milestone's state, the decisions index, a release's version files (or marked lines),
 changelog entry and commit SHAs — whose diff has exactly the shape its subject claims. Rewriting or
 deleting main is refused outright.
 
@@ -128,6 +128,14 @@ to that commit; it cannot tell a tag made up locally from the remote's. A SHA of
 local-only tag lands on main as a visible commit, in a file (the decisions workflow
 template) that a project copies and reviews. `peal ship pin` itself checks the tag on
 the remote.
+
+Limit: a batch (`docs(tasks): apply N proposals`, `peal apply`) is the widest of these
+shapes: its subject must be exactly that, and its diff may add or modify any number of
+backlog task files and move any number of them to `done/` under the same name, nothing
+else (no done file changed or deleted, no other path). The gate checks the shape, not
+which tasks or what text: a local push under that subject can rewrite every backlog
+task's text in one commit, as a run of `revise` commits could, visibly, in the task
+files alone.
 
 - Guard: `plugin/lib/githooks.sh` (`_peal_pre_push`).
 - Harness: `plugin/lib/githooks.test.sh`.
@@ -169,6 +177,33 @@ end the frontmatter or open a section of the task file.
 
 - Guard: `plugin/bin/peal` (`comment`), `plugin/lib/store-files.sh`
   (`_peal_files_rewrite_comment`).
+
+### A batch of proposals on stdin is data, read without a shell or jq
+
+Belfry runs `tasks.commands.apply` (`.peal/peal apply`) itself, outside any session's
+sandbox, with a JSON document on stdin whose texts may come from outside the project (an
+issue's, a comment's). The command line carries nothing of it. `lib/apply.awk` reads the
+document under `LC_ALL=C` and writes every value to a file of its own, its `\uXXXX`
+escapes decoded (a `\u0000` or a lone surrogate refused); no value is ever put on a line
+a shell splits, into a command, or into `eval`. A field's name is taken only when it is
+plain letters and `_`, a value only when it is a string, number or null; an object, an
+array or an unknown field makes the proposal invalid. Ids are checked against their
+shape (`NNNN`, or `@` and a proposal id of the batch), milestones against
+`[A-Za-z0-9._-]+`, and the closed sets (kind, priority, owner, origin, op) by value; a
+title only feeds a slug. A `file` text gets the checks of `peal create --owner`'s
+(`merge` and the delimiter refused, `peal_task_check`), an `add` text those of `peal
+comment` (no `---` or `## ` line), a `retire` reason is one line. One invalid proposal
+and nothing is written.
+
+A value goes to three places: the task files (checked as above), the JSON answer
+(escaped), and the commit's body and the pull request's body, which list each
+proposal's `id` and `why`. In those bodies a zero-width joiner follows every `#` and `@`,
+and every `issues/` and `pull/`, so a closing keyword in outside text ("Fixes #12",
+"closes owner/repo#3", an issue's URL) closes nothing and an `@mention` pings nobody when
+the write merges.
+
+- Guard: `plugin/lib/apply.awk`, `plugin/lib/apply.sh`.
+- Harness: `plugin/lib/apply.test.sh`, `plugin/lib/hostile.test.sh`.
 
 Belfry runs `tasks.commands.defer` (`.peal/peal depend {task} {on}`) the same way:
 `{task}` and `{on}` are each one shell word, and `peal depend` refuses either unless it is

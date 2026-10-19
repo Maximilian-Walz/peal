@@ -108,7 +108,8 @@ _peal_mw_taken_drop() {
 
 # peal_push_main BUILD [COMMAND] [REUSE] -> BUILD BASE run on the remote's main and its
 # result written there, again on a new main when the push loses a race
-# (PEAL_PUSH_ATTEMPTS, 5). BUILD sets PEAL_TREE and PEAL_SUBJECT, or refuses with a
+# (PEAL_PUSH_ATTEMPTS, 5). BUILD sets PEAL_TREE and PEAL_SUBJECT (and PEAL_BODY, the
+# commit's body, added to a pull request's), or refuses with a
 # status of its own (2, or 3 and 4 for its callers), passed through. COMMAND names the
 # peal command writing, for a pull request's body. A push that fails for another reason
 # is not retried: status 1; under main-writes auto a refusal by the remote switches to a
@@ -158,9 +159,9 @@ peal_push_main() {
   while :; do
     base=$(git rev-parse --verify -q "refs/remotes/$PEAL_REMOTE/$PEAL_MAIN") || {
       peal_err "$PEAL_REMOTE/$PEAL_MAIN is gone"; rm -f "$err"; return 2; }
-    PEAL_TREE="" PEAL_SUBJECT=""
+    PEAL_TREE="" PEAL_SUBJECT="" PEAL_BODY=""
     "$build" "$base" || { status=$?; rm -f "$err"; return $status; }
-    sha=$(git commit-tree "$PEAL_TREE" -p "$base" -m "$PEAL_SUBJECT") || { rm -f "$err"; return 2; }
+    sha=$(git commit-tree "$PEAL_TREE" -p "$base" -m "$PEAL_SUBJECT" ${PEAL_BODY:+-m "$PEAL_BODY"}) || { rm -f "$err"; return 2; }
     if [ "$route" = pr ]; then
       _peal_mw_pr "$sha" "$command" "$replaces"
       status=$?
@@ -218,6 +219,7 @@ _peal_mw_body() {
   local what="Made by \`peal ${1:-write}\`"
   [[ "$PEAL_SUBJECT" =~ \[([0-9][0-9-]*)\]$ ]] && what="$what for task ${BASH_REMATCH[1]}"
   printf '%s. Peal merges it once the required checks pass (GitHub'"'"'s auto-merge, or Peal itself); nothing to review by hand.\n' "$what"
+  [ -z "${PEAL_BODY-}" ] || printf '\n%s\n' "$PEAL_BODY"
   [ -z "$2" ] || printf '\nReplaces #%s.\n' "$2"
 }
 

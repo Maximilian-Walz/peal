@@ -34,6 +34,10 @@
 #                                          clone's claim on ID, given back like a defer
 #                                          (lib/backlog.sh peal_depend); PEAL_RECORDS holds
 #                                          the list; status 1 for a depends cycle
+#   peal_store_apply                       the proposals on stdin (a JSON document,
+#                                          lib/apply.sh) written as one change, a JSON line
+#                                          of result per proposal; the issues storage
+#                                          refuses
 #   peal_store_close_text ID               the file holding the Outcome of task ID, whose
 #                                          branch is checked out here (relative to the
 #                                          top, or absolute); status 1 if there is none

@@ -117,7 +117,9 @@ every other clone gets them itself, at its first `peal claim` or session start
 
 ### `belfry`
 
-1. `peal init --stage belfry`. Status 1 means a `.belfry.yml` that is not Peal's: show
+1. `peal init --stage belfry`. For task files the contract names Peal's commands for
+   Belfry, `apply` (`peal apply`, a triage run's accepted changes as one commit) among
+   them. Status 1 means a `.belfry.yml` that is not Peal's: show
    the contract it printed, say the human merges it into their file by hand, and stop
    without a commit.
 2. The file ends with Peal's actions as comments. When the `milestones` stage is set up,

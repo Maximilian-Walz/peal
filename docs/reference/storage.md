@@ -83,5 +83,6 @@ text the claim keeps in the worktree's git directory.
 | `peal retire` | file moved to `done/` with the reason, on main | closed as not planned, the reason a comment |
 | `peal create` | a backlog file on main, numbered by push-as-lock | a new issue; frontmatter becomes milestone, labels and reference lines |
 | `peal comment` | appended under `## Notes` | a comment |
+| `peal apply` | the batch in one commit on main | refused: Belfry writes issues itself |
 | `peal milestone-state` | the milestone file rewritten on main | the GitHub milestone closed or opened |
 | writes onto main | yes | none, but decisions and version files |

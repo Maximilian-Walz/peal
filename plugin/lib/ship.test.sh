@@ -100,12 +100,13 @@ PROPOSE v0.1.0 first" "$(peal ship propose 2>&1)"
   check_refused "publish: gh fails" "gh release create failed" peal ship publish 0.1.0
   rm "$FAKE_GH/fail"
 
-  # Fixes only: a patch. Retired tasks, release-note: none, chores and a task done
+  # Fixes only: a patch. Retired tasks (by retire, or within an apply), release-note: none, chores and a task done
   # before the last release are left out; a fix commit of no task goes in.
   check "propose: nothing" "LAST v0.1.0
 NOTHING since v0.1.0" "$(peal ship propose 2>&1)"
   OUTCOME="Fixed the crash." land 0002 crash-fix "fix: the crash on start [0002] (#2)"
   OUTCOME="Retired: no longer needed." land 0003 old-idea "docs(tasks): retire 0003 old-idea [0003]"
+  OUTCOME="Retired: a duplicate." land 0007 dup-idea "docs(tasks): apply 2 proposals (#9)"
   land 0004 internal-chore "Internal chore [0004] (#3)" "release-note: none"
   commit "chore: tidy the scripts (#4)"
   commit "fix(docs): a typo in the readme (#5)"

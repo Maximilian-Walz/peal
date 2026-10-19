@@ -10,8 +10,8 @@
 # one is read from the main branch's commits, squash merges as the close's pull requests
 # make them ("Title [ID] (#PR)"):
 #
-#   files   each task file the range adds under done/, but those retired
-#           ("docs(tasks): retire ..."); its title, the first sentence of its Outcome,
+#   files   each task file the range adds under done/, but those retired (by any
+#           "docs(tasks): ..." commit: retire, apply); its title, the first sentence of its Outcome,
 #           its frontmatter; the pull request from the commit adding it
 #   issues  each issue a commit subject of the range names ("[42]") that is closed as
 #           completed; its title and labels, the first sentence of the Outcome its first
@@ -400,7 +400,9 @@ _peal_ship_file_items() {
     [ -z "$PEAL_LAST" ] || ! git cat-file -e "$PEAL_LAST:$path" 2>/dev/null || continue
     line=$(awk -F '\t' -v s="$sha" '$1 == s' "$dir/commits")
     type=$(cut -f2 <<<"$line") bang=$(cut -f3 <<<"$line") pr=$(cut -f5 <<<"$line")
-    [ "$type" != "docs(tasks)" ] || [[ "$(cut -f6 <<<"$line")" != retire\ * ]] || continue
+    # Never a close's: a task file a docs(tasks) commit moved to done/ was retired (by
+    # peal retire, or within peal apply's batch).
+    [ "$type" != "docs(tasks)" ] || continue
     git show "$PEAL_END:$path" >"$text" 2>/dev/null || continue
     title=$(peal_text_title "$id" <"$text") || title=${path##*/}
     sentence=$(peal_text_section Outcome <"$text" | _peal_ship_sentence)

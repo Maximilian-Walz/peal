@@ -50,7 +50,7 @@ following:
 
 | | Peal provides | Belfry expects |
 |---|---|---|
-| tasks | list, offer, claim (printing the worktree), board, idea, create and depend (`tasks.commands.defer`) commands | the `commands` backend of its contract |
+| tasks | list, offer, claim (printing the worktree), board, idea, create, depend (`tasks.commands.defer`) and apply commands | the `commands` backend of its contract |
 | milestones | milestones as data; `peal milestone-state`; `/peal:milestone-review {milestone}` | a milestone list in the board output; `tasks.commands.milestone` for its Close, Park and Un-park; actions with the `milestone` trigger |
 | a session | `/peal:work` and `/peal:close` in the claimed worktree | claim before the session; finished means a PR open and green |
 | the human | questions through `AskUserQuestion` | routes them to its inbox |
@@ -75,6 +75,7 @@ tasks:
     retire: .peal/peal retire {task} --reason {reason}
     revise: /peal:comment {task} {text}
     defer: .peal/peal depend {task} {on}
+    apply: .peal/peal apply
 actions:
   milestone-review:
     title: Milestone review
@@ -92,6 +93,13 @@ Where the pieces meet, and why:
   finds its task blocked on another: `{on}` goes into `{task}`'s `depends`, straight into
   the storage, a depends cycle refused. A live claim of the clone it runs in is given back
   as `peal defer` does. It is for task files; the `github-issues` backend defers natively.
+- `apply` (`peal apply`) is what Belfry runs when a triage or planning run ends with
+  changes the human accepted: the whole list as one JSON document on stdin, written as one
+  commit (one pull request where main is protected) instead of a pull request per
+  change, a JSON line of result per proposal. It takes the task kinds (file, add, move,
+  priority, depends, retire); an invalid one and nothing is written
+  ([CLI](reference/cli.md#peal-apply)). It is for task files; Belfry writes a
+  `github-issues` project's proposals itself, so the issues storage refuses it.
 - The board's `after_deploy` list (pull requests a task waits on) is Belfry's contract
   too: Peal passes it through and never reads it.
 - `/peal:work NNNN` notices it is already inside NNNN's worktree and skips its own claim.
@@ -372,7 +380,7 @@ project knows better.
 ## Writes onto main
 
 The storage's writes (`create`, `revise`, `retire`, `defer`, `set-milestone`, `comment`,
-`milestone-state`) and `peal decision publish` build their commit on a temporary index
+`apply`, `milestone-state`) and `peal decision publish` build their commit on a temporary index
 from the fetched main (`lib/main-write.sh`), so they touch no worktree and run anywhere.
 They reach main one of three ways, the setting `main-writes`: `push`, `pr` or `auto`
 (the settings are in [Configuration](reference/configuration.md)).
@@ -437,6 +445,8 @@ backstop for whatever `peal_hooks_ensure` could not fix, never the first word on
   subject and checked by the diff's shape. `docs(tasks): file ...` only adds backlog task
   files; `docs(tasks): revise`, `defer`, `set milestone of`, `note on` modify exactly one,
   the subject's `[NNNN]`; `docs(tasks): retire` moves that one to `done/` under its name;
+  `docs(tasks): apply N proposals`, exactly so, only adds or modifies backlog task files
+  and moves backlog files to `done/` under their names;
   with the decisions module on, `docs(decisions): regenerate the index` changes the index
   alone; `docs(tasks): milestone` only modifies milestone files; `chore(release): <tag>`
   only modifies files of `release.version-files`, each byte for byte what setting its
