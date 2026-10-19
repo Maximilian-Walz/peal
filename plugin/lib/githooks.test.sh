@@ -141,10 +141,12 @@ docs(tasks): set milestone of 0002 to m2 [0002]
 docs(tasks): revise 0002 second-task [0002]
 docs(tasks): file 0005-0006, split of 0001 [0001]
 docs(tasks): file 0004 new-task [0004]" "$(git -C "$work" log --format=%s -6 origin/main)"
-  check "allowed: apply" "0:docs(tasks): apply 3 proposals" "$(printf '%s' '{"proposals": [
+  check "allowed: apply" "0:docs(tasks): apply 5 proposals" "$(printf '%s' '{"proposals": [
       {"id": "a", "kind": "priority", "task": "0001", "priority": "high"},
       {"id": "b", "kind": "file", "title": "Filed by apply", "text": "---\n---\n\n# NNNN — T\n\n## Raw\n\nx\n"},
-      {"id": "c", "kind": "retire", "task": "0004", "reason": "gone"}]}' | peal apply >/dev/null 2>&1; echo $?):$(git -C "$work" log -1 --format=%s origin/main)"
+      {"id": "c", "kind": "retire", "task": "0004", "reason": "gone"},
+      {"id": "d", "kind": "milestone_create", "title": "Made by apply"},
+      {"id": "e", "kind": "milestone_update", "milestone": "m2", "due": "2030-01-01"}]}' | peal apply >/dev/null 2>&1; echo $?):$(git -C "$work" log -1 --format=%s origin/main)"
 
   # A defer's shape: one backlog file modified.
   fresh
@@ -239,17 +241,56 @@ docs(tasks): file 0004 new-task [0004]" "$(git -C "$work" log --format=%s -6 ori
   echo x >"$work/README"
   git -C "$work" add -A
   commit_ungated "docs(tasks): apply 1 proposal"
-  check_fails "refused: apply, a file not a task's" 1 "not an added or modified backlog task file" push_main
+  check_fails "refused: apply, a file not a task's" 1 "not an added or modified backlog task or milestone file" push_main
 
   fresh
   git -C "$work" rm -q tasks/done/0004-new-task.md
   commit_ungated "docs(tasks): apply 1 proposal"
-  check_fails "refused: apply, a done file deleted" 1 "not an added or modified backlog task file, nor one moved to done/: D" push_main
+  check_fails "refused: apply, a done file deleted" 1 "not an added or modified backlog task or milestone file, nor a task file moved to done/: D" push_main
 
   fresh
   git -C "$work" mv tasks/backlog/0001-first-task.md tasks/done/0001-other-name.md
   commit_ungated "docs(tasks): apply 1 proposal"
   check_fails "refused: apply, renamed" 1 "a backlog task file deleted, not moved to done/ as it is named" push_main
+
+  # peal apply's milestone kinds: milestone files added or modified, nothing else of them.
+  fresh
+  printf 'more\n' >>"$work/docs/milestones/m1.md"
+  printf -- '---\nstate: open\n---\n\n# New\n' >"$work/docs/milestones/m19.md"
+  printf 'more\n' >>"$work/tasks/backlog/0001-first-task.md"
+  git -C "$work" add -A
+  commit_ungated "docs(tasks): apply 3 proposals"
+  check "allowed: apply, a milestone file added and one modified" "0" "$(push_main 2>/dev/null; echo $?)"
+
+  fresh
+  mkdir -p "$work/docs/milestones/sub"
+  printf 'x\n' >"$work/docs/milestones/sub/x.md"
+  git -C "$work" add -A
+  commit_ungated "docs(tasks): apply 1 proposal"
+  check_fails "refused: apply, a milestone subdirectory" 1 "nor a task file moved to done/: A 100644 docs/milestones/sub/x.md" push_main
+
+  fresh
+  git -C "$work" rm -q docs/milestones/m2.md
+  commit_ungated "docs(tasks): apply 1 proposal"
+  check_fails "refused: apply, a milestone deleted" 1 "nor a task file moved to done/: D 000000 docs/milestones/m2.md" push_main
+
+  fresh
+  git -C "$work" mv docs/milestones/m2.md docs/milestones/m8.md
+  commit_ungated "docs(tasks): apply 1 proposal"
+  check_fails "refused: apply, a milestone renamed" 1 "nor a task file moved to done/: D 000000 docs/milestones/m2.md" push_main
+
+  fresh
+  printf 'x\n' >"$work/docs/milestones/notes.txt"
+  git -C "$work" add -A
+  commit_ungated "docs(tasks): apply 1 proposal"
+  check_fails "refused: apply, a milestone directory file no milestone's" 1 "A 100644 docs/milestones/notes.txt" push_main
+
+  fresh
+  printf 'x\n' >"$work/docs/milestones/m7.md"
+  chmod +x "$work/docs/milestones/m7.md"
+  git -C "$work" add -A
+  commit_ungated "docs(tasks): apply 1 proposal"
+  check_fails "refused: apply, an executable milestone file" 1 "A 100755 docs/milestones/m7.md" push_main
 
   fresh
   printf 'more\n' >>"$work/tasks/backlog/0001-first-task.md"

@@ -155,8 +155,9 @@ peal_githook() {
 #       docs(tasks): note on ID ...
 #       docs(tasks): retire ID ...             ID's backlog file moved to done/, unrenamed
 #       docs(tasks): apply N proposal(s)       the subject exactly so; only added or
-#                                              modified backlog task files, and backlog
-#                                              files moved to done/, unrenamed (peal apply)
+#                                              modified backlog task files, backlog files
+#                                              moved to done/, unrenamed, and added or
+#                                              modified milestone files (peal apply)
 #       docs(decisions): regenerate the index  only the decisions index added or changed
 #                                              (peal decision publish)
 #       docs(tasks): milestone ID STATE ...    one or two modified milestone files (the
@@ -290,9 +291,11 @@ _peal_pre_push_direct() {
             bad("not an added backlog task file: " st " " nmode " " path)
         } else if (shape == "apply") {
           if ((st == "A" || st == "M") && task(path, "backlog") != "" && nmode == "100644" && (st == "A" || omode == "100644")) {
+          } else if ((st == "A" || st == "M") && index(path, ms "/") == 1 && substr(path, length(ms) + 2) ~ /^[^\/]+\.md$/ \
+              && nmode == "100644" && (st == "A" || omode == "100644")) {
           } else if (st == "D" && task(path, "backlog") != "" && omode == "100644") gones[task(path, "backlog")]++
           else if (st == "A" && task(path, "done") != "" && nmode == "100644") cames[task(path, "done")]++
-          else bad("not an added or modified backlog task file, nor one moved to done/: " st " " nmode " " path)
+          else bad("not an added or modified backlog task or milestone file, nor a task file moved to done/: " st " " nmode " " path)
         } else if (shape == "modify") {
           if (st != "M" || omode != "100644" || nmode != "100644" || task(path, "backlog") == "")
             bad("not a modified backlog task file: " st " " nmode " " path)
