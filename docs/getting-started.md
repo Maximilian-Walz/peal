@@ -66,7 +66,8 @@ Type `/peal:idea a health check endpoint`. You see a line starting `filed 0001`.
 until someone starts them, and `0001` is the task's number. An idea is simply a task you
 filed roughly; nobody has planned it yet. Open the file if you like: it is plain
 Markdown, and you can edit it. The file is committed to the main branch on your remote, not into your checkout:
-update your checkout (`git pull`) to see it there. If you file an idea while on another task's branch, it is queued and
+update your checkout (`git pull`) to see it there. (If your main branch refuses direct pushes, the idea arrives as a small
+pull request instead and shows up once that is merged.) If you file an idea while on another task's branch, it is queued and
 filed when that task closes.
 
 ### 2. Work it
