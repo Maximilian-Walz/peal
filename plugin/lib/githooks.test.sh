@@ -141,6 +141,10 @@ docs(tasks): set milestone of 0002 to m2 [0002]
 docs(tasks): revise 0002 second-task [0002]
 docs(tasks): file 0005-0006, split of 0001 [0001]
 docs(tasks): file 0004 new-task [0004]" "$(git -C "$work" log --format=%s -6 origin/main)"
+  check "allowed: apply" "0:docs(tasks): apply 3 proposals" "$(printf '%s' '{"proposals": [
+      {"id": "a", "kind": "priority", "task": "0001", "priority": "high"},
+      {"id": "b", "kind": "file", "title": "Filed by apply", "text": "---\n---\n\n# NNNN — T\n\n## Raw\n\nx\n"},
+      {"id": "c", "kind": "retire", "task": "0004", "reason": "gone"}]}' | peal apply >/dev/null 2>&1; echo $?):$(git -C "$work" log -1 --format=%s origin/main)"
 
   # A defer's shape: one backlog file modified.
   fresh
@@ -229,6 +233,29 @@ docs(tasks): file 0004 new-task [0004]" "$(git -C "$work" log --format=%s -6 ori
   git -C "$work" mv tasks/backlog/0001-first-task.md tasks/done/0001-first-task.md
   commit_ungated "docs(tasks): retire 0002 second-task [0002]"
   check_fails "refused: retire, another task" 1 "not the file of task 0002" push_main
+
+  # An apply's shape: backlog files added or modified, or moved to done/ as they are named.
+  fresh
+  echo x >"$work/README"
+  git -C "$work" add -A
+  commit_ungated "docs(tasks): apply 1 proposal"
+  check_fails "refused: apply, a file not a task's" 1 "not an added or modified backlog task file" push_main
+
+  fresh
+  git -C "$work" rm -q tasks/done/0004-new-task.md
+  commit_ungated "docs(tasks): apply 1 proposal"
+  check_fails "refused: apply, a done file deleted" 1 "not an added or modified backlog task file, nor one moved to done/: D" push_main
+
+  fresh
+  git -C "$work" mv tasks/backlog/0001-first-task.md tasks/done/0001-other-name.md
+  commit_ungated "docs(tasks): apply 1 proposal"
+  check_fails "refused: apply, renamed" 1 "a backlog task file deleted, not moved to done/ as it is named" push_main
+
+  fresh
+  printf 'more\n' >>"$work/tasks/backlog/0001-first-task.md"
+  git -C "$work" add -A
+  commit_ungated "docs(tasks): apply 1 proposal, and more"
+  check_fails "refused: apply, a subject not exactly so" 1 "is no merge" push_main
 
   # A milestone's state: its file, and the one made current; nothing else.
   fresh

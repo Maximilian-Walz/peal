@@ -154,6 +154,9 @@ peal_githook() {
 #       docs(tasks): set milestone of ID ...
 #       docs(tasks): note on ID ...
 #       docs(tasks): retire ID ...             ID's backlog file moved to done/, unrenamed
+#       docs(tasks): apply N proposal(s)       the subject exactly so; only added or
+#                                              modified backlog task files, and backlog
+#                                              files moved to done/, unrenamed (peal apply)
 #       docs(decisions): regenerate the index  only the decisions index added or changed
 #                                              (peal decision publish)
 #       docs(tasks): milestone ID STATE ...    one or two modified milestone files (the
@@ -239,6 +242,12 @@ _peal_pre_push_direct() {
     'docs(tasks): file '*) shape=add ;;
     'docs(tasks): revise '* | 'docs(tasks): defer '* | 'docs(tasks): set milestone of '* | 'docs(tasks): note on '*) shape=modify ;;
     'docs(tasks): retire '*) shape=retire ;;
+    'docs(tasks): apply '*)
+      if [[ ! "$subject" =~ ^docs\(tasks\):\ apply\ [1-9][0-9]*\ proposals?$ ]]; then
+        _peal_gate_refuse pre-push "$short reaches $main directly and is no merge: \"$subject\""
+        return
+      fi
+      shape=apply ;;
     'docs(decisions): regenerate the index')
       _peal_pre_push_index "$sha" "$main" "$short" "$subject"
       return
@@ -279,6 +288,11 @@ _peal_pre_push_direct() {
         } else if (shape == "add") {
           if (st != "A" || nmode != "100644" || task(path, "backlog") == "")
             bad("not an added backlog task file: " st " " nmode " " path)
+        } else if (shape == "apply") {
+          if ((st == "A" || st == "M") && task(path, "backlog") != "" && nmode == "100644" && (st == "A" || omode == "100644")) {
+          } else if (st == "D" && task(path, "backlog") != "" && omode == "100644") gones[task(path, "backlog")]++
+          else if (st == "A" && task(path, "done") != "" && nmode == "100644") cames[task(path, "done")]++
+          else bad("not an added or modified backlog task file, nor one moved to done/: " st " " nmode " " path)
         } else if (shape == "modify") {
           if (st != "M" || omode != "100644" || nmode != "100644" || task(path, "backlog") == "")
             bad("not a modified backlog task file: " st " " nmode " " path)
@@ -292,6 +306,10 @@ _peal_pre_push_direct() {
       END {
         if (failed) exit 1
         if (n == 0) { print "the diff is empty"; exit 1 }
+        if (shape == "apply") {
+          for (g in gones) if (!(g in cames)) { print "a backlog task file deleted, not moved to done/ as it is named: " g; exit 1 }
+          for (g in cames) if (!(g in gones)) { print "a done task file added that left no backlog file: " g; exit 1 }
+        }
         if (shape == "modify" && n != 1) { print n " files changed, not one"; exit 1 }
         if (shape == "milestone" && n > 2) { print n " milestone files changed, not one or two"; exit 1 }
         if (shape == "retire" && (n != 2 || gone == "" || gone != came)) { print "not one backlog task file moved to done/ as it is named"; exit 1 }
