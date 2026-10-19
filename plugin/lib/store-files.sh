@@ -434,23 +434,21 @@ _peal_files_build_create() {
   esac
 }
 
-# _peal_files_unclaimed ID VERB -> PEAL_BASE (the fetched main), PEAL_PATH and PEAL_SLUG
-# for task ID, if nobody has claimed it and it is in the backlog; else status 2 and why.
-_peal_files_unclaimed() {
+# _peal_files_no_claim ID VERB -> status 0 when no task branch, here or on a remote,
+# claims task ID; else status 2 and which. Shared by the single commands and peal apply.
+_peal_files_no_claim() {
   local id=$1 verb=$2 refs
-  if ! [[ "$id" =~ ^[0-9][0-9][0-9][0-9]$ ]]; then
-    peal_err "$verb: '$id' is no task id"
-    return 2
-  fi
-  _peal_files_settings || return 2
   refs=$(git for-each-ref --format='%(refname:short)' "refs/heads/$PEAL_PREFIX$id-*" "refs/remotes/*/$PEAL_PREFIX$id-*")
-  if [ -n "$refs" ]; then
-    peal_err "$verb: task $id is claimed ($(printf '%s' "$refs" | tr '\n' ' ' | sed 's/ $//')); $verb touches only a task nobody has claimed"
-    return 2
-  fi
-  _peal_files_fetch || return 2
-  PEAL_BASE=$(git rev-parse "refs/remotes/$PEAL_REMOTE/$PEAL_MAIN") || return 2
-  if ! PEAL_PATH=$(_peal_files_find "$PEAL_BASE" "$id"); then
+  [ -n "$refs" ] || return 0
+  peal_err "$verb: task $id is claimed ($(printf '%s' "$refs" | tr '\n' ' ' | sed 's/ $//')); $verb touches only a task nobody has claimed"
+  return 2
+}
+
+# _peal_files_in_backlog BASE ID VERB -> PEAL_PATH, task ID's file at BASE, when it is
+# in the backlog; else status 2 and why (none, done, claimed).
+_peal_files_in_backlog() {
+  local base=$1 id=$2 verb=$3
+  if ! PEAL_PATH=$(_peal_files_find "$base" "$id"); then
     peal_err "$verb: no task $id on $PEAL_REMOTE/$PEAL_MAIN"
     peal_main_write_hint
     return 2
@@ -460,6 +458,21 @@ _peal_files_unclaimed() {
     "$PEAL_TASKS"/done/*) peal_err "$verb: task $id is done ($PEAL_PATH)"; return 2 ;;
     *) peal_err "$verb: task $id is claimed ($PEAL_PATH)"; return 2 ;;
   esac
+}
+
+# _peal_files_unclaimed ID VERB -> PEAL_BASE (the fetched main), PEAL_PATH and PEAL_SLUG
+# for task ID, if nobody has claimed it and it is in the backlog; else status 2 and why.
+_peal_files_unclaimed() {
+  local id=$1 verb=$2
+  if ! [[ "$id" =~ ^[0-9][0-9][0-9][0-9]$ ]]; then
+    peal_err "$verb: '$id' is no task id"
+    return 2
+  fi
+  _peal_files_settings || return 2
+  _peal_files_no_claim "$id" "$verb" || return 2
+  _peal_files_fetch || return 2
+  PEAL_BASE=$(git rev-parse "refs/remotes/$PEAL_REMOTE/$PEAL_MAIN") || return 2
+  _peal_files_in_backlog "$PEAL_BASE" "$id" "$verb" || return 2
   PEAL_SLUG=${PEAL_PATH##*/}
   PEAL_SLUG=${PEAL_SLUG#"$id-"}
   PEAL_SLUG=${PEAL_SLUG%.md}
@@ -669,6 +682,26 @@ peal_store_defer() {
   return $status
 }
 
+# _peal_files_retire_text OLD NEW REASON LABEL -> NEW: the text OLD with its Outcome
+# "Retired <date> without being claimed: REASON"; refused (status 2) when OLD's Outcome
+# is filled in. Shared by peal retire and peal apply.
+_peal_files_retire_text() {
+  if peal_text_outcome_filled <"$1"; then
+    peal_err "retire: $4's Outcome is filled in: work happened, this is no plain backlog task"
+    return 2
+  fi
+  peal_text_set_outcome "Retired $(date -u +%Y-%m-%d) without being claimed: $3" <"$1" >"$2"
+}
+
+# _peal_files_dependents ID -> for the list or scan records on stdin, "  PATH (depends)"
+# or "  PATH (part-of)" for each task not done but ID that names ID there. Shared by peal
+# retire and peal apply.
+_peal_files_dependents() {
+  awk -F '\t' -v id="$1" '
+    $2 != "done" && $1 != id && (index("," $7 ",", "," id ",") || $8 == id) {
+      print "  " $12 (index("," $7 ",", "," id ",") ? " (depends)" : " (part-of)") }'
+}
+
 # _peal_files_build_retire BASE -> PEAL_PATH moved to done/ with the retirement as its
 # Outcome, from BASE's copy: a retirement only adds its line, so it goes on whatever main
 # holds now.
@@ -679,11 +712,7 @@ _peal_files_build_retire() {
     return 2
   fi
   git show "$1:$PEAL_PATH" >"$PEAL_EDIT_FILE.old"
-  if peal_text_outcome_filled <"$PEAL_EDIT_FILE.old"; then
-    peal_err "retire: $PEAL_PATH's Outcome is filled in: work happened, this is no plain backlog task"
-    return 2
-  fi
-  peal_text_set_outcome "$PEAL_RETIRE_LINE" <"$PEAL_EDIT_FILE.old" >"$PEAL_EDIT_FILE"
+  _peal_files_retire_text "$PEAL_EDIT_FILE.old" "$PEAL_EDIT_FILE" "$PEAL_RETIRE_REASON" "$PEAL_PATH" || return 2
   peal_write_tree "$1" remove "$PEAL_PATH" add "$dest" "$PEAL_EDIT_FILE" || return 2
   # shellcheck disable=SC2034 # read by peal_push_main
   PEAL_SUBJECT=$PEAL_EDIT_SUBJECT
@@ -696,9 +725,7 @@ _peal_files_retire() {
   local id=$1 reason=$2 tmp dependents status=0
   [ -n "$reason" ] || { peal_err "retire: give a reason"; return 2; }
   _peal_files_unclaimed "$id" retire || return 2
-  dependents=$(_peal_files_scan "$PEAL_BASE" 2>/dev/null | awk -F '\t' -v id="$id" '
-    $2 != "done" && $1 != id && (index("," $7 ",", "," id ",") || $8 == id) {
-      print "  " $12 (index("," $7 ",", "," id ",") ? " (depends)" : " (part-of)") }')
+  dependents=$(_peal_files_scan "$PEAL_BASE" 2>/dev/null | _peal_files_dependents "$id")
   if [ -n "$dependents" ]; then
     peal_err "retire: task $id is still named by:"
     printf '%s\n' "$dependents" >&2
@@ -707,7 +734,7 @@ _peal_files_retire() {
   fi
   tmp=$(mktemp -d) || return 2
   PEAL_EDIT_FILE=$tmp/retired
-  PEAL_RETIRE_LINE="Retired $(date -u +%Y-%m-%d) without being claimed: $reason"
+  PEAL_RETIRE_REASON=$reason
   PEAL_EDIT_SUBJECT="docs(tasks): retire $id $PEAL_SLUG [$id]"
   peal_push_main _peal_files_build_retire retire || status=$?
   if peal_main_write_written $status; then
@@ -860,16 +887,21 @@ peal_store_comment() {
   return $status
 }
 
+# _peal_files_add_depend FILE ON -> ON added to the depends of the task text FILE, in
+# place, when it is not there. Shared by peal depend and peal apply.
+_peal_files_add_depend() {
+  local deps
+  deps=$(peal_fm_get "$1" depends 2>/dev/null)
+  printf '%s\n' "$deps" | grep -qxF -- "$2" && return 0
+  # shellcheck disable=SC2046 # one item per line, none with a blank
+  peal_fm_set_list "$1" depends $(printf '%s\n' "$deps" | sed '/^$/d') "$2"
+}
+
 # _peal_files_rewrite_depend OLD NEW -> NEW: OLD with $PEAL_DEPEND_ON added to its depends
 # (when not there) and $PEAL_DEPEND_NOTE under its Notes.
 _peal_files_rewrite_depend() {
-  local deps
   cp "$1" "$2"
-  deps=$(peal_fm_get "$1" depends 2>/dev/null)
-  if ! printf '%s\n' "$deps" | grep -qxF -- "$PEAL_DEPEND_ON"; then
-    # shellcheck disable=SC2046 # one item per line, none with a blank
-    peal_fm_set_list "$2" depends $(printf '%s\n' "$deps" | sed '/^$/d') "$PEAL_DEPEND_ON" || return 2
-  fi
+  _peal_files_add_depend "$2" "$PEAL_DEPEND_ON" || return 2
   peal_text_add_note "$PEAL_DEPEND_NOTE" <"$2" >"$2.n" && mv "$2.n" "$2"
 }
 
