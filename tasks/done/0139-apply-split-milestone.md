@@ -119,4 +119,33 @@ Ranges:
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+`peal apply` now carries out `split_milestone`, the last of 0112's milestone kinds; only
+`fold` and `dismiss` remain "not yet" (0133).
+
+- `plugin/lib/apply.awk` takes a whitelist of array keys from `apply.sh`
+  (`-v arrays="tasks"`). An array on a whitelisted key writes the manifest line
+  `I<TAB>tasks<TAB>a` and each item, decoded, to its own file `I.tasks.n`, so an item is
+  never a shell word and cannot forge a separator. A non-string item (number, null,
+  object, nested array) and an array on any other key make the proposal invalid.
+- `plugin/lib/apply.sh`: fields `from tasks title goal due order` (`from`, `tasks`,
+  `title` required). Items are `NNNN` or `@<earlier file>`, non-empty and not repeated;
+  an empty list is invalid. The compose checks every listed task (backlog, unclaimed, not
+  retired, in `from` as the batch stands at that proposal) before it writes anything, so
+  a failing split leaves no partial state. Then it writes the milestone with init's text
+  (`open`; order the given one, else `from`'s + 1, else one past the highest; nothing
+  renumbered) and moves the tasks. `@<split id>` names the new milestone for later
+  proposals, and `from` may be `@<earlier create or split>`. The answer carries
+  `milestone`, and its detail lists the moved tasks. `_pa_ms_ref` takes the key
+  (`milestone` or `from`); the create branch of `_pa_ms_item` covers both kinds, instead of
+  the separate `_pa_ms_new` the plan named.
+- Tests: `ms_split` (5 proposals, two splits chained through `@s`, one commit) and
+  `split_invalids` (about 25 cases, each with exit 2 and main unchanged) in `apply.test.sh`;
+  hostile items, `from`, title and goal in `hostile.test.sh`. Hostile `from` values are
+  refused before the compose; the compose path is covered by `apply.test.sh`.
+- Docs: `cli.md` (the kind's row, the `@` rules), `security.md` (the reader's arrays),
+  `design.md` (the list of kinds, A6).
+
+### Reviewer findings not acted on
+
+- The plan's `_pa_ms_new` helper was not made; the existing create branch was widened
+  instead. It has the same effect, with no duplication.
