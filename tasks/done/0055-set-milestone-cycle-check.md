@@ -121,3 +121,18 @@ Ranges: tasks.sh:103-113, tasks.sh:199-294, task-state.awk:117-125, store-files.
 
 ## Outcome
 
+`peal set-milestone` now refuses a move that puts the task on a depends cycle it was not on before. It exits 1 with `set-milestone: refused: depends cycle …` and the shared hint line, in both storages, and nothing is written.
+
+- **Task files:** `_peal_files_rewrite_milestone` (only set-milestone calls it) runs `peal_cycle_check_text set-milestone` on the rewritten text. It runs inside the `peal_push_main` build, so before any write or push, and again on each push retry against the newer main. The task id comes from the global `PEAL_MOVE_ID`, set beside `PEAL_NEW_MILESTONE`. `PEAL_MS_ID`, the planner's suggestion, already names a milestone in the milestone-state code, so the review asked for a different name. `_peal_files_build_rewrite` used to map every failure to 2; it now passes 1 through.
+- **Issues:** `peal_store_set_milestone` builds the task's row (id, new M or empty, depends, part-of) from `PEAL_RECORD`. It checks the row against the already-read `PEAL_RECORDS` before the PATCH, through the new `peal_cycle_check_row VERB ROW RECORDS` in `plugin/lib/tasks.sh`.
+- **Refusal order:** files check milestone missing or done, then the task's state, then the cycle, then "already reads so". Issues check "already", then the milestone, then the cycle.
+- **Kept as agreed:** the per-task rule, so a task already on a cycle may move. The check also runs when a milestone is cleared.
+- **Docs:** `docs/design.md` names set-milestone among the verbs that refuse a cycle; `docs/reference/cli.md` has one sentence on it.
+- **Tests:** both `cycles()` functions cover the refused move of two `depends: [milestone]` tasks into one milestone, a move that closes no cycle, and a move of a task on a hand-made cycle. In the files test, the new review task 0007 sits in m3, not m1: in m1 it would make the later "own milestone" create test close a cycle. Results: store-files.test.sh 570 passed, store-issues.test.sh 651 passed; shellcheck is clean.
+- **`peal apply` needed no change:** its move and split_milestone kinds are checked by `_pa_check` already.
+- **Left, as agreed:** `plugin/lib/store.sh`'s interface comment and the milestone-review command text are unchanged.
+- **Found and filed as an idea:** clearing the milestone of a task whose depends holds `milestone` still goes through, though create refuses that frontmatter.
+
+### Reviewer findings not acted on
+
+- `peal_cycle_check_row` repeats some of `peal_cycle_check_text`'s steps: it is the small helper the plan asked for, beside the other one; the reviewer called it not blocking.
