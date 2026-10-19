@@ -25,7 +25,7 @@
 # is run once, at the next such read, and removed. Every call is appended to $FAKE_GH/log as
 # "METHOD PATH"; $FAKE_GH/fail, when it exists, holds a pattern: a call whose
 # "METHOD PATH" matches it fails, but for the first N such calls when $FAKE_GH/fail-after
-# holds N.
+# holds N; the failure's message is $FAKE_GH/fail-message when that exists.
 #
 #   gh api [-X|--method M] [--paginate] [--input FILE] [--jq|-q EXPR] [-H H] PATH
 #   gh release view TAG -R REPO [--json FIELDS] [--jq EXPR]
@@ -129,7 +129,11 @@ if [ -s "$FAKE_GH/fail" ] && [[ "$method $path" == $(cat "$FAKE_GH/fail") ]]; th
   if [ "${after:-0}" -gt 0 ]; then
     echo $((after - 1)) >"$FAKE_GH/fail-after"
   else
-    printf 'gh: HTTP 502: failing on purpose (%s %s)\n' "$method" "$path" >&2
+    if [ -s "$FAKE_GH/fail-message" ]; then
+      cat "$FAKE_GH/fail-message" >&2
+    else
+      printf 'gh: HTTP 502: failing on purpose (%s %s)\n' "$method" "$path" >&2
+    fi
     exit 1
   fi
 fi
