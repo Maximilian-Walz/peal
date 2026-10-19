@@ -418,7 +418,8 @@ awk_channels() {
     check "create --owner --title: hostile stdin filed, to compare it byte for byte" "filed" "not filed: $bout"
   fi
   # peal apply's JSON on stdin: each value raw in every field (mostly no JSON then), and
-  # escaped as JSON in a note's text and a filing's title, text and milestone.
+  # escaped as JSON in a note's text and a filing's title, text and milestone, and in a
+  # new milestone's title and goal, its update's title and its parking's reason.
   cover apply
   each_input "apply, raw values" "$WORK" '{"proposals": [{"id": "@", "kind": "add", "task": "0002", "text": "@"},
     {"id": "f", "kind": "file", "title": "@", "text": "@", "milestone": "@", "why": "@"}]}' apply
@@ -432,8 +433,25 @@ awk_channels() {
       {"id": "f", "kind": "file", "title": "Hostile %s", "text": "%s", "milestone": "%s"}]}' \
       "$v" "$v" "$v" "$v" "$t" "$v" >"$INPUT"
     try "apply, escaped values [${H_NAMES[i]}]" "$WORK" apply
+    # The milestone kinds: a title, a goal and a reason, stored or refused.
+    printf '{"proposals": [{"id": "m", "kind": "milestone_create", "title": "Hostile %s", "goal": "%s", "why": "%s"},
+      {"id": "u", "kind": "milestone_update", "milestone": "@m", "title": "%s"},
+      {"id": "s", "kind": "milestone_state", "milestone": "@m", "state": "park", "reason": "%s"}]}' \
+      "$v" "$v" "$v" "$v" "$v" >"$INPUT"
+    try "apply, escaped milestone values [${H_NAMES[i]}]" "$WORK" apply
   done
+  each_input "apply, raw milestone values" "$WORK" '{"proposals": [{"id": "@", "kind": "milestone_create", "title": "@", "goal": "@", "due": "@", "order": "@"},
+    {"id": "s", "kind": "milestone_state", "milestone": "@", "state": "@", "reason": "@"}]}' apply
   INPUT=$NOINPUT
+  # A new milestone's title and goal land in its file byte for byte.
+  local mout mid
+  mout=$(printf '{"proposals": [{"id": "m", "kind": "milestone_create", "title": "Hostile %s", "goal": "%s %s"}]}' \
+    "$(json_escape "${H[0]}")" "$(json_escape "${H[0]}")" "$(json_escape "${H[1]}")" | at "$WORK" "$PEAL" apply 2>&1)
+  mid=$(printf '%s\n' "$mout" | sed -n 's/.*"milestone": "\([^"]*\)".*/\1/p')
+  git -C "$WORK" fetch -q origin 2>/dev/null
+  check "apply milestone_create: hostile title and goal byte for byte" "# Hostile ${H[0]}|${H[0]} ${H[1]}" \
+    "$(git -C "$WORK" show "origin/main:docs/milestones/${mid:-none}.md" 2>/dev/null | sed -n -e '/^# /p' -e '/^## Goal/{n;n;p;}' | paste -sd '|' -)"
+  check "apply milestone_create: nothing run" "" "$(ls "$CANARY/dollar" "$CANARY/backtick" 2>/dev/null)"
 
   claim_wt 0001
   wt=$WT
