@@ -432,6 +432,7 @@ tasks:
     retire: .peal/peal retire {task} --reason {reason}
     revise: /peal:comment {task} {text}
     defer: .peal/peal depend {task} {on}
+    apply: .peal/peal apply
 EOF
   fi
   cat <<'EOF'

@@ -105,6 +105,8 @@ skipped the check: belfry check is not available yet" "$out"
     "$(grep '^    defer:' "$work/.belfry.yml")"
   check "belfry: defer's only placeholders are task and on" "" \
     "$(grep '^    defer:' "$work/.belfry.yml" | grep -o '{[^}]*}' | grep -v -e '^{task}$' -e '^{on}$')"
+  check "belfry: apply reads its batch on stdin, no placeholders" "    apply: .peal/peal apply" \
+    "$(grep '^    apply:' "$work/.belfry.yml")"
   check "belfry: the actions are suggestions" "# actions:" "$(grep 'actions:' "$work/.belfry.yml")"
   check "all stages recorded, in order" "tasks
 guardrails
