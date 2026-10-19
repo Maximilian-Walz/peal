@@ -98,7 +98,7 @@ Where the pieces meet, and why:
   commit (one pull request where main is protected) instead of a pull request per
   change, a JSON line of result per proposal. It takes the task kinds (file, add, move,
   priority, depends, retire) and the milestone ones (milestone_create, milestone_update,
-  milestone_state; a new milestone's id is Peal's, named `@<proposal id>` by later
+  milestone_state, split_milestone; a new milestone's id is Peal's, named `@<proposal id>` by later
   proposals of the batch); an invalid one and nothing is written
   ([CLI](reference/cli.md#peal-apply)). It is for task files; Belfry writes a
   `github-issues` project's proposals itself, so the issues storage refuses it.

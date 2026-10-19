@@ -296,7 +296,6 @@ invalids() {
   invalid "unknown kind" "{\"proposals\": [$ok, {\"id\": \"b\", \"kind\": \"rename\"}]}" 2 'unknown kind \"rename\"'
   invalid "fold" "{\"proposals\": [$ok, {\"id\": \"b\", \"kind\": \"fold\", \"task\": \"0001\"}]}" 2 "not a backlog change; Belfry carries it out"
   invalid "dismiss" "{\"proposals\": [{\"id\": \"b\", \"kind\": \"dismiss\"}, $ok]}" 1 "not a backlog change"
-  invalid "split_milestone" "{\"proposals\": [$ok, {\"id\": \"b\", \"kind\": \"split_milestone\", \"title\": \"x\"}]}" 2 "not yet"
   invalid "an unknown field" "{\"proposals\": [$ok, {\"id\": \"b\", \"kind\": \"move\", \"task\": \"0001\", \"milestone\": null, \"size\": \"S\"}]}" 2 "field size is not one move takes"
   invalid "a nested value" "{\"proposals\": [$ok, {\"id\": \"b\", \"kind\": \"move\", \"task\": [\"0001\"]}]}" 2 "field task is an array"
   invalid "a dangling @ref" "{\"proposals\": [$ok, {\"id\": \"b\", \"kind\": \"depends\", \"task\": \"0001\", \"on\": \"@p9\", \"op\": \"add\"}]}" 2 "on @p9 names no file proposal"
@@ -315,7 +314,7 @@ invalids() {
 ms_invalids() {
   local ok='{"id": "ok", "kind": "priority", "task": "0002", "priority": "low"}' mk='{"id": "mk", "kind": "milestone_create", "title": "New one"}'
   invalid "ms: unknown milestone" "{\"proposals\": [$ok, {\"id\": \"b\", \"kind\": \"milestone_update\", \"milestone\": \"m9\", \"order\": 1}]}" 2 "milestone m9 does not exist"
-  invalid "ms: a dangling @" "{\"proposals\": [$ok, {\"id\": \"b\", \"kind\": \"move\", \"task\": \"0001\", \"milestone\": \"@zz\"}]}" 2 "milestone @zz names no earlier milestone_create proposal"
+  invalid "ms: a dangling @" "{\"proposals\": [$ok, {\"id\": \"b\", \"kind\": \"move\", \"task\": \"0001\", \"milestone\": \"@zz\"}]}" 2 "milestone @zz names no earlier milestone_create or split_milestone proposal"
   invalid "ms: a later @" "{\"proposals\": [$ok, {\"id\": \"b\", \"kind\": \"milestone_state\", \"milestone\": \"@mk\", \"state\": \"park\"}, $mk]}" 2 "names no earlier milestone_create"
   invalid "ms: an @ to a file proposal" "{\"proposals\": [{\"id\": \"f\", \"kind\": \"file\", \"title\": \"Filed one here\", \"text\": \"---\\n---\\n\\n# NNNN — T\\n\\n## Raw\\n\\nx\\n\"},
     {\"id\": \"b\", \"kind\": \"move\", \"task\": \"0001\", \"milestone\": \"@f\"}]}" 2 "names no earlier milestone_create"

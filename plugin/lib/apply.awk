@@ -7,9 +7,13 @@
 # is a string, number, true, false or null gets a line "I<TAB>KEY<TAB>TYPE" on stdout,
 # TYPE one of s, n, true, false, null; a string's or number's value is written, decoded,
 # to the file DIR/I.KEY, never put on a line, so no value is ever a shell word.
-# \uXXXX escapes become UTF-8, surrogate pairs included. What makes one proposal invalid
+# \uXXXX escapes become UTF-8, surrogate pairs included. An array of strings is taken on
+# the keys named in -v arrays="KEY KEY" (apply.sh passes them) only: the line is
+# "I<TAB>KEY<TAB>a" and item n (from 1) is written, decoded, to DIR/I.KEY.n, so each item
+# is a file of its own, never a word or a separator. What makes one proposal invalid
 # is a line "I<TAB>error<TAB>MESSAGE": a key that is no plain name, a key given twice, an
-# object or array as a value, a \u0000 or a lone surrogate, a proposal that is no object.
+# object or an array as a value (an array on a key not in arrays), an item that is no
+# string, a \u0000 or a lone surrogate, a proposal that is no object.
 # The last line is "count<TAB>N". A document that is not JSON, or has no "proposals"
 # array, is one line "doc<TAB>error<TAB>MESSAGE" and nothing else. Other top-level keys
 # are stepped over.
@@ -145,6 +149,38 @@ function literal(    start, t) {
   return ""
 }
 
+# items(i, k) -> the array at pos (on its "["), its strings written to DIR/i.k.n; the
+# problem with an item, if any, is left in aerr. Returns "a".
+function items(i, k,    n, c) {
+  n = 0
+  pos++
+  skipws()
+  if (substr(doc, pos, 1) == "]") { pos++; return "a" }
+  for (;;) {
+    skipws()
+    if (substr(doc, pos, 1) == "\"") {
+      serr = ""
+      scalar = str()
+      if (failed) return ""
+      if (serr != "") { if (aerr == "") aerr = "holds " serr }
+      else {
+        n++
+        printf "%s", scalar > (dir "/" i "." k "." n)
+        close(dir "/" i "." k "." n)
+      }
+    } else {
+      skip()
+      if (failed) return ""
+      if (aerr == "") aerr = "holds an item that is not a string"
+    }
+    skipws()
+    c = substr(doc, pos, 1)
+    pos++
+    if (c == "]") return "a"
+    if (c != ",") { fail("no ',' or ']' in an array"); return "" }
+  }
+}
+
 # proposal(i) -> proposal i at pos, flattened.
 function proposal(i,    c, k, t, seen, bad) {
   skipws()
@@ -165,7 +201,10 @@ function proposal(i,    c, k, t, seen, bad) {
     if (substr(doc, pos, 1) != ":") { fail("no ':' after an object key"); return }
     pos++
     serr = ""
-    t = skip()
+    aerr = ""
+    skipws()
+    if (substr(doc, pos, 1) == "[" && !bad && !(k in seen) && k ~ /^[a-z_]+$/ && index(" " arrays " ", " " k " ")) t = items(i, k)
+    else t = skip()
     if (failed) return
     if (bad) {
     } else if (k !~ /^[a-z_]+$/) {
@@ -175,6 +214,14 @@ function proposal(i,    c, k, t, seen, bad) {
     } else if (k in seen) {
       printf "%d\terror\tfield %s given twice\n", i, k
       bad = 1
+    } else if (t == "a") {
+      if (aerr != "") {
+        printf "%d\terror\tfield %s %s\n", i, k, aerr
+        bad = 1
+      } else {
+        seen[k] = 1
+        printf "%d\t%s\ta\n", i, k
+      }
     } else if (t == "obj" || t == "arr") {
       printf "%d\terror\tfield %s is an %s, not a string\n", i, k, (t == "obj" ? "object" : "array")
       bad = 1
