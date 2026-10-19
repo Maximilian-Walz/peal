@@ -34,19 +34,6 @@
 
 PEAL_NEXT_ITEMS="tasks guardrails milestones review-task belfry decisions drift releases reviewer review-steps"
 
-# _peal_next_valid_date DATE -> status 0 for a real calendar date, YYYY-MM-DD.
-_peal_next_valid_date() {
-  local s=$1 y m d dim=(31 28 31 30 31 30 31 31 30 31 30 31) days
-  [[ "$s" =~ ^([0-9][0-9][0-9][0-9])-([0-9][0-9])-([0-9][0-9])$ ]] || return 1
-  y=$((10#${BASH_REMATCH[1]})) m=$((10#${BASH_REMATCH[2]})) d=$((10#${BASH_REMATCH[3]}))
-  [ "$m" -ge 1 ] && [ "$m" -le 12 ] || return 1
-  days=${dim[m - 1]}
-  if [ "$m" -eq 2 ] && { [ $((y % 4)) -eq 0 ] && { [ $((y % 100)) -ne 0 ] || [ $((y % 400)) -eq 0 ]; }; }; then
-    days=29
-  fi
-  [ "$d" -ge 1 ] && [ "$d" -le "$days" ]
-}
-
 # _peal_next_days DATE -> days since 1970-01-01 for civil date DATE (already valid),
 # Howard Hinnant's days_from_civil, plain integer arithmetic so every awk-free shell agrees.
 _peal_next_days() {
@@ -75,7 +62,7 @@ _peal_next_declined() {
       peal_err "next: declined.$item is not a next item, ignored"
       continue
     fi
-    if ! _peal_next_valid_date "$date"; then
+    if ! peal_valid_date "$date"; then
       peal_err "next: declined.$item: '$date' is not a date, YYYY-MM-DD"
       return 2
     fi

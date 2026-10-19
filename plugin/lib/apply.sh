@@ -142,19 +142,6 @@ _pa_line() {
   return 1
 }
 
-# _pa_date TEXT -> status 0 when TEXT is a calendar date written YYYY-MM-DD.
-_pa_date() {
-  local y m d days=(31 28 31 30 31 30 31 31 30 31 30 31)
-  [[ "$1" =~ ^([0-9]{4})-([0-9]{2})-([0-9]{2})$ ]] || return 1
-  y=$((10#${BASH_REMATCH[1]})) m=$((10#${BASH_REMATCH[2]})) d=$((10#${BASH_REMATCH[3]}))
-  [ "$m" -ge 1 ] && [ "$m" -le 12 ] && [ "$d" -ge 1 ] || return 1
-  if [ "$m" = 2 ] && { [ $((y % 4)) = 0 ] && [ $((y % 100)) != 0 ] || [ $((y % 400)) = 0 ]; }; then
-    [ "$d" -le 29 ]
-  else
-    [ "$d" -le "${days[m - 1]}" ]
-  fi
-}
-
 # _pa_task_ref I KEY [EARLIER] -> status 0 when proposal I's KEY is a task id or a
 # "@<id>" of a file proposal of the batch (an earlier one, EARLIER given); else invalid.
 _pa_task_ref() {
@@ -293,7 +280,7 @@ _pa_static_ms() {
   if _pa_has "$i" title; then _pa_line "$i" title || true; fi
   if _pa_has "$i" due; then
     v=$(_pa_val "$i" due)
-    _pa_date "$v" || _pa_bad "$i" "due ${v:0:40} is not a date, YYYY-MM-DD"
+    peal_valid_date "$v" || _pa_bad "$i" "due ${v:0:40} is not a date, YYYY-MM-DD"
   fi
   if _pa_has "$i" order; then
     v=$(_pa_val "$i" order)

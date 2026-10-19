@@ -145,3 +145,17 @@ peal_git_try() {
   rm -f "$err"
   return $status
 }
+
+# peal_valid_date DATE -> status 0 for a real calendar date, YYYY-MM-DD (next's declined
+# dates, apply's milestone due).
+peal_valid_date() {
+  local s=$1 y m d dim=(31 28 31 30 31 30 31 31 30 31 30 31) days
+  [[ "$s" =~ ^([0-9][0-9][0-9][0-9])-([0-9][0-9])-([0-9][0-9])$ ]] || return 1
+  y=$((10#${BASH_REMATCH[1]})) m=$((10#${BASH_REMATCH[2]})) d=$((10#${BASH_REMATCH[3]}))
+  [ "$m" -ge 1 ] && [ "$m" -le 12 ] || return 1
+  days=${dim[m - 1]}
+  if [ "$m" -eq 2 ] && { [ $((y % 4)) -eq 0 ] && { [ $((y % 100)) -ne 0 ] || [ $((y % 400)) -eq 0 ]; }; }; then
+    days=29
+  fi
+  [ "$d" -ge 1 ] && [ "$d" -le "$days" ]
+}
