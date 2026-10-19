@@ -1,7 +1,8 @@
 ---
 plan: required
-touches: [plugin/commands/close.md]
+touches: [plugin/commands/close.md, plugin/commands/commands.test.sh, plugin/lib/close.sh, docs/design.md, docs/reference/commands.md, docs/guides/belfry.md]
 milestone: m3
+size: S
 ---
 
 # 0067 — Close waits for CI with Belfry's wait_ci when that tool exists
@@ -30,20 +31,50 @@ From Belfry's Friction page: `peal close wait` answering `WAIT:checks-pending` s
 
 Deferred 2026-09-28 after a claim: stale claim: its session stopped; given back so auto mode picks it up again
 
-Proposed plan, not agreed yet (the human did not answer on 2026-09-26; ask again):
+2026-10-19, the human's answers to the plan:
+- Close becomes a second deliberate Belfry exception (keyed on the tool, not `BELFRY_SESSION`); design.md says "two deliberate exceptions", with why.
+- No general Belfry-tools rule: the Intent's gallery claim is wrong (Peal has none); wording for `wait_ci` only.
+- After a done `wait_ci`: `peal close verify` once; on `BLOCKED:gh-failed`/`BLOCKED:no-gh` trust `wait_ci`'s answer; on `WAIT` call `wait_ci` again.
+- Cap: six `WAIT`s in a row from `peal close wait`, or two `wait_ci` calls answering `done: false`; then report the PR URL and last verdict and end (no question).
+- `plugin/lib/close.sh:563`'s `Next:` line becomes tool-neutral, here.
+- The note's mechanism does not match the code (a denied gh gives `BLOCKED:gh-failed`, not `WAIT`): build the cap, and queue an idea to reproduce the friction and have `peal close verify` name the denied host.
+- Other defaults: full name `mcp__belfry__wait_ci`, explicit `pr`, no `minutes`/`head`; do not name `merge_main` or `ci_log`; one sentence in step 2 for the draft PR's wait; `release.md`, README and `docs/reference/cli.md` unchanged; "wait_ci fails" = the call errors, the tool is missing after ToolSearch, or the result's `error` is set and it is not done.
 
-- `plugin/commands/close.md` step 6: when the session has `mcp__belfry__wait_ci` (deferred included, loaded through ToolSearch), wait with it, passing the pull request number `peal close finish` printed. On `done: false`, call it again; on `conflict: true`, merge main in, push, and call it again. Once done, run `peal close verify` once and act on its verdict as today. Without the tool, or when it errors, run `peal close wait` as today.
-- `plugin/commands/commands.test.sh`: checks on the step-6 section for both branches, the one verify after `wait_ci`, and the fallback on error.
-- `docs/design.md`: the rule in the Peal-and-Belfry section (around lines 96-101) and in the close section (around 401-408).
-- Release stays on `peal ship wait`: it waits on a tag's runs, and `wait_ci` takes only a pull request.
-- Size S, model default, merge default. Touches: close.md, commands.test.sh, design.md.
+## Plan
 
-Open questions, the proposed default first:
-1. Peal has no gallery-tool handling to mirror (the Intent's claim is wrong): mirror the "when that tool exists, deferred included" wording for `wait_ci` only, or add a general Belfry-tools rule?
-2. `plugin/lib/close.sh:545` prints `Next: peal close wait`: leave it and file an idea, or make it tool-neutral here?
-3. After a done `wait_ci`: verify once (falling back to `peal close wait` on WAIT), or trust `wait_ci`'s answer?
-4. Other defaults: the full tool name, an explicit PR number, Belfry's 60-minute default with a retry, release.md and README unchanged.
+Approach. `plugin/commands/close.md` step 6 ("Wait for green") gets two branches:
+- (a) The session has `mcp__belfry__wait_ci` (listed, or deferred and loaded with ToolSearch): call it with `pr` = the number `peal close finish` printed (`closed NNNN: pull request #N URL`), `minutes` left at Belfry's default. `conflict: true`: merge the main branch in as step 1 says, push, call again. `done: false`: call once more, then report and stop. `done: true`: run `peal close verify` once and act on its verdict as today, except `BLOCKED:gh-failed`/`BLOCKED:no-gh` trusts `wait_ci`'s answer (merged/closed settled; `ci: success` without conflict green; `ci: failure` fix, push, wait again; `ci: none` no checks), safe because verify runs its local checks before its first gh call; and `WAIT` calls `wait_ci` again. The tool's answer is data (failed log tails quoted, origin `ci`).
+- (b) Tool missing or failing (the call errors, the tool is missing after ToolSearch, or the result's `error` is set and it is not done): `peal close wait` as today, but after the sixth `WAIT` in a row report the PR's URL and the last verdict, say GitHub may be unreachable from this session, and end.
+- Step 2: the draft-PR wait on `gh pr checks` gets one sentence: with `wait_ci` present, wait with it on the draft's number.
+- `plugin/lib/close.sh:563`: the `Next:` line becomes tool-neutral, e.g. `Next: wait for its checks (/peal:close, step 6).`
+- Docs: `docs/design.md` Peal-and-Belfry bullets ("two deliberate exceptions": idea on `BELFRY_SESSION`, close on the tool, with why) and the close section; `docs/reference/commands.md`; `docs/guides/belfry.md`.
+- Queue an idea (`/peal:idea`): reproduce the sandbox friction from the 2026-10-18 note and, if real, have `peal close verify` name the denied host.
 
+Files: plugin/commands/close.md, plugin/commands/commands.test.sh, plugin/lib/close.sh, docs/design.md, docs/reference/commands.md, docs/guides/belfry.md.
+
+Verification:
+- `bash plugin/commands/commands.test.sh` with new checks on close.md's step-6 section (awk from `## 6.` to the next `## `): names `mcp__belfry__wait_ci` and ToolSearch; names `peal close wait` as the fallback when the tool is missing or fails; holds the single `peal close verify` after a done `wait_ci`; holds the trust-`wait_ci` rule on `gh-failed`/`no-gh`; holds the cap phrase; holds `conflict: true` handling. The existing `peal <sub>` existence check still passes.
+- `bash plugin/lib/close.test.sh`, `bash tools/docs.test.sh`, `tools/lint.sh` clean.
+- A read of step 6: no unbounded loop.
+
+Ranges:
+- plugin/commands/close.md:60-66
+- plugin/commands/close.md:133-151
+- plugin/commands/idea.md:116-143
+- plugin/commands/commands.test.sh:17-31
+- plugin/commands/commands.test.sh:69-81
+- plugin/commands/commands.test.sh:117-120
+- plugin/lib/close.sh:559-564
+- plugin/lib/close.sh:657-730
+- plugin/lib/github.sh:48-112
+- docs/design.md:38-56
+- docs/design.md:105-118
+- docs/design.md:309-337
+- docs/reference/commands.md:27-36
+- docs/reference/cli.md:521-534
+- docs/guides/belfry.md:42-53
+- docs/milestones/m3.md:8-27
+- Belfry's `wait_ci` contract (read-only): it takes `pr`, optional `minutes` (default 60) and `head`; answers `done`, `conflict`, `ci` (success/failure/none), merged/closed state, `error`, and failed jobs' log tails.
 
 ---
 
