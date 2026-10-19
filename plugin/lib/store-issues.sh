@@ -1135,3 +1135,10 @@ peal_store_milestone_state() {
   [ $status = 0 ] && echo "milestone $id: $state"
   return $status
 }
+
+# peal_store_apply -> refused: a control plane writes an issues project's proposals
+# through its own GitHub client, and Peal never gives such a project the commands backend.
+peal_store_apply() {
+  peal_err "apply: the issues storage takes no batch; Belfry writes a github-issues project's proposals through its own GitHub client"
+  return 2
+}

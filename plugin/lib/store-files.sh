@@ -1237,3 +1237,10 @@ peal_store_milestone_state() {
   rm -rf "$tmp"
   return $status
 }
+
+# peal_store_apply -> the proposals on stdin applied in one commit (lib/apply.sh).
+peal_store_apply() {
+  # shellcheck source=apply.sh
+  . "$PEAL_ROOT/lib/apply.sh"
+  _peal_apply_files "$@"
+}
