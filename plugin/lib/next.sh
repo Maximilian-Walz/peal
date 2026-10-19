@@ -175,7 +175,7 @@ _peal_next_docs_md() {
 
 # _peal_next_version_file -> the first of package.json, .claude-plugin/plugin.json at the
 # repository's root that exists; empty for none (release.version-files takes only
-# top-level fields, so a TOML manifest is never suggested).
+# top-level fields of a JSON or TOML file, so a TOML manifest is never suggested).
 _peal_next_version_file() {
   local f
   for f in package.json .claude-plugin/plugin.json; do

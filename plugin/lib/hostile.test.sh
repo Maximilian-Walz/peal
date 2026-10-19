@@ -657,15 +657,17 @@ arg_cases() {
   each "ship bump VERSION" "$WORK" ship bump @
   each "ship tag VERSION" "$WORK" ship tag @
   each "ship pin VERSION" "$WORK" ship pin @
-  # Hostile items of release.version-files, as its path, its field and its marker.
+  # Hostile items of release.version-files, as its path, its field, a nested YAML
+  # field's key and its marker.
   local i item what config main
   config=$(cat "$WORK/.peal/config.yml")
   main=$(git -C "$REPO/remote.git" rev-parse main)
   for ((i = 0; i < ${#H[@]}; i++)); do
-    for what in path field marker; do
+    for what in path field yamlfield marker; do
       case $what in
         path) item="${H[i]}: version" ;;
         field) item="plugin.json: ${H[i]}" ;;
+        yamlfield) item="values.yaml: image.${H[i]}" ;;
         marker) item="plugin.json: \"${H[i]}\"" ;;
       esac
       printf '%s\nrelease:\n  version-files: [%s]\n' "$config" "'${item//\'/\'\'}'" >"$WORK/.peal/config.yml"

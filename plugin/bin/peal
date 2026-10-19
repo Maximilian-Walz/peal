@@ -289,7 +289,7 @@ release.tag-prefix and the version):
                                 waited for until it merged (3: still open; run it again
                                 once merged); "already at" when they hold it; refused as
                                 ship tag refuses the version, and for a file or field
-                                missing
+                                missing (a field: top-level, or KEY.KEY in a YAML file)
   ship tag VERSION              the annotated tag on the remote's main branch, pushed;
                                 refused for a tag that exists, a version not above the
                                 last release, a file of release.version-files there not

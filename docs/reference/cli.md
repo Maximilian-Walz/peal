@@ -586,8 +586,11 @@ the prefix, and inserts the release's entry into `release.changelog`, on the rem
 main, in one commit `chore(release): <tag>`. Either key alone is enough. Waits until a
 pull request merged (status 3 if still open: run it again). `already at <version>` when
 the files hold it and the changelog has an entry `## <tag>`. Refused for a path outside
-the repository, a dotted field, a missing file or field, a field not a string; for a
-marked line (`"PATH: \"TEXT\""`), a marker held by no line or by two, a line with no
+the repository, a dotted field of a JSON or TOML file, a missing file or field, a field
+not a string; for a nested YAML field (`KEY.KEY`, through block mappings, never into a
+list or a flow mapping), a key on its path that is not a mapping, a tab-indented line,
+the path there twice (also in two documents; an edit under an anchor changes its aliases
+too); for a marked line (`"PATH: \"TEXT\""`), a marker held by no line or by two, a line with no
 version or with two, an empty marker or one with a backslash.
 
 The entry is `## <tag> (<UTC date>)`, a blank line, then the notes with their headings one

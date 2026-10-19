@@ -64,6 +64,7 @@ names — there are no defaults, so no project's vocabulary is built into Peal i
 A pool named in none of the three is reported, not guessed. One line converts a whole
 project's own pools, comma-separating more than one name under the same flag:
 
+<!-- docs-check: migrate -->
 ```sh
 peal migrate headers --none unassigned --parked later,any --open process
 ```
@@ -87,6 +88,7 @@ the project to fill in. It refuses to make a second `current`, and reports any m
 id a task uses that has no file (a pool left out of both flags, or a stray one). Safe to
 run again; never commits.
 
+<!-- docs-check: migrate -->
 ```sh
 peal migrate milestones --parked later,any --open process
 ```

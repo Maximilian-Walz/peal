@@ -380,6 +380,32 @@ pre_push_release() {
   git -C "$work" commit -q --no-verify -m "chore(release): v0.3.0"
   check "release: a marked line, by hand" "0" "$(push_main 2>/dev/null; echo $?)"
 
+  # A nested YAML field.
+  fresh
+  printf 'release:\n  version-files: ["values.yaml: image.tag"]\n' >"$work/.peal/config.yml"
+  printf 'other:\n  tag: "0.1.0"\nimage:\n  tag: "0.1.0" # pinned\n' >"$work/values.yaml"
+  git -C "$work" add -A && git -C "$work" commit -q --no-verify -m "chore: values" && git -C "$work" push -q --no-verify origin main
+  fresh
+  check "release: a nested field" "0|chore(release): v0.4.0" "$(peal ship bump 0.4.0 >/dev/null 2>&1; echo $?)|$(git -C "$work" log -1 --format=%s origin/main)"
+  fresh
+  sed 's/"0.[14].0"/"0.5.0"/' "$work/values.yaml" >"$work/values.yaml.new"
+  mv "$work/values.yaml.new" "$work/values.yaml"
+  git -C "$work" add values.yaml
+  git -C "$work" commit -q --no-verify -m "chore(release): v0.5.0"
+  check_fails "release: refused, a nested bump that also sets other.tag" 1 "values.yaml changes more than its image.tag to 0.5.0" push_main
+  fresh
+  sed 's/"0.4.0" # pinned/"0.5.0" # held/' "$work/values.yaml" >"$work/values.yaml.new"
+  mv "$work/values.yaml.new" "$work/values.yaml"
+  git -C "$work" add values.yaml
+  git -C "$work" commit -q --no-verify -m "chore(release): v0.5.0"
+  check_fails "release: refused, a nested bump that changes the comment" 1 "values.yaml changes more than its image.tag to 0.5.0" push_main
+  fresh
+  sed 's/"0.4.0" # pinned/"0.5.0" # pinned/' "$work/values.yaml" >"$work/values.yaml.new"
+  mv "$work/values.yaml.new" "$work/values.yaml"
+  git -C "$work" add values.yaml
+  git -C "$work" commit -q --no-verify -m "chore(release): v0.5.0"
+  check "release: a nested field, by hand" "0" "$(push_main 2>/dev/null; echo $?)"
+
   # peal ship pin: the commit SHA of the tag.
   fresh
   old=8927e4644010042329fed4ddb2f8084aa98ebf02

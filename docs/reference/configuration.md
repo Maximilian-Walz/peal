@@ -46,7 +46,7 @@ under `storage`.
 | `release.tag-prefix` | `v` | release tags are `<prefix>MAJOR.MINOR.PATCH` |
 | `release.wait-ci` | `false` | `/peal:release` waits for the workflow runs of the tag |
 | `release.report` | `[]` | texts whose lines in those runs' logs the release reports, e.g. `"digest: sha256:"` |
-| `release.version-files` | `[]` | files the release sets to its version before the tag, each `"PATH: FIELD"`, a top-level field of a JSON, TOML or YAML file, or `"PATH: \"TEXT\""`, the one line of any file that holds the literal `TEXT`, whose one `X.Y.Z` version is replaced |
+| `release.version-files` | `[]` | files the release sets to its version before the tag, each `"PATH: FIELD"`, a top-level field of a JSON, TOML or YAML file (in YAML also `KEY.KEY`, a nested field, e.g. `"values.yaml: image.tag"`), or `"PATH: \"TEXT\""`, the one line of any file that holds the literal `TEXT`, whose one `X.Y.Z` version is replaced |
 | `release.commit-files` | `[]` | files whose one marked line `"PATH: \"TEXT\""` holds a commit SHA that `peal ship pin` sets to the tag's commit, after the tag; the bare `"PATH: FIELD"` form is refused |
 | `release.changelog` | `""` | a Markdown file (e.g. `CHANGELOG.md`) each release's entry, its notes, goes into with the version files; empty: none |
 | `decisions` | `false` | the decisions module: `false`, or its directory to turn it on |

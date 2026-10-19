@@ -292,9 +292,52 @@ appVersion: '"'0.2.0'"'' "$(at_version v0.2.0)"
   listing "notes.txt: version"
   bump_refused "an unknown extension" "'notes.txt' is not a .json, .toml, .yml or .yaml file"
   listing "plugin.json: deps.version"
-  bump_refused "a dotted field" "is not \"PATH: FIELD\""
+  bump_refused "a dotted field of a JSON file" "a dotted field reaches only into a YAML file"
+  listing "pkg/Cargo.toml: dependencies.version"
+  bump_refused "a dotted field of a TOML file" "a dotted field reaches only into a YAML file"
   listing "plugin.json: version" "number.yml: version"
   bump_refused "one good file, one bad" "number.yml: the field version is not a string"
+
+  # A nested field of a YAML file, among decoys.
+  git -C "$work" merge -q --ff-only origin/main
+  printf '%s\n' '# image.tag' 'tag: "9.9.9"' 'other:' '  tag: "1.1.1"' 'notes: |' '  image:' '    tag: x' \
+    'list:' '- tag: a' '- image:' '    tag: b' 'more:' '  - tag: c' '  - image:' '      tag: d' \
+    'image:' '  repository: x' '  tag: "0.1.0" # pinned' '  pull: Always' >"$work/values.yaml"
+  printf 'image:\n  tag: 1.0\n' >"$work/nested-number.yaml"
+  printf 'image:\n  tag: |\n    0.1.0\n' >"$work/nested-block.yaml"
+  printf 'image:\n  tag: a\nimage:\n  tag: b\n' >"$work/twice.yaml"
+  printf 'image:\n  tag: a\n---\nimage:\n  tag: b\n' >"$work/documents.yaml"
+  printf 'image: {tag: 0.1.0}\n' >"$work/flow.yaml"
+  printf 'image:\n\ttag: 0.1.0\n' >"$work/tab.yaml"
+  git -C "$work" add ./*.yaml && git -C "$work" commit -q -m "chore: values" && git -C "$work" push -q origin main 2>/dev/null
+  listing "values.yaml: image.tag"
+  main=$(git -C "$work" rev-parse origin/main)
+  check_refused "tag: nested field stale" "values.yaml on origin/main does not hold 0.3.5" peal ship tag 0.3.5
+  out=$(peal ship bump 0.3.5 2>&1)
+  check "bump: a nested field, only its value" '0|-  tag: "0.1.0" # pinned
++  tag: "0.3.5" # pinned' "$?|$(git -C "$work" diff -U0 "$main" origin/main | grep '^[-+][^-+]')"
+  out=$(peal ship bump 0.3.5 2>&1)
+  check "bump: a nested field, again" "0:already at 0.3.5: values.yaml" "$?:$out"
+  listing "values.yaml: image.nope"
+  bump_refused "a missing nested field" "values.yaml: no field image.nope"
+  listing "values.yaml: image.repository.x"
+  bump_refused "a path through a leaf" "values.yaml: the field image.repository is not a mapping"
+  listing "nested-number.yaml: image.tag"
+  bump_refused "a nested number" "nested-number.yaml: the field image.tag is not a string"
+  listing "nested-block.yaml: image.tag"
+  bump_refused "a nested block scalar" "nested-block.yaml: the field image.tag is not a plain string"
+  listing "twice.yaml: image.tag"
+  bump_refused "a nested field twice" "twice.yaml: the field image.tag is there more than once"
+  listing "documents.yaml: image.tag"
+  bump_refused "a nested field in two documents" "documents.yaml: the field image.tag is there more than once"
+  listing "flow.yaml: image.tag"
+  bump_refused "a flow mapping parent" "flow.yaml: the field image is not a mapping"
+  listing "tab.yaml: image.tag"
+  bump_refused "a tab-indented line" "tab.yaml: line 2 is indented with a tab"
+  listing "values.yaml: image..tag"
+  bump_refused "an empty key" "is not \"PATH: FIELD\""
+  listing "values.yaml: .tag"
+  bump_refused "a leading dot" "is not \"PATH: FIELD\""
 
   # A marked line of a plain file.
   git -C "$work" merge -q --ff-only origin/main
