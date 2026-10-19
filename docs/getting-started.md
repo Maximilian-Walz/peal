@@ -43,6 +43,12 @@ Merge that branch into your main branch before you go on. Setup offers to open t
 request for you. This matters because Peal starts every task from the main branch, so a
 task cannot begin until the setup is there.
 
+After merging, run `.peal/peal hooks install` once in your checkout. The `tasks` stage
+does not install Peal's git hooks, and until they are there `peal commit` (which the
+implementer uses) and the close refuse to run, saying so. `.peal/peal` is the launcher
+setup wrote; the plain `peal` command exists only inside Claude Code. If you merged on
+GitHub, update your checkout first.
+
 Setup works in stages, and this first one, `tasks`, is all you need. Later you can add
 guards for commit messages, milestones, or Belfry (a separate tool that runs Claude Code
 sessions unattended). [Setting up in stages](guides/setting-up.md) lists them and how
@@ -59,7 +65,8 @@ Type `/peal:idea a health check endpoint`. You see a line starting `filed 0001`.
 (with GitHub issues it opens an issue instead), holding your sentence and a template to fill in. The folder `backlog/` is where tasks wait
 until someone starts them, and `0001` is the task's number. An idea is simply a task you
 filed roughly; nobody has planned it yet. Open the file if you like: it is plain
-Markdown, and you can edit it. If you file an idea while on another task's branch, it is queued and
+Markdown, and you can edit it. The file is committed to the main branch on your remote, not into your checkout:
+update your checkout (`git pull`) to see it there. If you file an idea while on another task's branch, it is queued and
 filed when that task closes.
 
 ### 2. Work it
@@ -75,6 +82,12 @@ Type `/peal:work 0001`. This is where Peal does most of its work, and where it k
   until you agree.
 - Once you agree, another subagent, the implementer, builds the plan in the worktree and
   commits as it goes.
+
+An idea comes out with `plan: skipped`, empty *Scope* and *Done when* sections, and its
+open questions in the Notes. For such a task no planner runs: the implementer reads the
+task and, if it cannot tell what to build, stops and asks you, with a proposed answer for
+each question. Reply, and your answers go into the task and the build goes on. (A task with
+`plan: required` gets the planner first, as described above.)
 
 Without a number, `/peal:work` offers you the next task in the backlog. When the build
 is done it carries on to the close, described next.

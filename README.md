@@ -41,7 +41,8 @@ closed 0001: pull request #12 https://github.com/you/myproject/pull/12
 2. `/peal:work` *claims* the task: it gives it its own git branch and a second checkout
    of your repository in a separate folder (git calls that a *worktree*), so your own
    checkout and other tasks are left alone. A planner *subagent* (a helper session Claude
-   starts for one job) writes a plan, which you read and agree or change. Only after
+   starts for one job) writes a plan, which you read and agree or change; a small task
+   can skip the plan, and the implementer then asks you what it cannot tell. Only after
    that does an implementer subagent build it.
 3. When the build is done, the same session closes the task itself, without you typing
    anything: a reviewer subagent checks the change, the result is recorded in the task,
