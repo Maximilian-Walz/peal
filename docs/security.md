@@ -195,6 +195,13 @@ title only feeds a slug. A `file` text gets the checks of `peal create --owner`'
 comment` (no `---` or `## ` line), a `retire` reason is one line. One invalid proposal
 and nothing is written.
 
+A value goes to three places: the task files (checked as above), the JSON answer
+(escaped), and the commit's body and the pull request's body, which list each
+proposal's `id` and `why`. In those bodies a zero-width joiner follows every `#` and `@`,
+and every `issues/` and `pull/`, so a closing keyword in outside text ("Fixes #12",
+"closes owner/repo#3", an issue's URL) closes nothing and an `@mention` pings nobody when
+the write merges.
+
 - Guard: `plugin/lib/apply.awk`, `plugin/lib/apply.sh`.
 - Harness: `plugin/lib/apply.test.sh`, `plugin/lib/hostile.test.sh`.
 

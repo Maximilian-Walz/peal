@@ -227,22 +227,11 @@ _pa_resolve() {
 # _pa_load ID BASE -> task ID's text at BASE into the compose (once): refused unless it
 # is in the backlog there and nobody has claimed it.
 _pa_load() {
-  local id=$1 base=$2 refs path
+  local id=$1 base=$2 path
   [ ! -f "$PA_S/t/$id.text" ] || return 0
-  refs=$(git for-each-ref --format='%(refname:short)' "refs/heads/$PEAL_PREFIX$id-*" "refs/remotes/*/$PEAL_PREFIX$id-*")
-  if [ -n "$refs" ]; then
-    peal_err "task $id is claimed ($(printf '%s' "$refs" | tr '\n' ' ' | sed 's/ $//'))"
-    return 2
-  fi
-  if ! path=$(_peal_files_find "$base" "$id" 2>/dev/null); then
-    peal_err "no task $id on $PEAL_REMOTE/$PEAL_MAIN"
-    return 2
-  fi
-  case $path in
-    "$PEAL_TASKS"/backlog/*) ;;
-    "$PEAL_TASKS"/done/*) peal_err "task $id is done ($path)"; return 2 ;;
-    *) peal_err "task $id is claimed ($path)"; return 2 ;;
-  esac
+  _peal_files_no_claim "$id" apply || return 2
+  _peal_files_in_backlog "$base" "$id" apply 2>"$PA_DIR/err.find" || { grep -v 'warning:' "$PA_DIR/err.find" >&2; return 2; }
+  path=$PEAL_PATH
   git show "$base:$path" >"$PA_S/t/$id.text" || return 2
   cp "$PA_S/t/$id.text" "$PA_S/t/$id.old"
   printf '%s\n' "$path" >"$PA_S/t/$id.path"
@@ -306,12 +295,8 @@ _pa_item() {
   echo "$i" >"$PA_S/t/$id.last"
   case $kind in
     add)
-      if ! peal_text_has_section Notes <"$f"; then
-        peal_err "task $id has no '## Notes' section"
-        return 2
-      fi
-      peal_text_add_note "$(date -u +%Y-%m-%d): $(cat "$PA_DIR/p/$i.text")" <"$f" >"$f.n" && mv "$f.n" "$f" || return 2
-      if [ "$(_pa_val "$i" origin)" = outsider ]; then peal_fm_set "$f" origin outsider || return 2; fi
+      PEAL_PATH=$(cat "$PA_S/t/$id.path") PEAL_COMMENT="$(date -u +%Y-%m-%d): $(cat "$PA_DIR/p/$i.text")" \
+        PEAL_COMMENT_ORIGIN=$(_pa_val "$i" origin) _peal_files_rewrite_comment "$f" "$f.n" && mv "$f.n" "$f" || return 2
       printf 'noted on %s' "$id" >"$PA_S/res.$i.detail" ;;
     move)
       _pa_frontmatter "$i" "$f" || return 2
@@ -328,10 +313,7 @@ _pa_item() {
       fi
       deps=$(peal_fm_get "$f" depends 2>/dev/null | sed '/^$/d')
       if [ "$(_pa_val "$i" op)" = add ]; then
-        if ! printf '%s\n' "$deps" | grep -qxF -- "$on"; then
-          # shellcheck disable=SC2046 # one item per line, none with a blank
-          peal_fm_set_list "$f" depends $(printf '%s\n' "$deps" | sed '/^$/d') "$on" || return 2
-        fi
+        _peal_files_add_depend "$f" "$on" || return 2
         printf 'task %s: waits for %s' "$id" "$on" >"$PA_S/res.$i.detail"
       else
         deps=$(printf '%s\n' "$deps" | grep -vxF -- "$on")
@@ -344,10 +326,6 @@ _pa_item() {
         printf 'task %s: no longer waits for %s' "$id" "$on" >"$PA_S/res.$i.detail"
       fi ;;
     retire)
-      if peal_text_outcome_filled <"$f"; then
-        peal_err "task $id's Outcome is filled in: work happened, this is no plain backlog task"
-        return 2
-      fi
       if _pa_has "$i" duplicate; then
         on=$(_pa_resolve "$i" duplicate) || return 2
         if [ "$on" = "$id" ]; then
@@ -358,11 +336,11 @@ _pa_item() {
           peal_err "duplicate: no task $on"
           return 2
         fi
-        line="Retired $(date -u +%Y-%m-%d) without being claimed: duplicate of $on"
+        line="duplicate of $on"
       else
-        line="Retired $(date -u +%Y-%m-%d) without being claimed: $(_pa_val "$i" reason)"
+        line=$(_pa_val "$i" reason)
       fi
-      peal_text_set_outcome "$line" <"$f" >"$f.n" && mv "$f.n" "$f" || return 2
+      _peal_files_retire_text "$f" "$f.n" "$line" "task $id" && mv "$f.n" "$f" || return 2
       echo "$i" >"$PA_S/t/$id.retired"
       v=$(cat "$PA_S/t/$id.path")
       printf 'retired %s' "$PEAL_TASKS/done/${v##*/}" >"$PA_S/res.$i.detail" ;;
@@ -425,14 +403,14 @@ _pa_check() {
       PEAL_CHECK_ID=$id PEAL_CHECK_OLDMS=$(peal_fm_get "$PA_S/t/$id.old" milestone 2>/dev/null) \
         peal_task_check "$f" revise "$label" "$context" >/dev/null 2>"$err" || _pa_bad "$i" "$(_pa_errs "$err")"
     fi
-    _peal_cycle_row "$id" "$f" >>"$changes"
+    printf '%s\t%s\n' "$(_peal_cycle_row "$id" "$f")" "$(cat "$PA_S/t/$id.path")" >>"$changes"
   done <"$PA_S/order"
 
   peal_store_list --no-pr >"$records" 2>/dev/null || return 2
   # The records as the batch leaves them: the changed rows in place, the new ones added,
   # the retired ones done.
   awk -F '\t' -v OFS='\t' -v dir="$PA_S/t" '
-    FILENAME == ARGV[1] { if ($1 != "") { m[$1] = $2; d[$1] = $3; p[$1] = $4; o[++n] = $1 }; next }
+    FILENAME == ARGV[1] { if ($1 != "") { m[$1] = $2; d[$1] = $3; p[$1] = $4; path[$1] = $5; o[++n] = $1 }; next }
     FILENAME == ARGV[2] { if ($1 != "") gone[$1] = 1; next }
     $1 == "" { next }
     ($1 in gone) { $2 = "done" }
@@ -440,7 +418,7 @@ _pa_check() {
     { print }
     END {
       for (i = 1; i <= n; i++)
-        if (!(o[i] in hit)) print o[i], "backlog", "", "", "", m[o[i]], d[o[i]], p[o[i]], "", "", "", "", "", "", ""
+        if (!(o[i] in hit)) print o[i], "backlog", "", "", "", m[o[i]], d[o[i]], p[o[i]], "", "", "", path[o[i]], "", "", ""
     }' "$changes" <(for f in "$PA_S"/t/*.retired; do [ -f "$f" ] || continue; f=${f##*/}; echo "${f%.retired}"; done) \
     "$records" >"$after"
 
@@ -477,12 +455,23 @@ _pa_check() {
     id=${f##*/}
     id=${id%.retired}
     i=$(cat "$f")
-    members=$(awk -F '\t' -v id="$id" '
-      $2 != "done" && $1 != id && (index("," $7 ",", "," id ",") || $8 == id) {
-        out = out (out == "" ? "" : ", ") $1 (index("," $7 ",", "," id ",") ? " (depends)" : " (part-of)") }
-      END { printf "%s", out }' "$after")
+    members=$(_peal_files_dependents "$id" <"$after" | sed 's/^  //' | awk '{ out = out (NR > 1 ? ", " : "") $0 } END { printf "%s", out }')
     [ -z "$members" ] || _pa_bad "$i" "task $id is still named by $members; re-point those in the batch first"
   done
+}
+
+# _pa_defuse TEXT -> TEXT made inert for GitHub, for the commit's and the pull request's
+# body: a zero-width joiner after every '#' and '@', and after "issues/" and "pull/", so
+# no closing keyword ("Fixes #12", "closes owner/repo#3", "fixes https://.../issues/3")
+# closes anything and no @mention pings anyone once it merges. Outside text, as a
+# proposal's id and why may be.
+_pa_defuse() {
+  local zwj=$'\xe2\x80\x8d' t=$1
+  t=${t//#/#$zwj}
+  t=${t//@/@$zwj}
+  t=${t//issues\//issues/$zwj}
+  t=${t//pull\//pull/$zwj}
+  printf '%s' "$t"
 }
 
 # _pa_build BASE -> the batch composed on BASE, in one tree (peal_push_main's BUILD);
@@ -504,8 +493,8 @@ _pa_build() {
   # shellcheck disable=SC2034 # read by peal_push_main
   PEAL_SUBJECT="docs(tasks): apply $PA_COUNT proposal$([ "$PA_COUNT" = 1 ] || echo s)"
   PEAL_BODY=$(for ((i = 1; i <= PA_COUNT; i++)); do
-    why=$(_pa_val "$i" why | tr '\n\r\t' '   ')
-    printf -- '- %s (%s %s): %s\n' "$(_pa_val "$i" id | tr '\n\r\t' '   ')" "$(_pa_val "$i" kind)" \
+    why=$(_pa_defuse "$(_pa_val "$i" why | tr '\n\r\t' '   ')")
+    printf -- '- %s (%s %s): %s\n' "$(_pa_defuse "$(_pa_val "$i" id | tr '\n\r\t' '   ')")" "$(_pa_val "$i" kind)" \
       "$(cat "$PA_S/res.$i.task" 2>/dev/null)" "${why:-no reason given}"
   done)
   # shellcheck disable=SC2034 # read by peal_push_main

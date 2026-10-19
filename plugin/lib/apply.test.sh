@@ -139,7 +139,7 @@ invalids() {
     {\"id\": \"b\", \"kind\": \"depends\", \"task\": \"0001\", \"on\": \"0002\", \"op\": \"add\"},
     {\"id\": \"c\", \"kind\": \"depends\", \"task\": \"0002\", \"on\": \"0001\", \"op\": \"add\"}]}" 2 "depends cycle"
   invalid "a retire still named" "{\"proposals\": [$ok, {\"id\": \"b\", \"kind\": \"retire\", \"task\": \"0002\", \"reason\": \"gone\"},
-    {\"id\": \"c\", \"kind\": \"depends\", \"task\": \"0001\", \"on\": \"0002\", \"op\": \"add\"}]}" 2 "task 0002 is still named by 0001 (depends)"
+    {\"id\": \"c\", \"kind\": \"depends\", \"task\": \"0001\", \"on\": \"0002\", \"op\": \"add\"}]}" 2 "task 0002 is still named by tasks/backlog/0001-first-task.md (depends)"
   invalid "a file setting merge" "{\"proposals\": [$ok, {\"id\": \"b\", \"kind\": \"file\", \"title\": \"Merge it now\", \"text\": \"---\\nmerge: auto\\n---\\n\\n# NNNN — T\\n\\n## Raw\\n\\nx\\n\"}]}" 2 "the text sets merge"
   invalid "a file without Raw" "{\"proposals\": [{\"id\": \"b\", \"kind\": \"file\", \"title\": \"No raw here\", \"text\": \"# NNNN — T\\n\"}, $ok]}" 1 "no '## Raw' section"
   invalid "a file of one-word title" "{\"proposals\": [{\"id\": \"b\", \"kind\": \"file\", \"title\": \"Crate\", \"text\": \"x\"}, $ok]}" 1 "a slug of 1 word"
@@ -199,6 +199,19 @@ pr() {
   check "pr: no pull request for an invalid batch" "1" "$(grep -c '^POST .*pulls$' "$FAKE_GH/log")"
 }
 
+# defused -> a why holding closing keywords and @mentions reaches the commit's body inert:
+# a zero-width joiner after each '#' and '@', and in an issue's URL.
+defused() {
+  local zwj=$'\xe2\x80\x8d' body
+  setup_tasks
+  printf '%s' '{"proposals": [{"id": "@x", "kind": "priority", "task": "0001", "priority": "low",
+    "why": "Fixes #12, closes owner/repo#3, resolves https://github.com/o/r/issues/4 and pull/5; cc @someone"}]}' \
+    | peal apply >/dev/null 2>&1
+  body=$(git -C "$work" log -1 --format=%b origin/main)
+  check "defused: the why" "- @${zwj}x (priority 0001): Fixes #${zwj}12, closes owner/repo#${zwj}3, resolves https://github.com/o/r/issues/${zwj}4 and pull/${zwj}5; cc @${zwj}someone" \
+    "$(printf '%s\n' "$body" | grep '^- ')"
+}
+
 # reader -> the JSON reader's escapes: a text stored byte for byte, never run.
 reader() {
   local out
@@ -220,6 +233,7 @@ issues() {
 cases() {
   mixed
   invalids
+  defused
   reader
   if command -v jq >/dev/null; then
     pr
