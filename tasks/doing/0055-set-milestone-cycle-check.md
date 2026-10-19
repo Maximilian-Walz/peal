@@ -1,7 +1,8 @@
 ---
 plan: required
-touches: [plugin/bin/peal, plugin/lib/store-files.sh, plugin/lib/store-files.test.sh, plugin/lib/store-issues.sh, plugin/lib/store-issues.test.sh, plugin/lib/tasks.sh]
+touches: [plugin/lib/store-files.sh, plugin/lib/store-files.test.sh, plugin/lib/store-issues.sh, plugin/lib/store-issues.test.sh, plugin/lib/tasks.sh, docs/design.md, docs/reference/cli.md]
 milestone: m3
+size: S
 ---
 
 # 0055 — set-milestone: refuse a depends cycle, like file, revise and defer
@@ -63,6 +64,51 @@ Proposed plan, not yet agreed (2026-09-26). The planning session's questions tim
   - refusal order: milestone, task state, cycle, "already";
   - no edit to milestone-review.md or store.sh (named in the Outcome as a follow-up);
   - the issue test count at line 596 goes from 4 to 6.
+
+Answers from the human, 2026-10-19, when the plan was agreed:
+
+- Keep `peal_cycle_check`'s per-task rule: a task already on a cycle may move even if the move closes another.
+- Add one sentence about the refusal to `docs/reference/cli.md`'s set-milestone section.
+- Check when clearing too, and re-check on each push retry (task files).
+- Refusal order as listed in the Plan.
+- The gap where `set-milestone ID` with no M on a task with `depends: [milestone]` goes through: file an idea at close and name it in the Outcome; no change here.
+- Leave `plugin/lib/store.sh`'s interface comment and the milestone-review command text unchanged.
+- Keep the shared hint line of `peal_cycle_check`.
+- Size S, model default, merge default.
+
+## Plan
+
+Agreed 2026-10-19. `peal apply`'s move and split_milestone kinds need no change: `_pa_check` already checks every changed row's cycle, milestone-only changes included.
+
+**Task files** (`plugin/lib/store-files.sh`):
+- `_peal_files_rewrite_milestone` (only caller: set-milestone) runs `peal_cycle_check_text set-milestone "$id" "<new text>"` after writing the new milestone. The id comes from a global (e.g. `PEAL_MS_ID`) set beside `PEAL_NEW_MILESTONE` in `peal_store_set_milestone`, not from dynamic scoping.
+- The check runs inside the `peal_push_main` build (`_peal_files_build_rewrite`), so it comes before `peal_write_tree`, the commit and any push, and runs again on each retry.
+- `_peal_files_build_rewrite` must pass a status of 1 through (it maps every failure to 2 today), so the refusal exits 1. Comment's rewrite returns only 2 and is unaffected.
+- Refusal order: milestone missing or done, task claimed or not in the backlog, cycle, "already reads so".
+
+**Issues** (`plugin/lib/store-issues.sh`, `peal_store_set_milestone`):
+- After the "already", unknown and done milestone checks and before the PATCH, build the row from `PEAL_RECORD`: field 1 (id), new M (or empty), field 7 (depends), field 8 (part-of).
+- Check it against `PEAL_RECORDS` through a new helper in `plugin/lib/tasks.sh` beside `peal_cycle_check_text`, e.g. `peal_cycle_check_row VERB ROW RECORDS` (temp files, then `peal_cycle_check`). Return 1 on a refusal.
+
+**Docs:**
+- `docs/design.md` "A depends cycle is refused" names set-milestone next to filing, revising and deferring.
+- `docs/reference/cli.md` set-milestone section: one sentence on the refusal.
+
+**Verification:**
+- `plugin/lib/store-files.test.sh` `cycles()`:
+  - add `put "$work" backlog 0007 other-review "milestone: m1" "depends: [milestone]"` before `before=`;
+  - `check_fails "cycle: set-milestone" 1 "set-milestone: refused: depends cycle 0007 → 0004 → 0007" peal set-milestone 0007 m2` before the "nothing pushed" check (confirm the cycle string's starting id);
+  - `peal set-milestone 0003 m2` exits 0;
+  - after 0001/0002 are made a hand-made cycle, `peal set-milestone 0002 m1` exits 0.
+- `plugin/lib/store-issues.test.sh` `cycles()`:
+  - issues 5 (m1) and 6 (m2), each with body "Depends on milestone";
+  - `peal set-milestone 5 m2` refused with `#5 → #6 → #5`, and issue 5's milestone stays m1;
+  - `peal set-milestone 4 m2` exits 0;
+  - `peal set-milestone 1 m1` (on hand-made #1 ↔ #2) exits 0;
+  - the `length` expectation goes from 4 to 6 (add the new issues after the "cycles: list" checks, or extend those).
+- Run both test files and `shellcheck` on the changed scripts.
+
+Ranges: tasks.sh:103-113, tasks.sh:199-294, task-state.awk:117-125, store-files.sh:463-479, store-files.sh:496-514, store-files.sh:803-874, store-issues.sh:549-573, store-issues.sh:604-619, store-issues.sh:810-830, main-write.sh:109-186, main-write.sh:382-384, apply.sh:710-794, apply.sh:912, bin/peal:412-418, bin/peal:511, store-files.test.sh:211, store-files.test.sh:477-488, store-files.test.sh:539-570, store-issues.test.sh:594-601, store-issues.test.sh:786-808, docs/design.md:244-246, docs/reference/cli.md:256-257, docs/reference/cli.md:291-293, docs/reference/cli.md:446 (paths under `plugin/lib/` and `plugin/` unless named).
 
 ---
 
