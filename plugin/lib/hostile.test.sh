@@ -343,6 +343,17 @@ claim_wt() {
   rm -rf "${REPO:?}/tmp"/*
 }
 
+# json_escape TEXT -> TEXT's backslashes, quotes, newlines and tabs escaped for a JSON
+# string (any other control character left, which makes it no JSON).
+json_escape() {
+  local v=$1
+  v=${v//\\/\\\\}
+  v=${v//\"/\\\"}
+  v=${v//$'\n'/\\n}
+  v=${v//$'\t'/\\t}
+  printf '%s' "$v"
+}
+
 # A task text whose heading, frontmatter and Raw are hostile, for create, idea, revise.
 hostile_text() {
   printf -- '---\nmilestone: m1\nsize: S\ntouches: [%s]\n---\n\n# %s — %s\n\n## Intent\n\n%s\n\n## Raw\n\n%s\n\n## Notes\n\n---\n\n## Outcome\n\n<!-- fill in at close -->\n' \
@@ -406,6 +417,24 @@ awk_channels() {
   else
     check "create --owner --title: hostile stdin filed, to compare it byte for byte" "filed" "not filed: $bout"
   fi
+  # peal apply's JSON on stdin: each value raw in every field (mostly no JSON then), and
+  # escaped as JSON in a note's text and a filing's title, text and milestone.
+  cover apply
+  each_input "apply, raw values" "$WORK" '{"proposals": [{"id": "@", "kind": "add", "task": "0002", "text": "@"},
+    {"id": "f", "kind": "file", "title": "@", "text": "@", "milestone": "@", "why": "@"}]}' apply
+  local i v t
+  for ((i = 0; i < ${#H[@]}; i++)); do
+    v=$(json_escape "${H[i]}")
+    t=$(hostile_text)
+    t=$(json_escape "${t//@/${H[i]}}")
+    INPUT=$BASE/input
+    printf '{"proposals": [{"id": "%s", "kind": "add", "task": "0002", "text": "%s", "why": "%s"},
+      {"id": "f", "kind": "file", "title": "Hostile %s", "text": "%s", "milestone": "%s"}]}' \
+      "$v" "$v" "$v" "$v" "$t" "$v" >"$INPUT"
+    try "apply, escaped values [${H_NAMES[i]}]" "$WORK" apply
+  done
+  INPUT=$NOINPUT
+
   claim_wt 0001
   wt=$WT
   if [ -z "$wt" ] || [ ! -d "$wt" ]; then
@@ -625,6 +654,7 @@ arg_cases() {
   cover depend
   each "depend ID" "$WORK" depend @ 0002
   each "depend ON" "$WORK" depend 0001 @
+  each "apply ARG" "$WORK" apply @
   cover comment
   each "comment ID" "$WORK" comment @ text
   each "comment TEXT" "$WORK" comment 0001 @
