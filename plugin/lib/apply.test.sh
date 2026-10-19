@@ -230,6 +230,15 @@ M	tasks/backlog/0005-fifth-task.md" "$(git -C "$work" log -1 --format=%s origin/
   check "ms states: one commit" "$before" "$(git -C "$work" rev-parse origin/main~1)"
 }
 
+# ms_review -> a milestone whose only task not done is its review task closes.
+ms_review() {
+  local out
+  setup_tasks
+  put "$work" backlog 0005 review-of-m2 "milestone: m2" "depends: [milestone]"
+  out=$(printf '%s' '{"proposals": [{"id": "a", "kind": "milestone_state", "milestone": "m2", "state": "close"}]}' | peal apply 2>/dev/null)
+  check "ms review: its review task aside" '0:{"id": "a", "status": "done", "milestone": "m2", "detail": "milestone m2: done"}' "$?:$out"
+}
+
 # ms_padded -> zero-padded milestone ids give a zero-padded new one.
 ms_padded() {
   local out
@@ -424,6 +433,7 @@ cases() {
   mixed
   ms_mixed
   ms_states
+  ms_review
   ms_padded
   invalids
   defused

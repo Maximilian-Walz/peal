@@ -740,8 +740,7 @@ _pa_check() {
   for ((i = 1; i <= PA_COUNT; i++)); do
     if [ "$(_pa_val "$i" kind)" != milestone_state ] || [ "$(_pa_val "$i" state)" != close ]; then continue; fi
     id=$(cat "$PA_S/res.$i.milestone" 2>/dev/null) || continue
-    members=$(awk -F '\t' -v id="$id" '$6 == id && $2 != "done" && !index("," $11 ",", ",milestone,") {
-        out = out (out == "" ? "" : ", ") $1 } END { printf "%s", out }' "$after")
+    members=$(peal_ms_open_tasks "$id" <"$after" | awk -F '\t' '{ out = out (out == "" ? "" : ", ") $1 } END { printf "%s", out }')
     [ -z "$members" ] || _pa_bad "$i" "milestone $id still has tasks not done: $members; move them in the batch first"
   done
 }

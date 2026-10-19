@@ -86,9 +86,8 @@ peal_milestone_review() {
       r = r (r == "" ? "" : ", ") $1 ($1 == here ? " (this worktree'"'"'s)" : "") }
     END { print "Review task: " (r == "" ? "none" : r) "." }'
   echo "Tasks of $id not done, its review task aside:"
-  printf '%s\n' "$list" | awk -F '\t' -v id="$id" '
-    $6 == id && $2 != "done" && !index("," $7 ",", ",milestone,") {
-      printf "  %s %s %s\n", $1, $2, $5; n++ }
+  printf '%s\n' "$list" | peal_ms_open_tasks "$id" | awk -F '\t' '
+    { printf "  %s %s %s\n", $1, $2, $5; n++ }
     END { if (!n) print "  none" }'
   printf '%s\n' "$ms" | awk -F '\t' -v id="$id" -v st="$state" '
     $3 == "current" && $1 != id { cur = $1 " \"" $2 "\"" }
@@ -118,7 +117,7 @@ peal_milestone_review() {
     echo "The project's review steps: none ($steps does not exist)."
   fi
   echo
-  printf '%s\n' "$list" | awk -F '\t' -v id="$id" '
-    $6 == id && $2 != "done" && !index("," $7 ",", ",milestone,") { n++ }
+  printf '%s\n' "$list" | peal_ms_open_tasks "$id" | awk '
+    { n++ }
     END { print (n ? "OPEN " n : "READY") }'
 }

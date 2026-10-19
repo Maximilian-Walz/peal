@@ -84,6 +84,13 @@ peal_ms_text() {
   printf '\n## Acceptance criteria\n\n- A checkable statement the milestone review walks through.\n'
 }
 
+# peal_ms_open_tasks ID -> of peal_store_list's records on stdin, those of the tasks of
+# milestone ID not done, its review task (depends naming "milestone") aside: what keeps
+# the milestone from closing (peal milestone-review, peal apply's close).
+peal_ms_open_tasks() {
+  awk -F '\t' -v id="$1" '$6 == id && $2 != "done" && !index("," $7 ",", ",milestone,")'
+}
+
 # peal_ms_next_current -> of peal_ms_load's lines on stdin (by order), the milestone to
 # make current: nothing when one is current, else the first open one (nothing if none).
 # peal milestone-state and peal apply follow it after a milestone's state changes.
