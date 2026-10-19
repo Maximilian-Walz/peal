@@ -74,6 +74,33 @@ peal_ms_current() {
     END { exit !found }'
 }
 
+# peal_ms_text STATE ORDER TITLE [GOAL] -> a new milestone's file: STATE and ORDER as its
+# frontmatter, TITLE its heading, GOAL (or a placeholder) under "## Goal", a placeholder
+# under "## Acceptance criteria". peal init's first milestone and peal apply's
+# milestone_create.
+peal_ms_text() {
+  printf -- '---\nstate: %s\norder: %s\n---\n\n# %s\n\n## Goal\n\n' "$1" "$2" "$3"
+  if [ -n "${4-}" ]; then printf '%s\n' "$4"; else echo "What this milestone delivers, in a paragraph."; fi
+  printf '\n## Acceptance criteria\n\n- A checkable statement the milestone review walks through.\n'
+}
+
+# peal_ms_open_tasks ID -> of peal_store_list's records on stdin, those of the tasks of
+# milestone ID not done, its review task (depends naming "milestone") aside: what keeps
+# the milestone from closing (peal milestone-review, peal apply's close).
+peal_ms_open_tasks() {
+  awk -F '\t' -v id="$1" '$6 == id && $2 != "done" && !index("," $7 ",", ",milestone,")'
+}
+
+# peal_ms_next_current -> of peal_ms_load's lines on stdin (by order), the milestone to
+# make current: nothing when one is current, else the first open one (nothing if none).
+# peal milestone-state and peal apply follow it after a milestone's state changes.
+peal_ms_next_current() {
+  awk -F '\t' '
+    $3 == "current" { cur = $1 }
+    $3 == "open" && first == "" { first = $1 }
+    END { if (cur == "") print first }'
+}
+
 # The rules, by a task's milestone state ("" for a task without a milestone):
 #
 #   state     bare offer      claimable

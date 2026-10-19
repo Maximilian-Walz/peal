@@ -338,26 +338,6 @@ _peal_init_guardrails_remove() {
   _peal_init_record remove guardrails
 }
 
-# _peal_init_milestone_text TITLE -> the first milestone's file.
-_peal_init_milestone_text() {
-  cat <<EOF
----
-state: current
-order: 1
----
-
-# $1
-
-## Goal
-
-What this milestone delivers, in a paragraph.
-
-## Acceptance criteria
-
-- A checkable statement the milestone review walks through.
-EOF
-}
-
 _peal_init_milestones() {
   local title=$1 dir tmp status=0
   if [ "$(peal_config_get storage.kind)" = issues ]; then
@@ -370,7 +350,7 @@ _peal_init_milestones() {
       _peal_init_say unchanged "$dir/" "it holds milestones"
     else
       tmp=$(mktemp) || return 2
-      _peal_init_milestone_text "${title:-First milestone}" >"$tmp"
+      peal_ms_text current 1 "${title:-First milestone}" >"$tmp"
       _peal_init_put "$dir/m1.md" "$tmp" || status=2
       rm -f "$tmp"
       [ $status -eq 0 ] || return 2
@@ -388,7 +368,7 @@ _peal_init_milestones_remove() {
     file=$dir/m1.md
     if [ -f "$file" ]; then
       title=$(sed -n 's/^# //p' "$file" | head -n1)
-      if [ "$(_peal_init_milestone_text "$title")" = "$(cat "$file")" ]; then
+      if [ "$(peal_ms_text current 1 "$title")" = "$(cat "$file")" ]; then
         _peal_init_rm "$file"
         _peal_init_rmdir "$dir"
       else
