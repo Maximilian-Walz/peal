@@ -97,7 +97,9 @@ Where the pieces meet, and why:
   changes the human accepted: the whole list as one JSON document on stdin, written as one
   commit (one pull request where main is protected) instead of a pull request per
   change, a JSON line of result per proposal. It takes the task kinds (file, add, move,
-  priority, depends, retire); an invalid one and nothing is written
+  priority, depends, retire) and the milestone ones (milestone_create, milestone_update,
+  milestone_state; a new milestone's id is Peal's, named `@<proposal id>` by later
+  proposals of the batch); an invalid one and nothing is written
   ([CLI](reference/cli.md#peal-apply)). It is for task files; Belfry writes a
   `github-issues` project's proposals itself, so the issues storage refuses it.
 - The board's `after_deploy` list (pull requests a task waits on) is Belfry's contract
@@ -446,7 +448,7 @@ backstop for whatever `peal_hooks_ensure` could not fix, never the first word on
   files; `docs(tasks): revise`, `defer`, `set milestone of`, `note on` modify exactly one,
   the subject's `[NNNN]`; `docs(tasks): retire` moves that one to `done/` under its name;
   `docs(tasks): apply N proposals`, exactly so, only adds or modifies backlog task files
-  and moves backlog files to `done/` under their names;
+  and milestone files and moves backlog files to `done/` under their names;
   with the decisions module on, `docs(decisions): regenerate the index` changes the index
   alone; `docs(tasks): milestone` only modifies milestone files; `chore(release): <tag>`
   only modifies files of `release.version-files`, each byte for byte what setting its
