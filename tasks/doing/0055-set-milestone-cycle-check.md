@@ -18,6 +18,13 @@ As with the other verbs, a cycle that was already there and that the task was al
 
 Update the "A depends cycle is refused" paragraph in `docs/design.md` to name set-milestone next to filing, revising and deferring.
 
+## Scope
+
+- `peal_store_set_milestone` in both storages (`plugin/lib/store-files.sh`, `plugin/lib/store-issues.sh`) runs the cycle check before anything is written; a small row helper in `plugin/lib/tasks.sh`.
+- Tests in `cycles()` of both storage test files.
+- `docs/design.md` "A depends cycle is refused" and one sentence in `docs/reference/cli.md`'s set-milestone section.
+- Not in scope: `peal apply` (already checked by `_pa_check`), `plugin/lib/store.sh`'s interface comment, the milestone-review command text, and clearing a milestone from a task with `depends: [milestone]` (an idea).
+
 ## Done when
 
 - `peal set-milestone` refuses, with exit 1 and the cycle named, a move that puts the task on a depends cycle it was not on before, for task files and for issues
