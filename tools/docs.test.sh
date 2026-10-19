@@ -503,7 +503,7 @@ check "the documents are checked" "CONTRIBUTING.md README.md docs/getting-starte
   "$(grep -x -F -e README.md -e CONTRIBUTING.md -e docs/getting-started.md <<<"$files" | LC_ALL=C sort | tr '\n' ' ' | sed 's/ $//')"
 check "no milestone or decision record is checked" "0" "$(grep -c -E '^docs/(milestones|decisions)/' <<<"$files")"
 check "the reference pages are checked" "6" "$(grep -c '^docs/reference/' <<<"$files")"
-check "the guides are checked" "6" "$(grep -c '^docs/guides/' <<<"$files")"
+check "the guides are checked" "7" "$(grep -c '^docs/guides/' <<<"$files")"
 check "every guide has a marked block" "" "$(for g in "$REPO"/docs/guides/*.md; do
   [ "$(basename "$g")" == README.md ] || grep -q '^<!-- docs-check: ' "$g" || basename "$g"; done)"
 check "every marker kind is used" "belfry config decision frontmatter install migrate run sections settings shape" \
@@ -526,12 +526,12 @@ has() { # has NAME OUTPUT PATTERN
 }
 
 has "a renamed subcommand is reported" "$(mutant CONTRIBUTING.md 's/`peal check`/`peal nosuchsub`/')" "peal nosuchsub is not a subcommand"
-has "a subcommand in a fenced block is reported" "$(mutant docs/getting-started.md 's/^\$ peal next$/$ peal nosuchsub/')" "peal nosuchsub is not a subcommand"
+has "a subcommand in a fenced block is reported" "$(mutant docs/guides/setting-up.md 's/^\$ peal next$/$ peal nosuchsub/')" "peal nosuchsub is not a subcommand"
 has "an unknown command is reported" "$(mutant README.md 's|`/peal:setup`|`/peal:nosuch`|')" "/peal:nosuch has no"
 has "a broken link is reported" "$(mutant README.md 's|\(docs/getting-started.md\)|(docs/nowhere.md)|')" "docs/nowhere.md does not resolve"
 has "a broken anchor is reported" "$(mutant README.md 's|\(docs/getting-started.md\)|(docs/getting-started.md#nowhere)|')" "the anchor"
-has "an unknown config key is reported" "$(mutant docs/getting-started.md 's/^stages: \[tasks, guardrails\]$/nosuchkey: 1/')" "the config block does not load"
-has "a quoted output that changed is reported" "$(mutant docs/getting-started.md 's/^created .peal\/peal$/created .peal\/launcher/')" "did not print the line created .peal/launcher"
+has "an unknown config key is reported" "$(mutant docs/guides/setting-up.md 's/^stages: \[tasks, guardrails\]$/nosuchkey: 1/')" "the config block does not load"
+has "a quoted output that changed is reported" "$(mutant docs/guides/setting-up.md 's/^created .peal\/peal$/created .peal\/launcher/')" "did not print the line created .peal/launcher"
 has "a quoted output that changed in a guide, whose block uses the remote, is reported" "$(mutant docs/guides/working-a-task.md 's/^TASK 0001 tasks\/doing\/0001-health-check.md$/TASK 0001 tasks\/doing\/0001-nosuch.md/')" "did not print the line TASK 0001 tasks/doing/0001-nosuch.md"
 has "a wrong filed line is reported" "$(mutant README.md 's/size: S/size: L/')" "the filed line is"
 has "a wrong install line is reported" "$(mutant README.md 's|install peal@peal|install peal@other|')" "the plugin is peal@peal"
@@ -548,9 +548,9 @@ has "a frontmatter block that does not parse is reported" "$(mutant docs/referen
 has "a claude plugin line for another plugin is reported" "$(mutant CONTRIBUTING.md 's|uninstall peal@peal|uninstall peal@other|')" "the plugin is peal@peal"
 has "a claude plugin line with a bad scope is reported" "$(mutant CONTRIBUTING.md 's|install peal@peal --scope project|install peal@peal --scope global|')" "has a --scope that is not"
 has "a fenced block with no marker is reported" "$(mutant docs/getting-started.md '/^<!-- docs-check: install -->$/d')" "a fenced block with no docs-check marker"
-has "a settings block for another repo is reported" "$(mutant docs/getting-started.md 's|Maximilian-Walz/peal", "ref"|other/peal", "ref"|')" 'the repo is "other/peal"'
+has "a settings block for another repo is reported" "$(mutant docs/guides/setting-up.md 's|Maximilian-Walz/peal", "ref"|other/peal", "ref"|')" 'the repo is "other/peal"'
 has "a settings block in the design for another repo is reported" "$(mutant docs/design.md 's|"repo": "Maximilian-Walz/peal"\}|"repo": "other/peal"}|')" 'the repo is "other/peal"'
-has "a settings block with a ref that is no tag is reported" "$(mutant docs/getting-started.md 's|"ref": "vX"|"ref": "main"|')" 'the ref "main"'
+has "a settings block with a ref that is no tag is reported" "$(mutant docs/guides/setting-up.md 's|"ref": "vX"|"ref": "main"|')" 'the ref "main"'
 has "a misspelt migrate flag is reported" "$(mutant docs/migrating.md 's/^peal migrate headers --none unassigned --parked/peal migrate headers --none unassigned --parkd/')" 'peal migrate headers --none unassigned --parkd later,any --open process" exits 2'
 has "a renamed task section is reported" "$(mutant docs/reference/tasks.md 's/^## Done when$/## Finished when/')" "plugin/templates/task.md has"
 has "a changed line of the belfry block is reported" "$(mutant docs/design.md 's|^    claim: .peal/peal claim|    claim: .peal/peal take|')" "the tasks: part is"

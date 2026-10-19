@@ -5,6 +5,8 @@ how to do a thing; the [reference](../reference/README.md) says exactly what eac
 takes and prints, and [the design](../design.md) why. The first task is in
 [getting started](../getting-started.md); the guides begin where it ends.
 
+- [Setting up in stages](setting-up.md): pin a release, add and remove the stages, and let
+  `/peal:next` suggest what to adopt.
 - [Working a task](working-a-task.md): plan, build, review and close, and what to do when a
   step fails or the session stops.
 - [The backlog](backlog.md): file, split, defer, retire and revise tasks, and read what is
