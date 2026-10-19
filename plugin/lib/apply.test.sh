@@ -306,6 +306,7 @@ invalids() {
   invalid "a duplicate id" "{\"proposals\": [$ok, {\"id\": \"ok\", \"kind\": \"priority\", \"task\": \"0001\", \"priority\": \"low\"}]}" 2 "the id of proposal 1 as well"
   invalid "a lone surrogate" "{\"proposals\": [$ok, {\"id\": \"b\", \"kind\": \"add\", \"task\": \"0001\", \"text\": \"\\ud800\"}]}" 2 "a lone surrogate"
   ms_invalids
+  split_invalids
   invalid "malformed JSON" '{"proposals": [{"id": "a", "kind": "move"' 1 "no JSON document"
   invalid "not JSON at all" 'proposals' 1 "no JSON document"
 }
@@ -337,6 +338,96 @@ ms_invalids() {
     {\"id\": \"f\", \"kind\": \"file\", \"title\": \"Filed one here\", \"milestone\": \"@mk\", \"text\": \"---\\n---\\n\\n# NNNN — T\\n\\n## Raw\\n\\nx\\n\"}]}" 3 "is parked"
   invalid "ms: a move out of a parked milestone" "{\"proposals\": [$ok, {\"id\": \"b\", \"kind\": \"move\", \"task\": \"0005\", \"milestone\": null}]}" 2 "milestone m3 is parked"
   invalid "ms: a close with a task not done" "{\"proposals\": [$ok, {\"id\": \"b\", \"kind\": \"milestone_state\", \"milestone\": \"m1\", \"state\": \"close\"}]}" 2 "milestone m1 still has tasks not done: 0001"
+}
+
+# split_invalids -> each kind of invalid split_milestone, the batch changing nothing.
+split_invalids() {
+  local ok='{"id": "ok", "kind": "priority", "task": "0002", "priority": "low"}' pre='{"id": "s", "kind": "split_milestone", "title": "Half", "from": "m1"'
+  put "$work" backlog 0006 sixth-task "milestone: m1"
+  publish "$work"
+  git -C "$work" fetch -q origin
+  invalid "split: a task not in from" "{\"proposals\": [$ok, $pre, \"tasks\": [\"0006\", \"0002\"]}]}" 2 "task 0002 is not in milestone m1"
+  invalid "split: a task in no milestone" "{\"proposals\": [$ok, $pre, \"tasks\": [\"0004\"]}]}" 2 "task 0004 is claimed"
+  invalid "split: a task of no milestone" "{\"proposals\": [$ok, $pre, \"tasks\": [\"0003\"]}]}" 2 "task 0003 is not in milestone m1"
+  invalid "split: an unknown from" "{\"proposals\": [$ok, {\"id\": \"s\", \"kind\": \"split_milestone\", \"title\": \"Half\", \"from\": \"m9\", \"tasks\": [\"0001\"]}]}" 2 "milestone m9 does not exist"
+  invalid "split: no from" "{\"proposals\": [$ok, {\"id\": \"s\", \"kind\": \"split_milestone\", \"title\": \"Half\", \"tasks\": [\"0001\"]}]}" 2 "no from"
+  invalid "split: no title" "{\"proposals\": [$ok, {\"id\": \"s\", \"kind\": \"split_milestone\", \"from\": \"m1\", \"tasks\": [\"0001\"]}]}" 2 "no title"
+  invalid "split: no tasks" "{\"proposals\": [$ok, {\"id\": \"s\", \"kind\": \"split_milestone\", \"from\": \"m1\", \"title\": \"Half\"}]}" 2 "no tasks"
+  invalid "split: an empty array" "{\"proposals\": [$ok, $pre, \"tasks\": []}]}" 2 "tasks is empty"
+  invalid "split: an empty item" "{\"proposals\": [$ok, $pre, \"tasks\": [\"0001\", \"\"]}]}" 2 "tasks item 2 () is no task id"
+  invalid "split: a number item" "{\"proposals\": [$ok, $pre, \"tasks\": [1]}]}" 2 "field tasks holds an item that is not a string"
+  invalid "split: a null item" "{\"proposals\": [$ok, $pre, \"tasks\": [null]}]}" 2 "field tasks holds an item that is not a string"
+  invalid "split: an object item" "{\"proposals\": [$ok, $pre, \"tasks\": [{\"a\": [1]}]}]}" 2 "field tasks holds an item that is not a string"
+  invalid "split: a nested array item" "{\"proposals\": [$ok, $pre, \"tasks\": [[\"0001\"]]}]}" 2 "field tasks holds an item that is not a string"
+  invalid "split: a duplicate item" "{\"proposals\": [$ok, $pre, \"tasks\": [\"0001\", \"0001\"]}]}" 2 "tasks names 0001 twice"
+  invalid "split: a non-NNNN item" "{\"proposals\": [$ok, $pre, \"tasks\": [\"0001; ls\"]}]}" 2 "is no task id (NNNN)"
+  invalid "split: an @ to no file proposal" "{\"proposals\": [$ok, $pre, \"tasks\": [\"@zz\"]}]}" 2 "names no earlier file proposal"
+  invalid "split: tasks as a string" "{\"proposals\": [$ok, $pre, \"tasks\": \"0001\"}]}" 2 "tasks is not an array of strings"
+  invalid "split: tasks null" "{\"proposals\": [$ok, $pre, \"tasks\": null}]}" 2 "no tasks"
+  invalid "split: tasks on a move" "{\"proposals\": [$ok, {\"id\": \"b\", \"kind\": \"move\", \"task\": \"0001\", \"milestone\": null, \"tasks\": [\"0001\"]}]}" 2 "field tasks is not one move takes"
+  invalid "split: an array on the title" "{\"proposals\": [$ok, {\"id\": \"s\", \"kind\": \"split_milestone\", \"from\": \"m1\", \"tasks\": [\"0001\"], \"title\": [\"x\"]}]}" 2 "field title is an array"
+  invalid "split: an array on from" "{\"proposals\": [$ok, {\"id\": \"s\", \"kind\": \"split_milestone\", \"title\": \"Half\", \"tasks\": [\"0001\"], \"from\": [\"m1\"]}]}" 2 "field from is an array"
+  invalid "split: a lone surrogate item" "{\"proposals\": [$ok, $pre, \"tasks\": [\"\\ud800\"]}]}" 2 "a lone surrogate"
+  invalid "split: from parked at the start" "{\"proposals\": [$ok, {\"id\": \"s\", \"kind\": \"split_milestone\", \"title\": \"Half\", \"from\": \"m3\", \"tasks\": [\"0005\"]}]}" 2 "milestone m3 is parked"
+  invalid "split: a retired task" "{\"proposals\": [$ok, {\"id\": \"r\", \"kind\": \"retire\", \"task\": \"0006\", \"reason\": \"gone\"}, $pre, \"tasks\": [\"0006\"]}]}" 3 "task 0006 is retired"
+  invalid "split: a later @ as from" "{\"proposals\": [{\"id\": \"s\", \"kind\": \"split_milestone\", \"title\": \"Half\", \"from\": \"@t\", \"tasks\": [\"0001\"]},
+    {\"id\": \"t\", \"kind\": \"milestone_create\", \"title\": \"T\"}, $ok]}" 1 "names no earlier milestone_create or split_milestone"
+}
+
+# ms_split -> split_milestone proposals in a batch: one commit, the milestones and the tasks moved.
+ms_split() {
+  local before out st t r=""
+  setup_tasks
+  put "$work" backlog 0005 fifth-task "milestone: m1"
+  publish "$work"
+  git -C "$work" fetch -q origin
+  before=$(main_sha)
+  out=$(printf '%s' '{"proposals": [
+    {"id": "s", "kind": "split_milestone", "from": "m1", "tasks": ["0001", "0005"], "title": "Second half", "goal": "The rest.", "why": "too big"},
+    {"id": "m", "kind": "move", "task": "0002", "milestone": "@s"},
+    {"id": "f", "kind": "file", "title": "Filed in the half", "milestone": "@s", "text": "---\n---\n\n# NNNN — T\n\n## Raw\n\nx\n"},
+    {"id": "t", "kind": "split_milestone", "from": "@s", "tasks": ["@f", "0002"], "title": "Third part"},
+    {"id": "p", "kind": "priority", "task": "0001", "priority": "low"}]}' | peal apply 2>"$work.err")
+  st=$?
+  check "split: status" "0" "$st"
+  check "split: the answer" '{"id": "s", "status": "done", "milestone": "m4", "detail": "created milestone m4 (docs/milestones/m4.md); moved 0001, 0005"}
+{"id": "m", "status": "done", "task": "0002", "detail": "task 0002: milestone m4"}
+{"id": "f", "status": "done", "task": "0006", "detail": "filed tasks/backlog/0006-filed-in-the-half.md"}
+{"id": "t", "status": "done", "milestone": "m5", "detail": "created milestone m5 (docs/milestones/m5.md); moved 0006, 0002"}
+{"id": "p", "status": "done", "task": "0001", "detail": "task 0001: priority low"}' "$out"
+  check "split: one commit" "$before" "$(git -C "$work" rev-parse origin/main~1)"
+  check "split: the subject" "docs(tasks): apply 5 proposals" "$(git -C "$work" log -1 --format=%s origin/main)"
+  check "split: the files changed" "A	docs/milestones/m4.md
+A	docs/milestones/m5.md
+M	tasks/backlog/0001-first-task.md
+M	tasks/backlog/0002-second-task.md
+M	tasks/backlog/0005-fifth-task.md
+A	tasks/backlog/0006-filed-in-the-half.md" "$(git -C "$work" diff --name-status origin/main~1 origin/main)"
+  check "split: the new milestone, init's text, order from's + 1" "---
+state: open
+order: 2
+---
+
+# Second half
+
+## Goal
+
+The rest.
+
+## Acceptance criteria
+
+- A checkable statement the milestone review walks through." "$(on_main "$work" docs/milestones/m4.md)"
+  check "split: the second one's order, from the first's" "3" "$(on_main "$work" docs/milestones/m5.md | sed -n 's/^order: //p')"
+  for t in 0001-first-task 0002-second-task 0005-fifth-task 0006-filed-in-the-half; do
+    on_main "$work" "tasks/backlog/$t.md" >"$work.t"
+    r="$r ${t%%-*}=$(peal frontmatter get "$work.t" milestone)"
+  done
+  check "split: the tasks' milestones" " 0001=m4 0002=m5 0005=m4 0006=m5" "$r"
+  check "split: peal check passes" "0" "$(git -C "$work" pull -q origin main 2>/dev/null; peal check >/dev/null 2>&1; echo $?)"
+  # A given order and due are used as is.
+  printf '%s' '{"proposals": [{"id": "s", "kind": "split_milestone", "from": "m4", "tasks": ["0005"], "title": "Ordered", "order": 40, "due": "2027-05-05"}]}' | peal apply >/dev/null 2>&1
+  on_main "$work" docs/milestones/m6.md >"$work.m6"
+  check "split: a given order and due" "40 2027-05-05" "$(peal frontmatter get "$work.m6" order) $(peal frontmatter get "$work.m6" due)"
 }
 
 # ms_pr -> task and milestone proposals through one pull request on a main that refuses
@@ -431,6 +522,7 @@ issues() {
 cases() {
   mixed
   ms_mixed
+  ms_split
   ms_states
   ms_review
   ms_padded
