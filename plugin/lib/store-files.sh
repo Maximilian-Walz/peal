@@ -1218,11 +1218,8 @@ _peal_files_build_ms_state() {
     return 4
   fi
   # The milestone that is current afterwards: the one there is, else the first open one.
-  next=$(printf '%s\n' "$PEAL_MILESTONES" | awk -F '\t' -v id="$PEAL_MS_ID" -v st="$PEAL_MS_STATE" '
-    { s = ($1 == id ? st : $3) }
-    s == "current" { cur = $1 }
-    s == "open" && first == "" { first = $1 }
-    END { if (cur == "") print first }')
+  next=$(printf '%s\n' "$PEAL_MILESTONES" | awk -F '\t' -v OFS='\t' -v id="$PEAL_MS_ID" -v st="$PEAL_MS_STATE" '
+    $1 == id { $3 = st } { print }' | peal_ms_next_current)
   final=$PEAL_MS_STATE
   [ "$next" != "$PEAL_MS_ID" ] || { final=current next=""; }
   cp "$root/$file" "$PEAL_MS_TMP/ms" || return 2
