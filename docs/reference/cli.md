@@ -323,12 +323,13 @@ Each proposal is an object with an `id` (Belfry's, echoed back), a `kind`, an op
 | `milestone_create` | `title`, `goal`, `due`, `order` | a new `open` milestone file, `peal init`'s text: `# <title>` (one line), `## Goal` (`goal`, prose with no `---` or `## ` line, else a placeholder), `## Acceptance criteria` (a placeholder); `due` a date, `YYYY-MM-DD`; `order` an integer, by default one past the highest. Its id is Peal's: `m` and one past the highest numeric id, zero-padded when all of them are |
 | `milestone_update` | `milestone`, `title`, `due`, `order` | at least one of the three; `title` goes into the frontmatter's `title` when the file has one, else its `# ` heading; `due: null` and `order: null` remove the field |
 | `milestone_state` | `milestone`, `state`, `reason` | `state` `park` (parked), `unpark` or `reopen` (open), `close` (done); `reason`, one line, with `park` only. A state the milestone has already changes nothing. Then, when no milestone is current, the first open one by order becomes current, as `peal milestone-state` does |
+| `split_milestone` | `from`, `tasks`, `title`, `goal`, `due`, `order` | `milestone_create`'s milestone (`title`, `goal`, `due` as there; `order` by default `from`'s plus one, not renumbering the rest), and the tasks moved to it: `tasks` is an array of strings, each a task id or an `@<id>` of an earlier `file` proposal, none twice, none left out of `from` (a task not in `from` as the batch stands at that proposal is invalid). The answer carries `milestone` (the new id) and no `task`; the moved tasks are in `detail` |
 
 A `task`, `on` or `duplicate` written `@<id>` is the task the `file` proposal `<id>` of
 the same batch files (for `task`, an earlier one). A `milestone` written `@<id>` (in
-`file`, `move`, `milestone_update`, `milestone_state`) is the milestone an earlier
-`milestone_create` `<id>` makes. `split_milestone` is not taken yet; `fold` and `dismiss`
-are Belfry's own, no backlog change. Both are answered `invalid`. A new milestone's id is
+`file`, `move`, `milestone_update`, `milestone_state`, and a `split_milestone`'s `from`)
+is the milestone an earlier `milestone_create` or `split_milestone` `<id>` makes. `fold`
+and `dismiss` are Belfry's own, no backlog change; both are answered `invalid`. A new milestone's id is
 reserved nowhere: two batches making one in rival pull requests conflict, and the second
 is made again.
 

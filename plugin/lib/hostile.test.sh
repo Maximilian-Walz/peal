@@ -439,9 +439,14 @@ awk_channels() {
       {"id": "s", "kind": "milestone_state", "milestone": "@m", "state": "park", "reason": "%s"}]}' \
       "$v" "$v" "$v" "$v" "$v" >"$INPUT"
     try "apply, escaped milestone values [${H_NAMES[i]}]" "$WORK" apply
+    # A split: the hostile value as an item of tasks, as from and as the title.
+    printf '{"proposals": [{"id": "x", "kind": "split_milestone", "from": "%s", "tasks": ["%s", "%s"], "title": "%s", "goal": "%s"}]}' \
+      "$v" "$v" "$v" "$v" "$v" >"$INPUT"
+    try "apply, escaped split values [${H_NAMES[i]}]" "$WORK" apply
   done
   each_input "apply, raw milestone values" "$WORK" '{"proposals": [{"id": "@", "kind": "milestone_create", "title": "@", "goal": "@", "due": "@", "order": "@"},
     {"id": "s", "kind": "milestone_state", "milestone": "@", "state": "@", "reason": "@"}]}' apply
+  each_input "apply, raw split values" "$WORK" '{"proposals": [{"id": "@", "kind": "split_milestone", "from": "@", "tasks": ["@", "@"], "title": "@", "goal": "@"}]}' apply
   INPUT=$NOINPUT
   # A new milestone's title and goal land in its file byte for byte.
   local mout mid

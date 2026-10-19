@@ -28,11 +28,17 @@
 #   milestone_state  milestone, state (park: parked, unpark and reopen: open, close:
 #             done), reason (park only, one line); then, when none is current, the first
 #             open milestone by order made current
+#   split_milestone  from (a milestone), tasks (an array of task ids, every one in from),
+#             title, goal, due, order (as milestone_create's; by default from's + 1, else
+#             one past the highest): a new milestone, as milestone_create makes it, and
+#             those tasks moved to it. The one array Peal reads, each item a string of its
+#             own (lib/apply.awk)
 # A task, an on or a duplicate written "@<id>" is the task the file proposal <id> of the
 # batch files; for task, an earlier one. A milestone written "@<id>" (in file, move,
 # milestone_update, milestone_state) is the milestone an earlier milestone_create <id>
-# makes. split_milestone is not there yet; fold and dismiss are Belfry's own and no
-# backlog change. Both are answered invalid.
+# makes (a split_milestone's too, and "from" may name one); an item of tasks is a task id
+# or an "@<id>" of an earlier file proposal. fold and dismiss are Belfry's own and no
+# backlog change; both are answered invalid.
 #
 # Every proposal is checked against the main branch as the whole batch leaves it, every
 # problem reported: a task in the backlog that nobody claimed, a milestone that exists,
@@ -49,7 +55,17 @@
 # write went through one. Exit 0 all done, 2 an invalid batch with nothing changed, 1 the
 # write failed.
 
-PEAL_APPLY_KINDS="file add move priority depends retire milestone_create milestone_update milestone_state"
+PEAL_APPLY_KINDS="file add move priority depends retire milestone_create milestone_update milestone_state split_milestone"
+
+# _pa_items I KEY -> the files of proposal I's array KEY, one per item, in order; items
+# are only ever read from them, matched whole, never split into words.
+_pa_items() {
+  local n=1
+  while [ -f "$PA_DIR/p/$1.$2.$n" ]; do
+    printf '%s\n' "$PA_DIR/p/$1.$2.$n"
+    n=$((n + 1))
+  done
+}
 
 # _pa_type I KEY -> the type of proposal I's field KEY (s, n, true, false, null); status 1
 # if it has none.
@@ -103,30 +119,31 @@ _pa_file_index() {
   return 1
 }
 
-# _pa_ms_index ID BEFORE -> the index of the milestone_create proposal numbered below
+# _pa_ms_index ID BEFORE -> the index of the milestone_create or split_milestone proposal numbered below
 # BEFORE whose id is ID; status 1 if there is none.
 _pa_ms_index() {
   local j
   for ((j = 1; j < $2; j++)); do
-    if [ "$(_pa_val "$j" kind)" != milestone_create ] || [ "$(_pa_val "$j" id)" != "$1" ]; then continue; fi
+    case $(_pa_val "$j" kind) in milestone_create | split_milestone) ;; *) continue ;; esac
+    [ "$(_pa_val "$j" id)" = "$1" ] || continue
     printf '%s\n' "$j"
     return 0
   done
   return 1
 }
 
-# _pa_ms_ref I -> status 0 when proposal I's milestone is a milestone id or the "@<id>"
-# of an earlier milestone_create of the batch; else invalid.
+# _pa_ms_ref I KEY -> status 0 when proposal I's KEY is a milestone id or the "@<id>"
+# of an earlier milestone_create or split_milestone of the batch; else invalid.
 _pa_ms_ref() {
-  local i=$1 v
-  v=$(_pa_val "$i" milestone)
+  local i=$1 key=$2 v
+  v=$(_pa_val "$i" "$key")
   if [ "${v#@}" != "$v" ]; then
     _pa_ms_index "${v#@}" "$i" >/dev/null && return 0
-    _pa_bad "$i" "milestone ${v:0:40} names no earlier milestone_create proposal of the batch"
+    _pa_bad "$i" "$key ${v:0:40} names no earlier milestone_create or split_milestone proposal of the batch"
     return 1
   fi
   [[ "$v" =~ ^[A-Za-z0-9._-]+$ ]] && return 0
-  _pa_bad "$i" "milestone ${v:0:40} is no milestone id or @<proposal id>"
+  _pa_bad "$i" "$key ${v:0:40} is no milestone id or @<proposal id>"
   return 1
 }
 
@@ -187,9 +204,7 @@ _pa_static() {
     milestone_create) allowed="title goal due order" required="title" ;;
     milestone_update) allowed="milestone title due order" required="milestone" ;;
     milestone_state) allowed="milestone state reason" required="milestone state" ;;
-    split_milestone)
-      _pa_bad "$i" "not yet: peal apply does not take split_milestone yet"
-      return ;;
+    split_milestone) allowed="from tasks title goal due order" required="from tasks title" ;;
     fold | dismiss)
       _pa_bad "$i" "not a backlog change; Belfry carries it out"
       return ;;
@@ -203,6 +218,8 @@ _pa_static() {
       *) _pa_bad "$i" "field $k is not one $kind takes"; continue ;;
     esac
     case $k:$t in
+      tasks:a) ;;
+      tasks:*) [ "$kind" != split_milestone ] || _pa_bad "$i" "tasks is not an array of strings" ;;
       order:n) ;;
       order:*) [ "$kind:$t" = milestone_update:null ] || _pa_bad "$i" "order is not an integer" ;;
       due:null) [ "$kind" = milestone_update ] || _pa_bad "$i" "due is not a date, YYYY-MM-DD" ;;
@@ -223,7 +240,7 @@ _pa_static() {
   _pa_ok "$i" || return
 
   case $kind in
-    milestone_*) _pa_static_ms "$i" "$kind"; return ;;
+    milestone_* | split_milestone) _pa_static_ms "$i" "$kind"; return ;;
   esac
   if [ "$kind" = file ]; then
     slug=$(_peal_slug_normalise "$(_pa_val "$i" title)" | cut -d- -f1-5)
@@ -237,7 +254,7 @@ _pa_static() {
     v=$(_pa_val "$i" task)
     [ "$kind" != retire ] || [ "${v#@}" = "$v" ] || _pa_bad "$i" "retires a task the batch files"
   fi
-  if _pa_has "$i" milestone; then _pa_ms_ref "$i" || true; fi
+  if _pa_has "$i" milestone; then _pa_ms_ref "$i" milestone || true; fi
   if _pa_has "$i" priority; then
     case $(_pa_val "$i" priority) in
       urgent | high | normal | low) ;;
@@ -275,8 +292,31 @@ _pa_static() {
 
 # _pa_static_ms I KIND -> the fields of proposal I, of the milestone kind KIND, checked.
 _pa_static_ms() {
-  local i=$1 kind=$2 v
-  [ "$kind" = milestone_create ] || _pa_ms_ref "$i" || true
+  local i=$1 kind=$2 v f n=0 seen=$'\n'
+  case $kind in
+    milestone_create) ;;
+    split_milestone) _pa_ms_ref "$i" from || true ;;
+    *) _pa_ms_ref "$i" milestone || true ;;
+  esac
+  if [ "$kind" = split_milestone ] && _pa_has "$i" tasks; then
+    while IFS= read -r f; do
+      n=$((n + 1))
+      v=$(cat "$f"; echo x)
+      v=${v%x}
+      if [[ "$v" =~ ^[0-9][0-9][0-9][0-9]$ ]]; then
+        :
+      elif [[ "$v" =~ ^@[^[:cntrl:]]+$ ]]; then
+        _pa_file_index "${v#@}" "$i" >/dev/null || _pa_bad "$i" "tasks item $n (${v:0:40}) names no earlier file proposal of the batch"
+      else
+        _pa_bad "$i" "tasks item $n (${v:0:40}) is no task id (NNNN) or @<proposal id>"
+      fi
+      case $seen in
+        *$'\n'"$v"$'\n'*) _pa_bad "$i" "tasks names ${v:0:40} twice" ;;
+      esac
+      seen="$seen$v"$'\n'
+    done < <(_pa_items "$i" tasks)
+    [ "$n" -gt 0 ] || _pa_bad "$i" "tasks is empty"
+  fi
   if _pa_has "$i" title; then _pa_line "$i" title || true; fi
   if _pa_has "$i" due; then
     v=$(_pa_val "$i" due)
@@ -366,7 +406,7 @@ _pa_item() {
   local i=$1 base=$2 kind id on text f deps v line
   kind=$(_pa_val "$i" kind)
   case $kind in
-    milestone_*) _pa_ms_item "$i"; return ;;
+    milestone_* | split_milestone) _pa_ms_item "$i" "$base"; return ;;
   esac
   if [ "$kind" = file ]; then
     id=$(cat "$PA_S/new.$i")
@@ -469,7 +509,7 @@ _pa_ms_path() {
   awk -F '\t' -v id="$1" '$1 == id { print $2; found = 1; exit } END { exit !found }' "$PA_S/ms.idx"
 }
 
-# _pa_ms_ids BASE -> the milestone_create proposals not invalid given their ids
+# _pa_ms_ids BASE -> the milestone_create and split_milestone proposals not invalid given their ids
 # (PA_S/msnew.I): m<N>, N one past the highest numeric id, zero-padded to their width
 # when every numeric id has the same one, a name a milestone file has skipped.
 _pa_ms_ids() {
@@ -478,7 +518,8 @@ _pa_ms_ids() {
     /^m[0-9]+$/ { n = substr($0, 2); if (n + 0 > max) max = n + 0; w = length(n); if (seen && w != width) mixed = 1; width = w; seen = 1 }
     END { print max + 0, (mixed || !seen ? 1 : width) }')
   for ((i = 1; i <= PA_COUNT; i++)); do
-    if ! _pa_ok "$i" || [ "$(_pa_val "$i" kind)" != milestone_create ]; then continue; fi
+    if ! _pa_ok "$i"; then continue; fi
+    case $(_pa_val "$i" kind) in milestone_create | split_milestone) ;; *) continue ;; esac
     while :; do
       max=$((max + 1))
       id=$(printf 'm%0*d' "$width" "$max")
@@ -496,21 +537,60 @@ _pa_ms_order() {
   done <"$PA_S/ms.idx" | awk '/^-?[0-9]+$/ && (max == "" || $0 + 0 > max) { max = $0 + 0 } END { print max + 1 }'
 }
 
-# _pa_ms_item I -> milestone proposal I applied to the compose's milestone files; status
+# _pa_ms_item I BASE -> milestone proposal I applied to the compose's milestone files; status
 # 2 with the problem on stderr.
 _pa_ms_item() {
-  local i=$1 kind id rel f v order old target what="" st
+  local i=$1 base=$2 kind id rel f v order old target what="" st from frel tid tf j moved="" ids=()
   kind=$(_pa_val "$i" kind)
-  if [ "$kind" = milestone_create ]; then
+  if [ "$kind" = milestone_create ] || [ "$kind" = split_milestone ]; then
     id=$(cat "$PA_S/msnew.$i")
     rel=$PA_MSDIR/$id.md
     f=$PA_S/ms/$rel
-    if _pa_has "$i" order; then order=$(_pa_val "$i" order); else order=$(_pa_ms_order) || return 2; fi
+    if [ "$kind" = split_milestone ]; then
+      from=$(_pa_ms_resolve "$i" from) || return 2
+      frel=$(_pa_ms_path "$from") || { peal_err "milestone $from does not exist"; return 2; }
+    fi
+    if _pa_has "$i" order; then
+      order=$(_pa_val "$i" order)
+    elif [ "$kind" = split_milestone ]; then
+      order=$(peal_fm_get "$PA_S/ms/$frel" order 2>/dev/null) || order=""
+      if [[ "$order" =~ ^-?[0-9]+$ ]] && [ ${#order} -le 9 ]; then order=$((order + 1)); else order=$(_pa_ms_order) || return 2; fi
+    else
+      order=$(_pa_ms_order) || return 2
+    fi
+    if [ "$kind" = split_milestone ]; then
+      # Every task is judged before anything is written.
+      while IFS= read -r tf; do
+        v=$(cat "$tf")
+        if [ "${v#@}" != "$v" ]; then
+          j=$(_pa_file_index "${v#@}" "$i") || { peal_err "tasks item $v: no earlier file proposal"; return 2; }
+          [ -f "$PA_S/new.$j" ] || { peal_err "tasks item $v: that file proposal is invalid"; return 2; }
+          tid=$(cat "$PA_S/new.$j")
+        else
+          tid=$v
+        fi
+        _pa_load "$tid" "$base" || return 2
+        if [ -f "$PA_S/t/$tid.retired" ]; then
+          peal_err "task $tid is retired by an earlier proposal"
+          return 2
+        fi
+        case " ${ids[*]-} " in *" $tid "*) peal_err "task $tid is listed twice"; return 2 ;; esac
+        [ "$(peal_fm_get "$PA_S/t/$tid.text" milestone 2>/dev/null)" = "$from" ] \
+          || { peal_err "task $tid is not in milestone $from"; return 2; }
+        ids+=("$tid")
+      done < <(_pa_items "$i" tasks)
+    fi
     mkdir -p "${f%/*}" || return 2
     peal_ms_text open "$order" "$(_pa_val "$i" title)" "$(_pa_val "$i" goal)" >"$f" || return 2
     if _pa_has "$i" due; then peal_fm_set "$f" due "$(_pa_val "$i" due)" || return 2; fi
     printf '%s\t%s\n' "$id" "$rel" >>"$PA_S/ms.idx"
     printf 'created milestone %s (%s)' "$id" "$rel" >"$PA_S/res.$i.detail"
+    for tid in "${ids[@]+"${ids[@]}"}"; do
+      peal_fm_set "$PA_S/t/$tid.text" milestone "$id" || return 2
+      echo "$i" >"$PA_S/t/$tid.last"
+      moved="${moved:+$moved, }$tid"
+    done
+    [ -z "$moved" ] || printf '; moved %s' "$moved" >>"$PA_S/res.$i.detail"
   else
     id=$(_pa_ms_resolve "$i" milestone) || return 2
     rel=$(_pa_ms_path "$id") || { peal_err "milestone $id does not exist"; return 2; }
@@ -837,7 +917,7 @@ _peal_apply_files() {
   PA_DIR=$(mktemp -d) || return 2
   mkdir -p "$PA_DIR/p" "$PA_DIR/r"
   PA_INVALID="" PA_CHANGE="" PA_COUNT=0 PA_S=$PA_DIR/s
-  LC_ALL=C awk -v dir="$PA_DIR/p" -f "$PEAL_ROOT/lib/apply.awk" >"$PA_DIR/manifest"
+  LC_ALL=C awk -v dir="$PA_DIR/p" -v arrays="tasks" -f "$PEAL_ROOT/lib/apply.awk" >"$PA_DIR/manifest"
   line=$(awk -F '\t' '$1 == "doc" { print $3; exit }' "$PA_DIR/manifest")
   if [ -n "$line" ] || ! grep -q '^count	' "$PA_DIR/manifest"; then
     printf '{"id": "", "status": "invalid", "detail": %s}\n' \
