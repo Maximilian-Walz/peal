@@ -670,6 +670,15 @@ peal_close_stop() {
 # The branch checked out here is the one checked; anything that cannot be verified is
 # BLOCKED, never READY.
 peal_close_verify() {
+  local errfile status
+  errfile=$(mktemp) || { echo "BLOCKED:gh-failed"; return 1; }
+  PEAL_GH_ERRFILE=$errfile _peal_close_verify
+  status=$?
+  rm -f "$errfile"
+  return $status
+}
+
+_peal_close_verify() {
   local top branch main gitdir ahead remote_ref repo pr state merged mergeable sha checks status
   top=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "BLOCKED:not-a-repo"; return 1; }
   cd "$top" || { echo "BLOCKED:not-a-repo"; return 1; }
@@ -686,8 +695,6 @@ peal_close_verify() {
   [ "$ahead" = 0 ] || { echo "BLOCKED:unpushed"; return 1; }
   command -v gh >/dev/null 2>&1 || { echo "BLOCKED:no-gh"; return 1; }
   repo=$(peal_github_repo) || { echo "BLOCKED:no-settings"; return 1; }
-  PEAL_GH_ERRFILE=$(mktemp) || { echo "BLOCKED:gh-failed"; return 1; }
-  trap 'rm -f "$PEAL_GH_ERRFILE"; unset PEAL_GH_ERRFILE' RETURN
   pr=$(peal_gh "repos/$repo/pulls?state=all&head=${repo%%/*}:$(peal_urlencode "$branch")" \
     --jq '.[0] | select(. != null) | .number') || { peal_gh_failed; return 1; }
   [ -n "$pr" ] || { echo "BLOCKED:no-pr"; return 1; }

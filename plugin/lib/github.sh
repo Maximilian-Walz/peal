@@ -75,8 +75,7 @@ peal_gh() {
 
 # peal_gh_failed -> the verdict line for a gh call that failed: BLOCKED:gh-failed, and
 # when the message of the last failure (PEAL_GH_ERRFILE) is the sandbox proxy's denial of
-# a host (gh: `Get "https://HOST/...": Forbidden`; curl: `CONNECT tunnel failed, response
-# 403`), the host's name too.
+# a host (gh: `Get "https://HOST/...": Forbidden`), the host's name too.
 peal_gh_failed() {
   local host=""
   if [ -s "${PEAL_GH_ERRFILE-}" ]; then
