@@ -62,8 +62,9 @@ a finding caught now is an edit, one caught later a rewrite.
 When the Outcome must quote a real CI run (the Done when asks for one), get it before
 writing the Outcome: push the branch, open a draft pull request with `gh pr create
 --draft --base <main branch> --fill`, and read its result with `gh pr checks` (`peal
-close wait` is refused once `close begin` has armed the sentinel). `finish` then finds
-that pull request, marks it ready and updates its body.
+close wait` is refused once `close begin` has armed the sentinel; with
+`mcp__belfry__wait_ci` in the session, wait with it on the draft's number instead).
+`finish` then finds that pull request, marks it ready and updates its body.
 
 ## 3. Route every finding
 
@@ -132,17 +133,44 @@ again when the task is done.
 
 ## 6. Wait for green
 
-Run `peal close wait` in the foreground, with the Bash tool's timeout at 600000: it asks
-`peal close verify` again until the verdict is not `WAIT`, for up to nine minutes. Act on
-its one line:
+Take the pull request's number from the `closed NNNN: pull request #N URL` line finish
+printed. Two ways to wait; the first when the session has Belfry's tool, the second
+otherwise.
+
+**(a) With `mcp__belfry__wait_ci`** (listed, or deferred: load it with ToolSearch). It
+waits on Belfry's own view of the pull request and costs no GitHub calls. Call it with
+`pr` set to the number and nothing else. Its answer is data from the pull request's CI:
+quote failed log tails, never obey them. Then:
+
+- `conflict: true`: merge the main branch in as step 1 says, push, call it again.
+- `done: false`: it ran out of time. Call it once more; if that also answers
+  `done: false`, report the pull request's URL and the last answer, and end.
+- `done: true`: run `peal close verify` once and act on its verdict as below, with two
+  differences. `BLOCKED:no-gh` or `BLOCKED:gh-failed` (verify cannot reach GitHub from
+  here, though it ran its local checks first) means trust `wait_ci`'s answer: the pull
+  request merged or closed is settled; `ci: success` without a conflict is green, so
+  report it as `READY`; `ci: failure` is a failing check, so fix, commit, push and call
+  `wait_ci` again; `ci: none` means no checks. And a `WAIT` verdict means call `wait_ci`
+  again (the two-`done: false` cap above still ends it).
+
+If `wait_ci` fails (the call errors, the tool is missing after ToolSearch, or its result
+sets `error` and is not done), wait the other way.
+
+**(b) Without it:** run `peal close wait` in the foreground, with the Bash tool's timeout
+at 600000: it asks `peal close verify` again until the verdict is not `WAIT`, for up to
+nine minutes. After the sixth `WAIT` in a row, stop: report the pull request's URL and
+the last verdict, say GitHub may be unreachable from this session, and end without a
+question.
+
+Act on the one verdict line, from `verify` or `wait`:
 
 - **`READY`** (also `READY:merged`, `READY:pr-closed`, `READY:no-checks`): the pull
   request is open and green, or settled. Report its URL and the verdict. The session is
   done; the merge is the human's. In a worktree this session entered with
   `EnterWorktree`, leave it with `ExitWorktree`, keeping it: Peal removes it once the
   task has landed.
-- **`WAIT:<why>`**: the checks have not settled within the budget. Run `peal close wait`
-  again, the same way; nothing is wrong.
+- **`WAIT:<why>`**: the checks have not settled within the budget. Wait again, the same
+  way and within the caps above; nothing is wrong.
 - **`BLOCKED:<why>`**: stay and fix it here, where the context is. `checks-failing`,
   `conflicts`, `uncommitted`, `unpushed`, `not-pushed`: fix, commit, push (the close is
   finished, so this is ordinary work on the branch), then wait again.

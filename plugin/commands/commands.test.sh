@@ -117,4 +117,15 @@ check "reviewer: ends in the merge-auto line" "1" \
 check "close: hands the report to finish" "1" \
   "$(grep -c -F 'peal close finish --summary "<bullets>" [--section "<title>" "<text>"]... [--review-file FILE]' "$commands/close.md")"
 
+# close, step 6: Belfry's wait_ci when the session has it, peal close wait otherwise (0067).
+step6=$(awk '/^## 6\./ { f = 1; next } /^## / { f = 0 } f' "$commands/close.md" | tr '\n' ' ' | tr -s ' ')
+has6() { grep -c -F -- "$1" <<<"$step6"; }
+check "close: step 6 names wait_ci and ToolSearch" "1|1" \
+  "$([ "$(has6 'mcp__belfry__wait_ci')" -ge 1 ] && echo 1)|$([ "$(has6 'ToolSearch')" -ge 1 ] && echo 1)"
+check "close: step 6 falls back to peal close wait" "1" "$(has6 'If `wait_ci` fails')"
+check "close: step 6 runs verify once after a done wait_ci" "1" "$(has6 'run `peal close verify` once')"
+check "close: step 6 trusts wait_ci on gh-failed/no-gh" "1" "$(has6 'means trust')"
+check "close: step 6 is capped both ways" "1|1" "$(has6 'After the sixth `WAIT` in a row')|$(has6 'also answers `done: false`')"
+check "close: step 6 handles conflict: true" "1" "$(has6 '`conflict: true`')"
+
 finish
