@@ -160,5 +160,7 @@ check "close: step 6 is capped both ways" "1|1" "$(has6 'After the sixth `WAIT` 
 check "close: step 6 caps verify's WAIT after a done wait_ci" "1" "$(has6 'after the third `WAIT` from verify in a row')"
 # shellcheck disable=SC2016 # the literal backticks
 check "close: step 6 handles conflict: true" "1" "$(has6 '`conflict: true`')"
+check "close: step 6 reruns a flaky failure only after the run has finished" "1" "$(has6 'wait until the whole run has finished')"
+check "close: step 6 reruns the failed jobs once" "1" "$(has6 'gh run rerun <run-id> --failed` once')"
 
 finish
