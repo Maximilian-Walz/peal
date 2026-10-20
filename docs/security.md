@@ -217,11 +217,6 @@ the write merges.
 - Guard: `plugin/lib/apply.awk`, `plugin/lib/apply.sh`.
 - Harness: `plugin/lib/apply.test.sh`, `plugin/lib/hostile.test.sh`.
 
-Belfry runs `tasks.commands.defer` (`.peal/peal depend {task} {on}`) the same way:
-`{task}` and `{on}` are each one shell word, and `peal depend` refuses either unless it is
-a task id (four digits, or digits for issues), so no text of a task reaches a command.
-- Harness: `plugin/lib/store-files.test.sh`, `plugin/lib/hostile.test.sh`.
-
 ### A commit must clear the project's own checks before it lands, even mid-branch
 
 Outside the fast paths for task files and decision entries, the `commit-msg` gate runs

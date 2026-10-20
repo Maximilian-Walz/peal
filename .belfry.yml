@@ -11,10 +11,8 @@ tasks:
     idea: /peal:idea {idea}
     create: .peal/peal create --owner {owner} --title {title} --origin {origin}
     board: .peal/peal board
-    milestone: .peal/peal milestone-state {id} {state} --reason {reason}
-    retire: .peal/peal retire {task} --reason {reason}
-    defer: .peal/peal depend {task} {on}
     revise: /peal:comment {task} {text}
+    apply: .peal/peal apply
 actions:
   milestone-review:
     title: Milestone review

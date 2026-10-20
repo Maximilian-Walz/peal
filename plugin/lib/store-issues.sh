@@ -754,59 +754,6 @@ peal_store_defer() {
   return $status
 }
 
-# peal_store_depend ID ON WT -> issue ID made to wait for issue ON: ON added to the "Depends
-# on" line of its body, and a comment saying so. WT, when not empty, is the worktree of the
-# claim of this clone on ID, which is given back as a defer does (checked by
-# _peal_issues_no_work there, the comment "Deferred <date> after a claim: waits for ON",
-# the label "in progress" taken off); the caller marks the worktree. An ON already in the
-# body changes nothing but that comment. PEAL_RECORDS holds the store's list.
-peal_store_depend() {
-  local id=$1 on=$2 wt=${3-} tmp row status=0 note deps
-  _peal_issues_settings || return 2
-  if [ -n "$wt" ]; then
-    if [ "$(cd "$wt" && peal_store_branch_task)" != "$id" ]; then
-      peal_err "depend: $wt is not on issue $id's branch (issue/$id)"
-      return 2
-    fi
-    (cd "$wt" && _peal_issues_no_work "$id") || return 2
-  fi
-  row=$(_peal_issues_issue "$id") || return 2
-  _peal_issues_check_admitted "$id" "$row" || return 2
-  if [ "$(_peal_field "$row" 2)" != open ]; then
-    peal_err "depend: issue $id is closed"
-    return 2
-  fi
-  tmp=$(mktemp -d) || return 2
-  _peal_issues_text "$row" >"$tmp/old"
-  cp "$tmp/old" "$tmp/new"
-  deps=$(peal_fm_get "$tmp/old" depends 2>/dev/null)
-  if ! printf '%s\n' "$deps" | grep -qxF -- "$on"; then
-    # shellcheck disable=SC2046 # one item per line, none with a blank
-    peal_fm_set_list "$tmp/new" depends $(printf '%s\n' "$deps" | sed '/^$/d') "$on" || status=2
-  fi
-  if [ $status = 0 ]; then
-    _peal_issues_rewrite depend "$id" "$tmp/old" "$tmp/new" "$tmp" || status=$?
-  fi
-  if [ -n "$wt" ]; then
-    note="Deferred $(date -u +%Y-%m-%d) after a claim: waits for #$on"
-  else
-    note="$(date -u +%Y-%m-%d): waits for #$on"
-  fi
-  if [ $status = 0 ]; then
-    if cmp -s "$tmp/old" "$tmp/new"; then
-      _peal_issues_comment "$id" "$note" || status=1
-    else
-      _peal_issues_apply "$id" "$row" "$tmp" "$note" || status=$?
-    fi
-    if [ $status = 0 ]; then
-      [ -z "$wt" ] || _peal_issues_unlabel "$id"
-      echo "task $id: waits for $on"
-    fi
-  fi
-  rm -rf "$tmp"
-  return $status
-}
-
 peal_store_set_milestone() {
   local id=$1 m=${2-} state ms=null current
   _peal_issues_unclaimed "$id" set-milestone || return 2

@@ -408,10 +408,7 @@ tasks:
     idea: /peal:idea {idea}
     create: .peal/peal create --owner {owner} --title {title} --origin {origin}
     board: .peal/peal board
-    milestone: .peal/peal milestone-state {id} {state} --reason {reason}
-    retire: .peal/peal retire {task} --reason {reason}
     revise: /peal:comment {task} {text}
-    defer: .peal/peal depend {task} {on}
     apply: .peal/peal apply
 EOF
   fi
