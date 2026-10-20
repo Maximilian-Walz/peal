@@ -183,6 +183,15 @@ config_cases() {
   out=$(d "$work" config)
   check "config: empty models.reviewer" "yes" "$([[ "$out" == *"FAIL config: models.reviewer is empty"* ]] && echo yes)"
 
+  printf 'pr:\n  security: docs/nope.md\n' >"$work/.peal/config.yml"
+  out=$(d "$work" config)
+  check "config: pr.security names a missing file" "yes" "$([[ "$out" == *"warn config: pr.security names docs/nope.md"* ]] && echo yes)"
+  check "config: that is a warning, not a problem" "doctor: 0 problem(s)" "$(printf '%s\n' "$out" | tail -n1)"
+  mkdir -p "$work/docs" && : >"$work/docs/nope.md"
+  out=$(d "$work" config)
+  check "config: pr.security names a file that exists" "" "$(printf '%s\n' "$out" | grep '^warn')"
+  rm -f "$work/docs/nope.md"
+
   rm -f "$work/.peal/config.yml"
   out=$(d "$work" config)
   check "config: defaults are valid" "ok config: the effective settings load and are valid

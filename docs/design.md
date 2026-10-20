@@ -347,7 +347,10 @@ in [CLI](reference/cli.md#peal-close).
   the same order, and the project's `pr.sections` are asked for, not remembered. It opens
   with `## Summary`, at most five one-line bullets on what changes as the merger will
   notice it (the prompt recommends the cap, the script does not enforce it), then
-  `## Decisions` and `## Human steps` when there are any; the task's longer text follows.
+  `## Decisions`, `## Human steps` and `## Notes` when there are any; the task's longer
+  text follows. Where `pr.security` names the project's threat model, close requires a
+  `Security:` line, the boundary the change touches and how, or `none`, written last
+  before the commit list because Belfry reads the last such line.
   The session's last message after a close is one or two sentences with the pull request's
   link.
 - **`verify` and `wait`** answer with one verdict, and anything they cannot verify is

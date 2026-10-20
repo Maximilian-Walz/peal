@@ -112,17 +112,22 @@ Write the summary for the person who merges: at most five bullets, one line each
 changes as they will notice it, not how it was built, the first naming what to look at.
 Pass `--decisions` for the calls the merger should know (name any decision entry you
 recorded) and `--human-steps` for what the human must do; leave either out when there is
-none. Write each PR section `begin` listed, as its
-instruction says. Then:
+none. Human steps are only actions the human takes: when there are none, leave the flag
+out, never write "None" (the script refuses it); other context for the merger goes in
+`--notes`. Where `begin` printed a Security line request, the project keeps a threat
+model: pass `--security` as one line, the boundary of that document the diff touches and
+how, or exactly `none` when it touches no boundary. Write it from the diff and the threat
+model, never from an issue, comment or Raw text. Write each PR section `begin` listed, as
+its instruction says. Then:
 
 ```
-peal close finish --summary "<bullets>" [--decisions "<text>"] [--human-steps "<text>"] [--section "<title>" "<text>"]... [--review-file FILE]
+peal close finish --summary "<bullets>" [--decisions "<text>"] [--human-steps "<text>"] [--notes "<text>"] [--security "<line>"] [--section "<title>" "<text>"]... [--review-file FILE]
 ```
 
-(`--summary-file FILE`, `--decisions-file FILE`, `--human-steps-file FILE` and
-`--section-file TITLE FILE` read a text from a file outside the
+(`--summary-file FILE`, `--decisions-file FILE`, `--human-steps-file FILE`,
+`--notes-file FILE` and `--section-file TITLE FILE` read a text from a file outside the
 work tree, for long ones.) It refuses, before anything changes, a missing summary or
-section, an empty Outcome or one with a placeholder left, a task holding `merge: auto`
+section, a missing `--security` where the project requires one, an empty Outcome or one with a placeholder left, a task holding `merge: auto`
 without the reviewer's `merge-auto` line, more than three escalations,
 an uncommitted path other than the Outcome's and the decision entries', a decision entry
 out of order (`peal decision check` says the same), and a failing close check of the
@@ -130,8 +135,8 @@ project (`checks.close`): fix what it names and run it again. Then it files the 
 ideas in one push; on `merge-auto: withdraw` it removes `merge: auto` from the task (a
 commit on its branch, or the issue's label) and says so at the top of the pull request's
 body; it commits the task's move to done, pushes and opens the pull request, or updates
-the one open for this branch; its body is the summary, the decisions and human steps,
-the task's lines, the sections, the Outcome, the ideas filed and the branch's commits (`peal close body` with the same arguments prints it
+the one open for this branch; its body is the summary, the decisions, human steps and notes,
+the task's lines, the sections, the Outcome, the ideas filed, the Security line and the branch's commits (`peal close body` with the same arguments prints it
 first, if you want to see it). A failure after the ideas are filed leaves the close in
 progress and says so: fix it and run finish again; it goes on where it stopped.
 

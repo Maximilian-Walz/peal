@@ -24,6 +24,8 @@ checks:
 pr:
   sections: []                  # extra prose sections close asks the session for, each
                                 # "Title: what to write"
+  security: ""                  # the project's threat model document, a path; set, close
+                                # requires a Security: line in the pull request body
 commit:
   areas: []                     # allowed <area> values in commit subjects, then required;
                                 # empty allows any or none. tasks is always one
