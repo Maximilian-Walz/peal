@@ -73,11 +73,11 @@ with the decisions module on, `peal decision check`.
 `peal doctor [CHECK...]` runs the named checks, or all: `config`, `version`, `hooks`,
 `gh`, `claims`, `belfry`. Local refs only, never a fetch.
 
-- Output: `ok`, `FAIL`, `warn` (not a problem) or `skip` lines, each naming its check; a `  fix: ...` line under
+- Output: `ok`, `FAIL` or `skip` lines, each naming its check; a `  fix: ...` line under
   each `FAIL`; last `doctor: N problem(s)`.
 - Status 0 healthy, 1 any problem, 2 an unknown `CHECK`, outside a git repository, or no
   `.peal/`.
-- `config`: `warn` when `pr.security` names a file that does not exist (not a problem);
+- `config`: `pr.security`, when set, names a file that exists;
   the config loads, and `storage.kind`, `main-writes`, `sizes.*`, `stages`,
   `release.wait-ci` and `models.*` hold valid values.
 - `version`: `.peal/peal` matches the plugin's launcher template; then the installed

@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 # peal doctor (docs/reference/cli.md, "peal doctor"): when Peal does not work in a
 # project, nobody should have to guess why. One function per check, all reporting through
-# _peal_doctor_ok/_peal_doctor_fail/_peal_doctor_warn/_peal_doctor_skip: "ok/FAIL/warn/skip <check>: <sentence>",
+# _peal_doctor_ok/_peal_doctor_fail/_peal_doctor_skip: "ok/FAIL/skip <check>: <sentence>",
 # a FAIL followed by "  fix: <what to run>", a last "doctor: N problem(s)" line.
 #
 # Order: config first (its own findings, then its value checks); its failure makes every
@@ -29,11 +29,6 @@ _peal_doctor_fail() {
   printf 'FAIL %s: %s\n' "$1" "$2"
   printf '  fix: %s\n' "$3"
   _peal_doctor_n=$((_peal_doctor_n + 1))
-}
-
-# _peal_doctor_warn CHECK SENTENCE -> a warn line; not a problem, not counted.
-_peal_doctor_warn() {
-  printf 'warn %s: %s\n' "$1" "$2"
 }
 
 _peal_doctor_skip() {
@@ -109,7 +104,7 @@ _peal_doctor_stage_config() {
   esac
   v=$(peal_config_get pr.security 2>/dev/null)
   if [ -n "$v" ] && [ ! -f "$v" ]; then
-    _peal_doctor_warn config "pr.security names $v, which does not exist: close will ask for a Security line about a threat model nobody can read"
+    _peal_doctor_fail config "pr.security names $v, which does not exist: close will ask for a Security line about a threat model nobody can read" "create $v, or edit $PEAL_CONFIG_FILE"
   fi
   for k in planner reviewer implementer; do
     v=$(peal_config_get "models.$k" 2>/dev/null)
