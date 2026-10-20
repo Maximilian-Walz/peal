@@ -115,6 +115,14 @@ The per-shard minutes on CI, the required check's duration and the macOS job's d
 
 For the next session: `ci.yml` never merges by itself; the human merges this. What remains of apply's cost is in helpers it shares with other commands (config parsed six times, frontmatter once per field, a YAML parser quadratic under busybox), filed as an idea with the profile. The commit 3ba7100 is a session-end autosave of the `_pa_chomp` fix, completed by 6cf4642.
 
+After close, on the pull request's CI:
+- The first run still took 13–14 min per hostile shard. Under original-awk, every try after a task holding the 64 KiB `long` value was filed took 12–25 s, because each task scan and frontmatter read parsed that value in time quadratic in its length: `yaml-lib.awk` `quoted()` read it one byte at a time, and onetrue-awk walks the whole string on each `length`/`substr`.
+- With the human's agreement the scope widened to that shared helper: `quoted()` now appends whole runs split at `'` or `\`. It is byte-identical with the old one on 114,974 inputs under mawk, busybox, onetrue-awk 20250804 and 20210215, in both C and C.UTF-8. `frontmatter.test.sh` gained a long-value case.
+- That case first used bash `${x//pat/rep}` on ~98 KB strings, which under macOS's bash 3.2 takes far over 30 min and hit the job's timeout. It now builds its expected values by doubling. Under bash 3.2.57 built from Apple's source, the file runs in 6.9 s.
+- The 20-min job-wide timeout cancelled `linux (rest)`, which runs about 20–25 min, so the human chose a timeout per matrix entry: hostile shards and a/b/c 20, rest 45.
+- main's 0154 (apply reads and answers Belfry's contract) was merged in, ported onto the variable-based reads; apply.test.sh passes under mawk, busybox and onetrue-awk.
+- Final CI on 6fdf548: all 12 checks green. The hostile shards take 155, 144, 176 and 184 s (from 19, 11, 17 and 42 min); macOS's hostile `awk_channels` takes 606 s, and its whole job passes within its 30 min.
+
 ### Escalations
 
 - Done when: "forks at least 70 % fewer processes". Met for apply.sh's own commands (82 to 21, −74 %). Not met for the whole process tree (294 to 205, −30 %): at least 56 of the remaining processes are in shared helpers, which the agreed scope keeps out. Filed as the idea on those helpers.
