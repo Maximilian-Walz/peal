@@ -782,6 +782,10 @@ refs/heads/@ 0000000000000000000000000000000000000000 refs/heads/@ 0000000000000
   each "close body --summary" "$wt" close body --summary @
   each "close body --section" "$wt" close body --summary s --section @ @
   each "close body --summary-file" "$wt" close body --summary-file @
+  each "close body --decisions" "$wt" close body --summary s --decisions @
+  each "close body --decisions-file" "$wt" close body --summary s --decisions-file @
+  each "close body --human-steps" "$wt" close body --summary s --human-steps @
+  each "close body --human-steps-file" "$wt" close body --summary s --human-steps-file @
   each "close body --review-file" "$wt" close body --summary s --review-file @
   each "close abort REASON" "$wt" close abort @
   each "close verify ARG" "$wt" close verify @

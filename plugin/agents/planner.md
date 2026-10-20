@@ -58,8 +58,10 @@ Produce, in this order:
 On ambiguities: your instinct will be to pick a sensible default and move on. Do not. A
 wrong assumption costs a whole session and is discovered three files later; a question
 costs the human a paragraph. List anything where a reasonable person could have meant two
-different things, including what feels too small to ask. For each, say what you ask and,
-apart from it, what you would do absent an answer. If your approach contradicts a context
+different things, including what feels too small to ask. Write each as a label (at most
+12 characters, it becomes the question's `header`), a question of one or two sentences, and,
+apart from it, what you would do absent an answer; the plan above carries the context they
+share, so no question repeats it. If your approach contradicts a context
 document or a decision the project has recorded, say so loudly: that needs the human, not
 a workaround.
 

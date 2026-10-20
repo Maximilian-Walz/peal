@@ -493,8 +493,10 @@ Declares the close: a sentinel in the git directory arms the Stop hook.
 
 ### `peal close finish`
 
-`peal close finish --summary TEXT [--section TITLE TEXT]... [--review-file FILE]`. The
-`-file` forms (`--summary-file FILE`, `--section-file TITLE FILE`) read the text from a
+`peal close finish --summary TEXT [--decisions TEXT] [--human-steps TEXT]
+[--section TITLE TEXT]... [--review-file FILE]`. `--decisions` and `--human-steps` are
+optional, given once, never empty. The `-file` forms (`--summary-file FILE`,
+`--decisions-file FILE`, `--human-steps-file FILE`, `--section-file TITLE FILE`) read the text from a
 file. `FILE` is the reviewer's report.
 
 - Refuses, before anything changes: a missing summary or section, an empty Outcome or one
@@ -511,8 +513,9 @@ file. `FILE` is the reviewer's report.
 ### `peal close body`
 
 Takes the arguments of `finish` and prints the pull request's body: the count of
-escalations and a withdrawn `merge: auto`, the summary bullets, `Fixes #N` for an issue,
-the split it is part of, each `pr.sections` text, the Outcome, the ideas filed, the
+escalations and a withdrawn `merge: auto`, then `## Summary` with the summary bullets,
+`## Decisions` and `## Human steps` when given, `Fixes #N` for an issue (`Task N.` for a
+file), the split it is part of, each `pr.sections` text, the Outcome, the ideas filed, the
 branch's commits.
 
 ### `peal close abort`

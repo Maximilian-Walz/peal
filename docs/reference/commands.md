@@ -34,7 +34,8 @@ its `## Done when` holds, or once it is decided against.
 - Writes the Outcome, runs `peal close finish`, then waits for the checks: with Belfry's
   `wait_ci` tool when the session has it, otherwise `peal close wait` while the verdict is
   `WAIT`. Either wait is capped; a wait that cannot settle ends with a report.
-- Ends when the pull request is open and its checks are green. The merge is the human's.
+- Ends when the pull request is open and its checks are green, with one or two sentences
+  and the pull request's link. The merge is the human's.
 
 ## `/peal:idea`
 
