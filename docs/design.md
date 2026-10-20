@@ -108,14 +108,18 @@ Where the pieces meet, and why:
   It reads no Belfry variable: the same check serves a human who opened a session in the
   worktree by hand. The reference used a Belfry environment variable here; Peal does
   without.
-- `/peal:idea` is the one deliberate exception: off a task branch it reads
+- `/peal:idea` and `/peal:close` are the two deliberate exceptions. `/peal:idea`: off a task branch it reads
   `BELFRY_SESSION` to tell a Belfry session from an ordinary one, because running
   `peal idea` in the shell of a Belfry session hangs (its sandbox has neither `gh`'s login
   nor SSH keys). The command calls Belfry's `task_create` tool instead. `peal create` is
   what Belfry itself runs, outside the sandbox. On a task branch an idea queues offline
   as always.
-- `/peal:close` waits for the pull request's checks in the foreground with a budget,
-  re-running while the verdict is `WAIT`. That works headless and interactive alike.
+- `/peal:close` keys on Belfry's `wait_ci` tool, not on `BELFRY_SESSION`: when the
+  session has it, close waits with it, because it waits on Belfry's view of the pull
+  request, spends none of the human's GitHub budget, and works where the sandbox denies
+  `gh`'s host. Without it, close waits for the checks in the foreground with a budget,
+  re-running while the verdict is `WAIT`, and gives up after six in a row. That works
+  headless and interactive alike.
 - `peal milestone-state` is the change Belfry makes itself on GitHub for its
   `github-issues` backend. The review, an action Belfry offers when a milestone is closed,
   ends with one question, "Close <milestone>?", and makes that change on yes.
@@ -329,7 +333,10 @@ in [CLI](reference/cli.md#peal-close).
 - **The pull request's body** is generated, so every pull request says the same things in
   the same order, and the project's `pr.sections` are asked for, not remembered.
 - **`verify` and `wait`** answer with one verdict, and anything they cannot verify is
-  `BLOCKED`, never `READY`. The budget is nine minutes, under a tool call's ten.
+  `BLOCKED`, never `READY`. The budget is nine minutes, under a tool call's ten. With
+  Belfry's `wait_ci` tool the command waits with it, runs `verify` once afterwards, and
+  trusts `wait_ci` when `verify` cannot reach GitHub; both ways are capped, so a wait
+  that cannot settle ends with a report.
 - **The Stop hook** is silent unless a close is in progress. It never refuses twice in a
   row, and a sentinel another session left behind is cleared, not enforced.
 - **`peal check`** is the gate for what only CI sees: a done task with no Outcome, a task

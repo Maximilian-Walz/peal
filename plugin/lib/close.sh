@@ -560,7 +560,7 @@ peal_close_finish() {
   fi
   rm -f "$gitdir/$PEAL_CLOSE_SENTINEL" "$gitdir/$PEAL_CLOSE_WITHDRAWN"
   echo "closed $PEAL_ID: pull request #$pr $url"
-  echo "Next: peal close wait, until its verdict is not WAIT."
+  echo "Next: wait for its checks (/peal:close, step 6)."
 }
 
 # _peal_close_by_hand BRANCH TITLE BODY -> how to open the pull request without Peal.

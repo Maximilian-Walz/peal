@@ -44,8 +44,9 @@ whose tasks are GitHub issues, the contract names the `github-issues` backend in
 - **Claimed before it starts.** Belfry claims the task, then starts a session in its
   worktree; `/peal:work` sees it is there and claims nothing. The claim is idempotent, so
   a job that runs again continues where the last stopped.
-- **Finished means a pull request open and green.** `/peal:close` waits for the checks,
-  and the merge is yours, or the task's, if it says `merge: auto` and Belfry's policy for
+- **Finished means a pull request open and green.** `/peal:close` waits for the checks
+  (with Belfry's `wait_ci` tool, which spends none of your GitHub budget; `peal close
+  wait` without it), and the merge is yours, or the task's, if it says `merge: auto` and Belfry's policy for
   the project allows it (its `auto_merge` policy, which Belfry documents).
 - **Questions reach the inbox.** A question that would stop an interactive session goes
   to Belfry's inbox instead.
