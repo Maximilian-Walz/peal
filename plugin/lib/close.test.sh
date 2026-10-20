@@ -314,6 +314,8 @@ Built a.txt.
     "$(jq -r '.[0] | "\(.title)|\(.head.ref)|\(.base.ref)"' "$FAKE_GH/pulls.json")"
   body=$(jq -r '.[0].body' "$FAKE_GH/pulls.json")
   check "finish: the body's first heading is the summary" "## Summary" "$(printf '%s\n' "$body" | grep -m1 '^## ')"
+  check "finish: the body's order to the end" "## Summary|## For the player|## Outcome|## Ideas filed|<summary>Commits</summary>" \
+    "$(printf '%s\n' "$body" | grep -e '^## ' -e '^<summary>Commits' | paste -sd'|')"
   check "finish: the body credits the idea" "- $(id 2): A later idea" "$(printf '%s\n' "$body" | grep '^- .*A later idea' | sed 's/ (.*//')"
   check "finish: the idea filed" "0" "$(at "$wt" "$PEAL" read "$(id 2)" >/dev/null 2>&1; echo $?)"
   check "finish: the queue empty" "" "$(at "$wt" "$PEAL" ideas)"
