@@ -137,7 +137,7 @@ cases() {
   # onetrue-awk).
   local unit long_d long_s n
   unit='abcdefghij'
-  long_d=$unit'\"'$unit'\\' long_s=$unit"''"$unit
+  long_d="$unit\\\"$unit\\\\" long_s=$unit"''"$unit
   for ((n = 0; n < 12; n++)); do long_d=$long_d$long_d long_s=$long_s$long_s; done
   printf -- "---\na: \"%s\"\nb: ['%s', 'x''y']\n---\n" "$long_d" "$long_s" >"$file"
   long_d=${long_d//\\\"/\"}
