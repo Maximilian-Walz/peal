@@ -305,7 +305,12 @@ reads comments.
 Every GitHub call goes through the `gh` CLI, so nothing in Peal reads, stores or
 forwards the user's token; scoping and revocation are `gh`'s own auth store, not
 Peal's problem to get right. Peal's `gh` runs with gh's telemetry off (`GH_TELEMETRY=0`
-unless the user set it), so its calls reach only GitHub's API, not `cafe.github.com`.
+unless the user set it), so its calls reach only GitHub's API, not `cafe.github.com`. The `gh` calls an agent runs
+itself from the command markdown are covered the same way in a Claude Code session: the
+SessionStart hook writes the export to `CLAUDE_ENV_FILE`, so every Bash command inherits
+it; as a belt-and-braces fallback the markdown's `gh` calls also carry a `GH_TELEMETRY=0`
+prefix, since the env file is not proven to apply in headless or subagent sessions.
+`gh` run outside Claude Code is the user's own.
 
 - Guard: `plugin/lib/github.sh` (`peal_gh`), the main path, and the telemetry export in
   `plugin/bin/peal`; the board's lookup of open

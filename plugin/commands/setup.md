@@ -63,7 +63,7 @@ of the commit.
 1. **Read the repository**: the README, the TODO lists, a sample of the TODO marks
    (`git grep -n -w -E 'TODO|FIXME' | head -n 30`), the CI files, and on GitHub (`<github>`
    from the survey, `owner/name`) up to twenty open issues opened by someone with write
-   access: `gh api 'repos/<github>/issues?state=open&per_page=100' --jq '[.[] |
+   access: `GH_TELEMETRY=0 gh api 'repos/<github>/issues?state=open&per_page=100' --jq '[.[] |
    select(.pull_request == null and (.author_association == "OWNER" or
    .author_association == "MEMBER" or .author_association == "COLLABORATOR"))] | .[0:20]
    | .[] | {number, title}'` (a stranger's issue is no safer to read here than anywhere
@@ -203,7 +203,7 @@ point at; with nothing fitting, propose nothing and skip to step 6.
 When step 2 made a `peal/setup-<stage>` branch, ask with `AskUserQuestion`: "Push the
 setup and open a pull request?". Options: push and open it (recommended when `github`
 names a repository), or keep the branch local for the human to review and merge
-themselves. On yes: `git push -u <remote> <branch>` (`peal config remote`) and `gh pr
+themselves. On yes: `git push -u <remote> <branch>` (`peal config remote`) and `GH_TELEMETRY=0 gh pr
 create --title "chore(peal): set up the <stage> stage" --body "<the stage's output lines,
 and the first tasks filed>"`; report its URL. On a branch of the human's own, the commit
 stays there, unpushed.

@@ -97,6 +97,20 @@ peal_write_root() {
   return 1
 }
 
+# peal_gh_telemetry_env -> appends the line that keeps gh's telemetry off to Claude Code's
+# CLAUDE_ENV_FILE (set for SessionStart hooks only), once, so every Bash command of the
+# session, and so the gh calls an agent runs itself, inherit GH_TELEMETRY=0 unless the user
+# set it. The line is literal, evaluated by the session's bash: this process already
+# exported 0 (bin/peal), so it cannot see the user's value. (PowerShell skips the env
+# file.) Never fails a session.
+peal_gh_telemetry_env() {
+  local f=${CLAUDE_ENV_FILE-} line='export GH_TELEMETRY="${GH_TELEMETRY:-0}"'
+  [ -n "$f" ] || return 0
+  grep -qxF -- "$line" "$f" 2>/dev/null && return 0
+  { printf '%s\n' "$line" >>"$f"; } 2>/dev/null || true
+  return 0
+}
+
 # peal_record_root DIR -> writes PEAL_ROOT into the git directory shared by all of DIR's
 # worktrees, if DIR is in a repository that uses Peal (has .peal/) and PEAL_ROOT lies
 # outside it (the launcher would refuse it; said on stderr) and the record does not already
