@@ -761,6 +761,9 @@ verify_cases() {
   check "verify: mergeability unknown" "WAIT:mergeability-unknown 3" "$(verdict)"
   pull mergeable false
   check "verify: conflicts" "BLOCKED:conflicts 1" "$(verdict)"
+  pull draft true
+  check "verify: draft" "BLOCKED:draft 1" "$(verdict)"
+  pull draft false
   pull mergeable true
   check "verify: green" "READY 0" "$(verdict)"
   ln -s /dev/null "$wt/dev-null"

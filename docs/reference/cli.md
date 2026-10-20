@@ -534,7 +534,7 @@ Prints one verdict about the branch checked out.
 - `WAIT:<why>` (3): checks pending or not registered yet, mergeability unknown;
   `WAIT:checks-failing-pending`, a check has failed while others still run.
 - `BLOCKED:<why>` (1): the close unfinished, uncommitted or unpushed work, no pull
-  request, conflicts, failing checks (only once nothing is pending), no `gh`, anything it cannot verify.
+  request, a draft pull request, conflicts, failing checks (only once nothing is pending), no `gh`, anything it cannot verify.
 
 ### `peal close wait`
 
