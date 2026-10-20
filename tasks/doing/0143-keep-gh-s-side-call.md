@@ -2,7 +2,8 @@
 milestone: m3
 plan: required
 priority: low
-touches: [plugin/lib/github.sh]
+touches: [plugin/bin/peal, plugin/lib/fake-gh, plugin/lib/close.test.sh, plugin/lib/github.sh, docs/security.md]
+size: S
 ---
 
 # 0143 — Keep gh's side call to cafe.github.com out of sandboxed sessions
@@ -13,7 +14,15 @@ Under Belfry's sandbox, every `peal_gh` run logs `deny network-outbound cafe.git
 
 ## Scope
 
+- `plugin/bin/peal` exports `GH_TELEMETRY="${GH_TELEMETRY:-0}"`, so every gh Peal starts (peal_gh, the board's `gh pr list`, ship, doctor) runs with gh's telemetry off; a value the user set is kept.
+- `GH_NO_UPDATE_NOTIFIER` is not set: nothing ties it to cafe.github.com.
+- The gh commands an agent runs itself from the command markdown are out of scope (a follow-up idea).
+
 ## Done when
+
+- The Outcome names what the request is for (gh's telemetry), with evidence and the gh version checked.
+- The harness proves Peal's gh runs with `GH_TELEMETRY=0` when unset or empty, and with the user's value when set.
+- The Outcome says how far the sandbox claim is proven: the session cannot see the sandbox's deny line, so the proof rests on gh's documentation, the binary's strings and the harness.
 
 ## Raw
 
@@ -57,6 +66,23 @@ Under Belfry's sandbox, every `peal_gh` run logs `deny network-outbound cafe.git
 - Open question: the sandbox itself is Belfry's, and this repository must not know Belfry (`docs/design.md`). Should a fix in `peal_gh` hold for gh under any network filter, rather than branch on `BELFRY_SESSION`? And if the host must stay reachable, where does Peal record that: a sentence in `docs/security.md`, or only the Outcome?
 - Open question: whether the request comes from gh itself or from an extension or the gh version installed on the worker; the Outcome should name the version it checked.
 - Context: `docs/security.md` (what Peal's gh calls reach), `docs/design.md` (Peal never needs Belfry).
+- 2026-10-20 evidence (worker's gh 2.102.0, no extensions): the gh binary holds `https://cafe.github.com` beside `GH_TELEMETRY_ENDPOINT_URL`; `gh help environment` documents `GH_TELEMETRY=0|false` as telemetry off (precedence over `DO_NOT_TRACK`); `GH_TELEMETRY=log gh api rate_limit` prints one `command_invocation` payload and the call works. A sandboxed `gh api rate_limit` shows the session no deny line either way.
+- Human's answers (planning): the fix lives in `plugin/bin/peal`, for all of Peal's gh calls; keep a user's `GH_TELEMETRY`, default `0` when unset or empty; the agent's own gh calls in the command markdown are a follow-up idea; the plan agreed as below, merge by a human.
+
+## Plan
+
+Approach: one line in `plugin/bin/peal` next to `export GIT_TERMINAL_PROMPT=0` (lines 13-19), with a short comment why: `export GH_TELEMETRY="${GH_TELEMETRY:-0}"`. Every gh Peal starts is a child of `bin/peal` (peal_gh in github.sh, the board's `gh pr list` in store-files.sh, ship.sh's gh calls, doctor's `gh auth status`), hooks included. `0`, not `log` (log would land in peal_gh's captured stderr and `PEAL_GH_ERRFILE`). No `GH_NO_UPDATE_NOTIFIER`, no `BELFRY_SESSION` branch. First, confirm `GH_TELEMETRY=0 gh api rate_limit` still works.
+
+Files:
+- `plugin/bin/peal`: the export and comment.
+- `plugin/lib/fake-gh`: append `${GH_TELEMETRY-unset}` to `$FAKE_GH/env` on every call (one write covering all branches), documented in its header comment.
+- `plugin/lib/close.test.sh` verify cases: with `GH_TELEMETRY` unset the recorded value is `0`; with `GH_TELEMETRY=false` it is `false`; with it empty it is `0`.
+- `plugin/lib/github.sh`: header comment notes gh runs with telemetry off (set in bin/peal), if it helps.
+- `docs/security.md` §"`gh` holds the token": one sentence: Peal's gh runs with gh's telemetry off (`GH_TELEMETRY=0` unless the user set it), so its calls reach only GitHub's API; Guard pointer to `plugin/bin/peal`.
+
+Verification: `bash plugin/lib/close.test.sh` (both storages), full harness suite and shellcheck green; `PEAL_ROOT=$PWD/plugin plugin/bin/peal close verify` from the branch after the PR; the Outcome quotes the evidence in Notes and names the follow-up idea for the agent's own gh calls.
+
+Ranges: tasks/doing/0143-keep-gh-s-side-call.md:1-65, plugin/lib/github.sh:1-5, plugin/lib/github.sh:46-89, plugin/bin/peal:1-35, plugin/lib/fake-gh:1-50, plugin/lib/fake-gh:61-80, plugin/lib/fake-gh:107-127, plugin/lib/store-files.sh:223-241, plugin/lib/ship.sh:858-900, plugin/lib/doctor.sh:195-224, plugin/lib/close.test.sh:643-700, plugin/lib/issue-fixtures.sh:27-41, docs/security.md:303-312, docs/reference/cli.md:1-11, plugin/commands/close.md:63-64, docs/design.md:113-120
 
 ---
 
