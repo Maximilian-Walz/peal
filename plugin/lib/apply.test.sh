@@ -7,8 +7,8 @@
 # A batch of mixed proposals as one commit, by push and through a pull request (the fake
 # gh, which needs jq); filed numbers skipping a rival's; the milestone kinds, mixed with
 # task ones, their states and the next current milestone, a new milestone's id; each kind
-# of invalid batch changing nothing; the JSON reader's escapes; the issues storage
-# refusing.
+# of invalid batch changing nothing; the JSON reader's escapes, a 1 MiB string among
+# them; values ending in 20,000 newlines; the issues storage refusing.
 set -uo pipefail
 # shellcheck source=test-lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/test-lib.sh"
