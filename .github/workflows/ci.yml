@@ -22,6 +22,7 @@ jobs:
   # with, a failed diff), runs them all.
   changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       harnesses: ${{ steps.decide.outputs.harnesses }}
     steps:
@@ -41,6 +42,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.harnesses == 'true'
     runs-on: macos-latest
+    timeout-minutes: 30
     env:
       # The full set runs on Linux (the "linux" job below), so a pull request is not
       # waiting on macOS too. Trimmed or grown against the timings tools/test-all.sh
@@ -82,11 +84,13 @@ jobs:
 
   # Every hostile.test.sh case that used to run serially in "harnesses (ubuntu-latest)"
   # now runs across these shards instead: 4 that each take a slice of hostile.test.sh
-  # (plugin/lib/hostile.test.sh:PEAL_HOSTILE_SHARD, measured to keep each under about 6
-  # minutes) and the rest of the Linux-only harnesses split by their measured seconds
-  # (tools/test-all.sh's timing, quoted in 0077's task notes). "rest" is computed, not
-  # listed, so a new *.test.sh is covered the moment it exists, same promise
-  # tools/test-all.sh makes with no arguments.
+  # (plugin/lib/hostile.test.sh:PEAL_HOSTILE_SHARD; in 0152 about 3.5 minutes each of a
+  # 14-minute serial run, measured locally under mawk and busybox, CI adding gawk and
+  # original-awk; each prints a progress line per group and awk, and another when a
+  # minute passed without one) and the rest of the Linux-only harnesses split by their
+  # measured seconds (tools/test-all.sh's timing, quoted in 0077's task notes). "rest" is
+  # computed, not listed, so a new *.test.sh is covered the moment it exists, same
+  # promise tools/test-all.sh makes with no arguments.
   linux:
     name: linux (${{ matrix.shard }})
     needs: changes
@@ -119,6 +123,7 @@ jobs:
               plugin/lib/backlog.test.sh plugin/lib/githooks.test.sh
           - shard: rest
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Every awk the harnesses can find is one they run under; Peal must work with
@@ -172,6 +177,7 @@ jobs:
     needs: [changes, linux]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Every Linux shard passed, or none had to run
         env:
@@ -186,6 +192,7 @@ jobs:
 
   shellcheck:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: shellcheck --version
