@@ -72,13 +72,41 @@ _pa_slurp() {
   PA_F=$PA_F$piece
 }
 
+# _pa_chomp NAME -> the variable NAME without its trailing newlines, as $(...) leaves a
+# value. In time linear in its length (times a logarithm): the run of newlines at its end
+# is measured by doubling a suffix that holds only newlines, then by bisection; stripping
+# one newline at a time, or a pattern or a regular expression anchored at the end, takes
+# time quadratic in the count of newlines (a run of them inside, for the expression). Bytes
+# (LC_ALL=C), so a value that is no UTF-8 is cut where $(...) cuts it.
+_pa_chomp() {
+  local _pc_v=${!1} _pc_len _pc_lo=1 _pc_hi _pc_n=2 _pc_mid LC_ALL=C
+  [[ "$_pc_v" == *$'\n' ]] || return 0
+  _pc_len=${#_pc_v}
+  while [ "$_pc_n" -le "$_pc_len" ] && [[ "${_pc_v:_pc_len-_pc_n}" != *[!$'\n']* ]]; do
+    _pc_lo=$_pc_n
+    _pc_n=$((_pc_n * 2))
+  done
+  if [ "$_pc_n" -gt "$_pc_len" ]; then
+    _pc_hi=$_pc_len
+    [[ "$_pc_v" == *[!$'\n']* ]] || _pc_lo=$_pc_len
+  else
+    _pc_hi=$_pc_n
+  fi
+  # The last _pc_lo bytes are newlines, the last _pc_hi are not all newlines.
+  while [ $((_pc_hi - _pc_lo)) -gt 1 ]; do
+    _pc_mid=$(((_pc_lo + _pc_hi) / 2))
+    if [[ "${_pc_v:_pc_len-_pc_mid}" != *[!$'\n']* ]]; then _pc_lo=$_pc_mid; else _pc_hi=$_pc_mid; fi
+  done
+  printf -v "$1" '%s' "${_pc_v:0:_pc_len-_pc_lo}"
+}
+
 # _pa_read FILE -> PA_F, FILE's content without its trailing newlines, as $(cat FILE)
 # gives it; status 1 (PA_F empty) if there is no FILE.
 _pa_read() {
   PA_F=""
   [ -f "$1" ] || return 1
   _pa_slurp "$1"
-  while [[ "$PA_F" == *$'\n' ]]; do PA_F=${PA_F%$'\n'}; done
+  _pa_chomp PA_F
   return 0
 }
 
@@ -145,7 +173,7 @@ _pa_val() {
 _pa_get() {
   local n=PA_V_$1_$2
   PA_V=${!n-}
-  while [[ "$PA_V" == *$'\n' ]]; do PA_V=${PA_V%$'\n'}; done
+  _pa_chomp PA_V
 }
 
 # _pa_get_raw I KEY -> PA_V, the value of proposal I's field KEY as it is.
@@ -1028,7 +1056,7 @@ _pa_build() {
     ! _pa_read "$PA_S/res.$i.milestone" || res=$res$PA_F
     printf -v PEAL_BODY -- '%s- %s (%s %s): %s\n' "$PEAL_BODY" "$pid" "$kind" "$res" "${why:-no reason given}"
   done
-  while [[ "$PEAL_BODY" == *$'\n' ]]; do PEAL_BODY=${PEAL_BODY%$'\n'}; done
+  _pa_chomp PEAL_BODY
   # shellcheck disable=SC2034 # read by peal_push_main
   PEAL_BODY="Proposals applied:"$'\n\n'"$PEAL_BODY"
 }
@@ -1073,7 +1101,7 @@ _pa_answer() {
   for v in task:PA_RT milestone:PA_RM detail:PA_DET; do
     n=${v#*:}_$i
     n=${!n-}
-    while [[ "$n" == *$'\n' ]]; do n=${n%$'\n'}; done
+    _pa_chomp n
     [ -n "$n" ] || continue
     _pa_json_v "$n"
     printf ', "%s": %s' "${v%%:*}" "$PA_J"

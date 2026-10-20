@@ -533,6 +533,23 @@ count	1" "$(cat "$dir/manifest")"
   check "decoder: $n escaped runs, byte for byte" "same" "$(cmp -s "$dir/expected" "$dir/1.text" && echo same)"
 }
 
+# trailing -> an id and a why ending in 20,000 escaped newlines: the answer's id without
+# them (as $(...) strips them), the commit's body with each made a space; in time linear
+# in their length (stripping one newline at a time took minutes here).
+trailing() {
+  local nl sp out
+  setup_tasks
+  nl=$(printf '\\n%.0s' $(seq 20000))
+  sp=$(printf ' %.0s' $(seq 20000))
+  out=$(printf '{"proposals": [{"id": "x%s", "kind": "priority", "task": "0001", "priority": "low", "why": "y%s"}]}' \
+    "$nl" "$nl" | peal apply 2>&1)
+  check "trailing: the newlines at the end of an id stripped" \
+    '{"id": "x", "status": "done", "task": "0001", "detail": "task 0001: priority low"}' "$out"
+  main_sha >/dev/null
+  check "trailing: the id and why in the body, newlines made spaces" "- x$sp (priority 0001): y$sp" \
+    "$(git -C "$work" log -1 --format=%b origin/main | grep '^- ')"
+}
+
 issues() {
   issues_repo
   check_refused "issues storage refuses" "the issues storage takes no batch" peal apply < <(printf '{"proposals": []}')
@@ -549,6 +566,7 @@ cases() {
   defused
   reader
   decoder
+  trailing
   if command -v jq >/dev/null; then
     pr
     ms_pr
