@@ -134,15 +134,18 @@ cases() {
   check "quoted flow items" "$(printf 'x, y\nz')" "$(fm get "$file" d)"
   # Long quoted values, escapes and doubled quotes throughout, read byte for byte (and in
   # time linear in their length: one character at a time this took minutes under
-  # onetrue-awk).
-  local unit long_d long_s n
+  # onetrue-awk). Each written form doubled alongside the value it reads as: bash 3.2's
+  # ${x//a/b} on a string this long takes longer than the whole job may.
+  local unit long_d want_d long_s want_s n
   unit='abcdefghij'
-  long_d="$unit\\\"$unit\\\\" long_s=$unit"''"$unit
-  for ((n = 0; n < 12; n++)); do long_d=$long_d$long_d long_s=$long_s$long_s; done
+  long_d="$unit\\\"$unit\\\\" want_d="$unit\"$unit\\"
+  long_s=$unit"''"$unit want_s=$unit"'"$unit
+  for ((n = 0; n < 12; n++)); do
+    long_d=$long_d$long_d want_d=$want_d$want_d long_s=$long_s$long_s want_s=$want_s$want_s
+  done
   printf -- "---\na: \"%s\"\nb: ['%s', 'x''y']\n---\n" "$long_d" "$long_s" >"$file"
-  long_d=${long_d//\\\"/\"}
-  check "quoted: long double, ${#long_d} bytes" "${long_d//\\\\/\\}" "$(fm get "$file" a)"
-  check "quoted: long single, ${#long_s} bytes" "$(printf '%s\n%s' "${long_s//\'\'/\'}" "x'y")" "$(fm get "$file" b)"
+  check "quoted: long double, ${#want_d} bytes" "$want_d" "$(fm get "$file" a)"
+  check "quoted: long single, ${#want_s} bytes" "$(printf '%s\n%s' "$want_s" "x'y")" "$(fm get "$file" b)"
 
   # No frontmatter.
   printf '# 0001 — Title\n' >"$file"
