@@ -3,6 +3,8 @@
 # <tasks>/<dir>/NNNN-slug.md, dir one of backlog, doing, done, and who holds it follows
 # from refs. Everything is read from the remote's main branch and the refs, never from
 # the calling worktree, so any worktree on any branch gets the same answer.
+# A claimed task's size, plan, touches and merge come from its claim branch's copy, when
+# it has a non-empty value (peal record commits them there before the task merges).
 #
 # Writes to the main branch never touch a worktree: the commit is built on a temporary
 # index from the fetched main and pushed (lib/main-write.sh), or opened as a pull request
@@ -57,16 +59,21 @@ _peal_files_scan() {
   local tmp status=0
   tmp=$(mktemp -d) || return 2
   _peal_files_extract "$1" "$PEAL_TASKS" "$tmp" || status=2
-  if [ -d "$tmp/$PEAL_TASKS" ]; then
-    find "$tmp/$PEAL_TASKS/backlog" "$tmp/$PEAL_TASKS/doing" "$tmp/$PEAL_TASKS/done" \
-      -maxdepth 1 -type f -name '*.md' -exec awk -v root="$tmp" -v tasks="$PEAL_TASKS" \
-      -f "$PEAL_ROOT/lib/yaml-lib.awk" -f "$PEAL_ROOT/lib/task-scan.awk" {} + 2>&1 >"$tmp.out" \
-      | LC_ALL=C grep -a -v '^find: ' >&2
-    LC_ALL=C sort -t "$(printf '\t')" -k1,1 -s "$tmp.out"
-    rm -f "$tmp.out"
-  fi
+  _peal_files_scan_dir "$tmp"
   rm -rf "$tmp"
   return $status
+}
+
+# _peal_files_scan_dir ROOT -> task-scan.awk's records for the task files under ROOT/<tasks>,
+# by id; warnings on stderr.
+_peal_files_scan_dir() {
+  [ -d "$1/$PEAL_TASKS" ] || return 0
+  find "$1/$PEAL_TASKS/backlog" "$1/$PEAL_TASKS/doing" "$1/$PEAL_TASKS/done" \
+    -maxdepth 1 -type f -name '*.md' -exec awk -v root="$1" -v tasks="$PEAL_TASKS" \
+    -f "$PEAL_ROOT/lib/yaml-lib.awk" -f "$PEAL_ROOT/lib/task-scan.awk" {} + 2>&1 >"$1.out" \
+    | LC_ALL=C grep -a -v '^find: ' >&2
+  LC_ALL=C sort -t "$(printf '\t')" -k1,1 -s "$1.out"
+  rm -f "$1.out"
 }
 
 # _peal_files_ids REF -> the id of every task file at REF, one per line (a slug that breaks
@@ -144,16 +151,26 @@ _peal_files_worktrees() {
       done
 }
 
-# _peal_files_claims BASE NOPR -> task-state.awk's claims: what each task branch says.
+# _peal_files_copy REF ID COPIES -> REF's copy of task ID written to COPIES/<its path>; nothing
+# if REF has none. The path is the one _peal_files_find ranks first, whatever the slug.
+_peal_files_copy() {
+  local path
+  [ -n "$3" ] || return 0
+  path=$(_peal_files_find "$1" "$2" 2>/dev/null) || return 0
+  mkdir -p "$3/${path%/*}" && git show "$1:$path" >"$3/$path" 2>/dev/null
+}
+
+# _peal_files_claims BASE NOPR [COPIES] -> task-state.awk's claims: what each task branch says.
 #   awaiting-merge  the branch's tip holds the task under done/; its detail pr:#N <url>
 #                   (pr:unknown without gh or NOPR), wt:<path>, unpushed
 #   claimed-live    the branch has a worktree (wt:<path>), or exists only on the remote
 #   parked          a local branch ahead of main without a worktree
 # A local branch with no worktree and nothing ahead of main claims nothing, unless the
 # remote has it too. Nor does a branch whose claim was deferred (_peal_files_deferred),
-# whatever is left of its worktree.
+# whatever is left of its worktree. With COPIES, a directory, the task file of each claim
+# is also written there, from the ref the claim was read from (_peal_files_copy).
 _peal_files_claims() {
-  local base=$1 nopr=$2 branches worktrees id lb rb ref wt ahead detail done_files out=""
+  local base=$1 nopr=$2 copies=${3-} rref=refs/remotes/$PEAL_REMOTE branches worktrees id lb rb ref wt ahead detail done_files out=""
   branches=$(_peal_files_branches)
   [ -n "$branches" ] || return 0
   worktrees=$(_peal_files_worktrees)
@@ -175,18 +192,23 @@ _peal_files_claims() {
         fi
       fi
       out="$out$id"$'\t'awaiting-merge$'\t'"$detail"$'\t'"${lb:-$rb}"$'\n'
+      _peal_files_copy "$ref" "$id" "$copies"
     elif _peal_files_deferred "$ref" "$base" "$id"; then
       # A claim made afresh elsewhere, under the same name, is on the remote alone.
       if [ -n "$lb" ] && [ -n "$rb" ] && ! _peal_files_deferred "refs/remotes/$PEAL_REMOTE/$rb" "$base" "$id"; then
         out="$out$id"$'\t'claimed-live$'\t'"remote:$PEAL_REMOTE"$'\t'"$rb"$'\n'
+        _peal_files_copy "$rref/$rb" "$id" "$copies"
       fi
     elif [ -n "$lb" ] && [ -n "$wt" ]; then
       out="$out$id"$'\t'claimed-live$'\t'"wt:$wt"$'\t'"$lb"$'\n'
+      _peal_files_copy "refs/heads/$lb" "$id" "$copies"
     elif [ -n "$lb" ] && ahead=$(git rev-list --count "$base..refs/heads/$lb") && [ "$ahead" -gt 0 ]; then
       detail="$ahead commit(s) ahead, last $(peal_ref_date_utc "refs/heads/$lb")"
       out="$out$id"$'\t'parked$'\t'"$detail"$'\t'"$lb"$'\n'
+      _peal_files_copy "refs/heads/$lb" "$id" "$copies"
     elif [ -n "$rb" ]; then
       out="$out$id"$'\t'claimed-live$'\t'"remote:$PEAL_REMOTE"$'\t'"${lb:-$rb}"$'\n'
+      _peal_files_copy "$rref/$rb" "$id" "$copies"
     else
       peal_err "warning: $lb has no worktree and nothing ahead of $PEAL_MAIN; task $id reads as unclaimed"
     fi
@@ -235,6 +257,24 @@ _peal_files_prs() {
     { print }' <<<"$claims" || printf '%s\n' "$claims"
 }
 
+# _peal_files_overlay COPIES TASKS -> the records in TASKS (main's), their size, plan, touches
+# and merge replaced by the non-empty values of the claim copies under COPIES. Of the copies'
+# warnings only a frontmatter that does not parse is shown; such a copy reads as main's.
+_peal_files_overlay() {
+  local tmp
+  tmp=$(mktemp -d) || return 2
+  _peal_files_scan_dir "$1" 2>"$tmp/err" >"$tmp/copies"
+  LC_ALL=C grep -a -v '^peal: warning: ' "$tmp/err" >&2
+  awk -F '\t' -v OFS='\t' -v copies="$tmp/copies" '
+    FILENAME == copies { for (i = 9; i <= 17; i++) c[$1, i] = $i; has[$1] = 1; next }
+    $1 in has {
+      split("9 10 16 17", cols, " ")
+      for (k = 1; k <= 4; k++) { i = cols[k]; if (c[$1, i] != "") $i = c[$1, i] }
+    }
+    { print }' "$tmp/copies" "$2"
+  rm -rf "$tmp"
+}
+
 peal_store_list() {
   local fetch=0 nopr=0 base tmp status=0
   while [ $# -gt 0 ]; do
@@ -252,8 +292,10 @@ peal_store_list() {
   base=$(_peal_files_base) || return 2
   tmp=$(mktemp -d) || return 2
   _peal_files_scan "$base" >"$tmp/tasks" || status=2
-  _peal_files_claims "$base" "$nopr" >"$tmp/claims"
-  [ $status != 0 ] || awk -F '\t' -f "$PEAL_ROOT/lib/task-state.awk" "$tmp/claims" "$tmp/tasks" || status=2
+  mkdir "$tmp/copies"
+  _peal_files_claims "$base" "$nopr" "$tmp/copies" >"$tmp/claims"
+  [ $status != 0 ] || _peal_files_overlay "$tmp/copies" "$tmp/tasks" >"$tmp/merged" || status=2
+  [ $status != 0 ] || awk -F '\t' -f "$PEAL_ROOT/lib/task-state.awk" "$tmp/claims" "$tmp/merged" || status=2
   rm -rf "$tmp"
   return $status
 }
