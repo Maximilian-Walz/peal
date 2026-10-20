@@ -92,4 +92,13 @@ Ranges:
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Built: `plugin/commands/close.md` step 6 has a new paragraph after the list of verdicts, so it applies under both `wait_ci` and `peal close wait`. A failing check that looks flaky gets one rerun before any fix. "Looks flaky" means it tests nothing the diff touched, its log shows a timeout or a network, runner or infrastructure error, or an open task names it flaky. Before the rerun, the session waits until the whole run has finished, using `gh run watch <run-id> --interval 30`. Then it runs `gh run rerun <run-id> --failed` once. A second failure is real and gets fixed. One rerun is allowed per pushed head. If gh cannot reach GitHub, the session does not rerun. Pointers to the paragraph are in (a)'s `ci: failure` clause and in the `BLOCKED:checks-failing` bullet. `plugin/commands/commands.test.sh` has two `has6` checks for it. Changing the sentence makes one of them fail, which was checked by hand.
+
+Decided, with the human at planning:
+- The rerun comes before the fix, and only for a failure that looks flaky.
+- The session waits with `gh run watch`, because neither wait waits for the whole run.
+- "Once" counts per pushed head.
+
+Found: both waits report a failure as soon as one check fails, while other checks of the run are still going. `peal_pr_checks` tests failing before pending, and `wait_ci` behaves the same way. This is why sessions hit "This workflow is already running". The guidance works around it. The fix to the verdict itself is the idea `close-wait-whole-run`, filed at the human's request.
+
+For the next session: right after a rerun, `wait_ci` may still report the old failure before it refreshes. The sentence cannot guard against that fully. Once `close-wait-whole-run` lands, step 6 can let `peal close wait` do the waiting instead of `gh run watch`.
