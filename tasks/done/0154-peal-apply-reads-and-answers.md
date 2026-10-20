@@ -75,4 +75,24 @@ Ranges: tasks/backlog/0153-peal-apply-takes-a-vouch.md:1-32; plugin/lib/apply.sh
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+`peal apply` now takes and answers the shapes Belfry's contract sends (Belfry's docs/contract.md "Proposals" and "Carrying out proposals", internal/api/apply.go `ApplyProposal`/`ApplyResult`), so a project that adds `apply:` to its `.belfry.yml` (0133) gets its batches carried out instead of refused.
+
+Built, all in `plugin/lib/apply.sh` (`apply.awk` unchanged):
+- `origin` is accepted on every kind and checked against `outsider`/`writer` everywhere; `""` reads as absent. Only `file` (frontmatter) and `add` (the comment) act on it.
+- Belfry's `ref`, `item` and `into` are stepped over when they hold a scalar; an object or array is still refused by the awk, and every other unknown field still makes the proposal invalid.
+- `move` without `milestone` (or with `null`) takes the task out of its milestone; `"milestone": ""` is still refused.
+- `depends` reads `remove` (true; absent, false or null mean add) instead of `op`, which is deleted, not kept alongside.
+- `split_milestone` names its milestone `milestone` instead of `from`, and moves tasks from any milestone or none, as the contract says; the parked-milestone check stays.
+- Each answer line is `{"id", "done", "outcome", "task", "milestone", "change"}`. `status` and `detail` are gone (nothing in Peal read them); the invalid/not-applied/failed distinction lives only in the `outcome` text. The line for an unreadable document has `"id": ""`, which Belfry ignores, so it reads every proposal as missing.
+- The `apply.sh` header, `docs/reference/cli.md` ("peal apply") and the apply guard in `docs/security.md` follow.
+
+Verified: `apply.test.sh` 438/0 (mawk, nawk, busybox awk), with a new `belfry_shapes` case written in `ApplyProposal`'s marshal order and a `belfry_invalid` case; `hostile.test.sh` 2471/0; `tools/docs.test.sh` 37/0; shellcheck clean. The reviewer checked the shapes against Belfry's sources.
+
+For the next session:
+- 0153 (`vouch`) should get `depends: [0154]`, by a revise outside this branch, and builds on these shapes.
+- Under 0133, confirm on Belfry's side that the Desk's Dismiss arrives as a `retire` proposal; `dismiss` (and `fold`) stay answered not done.
+- `hostile.test.sh` takes about 15 minutes; run it in the background.
+
+### Reviewer findings not acted on
+
+- `belfry_shapes` does not check the milestone files on main (only their answer lines): `ms_mixed` and `ms_states` cover that logic already.
