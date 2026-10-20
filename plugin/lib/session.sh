@@ -104,6 +104,7 @@ peal_write_root() {
 # exported 0 (bin/peal), so it cannot see the user's value. (PowerShell skips the env
 # file.) Never fails a session.
 peal_gh_telemetry_env() {
+  # shellcheck disable=SC2016 # the literal line, expanded in the session, not here
   local f=${CLAUDE_ENV_FILE-} line='export GH_TELEMETRY="${GH_TELEMETRY:-0}"'
   [ -n "$f" ] || return 0
   grep -qxF -- "$line" "$f" 2>/dev/null && return 0

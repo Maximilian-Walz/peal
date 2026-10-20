@@ -93,10 +93,11 @@ envf=$(scratch_dir)/env
 printf 'export KEEP=1\n' >"$envf"
 (cd "$outside" && GIT_CEILING_DIRECTORIES=$outside CLAUDE_ENV_FILE="$envf" "$PEAL" hook session-start </dev/null >/dev/null 2>&1)
 (cd "$outside" && GIT_CEILING_DIRECTORIES=$outside CLAUDE_ENV_FILE="$envf" "$PEAL" hook session-start </dev/null >/dev/null 2>&1)
+# shellcheck disable=SC2016 # the literal line, as the hook writes it
 check "env file: the line once, outside a repository" "1" "$(grep -cxF 'export GH_TELEMETRY="${GH_TELEMETRY:-0}"' "$envf")"
 check "env file: what was there stays" "1" "$(grep -cxF 'export KEEP=1' "$envf")"
 check "env file: unset gives 0" "0" "$(env -u GH_TELEMETRY bash -c ". '$envf'; printf %s \"\$GH_TELEMETRY\"")"
-check "env file: empty gives 0" "0" "$(GH_TELEMETRY= bash -c ". '$envf'; printf %s \"\$GH_TELEMETRY\"")"
+check "env file: empty gives 0" "0" "$(GH_TELEMETRY='' bash -c ". '$envf'; printf %s \"\$GH_TELEMETRY\"")"
 check "env file: the user's value stays" "log" "$(GH_TELEMETRY=log bash -c ". '$envf'; printf %s \"\$GH_TELEMETRY\"")"
 out=$(cd "$outside" && GIT_CEILING_DIRECTORIES=$outside env -u CLAUDE_ENV_FILE "$PEAL" hook session-start </dev/null 2>&1)
 check "env file: none set, fine" "0:" "$?:$out"
