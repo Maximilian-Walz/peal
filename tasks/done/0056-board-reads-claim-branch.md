@@ -100,3 +100,24 @@ Ranges:
 
 ## Outcome
 
+Built: with the files storage, `peal board` and `peal list` now take a claimed task's recorded fields (size, plan, touches, merge) from its claim branch's copy of the task file, so a scheduler sees the planner's `touches` while the task is claimed, not only after it merges.
+
+- `_peal_files_claims` (`plugin/lib/store-files.sh`) writes, for each claim it emits, the copy of the task file from the ref that claim was read from into a temp dir (`_peal_files_copy`). For a worktree, parked or local awaiting-merge claim that is the local branch. For a remote-only claim, a deferred local branch with a newer claim on the remote, or a local branch not ahead of main, it is the remote branch. The copy is matched by id, whatever its slug.
+- `peal_store_list` scans the copies once (`_peal_files_scan_dir`, now shared with `_peal_files_scan`). `_peal_files_overlay` then replaces fields 9, 10, 16 and 17 of main's records, only where the copy's value is non-empty, before `task-state.awk` runs unchanged. State, title, milestone, depends, part-of and path stay main's.
+- Only the yaml parse warning from the copies is kept. A broken copy falls back to main's fields.
+- `docs/design.md` says where a claimed task's fields come from, and that they reach other clones only once the branch is pushed.
+
+Decided with the human (see Notes): the copy of the claim's own ref, not always the local one. Only non-empty values override main's, so a value removed on the branch (for example `merge: auto` withdrawn) shows main's until the merge. `peal record` keeps not pushing, and pushing is the queued idea "Files storage: peal record pushes the claim branch".
+
+Departure from the plan: the copy's path is found with one extra `_peal_files_find` (one `git ls-tree`) per claim, instead of widening the existing done/ listing. The result is the same, and the cost is one git call per claim. A `git cat-file --batch` could cut it if many claims ever make the board slow.
+
+Tests:
+- `store-files.test.sh`: 621 passed. Its new case `claim_copies` covers local, remote-only, parked, awaiting-merge and deferred-local-with-remote claims, plus the fallbacks.
+- `tasks.test.sh`: 204 passed.
+- `work.test.sh`: 306 passed. Its files branch now shows `record` then `board`.
+
+The full `store-files.test.sh` takes about two minutes.
+
+### Reviewer findings not acted on
+
+- The plan departure above (an extra `git ls-tree` per claim) is now recorded here, which the reviewer asked for. Otherwise it stays: small cost, same result.
