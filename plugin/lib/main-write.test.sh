@@ -167,6 +167,15 @@ peal: nothing was filed" "$st|$(printf '%s\n' "$out" | tail -n 2)"
 $(line 0004 slow-task)
 pull request #3 https://github.com/acme/widgets/pull/3, open, not merged; the number is final once it merges" \
     "$st|$(printf '%s\n' "$out" | tail -n 3)"
+
+  # A failure with a check still running is fail-fast too.
+  echo 2 >"$FAKE_GH/checks-pending"
+  touch "$FAKE_GH/checks-fail"
+  : >"$FAKE_GH/log"
+  out=$(text | PEAL_MAIN_WRITE_INTERVAL=0 peal create failing-pending-task 2>&1)
+  st=$?
+  check "merge: a failure, a check running" "1|peal: #4's checks fail: it stays open, unmerged, https://github.com/acme/widgets/pull/4|1" \
+    "$st|$(printf '%s\n' "$out" | tail -n 2 | head -n 1)|$(grep -c '^GET repos/acme/widgets/commits/.*/check-runs' "$FAKE_GH/log")"
 }
 
 race() {

@@ -98,7 +98,8 @@ peal_json() {
 #   READY:no-checks         0  none, and the repository runs no GitHub Actions workflow
 #   WAIT:checks-pending     3  a check is still running
 #   WAIT:no-checks-yet      3  no check has registered yet
-#   BLOCKED:checks-failing  1  a check failed
+#   WAIT:checks-failing-pending 3  a check failed and others still run
+#   BLOCKED:checks-failing  1  a check failed, and nothing is pending
 #   BLOCKED:gh-failed       1  gh could not tell
 peal_pr_checks() {
   local repo=$1 sha=$2 runs statuses counts pending failing total
@@ -113,7 +114,11 @@ peal_pr_checks() {
     { t++ }
     END { print p + 0, f + 0, t + 0 }')
   read -r pending failing total <<<"$counts"
-  [ "$failing" = 0 ] || { echo "BLOCKED:checks-failing"; return 1; }
+  if [ "$failing" != 0 ]; then
+    [ "$pending" = 0 ] || { echo "WAIT:checks-failing-pending"; return 3; }
+    echo "BLOCKED:checks-failing"
+    return 1
+  fi
   [ "$pending" = 0 ] || { echo "WAIT:checks-pending"; return 3; }
   if [ "$total" = 0 ]; then
     total=$(peal_gh "repos/$repo/actions/workflows" --jq '.total_count') || { peal_gh_failed; return 1; }
