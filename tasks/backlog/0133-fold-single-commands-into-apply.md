@@ -1,7 +1,7 @@
 ---
 milestone: m3
 plan: required
-depends: [0112]
+depends: [0112, 0154]
 part-of: 0112
 priority: high
 ---
