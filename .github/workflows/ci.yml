@@ -101,29 +101,38 @@ jobs:
         include:
           - shard: hostile 1/4
             hostile_shard: 1/4
+            timeout: 20
           - shard: hostile 2/4
             hostile_shard: 2/4
+            timeout: 20
           - shard: hostile 3/4
             hostile_shard: 3/4
+            timeout: 20
           - shard: hostile 4/4
             hostile_shard: 4/4
+            timeout: 20
           # Anchored (&shard_a etc.) so the "rest" step below can read the same three
           # lists by alias instead of a second, driftable copy of these paths.
           - shard: a
             harnesses: &shard_a >-
               plugin/lib/close.test.sh plugin/lib/frontmatter.test.sh
               plugin/lib/git-guard.test.sh
+            timeout: 20
           - shard: b
             harnesses: &shard_b >-
               plugin/lib/store-issues.test.sh plugin/lib/decisions.test.sh
               plugin/lib/milestones.test.sh
+            timeout: 20
           - shard: c
             harnesses: &shard_c >-
               plugin/lib/store-files.test.sh plugin/lib/work.test.sh
               plugin/lib/backlog.test.sh plugin/lib/githooks.test.sh
+            timeout: 20
           - shard: rest
+            timeout: 45
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Each entry's own: "rest" runs about 20 to 25 minutes, the others well under 20.
+    timeout-minutes: ${{ matrix.timeout }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Every awk the harnesses can find is one they run under; Peal must work with
