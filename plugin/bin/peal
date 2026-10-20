@@ -17,6 +17,10 @@ export PEAL_ROOT
 # seconds instead of waiting on a prompt nothing will answer (peal_ssh_batch_mode).
 export GIT_TERMINAL_PROMPT=0
 peal_ssh_batch_mode
+# Every gh Peal starts runs with gh's telemetry off: gh otherwise posts a usage event to
+# cafe.github.com, a host a network filter need not allow and Peal's calls do not need.
+# A value the user set is kept.
+export GH_TELEMETRY="${GH_TELEMETRY:-0}"
 # shellcheck source=../lib/frontmatter.sh
 . "$PEAL_ROOT/lib/frontmatter.sh"
 # shellcheck source=../lib/config.sh
