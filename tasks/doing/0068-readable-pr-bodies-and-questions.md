@@ -1,7 +1,8 @@
 ---
 plan: required
-touches: [plugin/commands/close.md, plugin/agents/planner.md, plugin/commands/commands.test.sh]
+touches: [plugin/lib/close.sh, plugin/lib/close.test.sh, plugin/lib/hostile.test.sh, plugin/bin/peal, plugin/commands/, plugin/agents/planner.md, docs/design.md, docs/reference/cli.md, docs/reference/commands.md]
 milestone: m3
+size: M
 ---
 
 # 0068 — Pull request bodies and questions that invite reading
@@ -33,8 +34,10 @@ session's preceding message above the questions), without Peal depending on Belf
 
 ## Done when
 
-- The close harness asserts the body's section order and a `## Summary` of at most five
-  bullets.
+- The close harness asserts the body's section order (banners, `## Summary`, `## Decisions`,
+  `## Human steps`, task lines, pr.sections, `## Outcome`, ideas, commits); the prompt
+  harness asserts that close.md asks for at most five one-line Summary bullets (a
+  recommendation, not a script refusal).
 - The prompt harness covers the question rule in the planner's and `/peal:work`'s prompts.
 - `docs/design.md` states both conventions where it describes close and the planner.
 
@@ -71,6 +74,72 @@ twice on the inbox. The next session asks them again before anything is built.
   plan stays the message before the plan questions; work's report after close is the
   one-sentence one; setup's own PR body stays as is; the first bullet still names what
   to look at.
+
+Human's answers, 2026-10-20 (plan agreed):
+- Cap: prompt only. close.md recommends at most five one-line bullets; the script refuses
+  only an empty summary, as today. A hard cap invites five overlong bullets.
+- Body head: banners stay above `## Summary`; the Task/Fixes/Part of lines move below
+  `## Human steps`, before the pr.sections.
+- Decisions: session text only (`--decisions`); close.md tells it to name any decision
+  entry it recorded.
+- Commands: every command naming `AskUserQuestion` carries the rule, one test enforces it
+  (close, release, defer, next included). setup's and next's own PR bodies stay as is.
+- Plan shown: `/peal:work` shows the whole plan as the message before the questions.
+
+## Plan
+
+Agreed 2026-10-20.
+
+**Body (`plugin/lib/close.sh`).** `_peal_close_args` gains `--decisions TEXT |
+--decisions-file FILE` and `--human-steps TEXT | --human-steps-file FILE`: optional, once
+each, refused when given empty or twice. The summary check stays "not empty" (no bullet
+cap in the script); the error text drops "three to five". `peal_close_body` emits: the
+banners (unchanged), `## Summary` and the summary, `## Decisions` and `## Human steps` when
+given, the `Task N.` / `Fixes #N` / `Part of` lines, the pr.sections in config order, then
+`## Outcome` (heading unchanged, ship.sh:494 reads it), `## Ideas filed`, the commits.
+`plugin/bin/peal` usage names the new flags.
+
+**Prompts.** close.md step 5: the summary is at most five one-line bullets on what changes
+as the merger will notice it, the first naming what to look at; pass `--decisions` for the
+calls the merger should know (naming any decision entry recorded) and `--human-steps` for
+what the human must do; the `peal close finish` line updated. close.md step 6 READY: the
+final message is one or two sentences with the PR link. work.md step 7: after close, the
+report is that short message. One fixed bold-led paragraph ("**Questions are short.**
+Every `AskUserQuestion` has a `header` of at most 12 characters and a question of one or
+two sentences; what the questions share is said once, in your message right before
+asking, never repeated in a question.") goes word for word into every
+`plugin/commands/*.md` naming `AskUserQuestion`. Rewrite the passages that put context in
+the question: milestone-review.md:89, release.md:40, setup.md:74-79, retire.md:26-31,
+work.md:42-43 (MORE lines go in the message before). planner.md Ambiguities: each is a
+label (at most 12 characters, becomes the `header`), a one- or two-sentence question and a
+proposed default; the plan above carries the shared context. work.md step 5: the whole
+plan is the message before the questions; each ambiguity's label is its `header`.
+
+**Docs.** docs/design.md states both conventions (close PR body, ~313-334; work/planner,
+~166-170). docs/reference/cli.md (~494-516) the flags and body order;
+docs/reference/commands.md the close's short final message.
+
+**Verification.** close.test.sh: heading order via `grep '^## '`; Decisions/Human steps
+absent when not given; Task/Fixes lines in their new place on both storages; empty or
+duplicate `--decisions`/`--human-steps` refused; the finished PR body (fake gh) starts
+with `## Summary` when no banners. commands.test.sh: the rule paragraph verbatim in every
+command naming `AskUserQuestion` (work.md the reference); planner.md's label/default rule;
+work.md step 5 uses the label as `header`; no command puts context "in the question";
+close.md asks for at most five one-line bullets and a one- or two-sentence final message;
+the updated finish line. hostile.test.sh: the four new flags. Run `tools/test-all.sh`,
+`tools/lint.sh`, `tools/docs.test.sh`.
+
+Ranges: plugin/lib/close.sh:181-255, 309-375, 423-447, 485-489, 543-563;
+plugin/lib/close.test.sh:236-305; plugin/lib/hostile.test.sh:780-788;
+plugin/bin/peal:242-255; plugin/commands/close.md:76-128, 166-174;
+plugin/commands/work.md:38-45, 73-90, 132-137; plugin/commands/commands.test.sh:94-135;
+plugin/agents/planner.md:55-64; plugin/commands/milestone-review.md:33-35, 46-50, 87-91;
+plugin/commands/release.md:40-45; plugin/commands/setup.md:74-80, 102, 111, 126, 158-160,
+199-204; plugin/commands/retire.md:15, 26-31; plugin/commands/revise.md:20, 56-57;
+plugin/commands/split.md:113-114; plugin/commands/defer.md:17;
+plugin/commands/next.md:70-73, 112-114, 132-135; plugin/lib/ship.sh:494;
+docs/design.md:166-170, 313-334; docs/reference/cli.md:494-516;
+docs/reference/commands.md:25-36.
 
 ---
 
