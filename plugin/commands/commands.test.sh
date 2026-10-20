@@ -115,7 +115,34 @@ done
 check "reviewer: ends in the merge-auto line" "1" \
   "$(grep -c -F '`merge-auto: keep` or `merge-auto: withdraw`' "$agents/reviewer.md")"
 check "close: hands the report to finish" "1" \
-  "$(grep -c -F 'peal close finish --summary "<bullets>" [--section "<title>" "<text>"]... [--review-file FILE]' "$commands/close.md")"
+  "$(grep -c -F 'peal close finish --summary "<bullets>" [--decisions "<text>"] [--human-steps "<text>"] [--section "<title>" "<text>"]... [--review-file FILE]' "$commands/close.md")"
+closemd=$(tr '\n' ' ' <"$commands/close.md" | tr -s ' ')
+check "close: asks for at most five one-line summary bullets" "1" "$(grep -c -F 'at most five bullets, one line each' <<<"$closemd")"
+check "close: the final message is one or two sentences with the link" "1" "$(grep -c -F 'one or two sentences with the pull request' <<<"$closemd")"
+# shellcheck disable=SC2016 # the literal backticks
+check "close: names decision entries in --decisions" "1" "$(grep -c -F 'Pass `--decisions` for the calls the merger should know (name any decision entry' <<<"$closemd")"
+
+# Questions are short: one fixed paragraph in every command naming AskUserQuestion.
+questions_rule() {
+  awk '
+    /\*\*Questions are short\.\*\*/ { p = 1 }
+    p { if ($0 == "") exit; print }
+  ' "$1"
+}
+rule=$(questions_rule "$commands/work.md")
+check "the questions rule: non-empty" "1" "$([ -n "$rule" ] && echo 1 || echo 0)"
+for file in "$commands"/*.md; do
+  name=$(basename "$file" .md)
+  grep -q AskUserQuestion "$file" || continue
+  check "$name: carries the questions rule" "$rule" "$(questions_rule "$file")"
+  check "$name: puts no context in the question" "0" "$(tr '\n' ' ' <"$file" | grep -c -E 'in the question,|into the question|Put in it|The question holds')"
+done
+# shellcheck disable=SC2016 # the literal backticks
+check "planner: label, short question, default" "1" \
+  "$(tr '\n' ' ' <"$agents/planner.md" | tr -s ' ' | grep -c -F 'Write each as a label (at most 12 characters, it becomes the question'\''s `header`), a question of one or two sentences')"
+# shellcheck disable=SC2016 # the literal backticks
+check "work: the plan is the message before the questions, labels are headers" "1|1" \
+  "$(tr '\n' ' ' <"$commands/work.md" | tr -s ' ' | grep -c -F 'as the message right before the questions')|$(tr '\n' ' ' <"$commands/work.md" | tr -s ' ' | grep -c -F 'its label the `header`')"
 
 # close, step 6: Belfry's wait_ci when the session has it, peal close wait otherwise (0067).
 step6=$(awk '/^## 6\./ { f = 1; next } /^## / { f = 0 } f' "$commands/close.md" | tr '\n' ' ' | tr -s ' ')
