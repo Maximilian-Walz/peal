@@ -514,6 +514,25 @@ next line 😀" "$(on_main "$work" tasks/backlog/0001-first-task.md | grep -A1 "
   check "reader: nothing run" "" "$(find "$work" -maxdepth 1 -name 'pwned*')"
 }
 
+# decoder -> a string of over 1 MiB, its escapes straddling the reader's windows,
+# decoded byte for byte (and in time linear in its length: this case took minutes when
+# each character was appended on its own).
+decoder() {
+  local dir enc dec unit_enc unit_dec n
+  dir=$(scratch_dir)
+  unit_enc="$(printf 'abcdefghij%.0s' 1 2 3 4 5 6 7 8 9)"'\n\t\\\"\/é😀'
+  unit_dec="$(printf 'abcdefghij%.0s' 1 2 3 4 5 6 7 8 9)"$'\n\t\\"/\xc3\xa9\xf0\x9f\x98\x80'
+  enc=$unit_enc dec=$unit_dec n=1
+  while [ ${#enc} -lt 1048576 ]; do enc=$enc$enc dec=$dec$dec n=$((n * 2)); done
+  printf '{"proposals": [{"id": "x", "text": "%s"}]}' "$enc" | LC_ALL=C awk -v dir="$dir" -v arrays=tasks \
+    -f "$PEAL_ROOT/lib/apply.awk" >"$dir/manifest"
+  check "decoder: a 1 MiB string read" "1	id	s
+1	text	s
+count	1" "$(cat "$dir/manifest")"
+  printf '%s' "$dec" >"$dir/expected"
+  check "decoder: $n escaped runs, byte for byte" "same" "$(cmp -s "$dir/expected" "$dir/1.text" && echo same)"
+}
+
 issues() {
   issues_repo
   check_refused "issues storage refuses" "the issues storage takes no batch" peal apply < <(printf '{"proposals": []}')
@@ -529,6 +548,7 @@ cases() {
   invalids
   defused
   reader
+  decoder
   if command -v jq >/dev/null; then
     pr
     ms_pr
