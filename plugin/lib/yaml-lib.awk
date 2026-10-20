@@ -26,28 +26,48 @@ function emit(path, kind, n, value) {
 }
 
 # quoted(t, n) -> the value of the quoted scalar t starts with; the text after its closing
-# quote is left in qrest.
-function quoted(t, n,    q, j, ch, nx, v) {
+# quote is left in qrest. Linear in t's length: t is split once at its quotes (single) or
+# backslashes (double) and each piece appended whole. One character at a time, length()
+# and substr() on the whole of t took time quadratic in its length under onetrue-awk,
+# whose length() and substr() walk the string for UTF-8 on every call.
+function quoted(t, n,    q, body, np, p, i, ps, cur, off, k, nx, v) {
   q = substr(t, 1, 1)
+  body = substr(t, 2)
+  if (q == "'") {
+    np = split(body, p, "'")
+    v = p[1]
+    ps = length(p[1]) + 1    # where the quote after p[i] is in body
+    for (i = 1; i < np; i++) {
+      if (p[i + 1] == "" && i + 1 < np) { v = v "'" p[i + 2]; ps += length(p[i + 2]) + 2; i++; continue }
+      qrest = substr(body, ps + 1)
+      return v
+    }
+    fail(n, "a quoted value is not closed on its line")
+    qrest = ""
+    return v
+  }
+  np = split(body, p, "\\")
   v = ""
-  for (j = 2; j <= length(t); j++) {
-    ch = substr(t, j, 1)
-    if (q == "'") {
-      if (ch == "'") {
-        if (substr(t, j + 1, 1) == "'") { v = v "'"; j++; continue }
-        qrest = substr(t, j + 1)
-        return v
-      }
-      v = v ch
-      continue
-    }
-    if (ch == "\\") {
-      nx = substr(t, j + 1, 1)
-      if (nx == "\"" || nx == "\\") { v = v nx; j++; continue }
-      fail(n, "the escape \\" nx " is not supported; use a 'single-quoted' value")
-    }
-    if (ch == "\"") { qrest = substr(t, j + 1); return v }
-    v = v ch
+  cur = p[1]
+  off = 1                    # where cur starts in body
+  ps = 1                     # where p[i] starts in body
+  i = 1
+  for (;;) {
+    k = index(cur, "\"")
+    if (k) { qrest = substr(body, off + k); return v substr(cur, 1, k - 1) }
+    v = v cur
+    if (i >= np) break
+    # A backslash after p[i]: the escaped character starts p[i + 1], or is the next
+    # backslash when p[i + 1] is empty.
+    ps += length(p[i]) + 1
+    i++
+    if (p[i] == "" && i < np) { v = v "\\"; ps += 1; i++; cur = p[i]; off = ps; continue }
+    nx = substr(p[i], 1, 1)
+    if (nx == "\"") { v = v nx; cur = substr(p[i], 2); off = ps + 1; continue }
+    fail(n, "the escape \\" nx " is not supported; use a 'single-quoted' value")
+    v = v "\\"
+    cur = p[i]
+    off = ps
   }
   fail(n, "a quoted value is not closed on its line")
   qrest = ""
