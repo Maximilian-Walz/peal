@@ -82,4 +82,42 @@ Ranges relied on: tasks/doing/0152-the-hostile-shards-run-in.md:1-38; plugin/lib
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+The cost was `peal apply` itself, run once per awk in `awk_channels`, not its write onto main (the hostile repositories push to a local bare remote, so nothing polls). Two things made each apply try cost 2–33 s:
+- `apply.awk`'s string decoder appended one byte at a time, so it took time quadratic in a string's length (the 64 KiB `long` value: over 300 s for 1 MiB under busybox);
+- `apply.sh` forked one or more processes for every field it read.
+
+`awk_channels` has 200 tries per awk pass, a multiple of 4, so the same slow tries landed in the same shard under every awk: one shard took about 42 min.
+
+Built:
+- `apply.awk` `str()` reads 4096-byte windows and appends plain runs in one piece; an escape that may cross a window's end reloads at the backslash. Errors are unchanged: the reviewer compared old and new on 448 documents with escapes at the window edges, under mawk and busybox, identical every time. A 1 MiB string now decodes in 0.09 s under busybox.
+- `apply.sh` loads apply.awk's manifest once into variables (`PA_T_<i>_<k>`, `PA_V_<i>_<k>`, `PA_K_<i>`, status and detail in `PA_ST_<i>`/`PA_DET_<i>`), read without forks. Names are built only from digits and keys checked against `[a-z_]` (docs/security.md says so). bash 3.2-safe: `printf -v`, `${!n-}`, `read -d ''`. apply.sh's own external commands per ordinary apply went from 82 to 21; an ordinary escaped `file`+`add` apply takes 0.38 s instead of 0.67 s here.
+- `_pa_chomp` strips trailing newlines as `$(...)` does, in linear time. The reviewer found the first version (one newline at a time) took 17.5 s for 30,000 trailing newlines in an outsider field. The obvious regex `$'\n'+$` and the pattern `${v##*[!\n]}` are quadratic too (4 s and 5.6 s), hence the doubling-and-bisection helper (0.009 s). apply.test.sh's `trailing` case covers it.
+- `hostile.test.sh`:
+  - prints `hostile: <group> [<awk>] starts at Ns, ran X of T` at each group and awk pass, and a line from `try()` after 60 s without one;
+  - builds a try's input only when this shard runs it;
+  - runs the checks outside `try()` in shard 1 only;
+  - offsets the round-robin by awk pass, so the same try moves shard from awk to awk.
+  The fixed per-shard cost is 11–19 s, so no copied seeded repository was needed.
+- `ci.yml`: `timeout-minutes` on every job (changes 5, harnesses-macos 30, linux 20, harnesses-linux 5, shellcheck 10), and the shard comment brought up to date.
+
+Verified locally (mawk, nawk = mawk, busybox; gawk and original-awk only in CI):
+- apply.test.sh passes under every awk, 417 checks, with no existing expectation edited; the 1 MiB decoder case passes byte for byte.
+- A one-off comparison of old and new apply covered stdout, stderr, status and the remote's diff, log and refs. The 79 hostile apply inputs are byte-identical under mawk and busybox. apply.test.sh's 258 apply calls are identical except:
+  - a `peal/main-write-<sha>` branch name, with the same tree;
+  - a stray `cat: <tmp>/s/t/NNNN.last: No such file or directory` line on stderr. It came for a split_milestone refused after its task was loaded, and leaked a temporary path; the reviewer judged its loss acceptable.
+- The full serial hostile run passes: 2428 tries, unchanged, in 821 s.
+- Shards 1/4 to 4/4 pass, ran 608, 606, 607 and 607 (sum 2428), and took 206, 192, 179 and 198 s here.
+- `tools/lint.sh` is clean.
+
+The per-shard minutes on CI, the required check's duration and the macOS job's duration come from this pull request's run.
+
+For the next session: `ci.yml` never merges by itself; the human merges this. What remains of apply's cost is in helpers it shares with other commands (config parsed six times, frontmatter once per field, a YAML parser quadratic under busybox), filed as an idea with the profile. The commit 3ba7100 is a session-end autosave of the `_pa_chomp` fix, completed by 6cf4642.
+
+### Escalations
+
+- Done when: "forks at least 70 % fewer processes". Met for apply.sh's own commands (82 to 21, −74 %). Not met for the whole process tree (294 to 205, −30 %): at least 56 of the remaining processes are in shared helpers, which the agreed scope keeps out. Filed as the idea on those helpers.
+- Done when: "`apply, escaped values [long]` takes under 3 s under mawk and busybox". Met under mawk (2.3 to 1.15 s). Not under busybox (30.8 to 4.8 s): about 5 s go to six frontmatter parses of the filed task in the shared YAML helpers, out of scope by the same answer. Same idea.
+
+### Reviewer findings not acted on
+
+- None: the one blocking finding (quadratic trailing-newline stripping) was fixed in 3ba7100 and 6cf4642, and the stderr departure is recorded above.
