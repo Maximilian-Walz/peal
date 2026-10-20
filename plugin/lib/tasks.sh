@@ -270,6 +270,19 @@ peal_cycle_check_text() {
   return $status
 }
 
+# peal_cycle_check_row VERB ROW RECORDS -> peal_cycle_check for the one changed row ROW
+# (id, milestone, depends, part-of, tab-separated) against the list records RECORDS (a
+# string).
+peal_cycle_check_row() {
+  local tmp status=0
+  tmp=$(mktemp -d) || return 2
+  printf '%s\n' "$3" >"$tmp/records"
+  printf '%s\n' "$2" >"$tmp/changes"
+  peal_cycle_check "$1" "$tmp/records" "$tmp/changes" || status=$?
+  rm -rf "$tmp"
+  return $status
+}
+
 # peal_cycle_check_create MODE ORIGIN COUNT DIR [RECORDS] -> peal_cycle_check for the
 # texts DIR/1..COUNT peal_store_create is filing, as tasks NNNN (one plain text) or
 # PART1..n, against the store's list records RECORDS (a string), read when not given.

@@ -546,6 +546,7 @@ cycles() {
   put "$work" backlog 0004 review-task "milestone: m2" "depends: [milestone]"
   put "$work" backlog 0005 waits-for-split "depends: [0006]"
   put "$work" backlog 0006 split-task
+  put "$work" backlog 0007 other-review "milestone: m3" "depends: [milestone]"
   before=$(git -C "$work" rev-parse origin/main)
 
   check_fails "cycle: revise" 1 "revise: refused: depends cycle 0002 → 0001 → 0002" \
@@ -556,6 +557,8 @@ cycles() {
     peal create late-review < <(text "milestone: m2" "depends: [milestone]")
   check_fails "cycle: split, a piece through its origin" 1 "create: refused: depends cycle PART2 → 0005 → PART2" \
     peal create --part-of 0006 piece-one piece-two < <(texts "$(text "part-of: ORIGIN")" "$(text "part-of: ORIGIN" "depends: [0005]")")
+  check_fails "cycle: set-milestone" 1 "set-milestone: refused: depends cycle 0007 → 0004 → 0007" \
+    peal set-milestone 0007 m2
   check "cycle: nothing pushed" "$before" "$(git -C "$work" fetch -q origin; git -C "$work" rev-parse origin/main)"
 
   # What closes no cycle goes through: a piece waiting for its origin, a task waiting for
@@ -564,7 +567,9 @@ cycles() {
   check "cycle: none, a piece waits for its origin" "0" "$?"
   out=$(text "milestone: m1" "depends: [milestone]" | peal create own-review 2>&1)
   check "cycle: none, its own milestone" "0" "$?"
+  check_fails "cycle: none, a move closing no cycle" 0 "" peal set-milestone 0003 m2
   put "$work" backlog 0002 second-task "depends: [0001]"
+  check_fails "cycle: none, a move of a task on a cycle made by hand" 0 "" peal set-milestone 0002 m1
   out=$(peal revise 0002 --reason "a title" < <(ID=0002 TITLE="New title" text "depends: [0001]") 2>&1)
   check "cycle: a revise keeping a cycle there already" "0:revised 0002 tasks/backlog/0002-second-task.md" "$?:$out"
 }

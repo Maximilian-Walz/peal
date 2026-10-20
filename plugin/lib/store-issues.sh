@@ -825,6 +825,8 @@ peal_store_set_milestone() {
     esac
     ms=$(_peal_issues_milestone_number "$m") || return 2
   fi
+  peal_cycle_check_row set-milestone "$(printf '%s\t%s\t%s\t%s' "$id" "$m" \
+    "$(_peal_field "$PEAL_RECORD" 7)" "$(_peal_field "$PEAL_RECORD" 8)")" "$PEAL_RECORDS" || return $?
   peal_json r:milestone "$ms" | peal_gh --method PATCH "repos/$PEAL_REPO/issues/$id" --input - --jq '.number' >/dev/null || return 1
   echo "task $id: milestone ${m:-none}"
 }
