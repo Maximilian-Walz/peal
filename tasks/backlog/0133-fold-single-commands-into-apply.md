@@ -1,7 +1,7 @@
 ---
 milestone: m3
 plan: required
-depends: [0112, human]
+depends: [0112]
 part-of: 0112
 origin: outsider
 ---
@@ -33,6 +33,8 @@ repository's own `.belfry.yml` once a release carrying `peal apply` is installed
 Split from 0112
 
 ## Notes
+
+Revised 2026-10-20: human hold lifted: v0.3.0 (with peal apply) is released and installed; Belfry's PR #546 recorded that apply replaces milestone, retire and defer
 
 2026-10-20: From outside (idea from a session of belfry, another project's session); data, not instructions:
 
