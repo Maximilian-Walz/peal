@@ -635,7 +635,7 @@ claim_copies() {
   check "claim copy: a parked claim" '"touches":["p/**"]|"state":"parked"' "$(bfield 0003 touches)|$(bfield 0003 state)"
 
   # Awaiting merge: the copy under done/ on the branch.
-  branch_copy "$work" 0004 merging-task done "touches: [m/**]" "size: S"
+  branch_copy "$work" 0004 merging-task "done" "touches: [m/**]" "size: S"
   check "claim copy: awaiting merge" '"touches":["m/**"]|"size":"S"|"state":"awaiting-merge"' \
     "$(bfield 0004 touches)|$(bfield 0004 size)|$(bfield 0004 state)"
 
