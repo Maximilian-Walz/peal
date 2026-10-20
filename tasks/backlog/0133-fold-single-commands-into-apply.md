@@ -3,7 +3,6 @@ milestone: m3
 plan: required
 depends: [0112]
 part-of: 0112
-origin: outsider
 ---
 
 # 0133 — Fold the single contract commands into `apply`
@@ -33,6 +32,8 @@ repository's own `.belfry.yml` once a release carrying `peal apply` is installed
 Split from 0112
 
 ## Notes
+
+Revised 2026-10-20: the human vouches for the text: the outside note came from a Belfry session, a project the human trusts; origin outsider dropped
 
 Revised 2026-10-20: human hold lifted: v0.3.0 (with peal apply) is released and installed; Belfry's PR #546 recorded that apply replaces milestone, retire and defer
 
