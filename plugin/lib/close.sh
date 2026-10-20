@@ -664,11 +664,21 @@ peal_close_stop() {
 #   WAIT:mergeability-unknown  3  GitHub has not computed it yet
 #   BLOCKED:<why>            1  not-a-repo, no-settings, detached-head, on-main,
 #                               close-unfinished (finish has not run through), uncommitted,
-#                               not-pushed, unpushed, no-gh, gh-failed, no-pr,
+#                               not-pushed, unpushed, no-gh, gh-failed (naming the host when
+#                               the sandbox denies it), no-pr,
 #                               conflicts, checks-failing: stay and fix it here
 # The branch checked out here is the one checked; anything that cannot be verified is
 # BLOCKED, never READY.
 peal_close_verify() {
+  local errfile status
+  errfile=$(mktemp) || { echo "BLOCKED:gh-failed"; return 1; }
+  PEAL_GH_ERRFILE=$errfile _peal_close_verify
+  status=$?
+  rm -f "$errfile"
+  return $status
+}
+
+_peal_close_verify() {
   local top branch main gitdir ahead remote_ref repo pr state merged mergeable sha checks status
   top=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "BLOCKED:not-a-repo"; return 1; }
   cd "$top" || { echo "BLOCKED:not-a-repo"; return 1; }
@@ -686,16 +696,16 @@ peal_close_verify() {
   command -v gh >/dev/null 2>&1 || { echo "BLOCKED:no-gh"; return 1; }
   repo=$(peal_github_repo) || { echo "BLOCKED:no-settings"; return 1; }
   pr=$(peal_gh "repos/$repo/pulls?state=all&head=${repo%%/*}:$(peal_urlencode "$branch")" \
-    --jq '.[0] | select(. != null) | .number') || { echo "BLOCKED:gh-failed"; return 1; }
+    --jq '.[0] | select(. != null) | .number') || { peal_gh_failed; return 1; }
   [ -n "$pr" ] || { echo "BLOCKED:no-pr"; return 1; }
   state=$(peal_gh "repos/$repo/pulls/$pr" --jq '[.state, (.merged | tostring), (.mergeable | tostring)] | @tsv') \
-    || { echo "BLOCKED:gh-failed"; return 1; }
+    || { peal_gh_failed; return 1; }
   IFS="$(printf '\t')" read -r state merged mergeable <<<"$state"
   [ "$merged" != true ] || { echo "READY:merged"; return 0; }
   case $state in
     closed) echo "READY:pr-closed"; return 0 ;;
     open) ;;
-    *) echo "BLOCKED:gh-failed"; return 1 ;;
+    *) peal_gh_failed; return 1 ;;
   esac
   [ "$mergeable" != false ] || { echo "BLOCKED:conflicts"; return 1; }
   sha=$(git rev-parse HEAD)

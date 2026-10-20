@@ -147,7 +147,7 @@ its one line:
   `conflicts`, `uncommitted`, `unpushed`, `not-pushed`: fix, commit, push (the close is
   finished, so this is ordinary work on the branch), then wait again.
   `close-unfinished`: finish did not run through; run it again. `no-pr`: finish opened
-  none; run it again. `no-gh`, `gh-failed`: report it and stay. The others
+  none; run it again. `no-gh`, `gh-failed`: report it and stay (`gh-failed (host H is denied by the network sandbox ...)` names the host to ask the human to allow). The others
   (`not-a-repo`, `detached-head`, `on-main`): find out where this session is first.
 
 ## Closing without building

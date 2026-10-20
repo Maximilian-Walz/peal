@@ -692,7 +692,9 @@ verify_cases() {
   check "verify: no pull request" "BLOCKED:no-pr 1" "$(verdict)"
   printf 'GET repos/*/pulls*' >"$FAKE_GH/fail"
   check "verify: gh fails" "BLOCKED:gh-failed 1" "$(verdict)"
-  rm "$FAKE_GH/fail"
+  printf 'Get "https://api.example.test/repos/x/pulls": Forbidden\n' >"$FAKE_GH/fail-message"
+  check "verify: gh fails on a denied host" "BLOCKED:gh-failed (host api.example.test is denied by the network sandbox; ask the human to allow it) 1" "$(verdict)"
+  rm "$FAKE_GH/fail" "$FAKE_GH/fail-message"
   begin >/dev/null
   close_finish >/dev/null 2>&1
   check "verify: no check yet" "WAIT:no-checks-yet 3" "$(verdict)"

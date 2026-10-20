@@ -67,9 +67,25 @@ peal_gh() {
       shift
     done
     peal_err "gh api ${1-} failed: $(tr '\n' ' ' <"$err" | sed 's/ $//')"
+    [ -z "${PEAL_GH_ERRFILE-}" ] || cp "$err" "$PEAL_GH_ERRFILE" 2>/dev/null
   fi
   rm -f "$err"
   return $status
+}
+
+# peal_gh_failed -> the verdict line for a gh call that failed: BLOCKED:gh-failed, and
+# when the message of the last failure (PEAL_GH_ERRFILE) is the sandbox proxy's denial of
+# a host (gh: `Get "https://HOST/...": Forbidden`), the host's name too.
+peal_gh_failed() {
+  local host=""
+  if [ -s "${PEAL_GH_ERRFILE-}" ]; then
+    host=$(sed -n 's|.*"https\{0,1\}://\([^/":]*\)[^"]*": Forbidden.*|\1|p' "$PEAL_GH_ERRFILE" | head -n 1)
+  fi
+  if [ -n "$host" ]; then
+    echo "BLOCKED:gh-failed (host $host is denied by the network sandbox; ask the human to allow it)"
+  else
+    echo "BLOCKED:gh-failed"
+  fi
 }
 
 # peal_json [KIND:KEY VALUE]... -> a request's JSON object (lib/json-request.awk).
@@ -87,8 +103,8 @@ peal_json() {
 peal_pr_checks() {
   local repo=$1 sha=$2 runs statuses counts pending failing total
   runs=$(peal_gh "repos/$repo/commits/$sha/check-runs?per_page=100" \
-    --jq '.check_runs[] | [.status, (.conclusion // "")] | @tsv') || { echo "BLOCKED:gh-failed"; return 1; }
-  statuses=$(peal_gh "repos/$repo/commits/$sha/status" --jq '.statuses[] | .state') || { echo "BLOCKED:gh-failed"; return 1; }
+    --jq '.check_runs[] | [.status, (.conclusion // "")] | @tsv') || { peal_gh_failed; return 1; }
+  statuses=$(peal_gh "repos/$repo/commits/$sha/status" --jq '.statuses[] | .state') || { peal_gh_failed; return 1; }
   counts=$( { printf '%s\n' "$runs" | sed '/^$/d; s/^/run\t/'; printf '%s\n' "$statuses" | sed '/^$/d; s/^/status\t/'; } | awk -F '\t' '
     $1 == "run" && $2 != "completed" { p++ }
     $1 == "run" && $2 == "completed" && $3 != "success" && $3 != "neutral" && $3 != "skipped" { f++ }
@@ -100,7 +116,7 @@ peal_pr_checks() {
   [ "$failing" = 0 ] || { echo "BLOCKED:checks-failing"; return 1; }
   [ "$pending" = 0 ] || { echo "WAIT:checks-pending"; return 3; }
   if [ "$total" = 0 ]; then
-    total=$(peal_gh "repos/$repo/actions/workflows" --jq '.total_count') || { echo "BLOCKED:gh-failed"; return 1; }
+    total=$(peal_gh "repos/$repo/actions/workflows" --jq '.total_count') || { peal_gh_failed; return 1; }
     if [ "$total" = 0 ]; then
       echo "READY:no-checks"
       return 0
