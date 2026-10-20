@@ -678,6 +678,21 @@ no_gh_path() {
   printf '%s\n' "$dir"
 }
 
+# telemetry_cases -> gh runs with GH_TELEMETRY=0 unless the user set a value.
+telemetry_cases() {
+  local v
+  for v in "unset:0" "empty:0" "false:false"; do
+    rm -f "$FAKE_GH/env"
+    case ${v%%:*} in
+      unset) in_dir "$wt" env -u GH_TELEMETRY "$PEAL" close verify >/dev/null 2>&1 ;;
+      empty) in_dir "$wt" env GH_TELEMETRY= "$PEAL" close verify >/dev/null 2>&1 ;;
+      *) in_dir "$wt" env GH_TELEMETRY="${v%%:*}" "$PEAL" close verify >/dev/null 2>&1 ;;
+    esac
+    check "verify: gh telemetry, GH_TELEMETRY ${v%%:*}" "${v#*:}" "$(sort -u "$FAKE_GH/env" 2>/dev/null)"
+  done
+  rm -f "$FAKE_GH/env"
+}
+
 verify_cases() {
   local plain nogh
   new_repo
@@ -711,6 +726,7 @@ verify_cases() {
   printf 'Get "https://api.example.test/repos/x/pulls": Forbidden\n' >"$FAKE_GH/fail-message"
   check "verify: gh fails on a denied host" "BLOCKED:gh-failed (host api.example.test is denied by the network sandbox; ask the human to allow it) 1" "$(verdict)"
   rm "$FAKE_GH/fail" "$FAKE_GH/fail-message"
+  telemetry_cases
   begin >/dev/null
   close_finish >/dev/null 2>&1
   check "verify: no check yet" "WAIT:no-checks-yet 3" "$(verdict)"
