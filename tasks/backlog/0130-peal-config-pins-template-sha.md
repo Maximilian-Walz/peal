@@ -1,7 +1,7 @@
 ---
 milestone: m3
 plan: skipped
-depends: [0126, human]
+depends: [0126]
 touches: [.peal/config.yml]
 ---
 
@@ -24,6 +24,8 @@ commented default, so Peal's own releases pin the SHA without a hand edit.
 > Peal's own .peal/config.yml lists the template under release.commit-files, so its releases pin the Get Peal SHA. Found in 0126: the installed plugin (from main) refused the unknown setting on 0126's branch. After 0126 merges and the installed plugin is refreshed, add under release: `commit-files: ["plugin/templates/decisions.yml: \"fetch -q --depth 1 https://github.com/Maximilian-Walz/peal\""]` and its commented default in that file's defaults block. Done when `peal config release.commit-files` prints the line on main. Milestone m3, depends 0126, size S.
 
 ## Notes
+
+Revised 2026-10-20: human hold lifted: v0.3.0 (with 0126) is released and installed
 
 Deferred 2026-10-19 after a claim: installed plugin 0.2.0 predates 0126 and refuses release.commit-files; waits for a release containing 0126 and a plugin refresh
 
