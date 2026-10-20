@@ -316,7 +316,7 @@ body. Task files only; the issues storage refuses (status 2), since Belfry write
 Each proposal is an object with an `id` (Belfry's, echoed back), a `kind`, an optional
 `why`, an optional `origin` (`outsider` or `writer`; `""` is none) which only `file` and
 `add` act on, and the kind's fields. Belfry's own `ref`, `item` and `into` are ignored,
-whatever their value; every other unknown field makes the proposal invalid. Belfry leaves
+whatever scalar they hold (an object or array is still refused); every other unknown field makes the proposal invalid. Belfry leaves
 empty fields out, so an absent optional field is none:
 
 | kind | fields | what it does |

@@ -190,7 +190,7 @@ escapes decoded (a `\u0000` or a lone surrogate refused); no value is ever put o
 a shell splits, into a command, or into `eval`. A field's name is taken only when it is
 plain letters and `_`, a value only when it is a string, number or null; an object, an
 array or an unknown field makes the proposal invalid (Belfry's `ref`, `item` and `into`
-are the fixed exceptions, stepped over whatever they hold, never used). The one array is `tasks`, a
+are the fixed exceptions, stepped over whatever scalar they hold, never used). The one array is `tasks`, a
 `split_milestone`'s list (the awk is told which keys take one): each item must be a string
 and goes to a file of its own, decoded like any value, never joined with the others; a
 number, null, object or nested array as an item, an empty array, a duplicate, or an item
