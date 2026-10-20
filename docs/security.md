@@ -304,9 +304,11 @@ reads comments.
 
 Every GitHub call goes through the `gh` CLI, so nothing in Peal reads, stores or
 forwards the user's token; scoping and revocation are `gh`'s own auth store, not
-Peal's problem to get right.
+Peal's problem to get right. Peal's `gh` runs with gh's telemetry off (`GH_TELEMETRY=0`
+unless the user set it), so its calls reach only GitHub's API, not `cafe.github.com`.
 
-- Guard: `plugin/lib/github.sh` (`peal_gh`), the main path; the board's lookup of open
+- Guard: `plugin/lib/github.sh` (`peal_gh`), the main path, and the telemetry export in
+  `plugin/bin/peal`; the board's lookup of open
   pull requests (`_peal_files_prs` in `plugin/lib/store-files.sh`) calls `gh` directly.
 - Harness: `plugin/lib/store-issues.test.sh`, `plugin/lib/ship.test.sh`, through the
   fake `gh` (`plugin/lib/fake-gh`) that sees every call a harness makes.

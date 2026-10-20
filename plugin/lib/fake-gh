@@ -35,6 +35,7 @@
 # A release call is logged as "RELEASE <verb> <tag>".
 # `gh auth status` (lib/doctor.sh's gh check): succeeds unless $FAKE_GH/no-auth exists, in
 # which case it fails as gh does when logged out.
+# Every call appends the GH_TELEMETRY it ran with ('unset' when absent) to $FAKE_GH/env.
 # Only the endpoints Peal calls; anything else fails loudly, so a new call cannot pass
 # the harness unseen.
 set -uo pipefail
@@ -48,6 +49,8 @@ die() {
 for f in issues milestones pulls comments checks statuses runs jobs releases; do
   [ -f "$FAKE_GH/$f.json" ] || printf '[]\n' >"$FAKE_GH/$f.json"
 done
+
+printf '%s\n' "${GH_TELEMETRY-unset}" >>"$FAKE_GH/env"
 
 if [ "${1-}" = auth ] && [ "${2-}" = status ]; then
   if [ -e "$FAKE_GH/no-auth" ]; then
