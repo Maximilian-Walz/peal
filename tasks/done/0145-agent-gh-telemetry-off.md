@@ -54,4 +54,15 @@ Ranges: plugin/bin/peal:13-23, plugin/bin/peal:389-404, plugin/hooks/hooks.json:
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Built: Peal's SessionStart hook (`cmd_hook session-start`, helper `peal_gh_telemetry_env` in `plugin/lib/session.sh`) now appends `export GH_TELEMETRY="${GH_TELEMETRY:-0}"` to Claude Code's `CLAUDE_ENV_FILE`, once, in every session where the plugin is enabled (before the Peal-project check, so `/peal:setup` is covered too). Claude Code runs that file before every Bash command, so the gh calls an agent runs, including improvised ones, get gh's telemetry off unless the user set their own value. The line is written literally, not as a value, because the hook runs under `bin/peal`, which already exported 0. Any error is swallowed. Harness cases are in `plugin/bin/peal.test.sh`; docs are updated in `docs/security.md`, `docs/reference/cli.md` and `docs/design.md`.
+
+Decided with the human: the hook instead of markdown prefixes or new peal subcommands; every session; prefixes as the fallback if the env file could not be shown to work headless. It could not: in a headless Belfry session, Bash sees neither `CLAUDE_ENV_FILE` (Claude Code gives it only to hooks) nor any line from it, because the installed plugin from main has no such hook yet. So the fallback was taken: `GH_TELEMETRY=0` prefixes on the gh calls in `close.md`, `next.md` and `setup.md`, and on the fallback printed by `plugin/lib/close.sh`.
+
+Next session: after the merge, check in a new session that `echo $GH_TELEMETRY` prints 0 and that a sandboxed `gh pr checks` logs no deny for cafe.github.com. The queued idea "Check the env-file line live, then drop the gh telemetry prefixes" does that and removes the prefixes if the env file works everywhere.
+
+Tests: `plugin/bin/peal.test.sh` 29/0, `plugin/commands/commands.test.sh` 154/0.
+
+### Reviewer findings not acted on
+
+- The inline prefixes override a user's own `GH_TELEMETRY`, unlike the env-file line: this was agreed as the fallback, and the queued idea removes them once the env file is proven.
+- The prefixes may stop matching allow rules like `Bash(gh pr create:*)` and cause prompts: Peal ships no such rule; the same queued idea covers it.
