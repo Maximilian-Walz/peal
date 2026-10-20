@@ -314,26 +314,29 @@ body. Task files only; the issues storage refuses (status 2), since Belfry write
 `github-issues` project itself.
 
 Each proposal is an object with an `id` (Belfry's, echoed back), a `kind`, an optional
-`why`, and the kind's fields:
+`why`, an optional `origin` (`outsider` or `writer`; `""` is none) which only `file` and
+`add` act on, and the kind's fields. Belfry's own `ref`, `item` and `into` are ignored,
+whatever their value; every other unknown field makes the proposal invalid. Belfry leaves
+empty fields out, so an absent optional field is none:
 
 | kind | fields | what it does |
 |---|---|---|
 | `file` | `title`, `text`, `milestone`, `priority`, `owner`, `origin` | files `text` as `peal create` does (`NNNN` for its number); the four fields go into the frontmatter, winning over the text's; `title` gives the slug, its first five words |
 | `add` | `task`, `text`, `origin` | a dated line under the task's `## Notes`, as `peal comment`; `origin: outsider` marks the task |
-| `move` | `task`, `milestone` | sets the milestone, `null` removes it |
+| `move` | `task`, `milestone` | sets the milestone; absent or `null` removes it (`""` is invalid) |
 | `priority` | `task`, `priority` | `urgent`, `high`, `normal` (removes the field) or `low` |
-| `depends` | `task`, `on`, `op` | adds `on` to the task's `depends` (`op: add`), or takes it out (`remove`) |
+| `depends` | `task`, `on`, `remove` | adds `on` to the task's `depends`, or takes it out with `"remove": true` (absent, `false` or `null` adds) |
 | `retire` | `task`, `reason` or `duplicate` | moves the task to `done/`, its Outcome "Retired <date> without being claimed: <reason>" or "...: duplicate of <id>" |
 | `milestone_create` | `title`, `goal`, `due`, `order` | a new `open` milestone file, `peal init`'s text: `# <title>` (one line), `## Goal` (`goal`, prose with no `---` or `## ` line, else a placeholder), `## Acceptance criteria` (a placeholder); `due` a date, `YYYY-MM-DD`; `order` an integer, by default one past the highest. Its id is Peal's: `m` and one past the highest numeric id, zero-padded when all of them are |
 | `milestone_update` | `milestone`, `title`, `due`, `order` | at least one of the three; `title` goes into the frontmatter's `title` when the file has one, else its `# ` heading; `due: null` and `order: null` remove the field |
 | `milestone_state` | `milestone`, `state`, `reason` | `state` `park` (parked), `unpark` or `reopen` (open), `close` (done); `reason`, one line, with `park` only. A state the milestone has already changes nothing. Then, when no milestone is current, the first open one by order becomes current, as `peal milestone-state` does |
-| `split_milestone` | `from`, `tasks`, `title`, `goal`, `due`, `order` | `milestone_create`'s milestone (`title`, `goal`, `due` as there; `order` by default `from`'s plus one, not renumbering the rest), and the tasks moved to it: `tasks` is an array of strings, each a task id or an `@<id>` of an earlier `file` proposal, none twice, none left out of `from` (a task not in `from` as the batch stands at that proposal is invalid). The answer carries `milestone` (the new id) and no `task`; the moved tasks are in `detail` |
+| `split_milestone` | `milestone`, `tasks`, `title`, `goal`, `due`, `order` | `milestone_create`'s milestone (`title`, `goal`, `due` as there; `order` by default `milestone`'s plus one, not renumbering the rest), and the tasks moved to it: `tasks` is an array of strings, each a task id or an `@<id>` of an earlier `file` proposal, none twice, each in any milestone or none. The answer carries `milestone` (the new id) and no `task`; the moved tasks are in `outcome` |
 
 A `task`, `on` or `duplicate` written `@<id>` is the task the `file` proposal `<id>` of
 the same batch files (for `task`, an earlier one). A `milestone` written `@<id>` (in
-`file`, `move`, `milestone_update`, `milestone_state`, and a `split_milestone`'s `from`)
+`file`, `move`, `milestone_update`, `milestone_state`, and a `split_milestone`'s `milestone`)
 is the milestone an earlier `milestone_create` or `split_milestone` `<id>` makes. `fold`
-and `dismiss` are Belfry's own, no backlog change; both are answered `invalid`. A new milestone's id is
+and `dismiss` are Belfry's own, no backlog change; both are answered not done. A new milestone's id is
 reserved nowhere: two batches making one in rival pull requests conflict, and the second
 is made again.
 
@@ -345,15 +348,15 @@ or out of (parked at the start and still so); a frontmatter `peal create` accept
 names (the batch may re-point those first); no milestone closed while a task not done,
 its review task aside, names it; milestone files `peal milestones` reads.
 
-The answer is one JSON line per proposal, in input order: `id`, `status`, and `task`,
-`milestone` (the milestone a milestone kind acted on, a new one's id), `detail` and
-`change` where they apply. `status` is `done`; `invalid`, the proposal failed
-a check, `detail` says which; `not_applied`, valid but another was not, so nothing was
-written; or `failed`, the write failed. `change` is the pull request, when the write went
-through one; one still open at the budget (`PEAL_MAIN_WRITE_BUDGET`, 90 s unless set)
-with auto-merge on answers `done` too. Exit 0 all done, 2 an invalid batch with nothing
-changed, 1 a failed write. A document that is no JSON is one `invalid` line with an empty
-`id`.
+The answer is one JSON line per proposal, in input order, as Belfry's `ApplyResult` reads
+it: `id`, `done` (`true` or `false`), `outcome` (one line: what was done, or why not: the
+proposal failed a check, another did so nothing was written, or the write failed),
+and `task` (the task a proposal acted on; a `file`'s new one), `milestone` (the
+milestone a milestone kind acted on, a new one's id) and `change` where they apply.
+`change` is the pull request, when the write went through one; one still open at the
+budget (`PEAL_MAIN_WRITE_BUDGET`, 90 s unless set) with auto-merge on answers `done`
+too. Exit 0 all done, 2 an invalid batch with nothing changed, 1 a failed write. A
+document that is no JSON is one line with `"done": false` and an empty `id`.
 
 ## `peal finish`
 

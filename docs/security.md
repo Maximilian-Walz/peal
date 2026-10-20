@@ -189,15 +189,16 @@ document under `LC_ALL=C` and writes every value to a file of its own, its `\uXX
 escapes decoded (a `\u0000` or a lone surrogate refused); no value is ever put on a line
 a shell splits, into a command, or into `eval`. A field's name is taken only when it is
 plain letters and `_`, a value only when it is a string, number or null; an object, an
-array or an unknown field makes the proposal invalid. The one array is `tasks`, a
+array or an unknown field makes the proposal invalid (Belfry's `ref`, `item` and `into`
+are the fixed exceptions, stepped over whatever they hold, never used). The one array is `tasks`, a
 `split_milestone`'s list (the awk is told which keys take one): each item must be a string
 and goes to a file of its own, decoded like any value, never joined with the others; a
 number, null, object or nested array as an item, an empty array, a duplicate, or an item
 that is no `NNNN` or `@` and an earlier `file` proposal's id makes the proposal invalid,
-and each task must be in the milestone `from`. Ids are checked against their
+and the milestone `milestone` is the one split. Ids are checked against their
 shape (`NNNN`, or `@` and a proposal id of the batch), milestones against
 `[A-Za-z0-9._-]+` (or `@` and an earlier `milestone_create`'s or `split_milestone`'s id), and the closed sets
-(kind, priority, owner, origin, op, a milestone's state verb) by value; a task's title
+(kind, priority, owner, origin on every kind, a milestone's state verb) by value; a task's title
 only feeds a slug. A `file` text gets the checks of `peal create --owner`'s (`merge` and
 the delimiter refused, `peal_task_check`), an `add` text those of `peal comment` (no
 `---` or `## ` line), a `retire` reason is one line. A milestone's title and a parking's
