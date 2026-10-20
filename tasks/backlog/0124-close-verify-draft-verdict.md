@@ -2,6 +2,7 @@
 plan: skipped
 size: S
 depends: []
+milestone: m3
 ---
 
 # 0124 — `close verify` blocks on a draft pull request

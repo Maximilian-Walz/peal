@@ -662,6 +662,13 @@ checks() {
     --arg s "$(git -C "$wt" rev-parse HEAD)" --arg st "$1" --arg c "${2-}"
 }
 
+# two_checks CONCLUSION STATUS -> two check runs of wt's HEAD: one completed with
+# CONCLUSION, one in STATUS (completed ones succeed).
+two_checks() {
+  gh_save checks '[{sha: $s, status: "completed", conclusion: $c}, {sha: $s, status: $st, conclusion: (if $st == "completed" then "failure" else null end)}]' \
+    --arg s "$(git -C "$wt" rev-parse HEAD)" --arg st "$2" --arg c "$1"
+}
+
 # no_gh_path -> a PATH with everything on this one but gh.
 no_gh_path() {
   local dir d f
@@ -736,6 +743,14 @@ verify_cases() {
   check "verify: a check running" "WAIT:checks-pending 3" "$(verdict)"
   checks completed failure
   check "verify: a check failed" "BLOCKED:checks-failing 1" "$(verdict)"
+  two_checks failure in_progress
+  check "verify: a check failed, another running" "WAIT:checks-failing-pending 3" "$(verdict)"
+  two_checks failure completed
+  check "verify: both completed" "BLOCKED:checks-failing 1" "$(verdict)"
+  checks completed failure
+  gh_save statuses '[{sha: $s, state: "pending"}]' --arg s "$(git -C "$wt" rev-parse HEAD)"
+  check "verify: a check failed, a status pending" "WAIT:checks-failing-pending 3" "$(verdict)"
+  gh_save statuses '[]'
   checks completed success
   gh_save statuses '[{sha: $s, state: "pending"}]' --arg s "$(git -C "$wt" rev-parse HEAD)"
   check "verify: a status pending" "WAIT:checks-pending 3" "$(verdict)"
@@ -769,6 +784,15 @@ verify_cases() {
   ( sleep 2; checks completed success ) &
   check "wait: until READY" "READY 0" "$(in_dir "$wt" env PEAL_CLOSE_WAIT_INTERVAL=1 PEAL_CLOSE_WAIT_BUDGET=30 "$PEAL" close wait)"
   wait
+  two_checks failure in_progress
+  : >"$FAKE_GH/log"
+  check "wait: a failure with a check running, out of budget" "WAIT:checks-failing-pending 3" \
+    "$(in_dir "$wt" env PEAL_CLOSE_WAIT_BUDGET=0 "$PEAL" close wait)"
+  ( sleep 2; two_checks failure completed ) &
+  check "wait: holds on until nothing is pending" "BLOCKED:checks-failing 1" \
+    "$(in_dir "$wt" env PEAL_CLOSE_WAIT_INTERVAL=1 PEAL_CLOSE_WAIT_BUDGET=30 "$PEAL" close wait)"
+  wait
+  check "wait: read the checks again" "yes" "$([ "$(grep -c 'check-runs' "$FAKE_GH/log")" -gt 2 ] && echo yes)"
   checks completed failure
   check "wait: BLOCKED at once" "BLOCKED:checks-failing 1" "$(in_dir "$wt" env PEAL_CLOSE_WAIT_INTERVAL=5 "$PEAL" close wait)"
   check_refused "wait: a bad budget" "whole seconds" at "$wt" env PEAL_CLOSE_WAIT_BUDGET=soon "$PEAL" close wait

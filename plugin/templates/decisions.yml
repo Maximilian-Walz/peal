@@ -45,7 +45,7 @@ jobs:
         # tag (peal ship bump) and, once the tag exists, the SHA (peal ship pin).
         run: |
           git init -q "$RUNNER_TEMP/peal"
-          git -C "$RUNNER_TEMP/peal" fetch -q --depth 1 https://github.com/Maximilian-Walz/peal 8927e4644010042329fed4ddb2f8084aa98ebf02 # v0.2.0
+          git -C "$RUNNER_TEMP/peal" fetch -q --depth 1 https://github.com/Maximilian-Walz/peal e06f9c8f5219ef53c2bc60da6ae1bec152d37023 # v0.3.0
           git -C "$RUNNER_TEMP/peal" checkout -q FETCH_HEAD
       - name: Publish the index
         env:
