@@ -77,7 +77,8 @@ with the decisions module on, `peal decision check`.
   each `FAIL`; last `doctor: N problem(s)`.
 - Status 0 healthy, 1 any problem, 2 an unknown `CHECK`, outside a git repository, or no
   `.peal/`.
-- `config`: the config loads, and `storage.kind`, `main-writes`, `sizes.*`, `stages`,
+- `config`: `pr.security`, when set, names a file that exists;
+  the config loads, and `storage.kind`, `main-writes`, `sizes.*`, `stages`,
   `release.wait-ci` and `models.*` hold valid values.
 - `version`: `.peal/peal` matches the plugin's launcher template; then the installed
   Peal against this session's.
@@ -494,17 +495,25 @@ Declares the close: a sentinel in the git directory arms the Stop hook.
   would conflict in, milestone files the branch changes, the ideas queued, an empty
   `## Scope` or `## Done when`.
 - Names where the Outcome goes (the task file; for an issue a file in the git directory),
-  the project's `pr.sections`, the diff and the `## Done when`.
+  the project's `pr.sections`, with `pr.security` set the request for the Security line
+  (`--security TEXT`: the boundary of that document the diff touches and how, or `none`),
+  the diff and the `## Done when`.
 
 ### `peal close finish`
 
-`peal close finish --summary TEXT [--decisions TEXT] [--human-steps TEXT]
-[--section TITLE TEXT]... [--review-file FILE]`. `--decisions` and `--human-steps` are
-optional, given once, never empty. The `-file` forms (`--summary-file FILE`,
-`--decisions-file FILE`, `--human-steps-file FILE`, `--section-file TITLE FILE`) read the text from a
+`peal close finish --summary TEXT [--decisions TEXT] [--human-steps TEXT] [--notes TEXT]
+[--security TEXT] [--section TITLE TEXT]... [--review-file FILE]`. `--decisions`,
+`--human-steps` and `--notes` are optional, given once, never empty; `--human-steps` that
+is only none, n/a or `-` is refused (leave it out, or use `--notes`). `--security` is one
+line, given once: the boundary the change touches and how, or `none`; a leading
+`Security:` is dropped. It is required where `pr.security` names a threat model, and
+optional elsewhere. A `pr.sections` item titled `Notes` is refused. The `-file` forms
+(`--summary-file FILE`, `--decisions-file FILE`, `--human-steps-file FILE`,
+`--notes-file FILE`, `--section-file TITLE FILE`) read the text from a
 file. `FILE` is the reviewer's report.
 
-- Refuses, before anything changes: a missing summary or section, an empty Outcome or one
+- Refuses, before anything changes: a missing summary or section, a missing `--security`
+  where `pr.security` is set, an empty Outcome or one
   with a placeholder, more than three escalations, a task holding `merge: auto` without
   the report and its `merge-auto:` line, an uncommitted path besides the Outcome, missing
   git hooks, and a failing `checks.close` command.
@@ -519,9 +528,10 @@ file. `FILE` is the reviewer's report.
 
 Takes the arguments of `finish` and prints the pull request's body: the count of
 escalations and a withdrawn `merge: auto`, then `## Summary` with the summary bullets,
-`## Decisions` and `## Human steps` when given, `Fixes #N` for an issue (`Task N.` for a
-file), the split it is part of, each `pr.sections` text, the Outcome, the ideas filed, the
-branch's commits.
+`## Decisions`, `## Human steps` and `## Notes` when given, `Fixes #N` for an issue
+(`Task N.` for a file), the split it is part of, each `pr.sections` text, the Outcome, the
+ideas filed, then the `Security: ...` line when given (Belfry reads the last such line
+outside code blocks, so it comes after the Outcome) and the branch's commits.
 
 ### `peal close abort`
 

@@ -91,7 +91,7 @@ peal_close() {
 # Refused: no task held here, Peal's git hooks not installed, more than one task under
 # doing/, and a branch that adds a backlog task file (those are filed onto main).
 peal_close_begin() {
-  local top task id file text tasks count added behind out status ideas empty ms gitdir sections
+  local top task id file text tasks count added behind out status ideas empty ms gitdir sections sec
   [ $# -eq 0 ] || { peal_err "close begin takes no arguments"; return 2; }
   top=$(peal_project_root) || return 2
   cd "$top" || return 2
@@ -170,6 +170,10 @@ peal_close_begin() {
     echo "PR sections finish needs, each as --section TITLE TEXT:"
     printf '%s\n' "$sections" | awk -F '\t' '{ print "  " $1 ($2 == "" ? "" : ": " $2) }'
   fi
+  sec=$(peal_config_get pr.security)
+  if [ -n "$sec" ]; then
+    echo "Security line finish needs, as --security TEXT: the boundary of $sec the diff touches and how, or none."
+  fi
   echo
   echo "--- the diff since $PEAL_MAIN_REF ---"
   git diff --stat "$PEAL_BASE" HEAD
@@ -181,15 +185,18 @@ peal_close_begin() {
 # _peal_close_args ARGS... -> PEAL_SUMMARY and the PR sections (PEAL_SECTION_TITLES,
 # PEAL_SECTION_TEXTS) from --summary TEXT | --summary-file FILE and --section TITLE TEXT |
 # --section-file TITLE FILE; checked against pr.sections: every one given, no other.
-# --decisions TEXT | --decisions-file FILE and --human-steps TEXT | --human-steps-file FILE:
-# optional, once each, never empty: PEAL_DECISIONS and PEAL_HUMAN_STEPS.
+# --decisions TEXT | --decisions-file FILE, --human-steps TEXT | --human-steps-file FILE and
+# --notes TEXT | --notes-file FILE: optional, once each, never empty: PEAL_DECISIONS,
+# PEAL_HUMAN_STEPS and PEAL_NOTES (a --human-steps that is only none, n/a or - is refused).
+# --security TEXT: one line, a leading "Security:" dropped; PEAL_SECURITY. Required, for body
+# and finish, when pr.security names the project's threat model.
 # --review-file FILE, the reviewer's report: PEAL_REVIEW set (1), PEAL_MERGE_VERDICT its
 # last line "merge-auto: keep|withdraw" (keep or withdraw; empty without one).
 _peal_close_args() {
-  local verb=$1 v known title i j given_decisions given_steps
+  local verb=$1 v known title i j given_decisions given_steps given_notes doc
   shift
   PEAL_SUMMARY="" PEAL_SECTION_TITLES=() PEAL_SECTION_TEXTS=() PEAL_REVIEW="" PEAL_MERGE_VERDICT=""
-  PEAL_DECISIONS="" PEAL_HUMAN_STEPS="" given_decisions="" given_steps=""
+  PEAL_DECISIONS="" PEAL_HUMAN_STEPS="" PEAL_NOTES="" PEAL_SECURITY="" given_decisions="" given_steps="" given_notes=""
   while [ $# -gt 0 ]; do
     case $1 in
       --review-file)
@@ -214,7 +221,7 @@ _peal_close_args() {
         PEAL_SUMMARY=$v
         shift 2
         ;;
-      --decisions | --decisions-file | --human-steps | --human-steps-file)
+      --decisions | --decisions-file | --human-steps | --human-steps-file | --notes | --notes-file)
         [ $# -ge 2 ] || { peal_err "close $verb: $1 needs a value"; return 2; }
         v=$2
         case $1 in *-file)
@@ -226,10 +233,28 @@ _peal_close_args() {
           --decisions*)
             [ -z "$given_decisions" ] || { peal_err "close $verb: one --decisions"; return 2; }
             given_decisions=1 PEAL_DECISIONS=$v ;;
+          --notes*)
+            [ -z "$given_notes" ] || { peal_err "close $verb: one --notes"; return 2; }
+            given_notes=1 PEAL_NOTES=$v ;;
           *)
             [ -z "$given_steps" ] || { peal_err "close $verb: one --human-steps"; return 2; }
+            if printf '%s' "$v" | tr -d ' \t\n.' | grep -qixE 'none|n/a|-'; then
+              peal_err "close $verb: --human-steps is only '$(printf '%s' "$v" | tr -d '\n')': Human steps are actions the human takes; leave it out when there are none, and put other context in --notes"
+              return 2
+            fi
             given_steps=1 PEAL_HUMAN_STEPS=$v ;;
         esac
+        shift 2
+        ;;
+      --security)
+        [ $# -ge 2 ] || { peal_err "close $verb: $1 needs a value"; return 2; }
+        [ -z "$PEAL_SECURITY" ] || { peal_err "close $verb: one --security"; return 2; }
+        v=$2
+        v=$(printf '%s' "$v" | sed -E '1s/^[[:space:]]*[Ss]ecurity:[[:space:]]*//')
+        case $v in *$'\n'*) peal_err "close $verb: --security is one line"; return 2 ;; esac
+        v=$(printf '%s' "$v" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')
+        if [ -z "$v" ]; then peal_err "close $verb: --security is empty: write none, or the boundary and how"; return 2; fi
+        PEAL_SECURITY=$v
         shift 2
         ;;
       --section | --section-file)
@@ -250,7 +275,16 @@ _peal_close_args() {
     peal_err "close $verb: no --summary: at most five one-line bullets for the merger, on what changes"
     return 2
   fi
+  doc=$(peal_config_get pr.security) || return 2
+  if [ -n "$doc" ] && [ -z "$PEAL_SECURITY" ]; then
+    peal_err "close $verb: no --security: this project keeps a threat model ($doc), so the pull request needs a Security line: --security \"none\", or --security \"<boundary>: <how the change touches it>\""
+    return 2
+  fi
   known=$(_peal_close_sections | cut -f1)
+  if printf '%s\n' "$known" | grep -qxF Notes; then
+    peal_err "close $verb: a PR section titled 'Notes' (pr.sections) clashes with --notes; rename it"
+    return 2
+  fi
   for ((i = 0; i < ${#PEAL_SECTION_TITLES[@]}; i++)); do
     title=${PEAL_SECTION_TITLES[i]}
     if ! printf '%s\n' "$known" | grep -qxF -- "$title"; then
@@ -328,10 +362,11 @@ _peal_close_withdraw_merge() {
 }
 
 # peal_close_body ID -> the pull request's body for task ID, from what the branch and the
-# worktree hold: PEAL_SUMMARY, PEAL_DECISIONS and PEAL_HUMAN_STEPS (the last two when
-# given); "Fixes #ID" for an issue; the split it is part of; the
+# worktree hold: PEAL_SUMMARY, PEAL_DECISIONS, PEAL_HUMAN_STEPS and PEAL_NOTES (the last
+# three when given); "Fixes #ID" for an issue; the split it is part of; the
 # project's PR sections (PEAL_SECTION_*), in pr.sections' order; the Outcome; the ideas
-# filed from this worktree; the branch's commits. A merge: auto the review withdrew is said
+# filed from this worktree; the Security line (PEAL_SECURITY, when given); the branch's
+# commits. A merge: auto the review withdrew is said
 # first. Needs PEAL_TEXT, PEAL_PART_OF, PEAL_MERGE, PEAL_MERGE_VERDICT and PEAL_BASE.
 peal_close_body() {
   local id=$1 escalations kind title i filed
@@ -346,6 +381,7 @@ peal_close_body() {
   printf '## Summary\n\n%s\n' "$PEAL_SUMMARY"
   [ -z "$PEAL_DECISIONS" ] || printf '\n## Decisions\n\n%s\n' "$PEAL_DECISIONS"
   [ -z "$PEAL_HUMAN_STEPS" ] || printf '\n## Human steps\n\n%s\n' "$PEAL_HUMAN_STEPS"
+  [ -z "$PEAL_NOTES" ] || printf '\n## Notes\n\n%s\n' "$PEAL_NOTES"
   echo
   if [ "$kind" = issues ]; then
     echo "Fixes #$id"
@@ -387,6 +423,10 @@ peal_close_body() {
       print "- " $2 ": " t " (" $3 ")" }' "$filed"
   fi
   echo
+  # Belfry reads the last Security: line outside code blocks: this one, after the Outcome.
+  if [ -n "$PEAL_SECURITY" ]; then
+    printf 'Security: %s\n\n' "$PEAL_SECURITY"
+  fi
   echo "<details>"
   echo "<summary>Commits</summary>"
   echo
