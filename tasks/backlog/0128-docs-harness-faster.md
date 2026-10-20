@@ -1,6 +1,7 @@
 ---
 plan: required
 touches: [tools/docs.test.sh]
+milestone: m3
 ---
 
 # 0128 — The docs harness runs faster

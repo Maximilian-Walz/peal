@@ -2,6 +2,7 @@
 milestone: m3
 plan: required
 depends: [0133]
+priority: high
 ---
 
 # 0149 — Peal's own .belfry.yml merges the safe pull requests by itself and uses Belfry's plan, triage and release actions
