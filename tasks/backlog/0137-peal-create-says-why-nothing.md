@@ -1,6 +1,7 @@
 ---
 plan: required
 touches: [plugin/lib/store-files.sh, plugin/lib/hostile.test.sh]
+milestone: m3
 ---
 
 # 0137 — `peal create` says why nothing was filed; the macOS hostile-stdin check is flaky

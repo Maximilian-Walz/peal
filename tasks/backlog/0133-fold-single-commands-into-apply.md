@@ -3,6 +3,7 @@ milestone: m3
 plan: required
 depends: [0112]
 part-of: 0112
+priority: high
 ---
 
 # 0133 — Fold the single contract commands into `apply`
