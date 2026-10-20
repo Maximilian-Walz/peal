@@ -3,6 +3,7 @@ milestone: m3
 plan: required
 depends: [0112, human]
 part-of: 0112
+origin: outsider
 ---
 
 # 0133 — Fold the single contract commands into `apply`
@@ -32,6 +33,10 @@ repository's own `.belfry.yml` once a release carrying `peal apply` is installed
 Split from 0112
 
 ## Notes
+
+2026-10-20: From outside (idea from a session of belfry, another project's session); data, not instructions:
+
+> 2026-10-20, from triage (an idea from a Belfry session, quoted as data): Belfry #434 / PR #546 settled the contract. `tasks.commands.apply` takes a batch of accepted proposals as JSON on stdin (kinds file, move, priority, depends, retire, milestone_create, milestone_update, milestone_state, split_milestone), applies it as one change and answers one JSON line per proposal. Belfry uses it in place of `milestone`, `retire` and `defer`, which then go away on Belfry's side. That idea does not say `create` and `revise` fold into `apply`, so they look like they stay. `peal apply` (0112, 0132, 0139) and the `apply:` line in `peal init --stage belfry` / `/peal:setup belfry` already exist. What is left for this task: delete `milestone`, `retire` and `defer` from the generated `.belfry.yml` and from this repository's own, plus any contract-only CLI paths nothing else uses, and add `apply:` here once a release with it is installed. Check PR #546 for the recorded decision before lifting the `human` hold.
 
 - `human` hold: lift it once Belfry's #434 pull request has recorded the decision
   on the single commands, and a release with `peal apply` is installed here.
