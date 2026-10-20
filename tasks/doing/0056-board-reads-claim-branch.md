@@ -1,7 +1,8 @@
 ---
 plan: required
-touches: [plugin/commands/work.md, plugin/lib/board.awk, plugin/lib/task-scan.awk, plugin/lib/task-state.awk, plugin/lib/store-files.sh, plugin/lib/store-files.test.sh, plugin/lib/store-issues.sh]
+touches: [plugin/lib/store-files.sh, plugin/lib/store-files.test.sh, plugin/lib/work.test.sh, docs/design.md]
 milestone: m3
+size: S
 ---
 
 # 0056 — Files storage: the board reads a claimed task's touches from its claim branch, not main
@@ -16,7 +17,8 @@ In the files storage, for a task with a claim (claimed-live, parked, awaiting-me
 - It does so for a claim only on the remote (no local branch) too, reading the remote branch's copy
 - The same holds for whichever other recorded fields are chosen (at least `size`), or the issue says why not
 - An unclaimed task, or a claim branch without the task file, reads as today (from main)
-- Tests in `plugin/lib/store-files.test.sh` cover a local claim, a remote-only claim and the fallback
+- Tests in `plugin/lib/store-files.test.sh` cover a local claim, a remote-only claim, a parked and an awaiting-merge claim, a deferred local branch with a newer remote claim, and the fallbacks (unclaimed, no copy on the branch, broken frontmatter)
+- The fields taken from the branch are size, plan, touches and merge; only non-empty values override main's
 - `docs/design.md` describes where a claimed task's fields come from in the files storage
 
 ## Raw
@@ -36,43 +38,56 @@ So while a task is claimed, the board shows only the `touches` it was filed with
 
 `peal_store_read` in the files storage already prefers a branch's copy of the task over main's; `peal_store_list` does not.
 
-Draft plan, NOT agreed (2026-09-26). The planning session could not reach the human: AskUserQuestion timed out twice and Belfry's idea tool once. The next session asks the human to agree this plan and does not re-plan unless they change the approach.
+Draft plan of 2026-09-26 superseded by the agreed `## Plan` below (re-checked against the code 2026-10-20: the draft's "local wins over remote" and "fall back on a parse failure" did not hold as written).
 
-- Approach:
-  - `_peal_files_claims` takes a COPIES dir. For each claim it keeps, it writes that ref's copy of the task file (the local branch, else the remote's) under the same path. `_peal_files_find` rules apply. It widens the existing `git ls-tree` call to reuse the listing, which adds about one `git show` per claim.
-  - `peal_store_list` runs `task-scan.awk` once over COPIES. An awk step then overlays fields 9 (`size`), 10 (`plan`), 16 (`touches`) and 17 (`merge`) onto main's records, before `task-state.awk` runs unchanged.
-  - State, title, milestone, depends, part-of and path stay main's.
-  - `board.awk`, `task-scan.awk`, `task-state.awk` and `store-issues.sh` stay unchanged.
-  - `model` is not on the board, so it is left out.
-- Rejected:
-  - Extra columns on the claims lines: this changes the shared read model and collides with `_peal_files_prs`.
-  - `_peal_files_scan` per claim: it costs claims x tasks.
-  - `peal record` writing onto main: this breaks the lock.
-- Touches: `plugin/lib/store-files.sh`, `plugin/lib/store-files.test.sh`, `docs/design.md`.
-- Verification, in a new case in `store-files.test.sh` under `for_each_awk`:
-  - a local claim, where the branch's touches, size and merge show and title, milestone and path stay main's;
-  - a branch-only `depends`, which does not change the state;
-  - parked, remote-only (detail `remote:origin`) and awaiting-merge (the copy under done/) claims;
-  - the fallbacks: an unclaimed task, and a branch tip without the task file;
-  - `peal list` output unchanged.
-- Size S. Model default. Merge default.
-- Questions for the human (defaults first):
-  1. Replace the listed touches with the three files above? Yes.
-  2. Take size, plan, touches and merge from the branch? Yes. `plan` is overlaid raw, with no new "agreed" value.
-  3. `peal record` does not push, so remote-only readers see the recorded fields after the next push: no change here; say it in design.md and file an idea for pushing.
-  4. A branch copy with unparseable frontmatter: fall back to main's fields. The parse warning still shows.
-  5. Duplicate scan warnings from the copies: drop them all except the parse one.
-  6. Local wins over remote, as in `peal_store_read`. Match the copy by id, whatever its slug. No timing test.
-- Ranges:
-  - docs/design.md:90-95, 262-278, 304-315, 654-672, 721-726
-  - plugin/lib/store-files.sh:49-70, 82-175, 212-256, 1027-1034
-  - plugin/lib/task-scan.awk:1-22, 96-98
-  - plugin/lib/task-state.awk:1-19, 142-160
-  - plugin/lib/board.awk:1-29
-  - plugin/lib/tasks.sh:287-306
-  - plugin/commands/work.md:84-103
-  - plugin/lib/store-files.test.sh:1-20, 354-428
-  - plugin/lib/task-fixtures.sh:15-78
+Human's answers, 2026-10-20:
+1. Touches: store-files.sh, store-files.test.sh, work.test.sh, docs/design.md; work.md, board.awk, task-scan.awk, task-state.awk and store-issues.sh stay untouched.
+2. Fields from the branch: size, plan, touches, merge (`plan` raw; `model` left out, it is not on the board).
+3. `peal record` keeps not pushing: design.md says remote-only readers see recorded fields after the next push; an idea is filed for pushing at record.
+4. Overlay only non-empty values from the copy: a parse failure falls back to main's naturally; a value removed on the branch shows main's until merge. `task-scan.awk` unchanged.
+5. Discard every warning from the copies' scan except the yaml parse failure, left as is (no branch name).
+6. The copy comes from the ref the claim was read from (local for wt, parked and local awaiting-merge; remote for the deferred-local case, the not-ahead-of-main case and remote-only claims), matched by id whatever its slug. `peal_store_read` is left alone. No timing test.
+7. work.test.sh: fix the stale comment and extend the files branch so `record` then `board` shows the touches.
+8. Tests in store-files.test.sh (header adjusted); docs in design.md only, not docs/reference/tasks.md.
+
+## Plan
+
+Approach:
+1. `_peal_files_claims` takes a third argument COPIES (a temp dir). For each claim line it emits, it picks the ref that claim came from (local ref for wt, parked and local awaiting-merge claims; the remote ref at the deferred-local case, the not-ahead-of-main case and remote-only claims) and writes that ref's copy of the task to `COPIES/<path>` with `git show "$ref:$path"`.
+2. `$path` comes from `_peal_files_find`'s ranking (done/ over doing/ over backlog/), its awk factored into a helper reading a listing on stdin. The existing per-claim `git ls-tree` (done/ only today) widens to `-r` over `$PEAL_TASKS/`, so one listing answers both the done/ check and the path; a claim read from another ref than `$ref` lists that ref separately. Bad-slug warnings from this lookup are silenced.
+3. `peal_store_list` runs `task-scan.awk` once over COPIES (same find/awk invocation as `_peal_files_scan`), drops its warnings except the yaml parse failure, then a small awk step joins those records onto main's by id, replacing fields 9 (size), 10 (plan), 16 (touches) and 17 (merge) only where the copy's value is non-empty, before `task-state.awk` runs unchanged. State, title, milestone, depends, part-of and path stay main's.
+4. `board.awk`, `task-scan.awk`, `task-state.awk`, `store-issues.sh`, `work.md` unchanged.
+5. Docs: store-files.sh header; `docs/design.md` `touches` paragraph and the Storage table's `list` row: a claimed task's recorded fields come from its claim's copy, and reach other clones only once the branch is pushed.
+
+Rejected: extra columns on the claim lines (changes the shared format `task-state.awk` and `_peal_files_prs` read); `_peal_files_scan` per claim (claims x tasks); `peal record` writing onto main (breaks the lock); one `git cat-file --batch` (not worth it at a few claims).
+
+Files: plugin/lib/store-files.sh, plugin/lib/store-files.test.sh, plugin/lib/work.test.sh, docs/design.md.
+
+Verification: a new case `claim_copies` in `store-files.test.sh` under `for_each_awk`, building claims as tasks.test.sh does, checking `peal board` JSON and `peal list --no-pr`:
+- local claim with a worktree: the branch's touches, size and `merge: auto` show; title, milestone, path main's; claimed-live, detail `wt:`;
+- remote-only claim (local branch deleted after push): remote's copy, detail `remote:origin`;
+- parked claim: copy from the local branch, renamed copy matched by id;
+- awaiting-merge claim: copy under done/ on the branch, state awaiting-merge, fields the branch's;
+- deferred local branch with a new claim on the remote: the remote's copy, not the stale local one;
+- a depends added only on the branch: state and depends stay main's;
+- fallbacks: unclaimed task, branch tip without the file, branch copy with broken frontmatter (main's fields, parse warning shown once);
+- `peal list` lines unchanged in form.
+`tasks.test.sh` and the extended `work.test.sh` (files: record then board shows the touches) pass.
+
+Ranges:
+- plugin/lib/store-files.sh:1-5, 49-70, 82-100, 102-116, 118-134, 147-199, 238-259, 268-282, 1185-1192
+- plugin/lib/task-scan.awk:1-27, 29-48, 106-108
+- plugin/lib/yaml-lib.awk:17-20, 132-134
+- plugin/lib/task-state.awk:1-16, 145-163
+- plugin/lib/board.awk:1-33
+- plugin/lib/work.sh:135-186
+- plugin/commands/work.md:99-110
+- plugin/lib/store-files.test.sh:1-21, 510-537, 577-595
+- plugin/lib/task-fixtures.sh:12-78
+- plugin/lib/tasks.test.sh:37-101
+- plugin/lib/work.test.sh:172-199
+- docs/design.md:252-254, 263-268, 497-511
+- docs/reference/tasks.md:40-54
 
 ---
 
