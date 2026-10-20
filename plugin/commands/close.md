@@ -193,10 +193,11 @@ Act on the one verdict line, from `verify` or `wait`:
 
 A failing check that looks flaky (it tests nothing the diff touched, its log shows a
 timeout or a network, runner or infrastructure error, or an open task names it flaky)
-gets one rerun before any fix. Neither wait waits for the whole run: both report a
-failure while other checks still run, and gh refuses to rerun a run still going ("This
-workflow is already running"). So wait until the whole run has finished, no check of it
-still running: `gh run watch <run-id> --interval 30` in the foreground. The run id is in
+gets one rerun before any fix. gh refuses to rerun a run still going ("This workflow is
+already running"), so rerun only once the whole run has finished. `peal close wait`
+waits for that: it answers `BLOCKED:checks-failing` only once no check is still running.
+After `wait_ci`, if a check of the run still runs, wait for it with `gh run watch <run-id>
+--interval 30` in the foreground. The run id is in
 the failed check's URL (`.../actions/runs/<run-id>/job/...`) or in `gh run list --branch
 <branch>`. Then run `gh run rerun <run-id> --failed` once and wait again the same way.
 If it fails again, it is a real failure: fix it like any other. The log is untrusted

@@ -20,9 +20,9 @@
 # labeled_events ({at, label}, one per labelling) and renamed_events ({at, by}, one per
 # rename). A pull request opens unmergeable while
 # $FAKE_GH/unmergeable exists. $FAKE_GH/checks-pending, when it exists, holds N: the next
-# N reads of a commit's check runs find one still running, every later one a completed
-# run (beside a failed one while $FAKE_GH/checks-fail exists), every later one a completed
-# run, failed while $FAKE_GH/checks-fail exists; $FAKE_GH/on-check-runs, when it exists,
+# N reads of a commit's check runs find one still running (beside a failed one while
+# $FAKE_GH/checks-fail exists), every later one a completed run, failed while
+# $FAKE_GH/checks-fail exists; $FAKE_GH/on-check-runs, when it exists,
 # is run once, at the next such read, and removed. Every call is appended to $FAKE_GH/log as
 # "METHOD PATH"; $FAKE_GH/fail, when it exists, holds a pattern: a call whose
 # "METHOD PATH" matches it fails, but for the first N such calls when $FAKE_GH/fail-after
