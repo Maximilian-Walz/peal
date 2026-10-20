@@ -88,4 +88,21 @@ Ranges: tasks/doing/0143-keep-gh-s-side-call.md:1-65, plugin/lib/github.sh:1-5, 
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+**What cafe.github.com is:** gh's own telemetry, a usage event gh posts after each command. gh does not need it to work. Evidence on the worker (gh 2.102.0, 2026-09-30, no extensions installed):
+- the gh binary holds the literal `https://cafe.github.com` next to `GH_TELEMETRY_ENDPOINT_URL`, `GH_TELEMETRY_SAMPLE_RATE`, `GH_TELEMETRY` and `DO_NOT_TRACK`;
+- `gh help environment`: "`GH_TELEMETRY`: set to `log` to print telemetry data to standard error instead of sending it. Set to `false` or `0` to disable telemetry. Takes precedence over `DO_NOT_TRACK`.";
+- `GH_TELEMETRY=log gh api rate_limit` prints one `command_invocation` payload (command, flags, device id, os, gh version), and the api call answers normally; with `GH_TELEMETRY=0` it answers too.
+
+So this was the side-call branch of the task, not the allow-list one: the host does not belong on a sandbox's allow list.
+
+**What was built:**
+- `plugin/bin/peal` exports `GH_TELEMETRY="${GH_TELEMETRY:-0}"` next to `GIT_TERMINAL_PROMPT=0`. Every gh Peal starts is a child of it and runs with telemetry off: `peal_gh`, the board's `gh pr list`, ship's gh calls, the doctor's `gh auth status`, and the hooks, which run `bin/peal`.
+- A value the user set is kept (the human's call), so someone can opt in or use `log` on purpose. It is `0`, not `log`, because `log` would land in `peal_gh`'s captured stderr.
+- There is no `BELFRY_SESSION` branch: the fix holds under any network filter.
+- `GH_NO_UPDATE_NOTIFIER` is not set, because nothing ties the update notifier to cafe.github.com.
+- `plugin/lib/fake-gh` records the `GH_TELEMETRY` of every call in `$FAKE_GH/env`. `close.test.sh`'s `telemetry_cases` checks that a `close verify` runs gh with `0` when the variable is unset or empty, and with `false` when the user set `false`.
+- `docs/security.md` §"`gh` holds the token" says so, with a Guard pointer to `bin/peal`.
+
+**How far the sandbox claim is proven:** this session cannot see the sandbox's deny line. A sandboxed `gh api rate_limit` showed it no denial either with telemetry on or off. So "a sandboxed `peal close verify` logs no denial" is not observed directly. It rests on gh's documented switch, the binary's strings, and the harness proving every Peal gh runs with `GH_TELEMETRY=0`. The next close of a Peal task under a sandbox, once the installed plugin has this change, should show no cafe.github.com denial for `peal close verify` or `peal close wait`. If one still appears, gh is calling that host for something else.
+
+**Left:** the gh commands an agent runs itself from the command markdown (`gh pr create` and `gh pr checks` in close.md, setup.md, next.md) bypass `bin/peal` and still send telemetry. The human made them a follow-up, filed with this close as an idea in m3.
