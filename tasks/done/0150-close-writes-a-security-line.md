@@ -65,4 +65,27 @@ Ranges: plugin/lib/close.sh:41-48, 88-179, 181-276, 330-399, 418-429, 462-472; p
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Built: `peal close finish` and `peal close body` gain `--security TEXT` and `--notes TEXT | --notes-file FILE`.
+
+- **Security line.** `--security` writes `Security: <text>` as the body's last line before the `<details>` commit list, after the Outcome and Ideas filed. That makes it the last `^Security:` line outside code blocks, which is the line Belfry reads, even when an Outcome holds a `Security:` line of its own.
+  - It is refused when empty, given twice, or longer than one line. A leading `Security:` the session typed is stripped.
+  - The new key `pr.security` (`""` off, or the path of the threat-model document) makes it required: `finish` and `body` refuse without it, naming the document, and `begin` asks for it.
+  - `close.md` says the line comes from the diff and the threat model only (exactly `none` when no boundary is touched), never from issue, comment or Raw text.
+- **Notes.** `--notes` writes `## Notes` right after `## Human steps`. Belfry's Notes section is for what is not a step (belfry#577).
+  - A `--human-steps` that is only none, n/a or `-` is now refused, pointing to leaving it out or to `--notes`.
+  - A `pr.sections` item titled `Notes` is refused, so the body never holds two.
+- **`peal doctor`** counts a `pr.security` that names a missing file as a problem, with a fix line.
+
+Decided:
+- **A path, not a flag.** `pr.security` is a path rather than `required: true`, so `begin` can name the document the session weighs the diff against. A security document's mere presence is not detected: that would be implicit and project-specific.
+- **`--notes` built here.** The human chose to build it in this task rather than split it out, since both features edit the same argument loop, body function and docs.
+- **The reviewer is unchanged:** it runs before the line exists.
+- **The doctor check is a FAIL.** The build first added an uncounted `warn` level for it; review found that this contradicts design.md's "there is no warn level", and the human chose to keep the rule.
+
+Left, each an idea filed: turning on `pr.security` for this repository waits for a release carrying the key, because an installed plugin older than this refuses the unknown key; the reviewer proposing the boundary the Security line should name.
+
+For the next session: this repository's `.peal/config.yml` is unchanged, so its own pull requests carry a Security line only when the session passes `--security`, and only once the installed plugin has this change. The build was interrupted twice; its last piece (the doctor FAIL) landed as a `wip:` session-end autosave commit, checked afterwards: doctor.test.sh, tools/docs.test.sh and tools/lint.sh pass. close.test.sh, commands.test.sh and main-write.test.sh pass after merging main.
+
+### Reviewer findings not acted on
+
+None: the one finding (doctor's warn level) was fixed as above.
