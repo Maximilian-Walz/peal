@@ -145,3 +145,31 @@ docs/reference/commands.md:25-36.
 
 ## Outcome
 
+Built as agreed. `peal close body`/`finish` now write the pull request body in the order:
+banners, `## Summary`, `## Decisions` and `## Human steps` (only when given, from the new
+`--decisions[-file]` and `--human-steps[-file]` flags, each refused when empty or given
+twice), the `Task N.` / `Fixes #N` / `Part of` lines, the project's pr.sections,
+`## Outcome` (heading unchanged: the release notes read it), `## Ideas filed`, the commits.
+The summary has no bullet cap in the script, by the human's call (a hard cap invites five
+overlong bullets); close.md recommends at most five one-line bullets and a final message
+of one or two sentences with the PR link, and work.md's report after close is that message.
+
+Every command naming `AskUserQuestion` (work, close, defer, next, release, retire, revise,
+setup, split, milestone-review) carries one word-for-word paragraph, "**Questions are
+short.**": a `header` of at most 12 characters, a question of one or two sentences, shared
+context once in the message before. commands.test.sh checks it against work.md's copy and
+guards that no command puts context "in the question"; the passages that did
+(milestone-review, release, setup, retire, work's MORE lines) were rewritten. The planner
+writes each ambiguity as label, short question and default; work.md shows the whole plan
+as the message before the questions and uses each label as the `header`. docs/design.md,
+docs/reference/cli.md and docs/reference/commands.md state both conventions.
+
+The reviewer found that the close harness checked the body's order only up to
+`## Outcome`; an assertion on the finished body now covers it through `## Ideas filed` and
+the commits block.
+
+For the next session: the full `tools/test-all.sh` takes over fifteen minutes
+(hostile.test.sh alone about fourteen), beyond a tool call's timeout; the close, hostile,
+commands and docs harnesses and lint were run one by one and pass, CI runs the rest. The
+close.md finish line used in this very close still came from the installed plugin (main),
+so this PR's body predates the new flags.
