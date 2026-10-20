@@ -344,7 +344,7 @@ _peal_mw_merge_self() {
         fi
         last=${last#peal: }
         ;;
-      BLOCKED:checks-failing)
+      BLOCKED:checks-failing | WAIT:checks-failing-pending)
         peal_err "#$PEAL_MW_PR's checks fail: it stays open, unmerged, $PEAL_MW_URL"
         return 1
         ;;

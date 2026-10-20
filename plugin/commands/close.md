@@ -180,7 +180,9 @@ Act on the one verdict line, from `verify` or `wait`:
   `EnterWorktree`, leave it with `ExitWorktree`, keeping it: Peal removes it once the
   task has landed.
 - **`WAIT:<why>`**: the checks have not settled within the budget. Wait again, the same
-  way and within the caps above; nothing is wrong.
+  way and within the caps above; nothing is wrong. `WAIT:checks-failing-pending`: a check
+  has failed while others still run; keep waiting so the whole run's outcome is known (you
+  may read the failure meanwhile), then act on the `BLOCKED` that follows.
 - **`BLOCKED:<why>`**: stay and fix it here, where the context is. `checks-failing`,
   `conflicts`, `uncommitted`, `unpushed`, `not-pushed`: fix, commit, push (the close is
   finished, so this is ordinary work on the branch), then wait again.

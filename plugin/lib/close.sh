@@ -684,6 +684,8 @@ peal_close_stop() {
 #   READY:pr-closed          0  closed unmerged: the human's call
 #   READY:no-checks          0  open, and the repository runs no GitHub Actions workflow
 #   WAIT:checks-pending      3  a check is still running
+#   WAIT:checks-failing-pending  3  a check failed and others still run: the wait goes on
+#                               until nothing is pending, then it is checks-failing
 #   WAIT:no-checks-yet       3  no check has registered yet
 #   WAIT:mergeability-unknown  3  GitHub has not computed it yet
 #   BLOCKED:<why>            1  not-a-repo, no-settings, detached-head, on-main,

@@ -531,14 +531,17 @@ Prints one verdict about the branch checked out.
 
 - `READY` (0): open and green; also `READY:merged`, `READY:pr-closed`,
   `READY:no-checks`.
-- `WAIT:<why>` (3): checks pending or not registered yet, mergeability unknown.
+- `WAIT:<why>` (3): checks pending or not registered yet, mergeability unknown;
+  `WAIT:checks-failing-pending`, a check has failed while others still run.
 - `BLOCKED:<why>` (1): the close unfinished, uncommitted or unpushed work, no pull
-  request, conflicts, failing checks, no `gh`, anything it cannot verify.
+  request, conflicts, failing checks (only once nothing is pending), no `gh`, anything it cannot verify.
 
 ### `peal close wait`
 
 Runs `verify` until the verdict is not `WAIT` or the budget is spent
-(`PEAL_CLOSE_WAIT_BUDGET`, 540 seconds; `PEAL_CLOSE_WAIT_INTERVAL`, 20).
+(`PEAL_CLOSE_WAIT_BUDGET`, 540 seconds; `PEAL_CLOSE_WAIT_INTERVAL`, 20). A failing check
+is reported only once nothing is pending, so the whole run has ended. Main writes (idea
+filing, ship) still stop at the first failure.
 
 ## `peal decision`
 

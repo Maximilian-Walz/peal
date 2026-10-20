@@ -21,6 +21,7 @@
 # rename). A pull request opens unmergeable while
 # $FAKE_GH/unmergeable exists. $FAKE_GH/checks-pending, when it exists, holds N: the next
 # N reads of a commit's check runs find one still running, every later one a completed
+# run (beside a failed one while $FAKE_GH/checks-fail exists), every later one a completed
 # run, failed while $FAKE_GH/checks-fail exists; $FAKE_GH/on-check-runs, when it exists,
 # is run once, at the next such read, and removed. Every call is appended to $FAKE_GH/log as
 # "METHOD PATH"; $FAKE_GH/fail, when it exists, holds a pattern: a call whose
@@ -336,6 +337,7 @@ case "$method $rest" in
       if [ "${left:-0}" -gt 0 ]; then
         echo $((left - 1)) >"$FAKE_GH/checks-pending"
         run='{"status": "in_progress", "conclusion": null}'
+        [ ! -e "$FAKE_GH/checks-fail" ] || run="{\"status\": \"completed\", \"conclusion\": \"failure\"}, $run"
       elif [ -e "$FAKE_GH/checks-fail" ]; then
         run='{"status": "completed", "conclusion": "failure"}'
       else
