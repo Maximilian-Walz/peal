@@ -6,7 +6,7 @@
 #
 # Filing (single, --part-of, --batch), numbering by push-as-lock through a lost race, the
 # idea queue, revise, retire, set-milestone, comment, read and finish, and each refusal,
-# a depends cycle among them.
+# a depends cycle among them; a claimed task's recorded fields read from its branch.
 # Every write lands on the remote's main without touching the calling worktree.
 set -uo pipefail
 # shellcheck source=test-lib.sh
@@ -574,6 +574,113 @@ cycles() {
   check "cycle: a revise keeping a cycle there already" "0:revised 0002 tasks/backlog/0002-second-task.md" "$?:$out"
 }
 
+# bline ID -> the board's line of task ID.
+bline() { peal board --no-pr 2>/dev/null | grep "^{\"id\":\"$1\""; }
+# bfield ID KEY -> the value of KEY on task ID's board line ("touches":[..] or "key":"v").
+bfield() { bline "$1" | grep -o "\"$2\":\(\[[^]]*\]\|\"[^\"]*\"\)"; }
+# branch_copy WORK ID SLUG DIR [FRONTMATTER-LINE...] -> a worktree WORK-ID on a new branch
+# task/ID-SLUG, the task moved to DIR/ and rewritten with those lines and another title,
+# committed.
+branch_copy() {
+  local work=$1 id=$2 slug=$3 dir=$4 wt=$1-$2
+  shift 4
+  git -C "$work" worktree add -q -b "task/$id-$slug" "$wt" origin/main 2>/dev/null
+  scratch+=("$wt")
+  mkdir -p "$wt/tasks/$dir"
+  git -C "$wt" mv "tasks/backlog/$id-$slug.md" "tasks/$dir/$id-$slug.md"
+  ID=$id TITLE="Branch title" text "$@" >"$wt/tasks/$dir/$id-$slug.md"
+  git -C "$wt" add -A
+  git -C "$wt" commit -q -m claim
+}
+
+# A claimed task's size, plan, touches and merge are its claim branch's, where it has them.
+claim_copies() {
+  local work out
+  work=$(repo)
+  put "$work" backlog 0001 live-task "milestone: m1" "touches: [old/**]"
+  put "$work" backlog 0002 remote-task
+  put "$work" backlog 0003 parked-task
+  put "$work" backlog 0004 merging-task
+  put "$work" backlog 0005 deferred-task
+  put "$work" backlog 0006 depends-task
+  put "$work" backlog 0007 free-task "touches: [free/**]"
+  put "$work" backlog 0008 empty-task "touches: [main/**]" "size: M"
+  put "$work" backlog 0009 broken-task "touches: [main/**]"
+  put "$work" backlog 0010 gone-task "touches: [main/**]"
+
+  branch_copy "$work" 0001 live-task doing "touches: [a/**, b.sh]" "size: S" "plan: required" "merge: auto"
+  check "claim copy: touches of a local claim" '"touches":["a/**","b.sh"]' "$(bfield 0001 touches)"
+  check "claim copy: size" '"size":"S"' "$(bfield 0001 size)"
+  check "claim copy: plan" '"plan":"required"' "$(bfield 0001 plan)"
+  check "claim copy: merge" '"merge":"auto"' "$(bfield 0001 merge)"
+  check "claim copy: title, milestone, path and state stay main's" '"title":"Title of 0001"|"milestone":"m1"|"path":"tasks/backlog/0001-live-task.md"|"state":"claimed-live"' \
+    "$(bfield 0001 title)|$(bfield 0001 milestone)|$(bfield 0001 path)|$(bfield 0001 state)"
+  check "claim copy: list" "0001 claimed-live live-task wt:$work-0001" "$(peal list --no-pr 0001 2>/dev/null)"
+
+  # Only on the remote: the remote's copy.
+  branch_copy "$work" 0002 remote-task doing "touches: [r/**]" "size: L"
+  git -C "$work-0002" push -q origin HEAD
+  git -C "$work" worktree remove --force "$work-0002"
+  git -C "$work" branch -q -D task/0002-remote-task
+  git -C "$work" fetch -q origin
+  check "claim copy: a remote-only claim" '"touches":["r/**"]|"size":"L"|"state":"claimed-live"' \
+    "$(bfield 0002 touches)|$(bfield 0002 size)|$(bfield 0002 state)"
+  check "claim copy: remote detail" "0002 claimed-live remote-task remote:origin" "$(peal list --no-pr 0002 2>/dev/null)"
+
+  # Parked: the local branch's copy, renamed, matched by id.
+  branch_copy "$work" 0003 parked-task doing "touches: [p/**]"
+  git -C "$work-0003" mv tasks/doing/0003-parked-task.md tasks/doing/0003-other-name.md
+  git -C "$work-0003" commit -q -m rename
+  git -C "$work" worktree remove --force "$work-0003"
+  check "claim copy: a parked claim" '"touches":["p/**"]|"state":"parked"' "$(bfield 0003 touches)|$(bfield 0003 state)"
+
+  # Awaiting merge: the copy under done/ on the branch.
+  branch_copy "$work" 0004 merging-task "done" "touches: [m/**]" "size: S"
+  check "claim copy: awaiting merge" '"touches":["m/**"]|"size":"S"|"state":"awaiting-merge"' \
+    "$(bfield 0004 touches)|$(bfield 0004 size)|$(bfield 0004 state)"
+
+  # A deferred local branch (stale touches), and a newer claim of the same name on the remote.
+  branch_copy "$work" 0005 deferred-task doing "touches: [stale/**]"
+  git -C "$work" worktree remove --force "$work-0005"
+  printf 'Deferred %s after a claim: stale\n' "$today" >>"$work/tasks/backlog/0005-deferred-task.md"
+  publish "$work"
+  git -C "$work" worktree add -q -b fresh "$work-n5" origin/main 2>/dev/null
+  scratch+=("$work-n5")
+  mkdir -p "$work-n5/tasks/doing"
+  git -C "$work-n5" mv tasks/backlog/0005-deferred-task.md tasks/doing/0005-deferred-task.md
+  { ID=0005 text "touches: [fresh/**]"; printf 'Deferred %s after a claim: stale\n' "$today"; } >"$work-n5/tasks/doing/0005-deferred-task.md"
+  git -C "$work-n5" add -A
+  git -C "$work-n5" commit -q -m reclaim
+  git -C "$work-n5" push -q origin HEAD:refs/heads/task/0005-deferred-task
+  git -C "$work" fetch -q origin
+  check "claim copy: a newer remote claim over a deferred local branch" '"touches":["fresh/**"]|"state":"claimed-live"' \
+    "$(bfield 0005 touches)|$(bfield 0005 state)"
+
+  # A depends added only on the branch changes neither state nor depends.
+  branch_copy "$work" 0006 depends-task doing "depends: [0007]" "touches: [d/**]"
+  check "claim copy: depends stay main's" '"touches":["d/**"]|"state":"claimed-live"|' \
+    "$(bfield 0006 touches)|$(bfield 0006 state)|$(bfield 0006 depends)"
+
+  # Fallbacks.
+  check "claim copy: unclaimed, main's" '"touches":["free/**"]' "$(bfield 0007 touches)"
+  branch_copy "$work" 0008 empty-task doing "milestone: m1"
+  check "claim copy: empty values keep main's" '"touches":["main/**"]|"size":"M"|"state":"claimed-live"' \
+    "$(bfield 0008 touches)|$(bfield 0008 size)|$(bfield 0008 state)"
+  branch_copy "$work" 0009 broken-task doing "touches: [x/**]"
+  printf -- '---\ntouches: {a: [b\n---\n\n# 0009 — x\n' >"$work-0009/tasks/doing/0009-broken-task.md"
+  git -C "$work-0009" commit -q -am broken
+  out=$(peal board --no-pr 2>&1 >/dev/null | grep -c 'tasks/doing/0009-broken-task.md')
+  check "claim copy: broken frontmatter warns once" "1" "$out"
+  check "claim copy: broken frontmatter, main's fields" '"touches":["main/**"]|"state":"claimed-live"' \
+    "$(bfield 0009 touches)|$(bfield 0009 state)"
+  git -C "$work" worktree add -q -b task/0010-gone-task "$work-0010" origin/main 2>/dev/null
+  scratch+=("$work-0010")
+  git -C "$work-0010" rm -q tasks/backlog/0010-gone-task.md
+  git -C "$work-0010" commit -q -m gone
+  check "claim copy: no file on the branch, main's" '"touches":["main/**"]|"state":"claimed-live"' \
+    "$(bfield 0010 touches)|$(bfield 0010 state)"
+}
+
 cases() {
   create
   create_belfry
@@ -590,6 +697,7 @@ cases() {
   retire
   edits
   read_finish
+  claim_copies
 }
 
 for_each_awk cases

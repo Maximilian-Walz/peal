@@ -258,6 +258,11 @@ made by hand is shown, not refused, so it can be found and fixed.
 **`touches`** is carried on the board so that a scheduler like Belfry does not start two
 tasks on the same files side by side. It is a hint: a wrong one costs a missed parallel
 slot, nothing more, so nothing refuses on it.
+In the files storage a claimed task's `touches` (and its `size`, `plan` and `merge`) come
+from the copy on its claim branch, so the planner's `peal record ID plan` shows on the
+board before the task merges; the rest (state, title, milestone, depends) stays main's, and
+a value the branch's copy leaves empty or cannot parse reads as main's. `peal record` does
+not push: another clone sees the recorded fields once the branch is pushed.
 
 **`after_deploy`** is carried on the board unchanged, for a scheduler that holds a task back
 until its server contains the pull requests it lists. Peal does nothing else with it.
@@ -509,7 +514,7 @@ The interface:
 
 | Operation | Task files | Issues |
 |---|---|---|
-| `list` → id, state, fields | the read model over refs and main | the open issues and the 100 closed most recently, their labels, milestones and the open PRs that fix them, and the refs |
+| `list` → id, state, fields | the read model over refs and main; a claimed task's size, plan, touches and merge from its claim branch's copy | the open issues and the 100 closed most recently, their labels, milestones and the open PRs that fix them, and the refs |
 | `read id` → fields, body | the file on main or its branch | the issue as a task text: frontmatter from its milestone, labels and reference lines, `# N — Title`, the body |
 | `create fields body [part-of]` → id | a new backlog file pushed to main, numbered by push-as-lock | a new issue; the frontmatter becomes its milestone, labels and "Part of #N" / "Depends on #N" lines; a text naming a number not known yet is edited once it is |
 | `edit id fields body reason` | the backlog file rewritten on main, reason in `## Notes` | title, body, milestone and managed labels rewritten, reason as a comment; refused when the issue changed meanwhile |
