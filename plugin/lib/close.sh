@@ -181,12 +181,15 @@ peal_close_begin() {
 # _peal_close_args ARGS... -> PEAL_SUMMARY and the PR sections (PEAL_SECTION_TITLES,
 # PEAL_SECTION_TEXTS) from --summary TEXT | --summary-file FILE and --section TITLE TEXT |
 # --section-file TITLE FILE; checked against pr.sections: every one given, no other.
+# --decisions TEXT | --decisions-file FILE and --human-steps TEXT | --human-steps-file FILE:
+# optional, once each, never empty: PEAL_DECISIONS and PEAL_HUMAN_STEPS.
 # --review-file FILE, the reviewer's report: PEAL_REVIEW set (1), PEAL_MERGE_VERDICT its
 # last line "merge-auto: keep|withdraw" (keep or withdraw; empty without one).
 _peal_close_args() {
-  local verb=$1 v known title i j
+  local verb=$1 v known title i j given_decisions given_steps
   shift
   PEAL_SUMMARY="" PEAL_SECTION_TITLES=() PEAL_SECTION_TEXTS=() PEAL_REVIEW="" PEAL_MERGE_VERDICT=""
+  PEAL_DECISIONS="" PEAL_HUMAN_STEPS="" given_decisions="" given_steps=""
   while [ $# -gt 0 ]; do
     case $1 in
       --review-file)
@@ -211,6 +214,24 @@ _peal_close_args() {
         PEAL_SUMMARY=$v
         shift 2
         ;;
+      --decisions | --decisions-file | --human-steps | --human-steps-file)
+        [ $# -ge 2 ] || { peal_err "close $verb: $1 needs a value"; return 2; }
+        v=$2
+        case $1 in *-file)
+          if [ ! -r "$v" ] || [ -d "$v" ]; then peal_err "close $verb: no readable file $v"; return 2; fi
+          v=$(cat "$v") ;;
+        esac
+        if [ -z "$(printf '%s' "$v" | tr -d ' \t\n')" ]; then peal_err "close $verb: ${1%-file} is empty"; return 2; fi
+        case $1 in
+          --decisions*)
+            [ -z "$given_decisions" ] || { peal_err "close $verb: one --decisions"; return 2; }
+            given_decisions=1 PEAL_DECISIONS=$v ;;
+          *)
+            [ -z "$given_steps" ] || { peal_err "close $verb: one --human-steps"; return 2; }
+            given_steps=1 PEAL_HUMAN_STEPS=$v ;;
+        esac
+        shift 2
+        ;;
       --section | --section-file)
         [ $# -ge 3 ] || { peal_err "close $verb: $1 needs a title and a value"; return 2; }
         v=$3
@@ -226,7 +247,7 @@ _peal_close_args() {
     esac
   done
   if [ -z "$(printf '%s' "$PEAL_SUMMARY" | tr -d ' \t\n')" ]; then
-    peal_err "close $verb: no --summary: three to five bullets for the reviewer, one change each"
+    peal_err "close $verb: no --summary: at most five one-line bullets for the merger, on what changes"
     return 2
   fi
   known=$(_peal_close_sections | cut -f1)
@@ -307,7 +328,8 @@ _peal_close_withdraw_merge() {
 }
 
 # peal_close_body ID -> the pull request's body for task ID, from what the branch and the
-# worktree hold: PEAL_SUMMARY; "Fixes #ID" for an issue; the split it is part of; the
+# worktree hold: PEAL_SUMMARY, PEAL_DECISIONS and PEAL_HUMAN_STEPS (the last two when
+# given); "Fixes #ID" for an issue; the split it is part of; the
 # project's PR sections (PEAL_SECTION_*), in pr.sections' order; the Outcome; the ideas
 # filed from this worktree; the branch's commits. A merge: auto the review withdrew is said
 # first. Needs PEAL_TEXT, PEAL_PART_OF, PEAL_MERGE, PEAL_MERGE_VERDICT and PEAL_BASE.
@@ -321,7 +343,9 @@ peal_close_body() {
   if [ -e "$(_peal_close_gitdir)/$PEAL_CLOSE_WITHDRAWN" ] || { [ "$PEAL_MERGE" = auto ] && [ "$PEAL_MERGE_VERDICT" = withdraw ]; }; then
     printf '**merge: auto withdrawn:** the review found the diff larger or riskier than the plan that earned it, so this pull request waits for a human.\n\n'
   fi
-  printf '%s\n' "$PEAL_SUMMARY"
+  printf '## Summary\n\n%s\n' "$PEAL_SUMMARY"
+  [ -z "$PEAL_DECISIONS" ] || printf '\n## Decisions\n\n%s\n' "$PEAL_DECISIONS"
+  [ -z "$PEAL_HUMAN_STEPS" ] || printf '\n## Human steps\n\n%s\n' "$PEAL_HUMAN_STEPS"
   echo
   if [ "$kind" = issues ]; then
     echo "Fixes #$id"

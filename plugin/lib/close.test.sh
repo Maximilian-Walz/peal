@@ -232,7 +232,7 @@ SSHEOF
 }
 
 finish_cases() {
-  local body out status stopflag
+  local body full out status stopflag
   stopflag=$(scratch_dir)/stop
   new_repo "pr:" "  sections: [\"For the player: what a player notices\"]" "checks:" "  close: [\"test ! -e $stopflag\"]"
   ready 1 first-task
@@ -267,13 +267,26 @@ finish_cases() {
   # The body, as finish will open the pull request with it.
   body=$(at "$wt" "$PEAL" close body --summary-file <(printf -- '- built a.txt\n- tested it\n') --section-file "For the player" <(echo "Nothing to see."))
   check "body: the judgement first" "**Needs your judgement:** 1 escalation(s), under the Outcome's Escalations." "$(printf '%s\n' "$body" | head -n 1)"
-  check "body: the summary" "- built a.txt
-- tested it" "$(printf '%s\n' "$body" | sed -n 3,4p)"
+  check "body: the summary under its heading" "## Summary
+
+- built a.txt
+- tested it" "$(printf '%s\n' "$body" | sed -n 3,6p)"
   if [ $kind = files ]; then
-    check "body: the task" "Task 0001." "$(printf '%s\n' "$body" | sed -n 6p)"
+    check "body: the task, after the summary" "Task 0001." "$(printf '%s\n' "$body" | sed -n 8p)"
   else
-    check "body: what closes the issue" "Fixes #1" "$(printf '%s\n' "$body" | sed -n 6p)"
+    check "body: what closes the issue, after the summary" "Fixes #1" "$(printf '%s\n' "$body" | sed -n 8p)"
   fi
+  check "body: no decisions or human steps unless given" "" "$(printf '%s\n' "$body" | grep -E '^## (Decisions|Human steps)')"
+  check "body: section order" "## Summary|## For the player|## Outcome" "$(printf '%s\n' "$body" | grep '^## ' | paste -sd'|')"
+  full=$(at "$wt" "$PEAL" close body --summary s --decisions "Chose a.txt." --human-steps-file <(echo "Run it.") --section "For the player" x)
+  check "body: summary, decisions, human steps, task, section, Outcome" \
+    "## Summary|## Decisions|## Human steps|## For the player|## Outcome" "$(printf '%s\n' "$full" | grep '^## ' | paste -sd'|')"
+  check "body: the task line sits after the human steps" "1" \
+    "$(printf '%s\n' "$full" | awk '/^## Human steps/ { h = 1 } /^(Task 0001\.|Fixes #1)$/ && h { n++ } /^## For the player/ { exit } END { print n + 0 }')"
+  check_refused "body: --decisions empty" "--decisions is empty" at "$wt" "$PEAL" close body --summary s --decisions " " --section "For the player" x
+  check_refused "body: --decisions twice" "one --decisions" at "$wt" "$PEAL" close body --summary s --decisions a --decisions-file <(echo b) --section "For the player" x
+  check_refused "body: --human-steps empty" "--human-steps is empty" at "$wt" "$PEAL" close body --summary s --human-steps "" --section "For the player" x
+  check_refused "body: --human-steps twice" "one --human-steps" at "$wt" "$PEAL" close body --summary s --human-steps a --human-steps b --section "For the player" x
   check "body: the section" "## For the player
 
 Nothing to see." "$(printf '%s\n' "$body" | sed -n '/^## For the player/,/^Nothing/p')"
@@ -300,6 +313,7 @@ Built a.txt.
   check "finish: its title, head and base" "Title of $(id 1) [$(id 1)]|$(git -C "$wt" symbolic-ref --short HEAD)|main" \
     "$(jq -r '.[0] | "\(.title)|\(.head.ref)|\(.base.ref)"' "$FAKE_GH/pulls.json")"
   body=$(jq -r '.[0].body' "$FAKE_GH/pulls.json")
+  check "finish: the body's first heading is the summary" "## Summary" "$(printf '%s\n' "$body" | grep -m1 '^## ')"
   check "finish: the body credits the idea" "- $(id 2): A later idea" "$(printf '%s\n' "$body" | grep '^- .*A later idea' | sed 's/ (.*//')"
   check "finish: the idea filed" "0" "$(at "$wt" "$PEAL" read "$(id 2)" >/dev/null 2>&1; echo $?)"
   check "finish: the queue empty" "" "$(at "$wt" "$PEAL" ideas)"
