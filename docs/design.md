@@ -169,6 +169,12 @@ asking through `AskUserQuestion` so the same step works interactive and headless
 plan is recorded on the claim, where a restarted session finds it. The implementer builds
 and its `QUESTION`s go to the human; the main session never writes the task's code.
 
+What Peal shows the human is short, or it goes unread. Every question has a `header` (a
+label of up to 12 characters) and one or two sentences; what the questions share, the
+whole plan for instance, is the session's message right before asking. The planner writes
+each ambiguity as a label, a short question and a default, and every command that asks
+carries the same rule.
+
 The backlog commands call the storage only, through the `peal` CLI. `/peal:idea` composes
 a task in one pass, never asking, so filing costs the human no attention. `/peal:defer`
 gives a claim back that nothing was built on, keeping its number and what was learned.
@@ -331,7 +337,12 @@ in [CLI](reference/cli.md#peal-close).
   empty when nothing else changed, since a pull request needs one. More than three
   escalations refuse: the task was underspecified, and the human decides first.
 - **The pull request's body** is generated, so every pull request says the same things in
-  the same order, and the project's `pr.sections` are asked for, not remembered.
+  the same order, and the project's `pr.sections` are asked for, not remembered. It opens
+  with `## Summary`, at most five one-line bullets on what changes as the merger will
+  notice it (the prompt recommends the cap, the script does not enforce it), then
+  `## Decisions` and `## Human steps` when there are any; the task's longer text follows.
+  The session's last message after a close is one or two sentences with the pull request's
+  link.
 - **`verify` and `wait`** answer with one verdict, and anything they cannot verify is
   `BLOCKED`, never `READY`. The budget is nine minutes, under a tool call's ten. With
   Belfry's `wait_ci` tool the command waits with it, runs `verify` once afterwards, and
