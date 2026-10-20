@@ -67,4 +67,16 @@ Ranges:
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Built: `peal_pr_checks` (`plugin/lib/github.sh`) now answers `WAIT:checks-failing-pending` (status 3) while a check has failed and another check or status on the commit is still pending, and `BLOCKED:checks-failing` (status 1) only once nothing is pending. `peal close verify` passes it through and `peal close wait` keeps polling on it, so a session learns how the whole run ended, and that a rerun of the failed jobs is possible, from the wait itself. When the wait's budget runs out first, the last line stands (`WAIT:checks-failing-pending`, 3); budget and the cap of six waits are unchanged.
+
+Decided with the human:
+- Main writes (idea filing, ship) stay fail-fast: `_peal_mw_merge_self` (`plugin/lib/main-write.sh`) treats the new verdict as a failing check, so a failure there is never delayed until the slowest job.
+- "The run" is every check run and status on the commit, not one Actions workflow run (no extra API call per poll).
+- The verdict name is the distinct token `WAIT:checks-failing-pending`.
+- Belfry's `wait_ci` is out of scope.
+
+Tests: `close.test.sh` covers a failed check beside a running one and beside a pending status, all completed, budget 0, and a wait that holds until a background job finishes the run; `main-write.test.sh` proves main writes return 1 after one read. `fake-gh`'s `checks-pending` mode now answers a failed run beside the running one while `checks-fail` exists. Harnesses: close 1095/0, main-write 168/0, ship 555/0, store-files 621/0, apply 405/0.
+
+0144 landed on main during this task with a flaky-failure rerun rule in `plugin/commands/close.md` step 6 that said neither wait waits for the whole run. After merging main in, the review found that false for `peal close wait`; the rule now says `peal close wait` answers `BLOCKED:checks-failing` only once no check still runs, and keeps `gh run watch` only after `wait_ci`. 0144's task file was not edited (the human's call: it was already finished). Whether `wait_ci` itself already waits for the whole run, which would let the `gh run watch` step go too, is left to the idea queued here (close-rerun-after-wait-ci).
+
+The review also found a garbled comment in `fake-gh`; fixed.
