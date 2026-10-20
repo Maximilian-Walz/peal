@@ -190,10 +190,13 @@ MODEL implementer opus" "$(at "$wt" "$PEAL" work | grep -e PLAN -e implementer)"
     check "record: committed on the task's branch" "docs(tasks): record the plan of 0001 [0001]" \
       "$(git -C "$wt" log -1 --format=%s)"
     check "record: the tree clean" "" "$(git -C "$wt" status --porcelain)"
+    # The board takes a claimed task's recorded fields from its claim branch.
+    check "record: the touches on the board" '"touches":["docs/**","src/loop.sh"]' \
+      "$(at "$wt" "$PEAL" board --no-pr 2>/dev/null | grep -o '"touches":\[[^]]*\]')"
   else
     check "record: said so" "recorded the plan of 1 on issue 1" "$out"
     check "record: the labels" "in progress,model: opus,plan: required,size: S,touches: docs/**,touches: src/loop.sh" "$(labels 1 | tr ',' '\n' | sort | paste -s -d, -)"
-    # A task file's board reads the main branch, which has the plan only once it merges.
+    # An issue's labels are rewritten at record time.
     check "record: the touches on the board" '"touches":["docs/**","src/loop.sh"]' \
       "$(at "$wt" "$PEAL" board 2>/dev/null | grep -o '"touches":\[[^]]*\]')"
   fi
