@@ -394,6 +394,7 @@ cmd_hook() {
   need 1 "$@"
   case $1 in
     session-start)
+      peal_gh_telemetry_env
       peal_record_root "${CLAUDE_PROJECT_DIR:-$PWD}"
       peal_hook_read
       peal_session_start

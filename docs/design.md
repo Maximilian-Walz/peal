@@ -308,6 +308,8 @@ other state. The states and their meaning are in
   in place once their heartbeat is idle (never the calling one), then prints the
   orientation: the current milestone, this worktree's task, the other claims, the open
   splits and `/peal:next`'s hint. The hint reuses the same list: no second read, no fetch, no `gh`.
+  It also writes `GH_TELEMETRY=0` (unless the user set it) to `CLAUDE_ENV_FILE`, so the
+  `gh` calls the session's agent runs keep gh's telemetry off, in any project.
 - **PostToolUse** is the heartbeat that keeps a worktree from being reaped, and the turn
   budget: at the task's size tier the session is nudged once to close or split.
 - **SessionEnd** commits uncommitted work as a `wip:` autosave and pushes the branch, so

@@ -590,7 +590,7 @@ peal_close_finish() {
 # _peal_close_by_hand BRANCH TITLE BODY -> how to open the pull request without Peal.
 _peal_close_by_hand() {
   peal_err "close finish: the pull request did not open or update (above). The close is committed and pushed; run finish again, or open it by hand:"
-  printf '  gh pr create --base %s --head %s --title %q --body-file %s\n' "$PEAL_MAIN" "$1" "$2" "$3" >&2
+  printf '  GH_TELEMETRY=0 gh pr create --base %s --head %s --title %q --body-file %s\n' "$PEAL_MAIN" "$1" "$2" "$3" >&2
 }
 
 # peal_close_abort REASON -> the close in progress here called off: the sentinel removed,
