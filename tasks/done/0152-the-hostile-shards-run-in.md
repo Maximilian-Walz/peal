@@ -4,7 +4,7 @@ plan: required
 priority: high
 size: L
 model: opus
-touches: [plugin/lib/apply.awk, plugin/lib/apply.sh, plugin/lib/apply*.test*, plugin/lib/hostile.test.sh, .github/workflows/ci.yml, docs/security.md]
+touches: [plugin/lib/apply.awk, plugin/lib/apply.sh, plugin/lib/apply*.test*, plugin/lib/hostile.test.sh, .github/workflows/ci.yml, docs/security.md, plugin/lib/yaml-lib.awk, plugin/lib/frontmatter.test.sh]
 ---
 
 # 0152 — The hostile shards run in minutes again, print progress, and a job that hangs fails fast
@@ -54,6 +54,7 @@ Bring each shard back to a few minutes, make a long shard show that it is alive,
 - The human's answers (2026-10-20): fix as much as possible here, the apply.sh fork cost included; apply cases stay under every awk (the cleaner choice); target at most 8 min per shard and 12 for the required check, with the clear ambition to push lower; timeouts 5/30/20/5/10 on the jobs; one task, not split; shared helpers not changed (idea instead); equivalence as a one-off check; checks outside `try()` in shard 1 only and a copied seeded repository if seeding dominates; built on opus.
 - 2026-10-20, measured by the build (local, loaded machine, mawk and busybox; `nawk` is mawk here). One `peal apply` on its own, before → after: escaped `file`+`add` [dollar] 294 → 205 processes (`strace -f`), 0.67 → 0.38 s; of its external commands, `apply.sh`'s own 82 → 21 and the shared helpers' at least 56, unchanged (out of scope, idea queued); `escaped values [long]` 2.3 → 1.15 s under mawk, 30.8 → 4.8 s under busybox, the rest six busybox frontmatter parses of the filed task (shared). `apply.awk` alone on a 1 MiB plain string: busybox over 300 s → 0.09 s, mawk 11.9 → 0.02 s. The 79 hostile apply inputs together: mawk 58 → 39 s, busybox 123 → 47 s. Fixed per-shard cost (`PEAL_HOSTILE_SHARD=1/100000`): 19 s before, 17 s (shard 1) and 11 s (others) after: seeding does not dominate, so no copied repository. Full serial run 821 s, 2428 tries; simulated 4 shards 191–203 s by call order, 196–199 s with the offset per awk pass.
 - 2026-10-20, after the first CI run of the pull request: the hostile shards took 13–14 min (shard 1: 844 s, shard 2: 765 s). Under original-awk every apply try still takes about 17 s, and macOS's awk_channels takes 581 s. The 20-min timeout cancelled `linux (rest)`, which normally runs about 20–25 min. The human's answers: a timeout per matrix entry (hostile shards 20, a/b/c 20, rest 45), and go on in this pull request to find and fix the cost of apply under original-awk (onetrue-awk built from source locally), filing what lies outside apply's own code.
+- 2026-10-20, the original-awk profile: the cost is not apply's own but `yaml-lib.awk`'s `quoted()`, which read a quoted value one byte at a time with `length()` and `substr()` on the whole value, each of them a walk of the string under onetrue-awk's second edition. Once a hostile task file holds the 64 KiB `long` value, every task scan and frontmatter read takes 11–14 s. The human agreed to widen the scope to `quoted()` (linear, byte-identical) in this pull request, `plugin/lib/yaml-lib.awk` and `plugin/lib/frontmatter.test.sh` added to touches.
 
 ## Plan
 
