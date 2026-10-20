@@ -29,6 +29,7 @@ context: []
 checks.commit: []
 checks.close: []
 pr.sections: []
+pr.security:
 commit.areas: []
 models.planner: opus
 models.reviewer: opus

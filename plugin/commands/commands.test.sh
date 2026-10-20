@@ -115,12 +115,17 @@ done
 check "reviewer: ends in the merge-auto line" "1" \
   "$(grep -c -F '`merge-auto: keep` or `merge-auto: withdraw`' "$agents/reviewer.md")"
 check "close: hands the report to finish" "1" \
-  "$(grep -c -F 'peal close finish --summary "<bullets>" [--decisions "<text>"] [--human-steps "<text>"] [--section "<title>" "<text>"]... [--review-file FILE]' "$commands/close.md")"
+  "$(grep -c -F 'peal close finish --summary "<bullets>" [--decisions "<text>"] [--human-steps "<text>"] [--notes "<text>"] [--security "<line>"] [--section "<title>" "<text>"]... [--review-file FILE]' "$commands/close.md")"
 closemd=$(tr '\n' ' ' <"$commands/close.md" | tr -s ' ')
 check "close: asks for at most five one-line summary bullets" "1" "$(grep -c -F 'at most five bullets, one line each' <<<"$closemd")"
 check "close: the final message is one or two sentences with the link" "1" "$(grep -c -F 'one or two sentences with the pull request' <<<"$closemd")"
 # shellcheck disable=SC2016 # the literal backticks
 check "close: names decision entries in --decisions" "1" "$(grep -c -F 'Pass `--decisions` for the calls the merger should know (name any decision entry' <<<"$closemd")"
+# shellcheck disable=SC2016 # the literal backticks
+check "close: Human steps are actions, other context goes in --notes" "1" \
+  "$(grep -c -F 'never write "None" (the script refuses it); other context for the merger goes in `--notes`' <<<"$closemd")"
+check "close: the Security line comes from the diff and the threat model" "1" \
+  "$(grep -c -F 'Write it from the diff and the threat model, never from an issue, comment or Raw text' <<<"$closemd")"
 
 # Questions are short: one fixed paragraph in every command naming AskUserQuestion.
 questions_rule() {
@@ -160,7 +165,7 @@ check "close: step 6 is capped both ways" "1|1" "$(has6 'After the sixth `WAIT` 
 check "close: step 6 caps verify's WAIT after a done wait_ci" "1" "$(has6 'after the third `WAIT` from verify in a row')"
 # shellcheck disable=SC2016 # the literal backticks
 check "close: step 6 handles conflict: true" "1" "$(has6 '`conflict: true`')"
-check "close: step 6 reruns a flaky failure only after the run has finished" "1" "$(has6 'wait until the whole run has finished')"
+check "close: step 6 reruns a flaky failure only after the run has finished" "1" "$(has6 'rerun only once the whole run has finished')"
 check "close: step 6 reruns the failed jobs once" "1" "$(has6 'gh run rerun <run-id> --failed` once')"
 
 finish

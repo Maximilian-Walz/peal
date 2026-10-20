@@ -102,6 +102,10 @@ _peal_doctor_stage_config() {
     true | false) ;;
     *) _peal_doctor_fail config "release.wait-ci is '$v', not true or false" "edit $PEAL_CONFIG_FILE" ;;
   esac
+  v=$(peal_config_get pr.security 2>/dev/null)
+  if [ -n "$v" ] && [ ! -f "$v" ]; then
+    _peal_doctor_fail config "pr.security names $v, which does not exist: close will ask for a Security line about a threat model nobody can read" "create $v, or edit $PEAL_CONFIG_FILE"
+  fi
   for k in planner reviewer implementer; do
     v=$(peal_config_get "models.$k" 2>/dev/null)
     [ -n "$v" ] || _peal_doctor_fail config "models.$k is empty" "edit $PEAL_CONFIG_FILE"

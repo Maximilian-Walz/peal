@@ -77,7 +77,8 @@ with the decisions module on, `peal decision check`.
   each `FAIL`; last `doctor: N problem(s)`.
 - Status 0 healthy, 1 any problem, 2 an unknown `CHECK`, outside a git repository, or no
   `.peal/`.
-- `config`: the config loads, and `storage.kind`, `main-writes`, `sizes.*`, `stages`,
+- `config`: `pr.security`, when set, names a file that exists;
+  the config loads, and `storage.kind`, `main-writes`, `sizes.*`, `stages`,
   `release.wait-ci` and `models.*` hold valid values.
 - `version`: `.peal/peal` matches the plugin's launcher template; then the installed
   Peal against this session's.
@@ -314,26 +315,29 @@ body. Task files only; the issues storage refuses (status 2), since Belfry write
 `github-issues` project itself.
 
 Each proposal is an object with an `id` (Belfry's, echoed back), a `kind`, an optional
-`why`, and the kind's fields:
+`why`, an optional `origin` (`outsider` or `writer`; `""` is none) which only `file` and
+`add` act on, and the kind's fields. Belfry's own `ref`, `item` and `into` are ignored,
+whatever scalar they hold (an object or array is still refused); every other unknown field makes the proposal invalid. Belfry leaves
+empty fields out, so an absent optional field is none:
 
 | kind | fields | what it does |
 |---|---|---|
 | `file` | `title`, `text`, `milestone`, `priority`, `owner`, `origin` | files `text` as `peal create` does (`NNNN` for its number); the four fields go into the frontmatter, winning over the text's; `title` gives the slug, its first five words |
 | `add` | `task`, `text`, `origin` | a dated line under the task's `## Notes`, as `peal comment`; `origin: outsider` marks the task |
-| `move` | `task`, `milestone` | sets the milestone, `null` removes it |
+| `move` | `task`, `milestone` | sets the milestone; absent or `null` removes it (`""` is invalid) |
 | `priority` | `task`, `priority` | `urgent`, `high`, `normal` (removes the field) or `low` |
-| `depends` | `task`, `on`, `op` | adds `on` to the task's `depends` (`op: add`), or takes it out (`remove`) |
+| `depends` | `task`, `on`, `remove` | adds `on` to the task's `depends`, or takes it out with `"remove": true` (absent, `false` or `null` adds) |
 | `retire` | `task`, `reason` or `duplicate` | moves the task to `done/`, its Outcome "Retired <date> without being claimed: <reason>" or "...: duplicate of <id>" |
 | `milestone_create` | `title`, `goal`, `due`, `order` | a new `open` milestone file, `peal init`'s text: `# <title>` (one line), `## Goal` (`goal`, prose with no `---` or `## ` line, else a placeholder), `## Acceptance criteria` (a placeholder); `due` a date, `YYYY-MM-DD`; `order` an integer, by default one past the highest. Its id is Peal's: `m` and one past the highest numeric id, zero-padded when all of them are |
 | `milestone_update` | `milestone`, `title`, `due`, `order` | at least one of the three; `title` goes into the frontmatter's `title` when the file has one, else its `# ` heading; `due: null` and `order: null` remove the field |
 | `milestone_state` | `milestone`, `state`, `reason` | `state` `park` (parked), `unpark` or `reopen` (open), `close` (done); `reason`, one line, with `park` only. A state the milestone has already changes nothing. Then, when no milestone is current, the first open one by order becomes current, as `peal milestone-state` does |
-| `split_milestone` | `from`, `tasks`, `title`, `goal`, `due`, `order` | `milestone_create`'s milestone (`title`, `goal`, `due` as there; `order` by default `from`'s plus one, not renumbering the rest), and the tasks moved to it: `tasks` is an array of strings, each a task id or an `@<id>` of an earlier `file` proposal, none twice, none left out of `from` (a task not in `from` as the batch stands at that proposal is invalid). The answer carries `milestone` (the new id) and no `task`; the moved tasks are in `detail` |
+| `split_milestone` | `milestone`, `tasks`, `title`, `goal`, `due`, `order` | `milestone_create`'s milestone (`title`, `goal`, `due` as there; `order` by default `milestone`'s plus one, not renumbering the rest), and the tasks moved to it: `tasks` is an array of strings, each a task id or an `@<id>` of an earlier `file` proposal, none twice, each in any milestone or none. The answer carries `milestone` (the new id) and no `task`; the moved tasks are in `outcome` |
 
 A `task`, `on` or `duplicate` written `@<id>` is the task the `file` proposal `<id>` of
 the same batch files (for `task`, an earlier one). A `milestone` written `@<id>` (in
-`file`, `move`, `milestone_update`, `milestone_state`, and a `split_milestone`'s `from`)
+`file`, `move`, `milestone_update`, `milestone_state`, and a `split_milestone`'s `milestone`)
 is the milestone an earlier `milestone_create` or `split_milestone` `<id>` makes. `fold`
-and `dismiss` are Belfry's own, no backlog change; both are answered `invalid`. A new milestone's id is
+and `dismiss` are Belfry's own, no backlog change; both are answered not done. A new milestone's id is
 reserved nowhere: two batches making one in rival pull requests conflict, and the second
 is made again.
 
@@ -345,15 +349,15 @@ or out of (parked at the start and still so); a frontmatter `peal create` accept
 names (the batch may re-point those first); no milestone closed while a task not done,
 its review task aside, names it; milestone files `peal milestones` reads.
 
-The answer is one JSON line per proposal, in input order: `id`, `status`, and `task`,
-`milestone` (the milestone a milestone kind acted on, a new one's id), `detail` and
-`change` where they apply. `status` is `done`; `invalid`, the proposal failed
-a check, `detail` says which; `not_applied`, valid but another was not, so nothing was
-written; or `failed`, the write failed. `change` is the pull request, when the write went
-through one; one still open at the budget (`PEAL_MAIN_WRITE_BUDGET`, 90 s unless set)
-with auto-merge on answers `done` too. Exit 0 all done, 2 an invalid batch with nothing
-changed, 1 a failed write. A document that is no JSON is one `invalid` line with an empty
-`id`.
+The answer is one JSON line per proposal, in input order, as Belfry's `ApplyResult` reads
+it: `id`, `done` (`true` or `false`), `outcome` (one line: what was done, or why not: the
+proposal failed a check, another did so nothing was written, or the write failed),
+and `task` (the task a proposal acted on; a `file`'s new one), `milestone` (the
+milestone a milestone kind acted on, a new one's id) and `change` where they apply.
+`change` is the pull request, when the write went through one; one still open at the
+budget (`PEAL_MAIN_WRITE_BUDGET`, 90 s unless set) with auto-merge on answers `done`
+too. Exit 0 all done, 2 an invalid batch with nothing changed, 1 a failed write. A
+document that is no JSON is one line with `"done": false` and an empty `id`.
 
 ## `peal finish`
 
@@ -491,17 +495,25 @@ Declares the close: a sentinel in the git directory arms the Stop hook.
   would conflict in, milestone files the branch changes, the ideas queued, an empty
   `## Scope` or `## Done when`.
 - Names where the Outcome goes (the task file; for an issue a file in the git directory),
-  the project's `pr.sections`, the diff and the `## Done when`.
+  the project's `pr.sections`, with `pr.security` set the request for the Security line
+  (`--security TEXT`: the boundary of that document the diff touches and how, or `none`),
+  the diff and the `## Done when`.
 
 ### `peal close finish`
 
-`peal close finish --summary TEXT [--decisions TEXT] [--human-steps TEXT]
-[--section TITLE TEXT]... [--review-file FILE]`. `--decisions` and `--human-steps` are
-optional, given once, never empty. The `-file` forms (`--summary-file FILE`,
-`--decisions-file FILE`, `--human-steps-file FILE`, `--section-file TITLE FILE`) read the text from a
+`peal close finish --summary TEXT [--decisions TEXT] [--human-steps TEXT] [--notes TEXT]
+[--security TEXT] [--section TITLE TEXT]... [--review-file FILE]`. `--decisions`,
+`--human-steps` and `--notes` are optional, given once, never empty; `--human-steps` that
+is only none, n/a or `-` is refused (leave it out, or use `--notes`). `--security` is one
+line, given once: the boundary the change touches and how, or `none`; a leading
+`Security:` is dropped. It is required where `pr.security` names a threat model, and
+optional elsewhere. A `pr.sections` item titled `Notes` is refused. The `-file` forms
+(`--summary-file FILE`, `--decisions-file FILE`, `--human-steps-file FILE`,
+`--notes-file FILE`, `--section-file TITLE FILE`) read the text from a
 file. `FILE` is the reviewer's report.
 
-- Refuses, before anything changes: a missing summary or section, an empty Outcome or one
+- Refuses, before anything changes: a missing summary or section, a missing `--security`
+  where `pr.security` is set, an empty Outcome or one
   with a placeholder, more than three escalations, a task holding `merge: auto` without
   the report and its `merge-auto:` line, an uncommitted path besides the Outcome, missing
   git hooks, and a failing `checks.close` command.
@@ -516,9 +528,10 @@ file. `FILE` is the reviewer's report.
 
 Takes the arguments of `finish` and prints the pull request's body: the count of
 escalations and a withdrawn `merge: auto`, then `## Summary` with the summary bullets,
-`## Decisions` and `## Human steps` when given, `Fixes #N` for an issue (`Task N.` for a
-file), the split it is part of, each `pr.sections` text, the Outcome, the ideas filed, the
-branch's commits.
+`## Decisions`, `## Human steps` and `## Notes` when given, `Fixes #N` for an issue
+(`Task N.` for a file), the split it is part of, each `pr.sections` text, the Outcome, the
+ideas filed, then the `Security: ...` line when given (Belfry reads the last such line
+outside code blocks, so it comes after the Outcome) and the branch's commits.
 
 ### `peal close abort`
 
@@ -531,14 +544,17 @@ Prints one verdict about the branch checked out.
 
 - `READY` (0): open and green; also `READY:merged`, `READY:pr-closed`,
   `READY:no-checks`.
-- `WAIT:<why>` (3): checks pending or not registered yet, mergeability unknown.
+- `WAIT:<why>` (3): checks pending or not registered yet, mergeability unknown;
+  `WAIT:checks-failing-pending`, a check has failed while others still run.
 - `BLOCKED:<why>` (1): the close unfinished, uncommitted or unpushed work, no pull
-  request, conflicts, failing checks, no `gh`, anything it cannot verify.
+  request, a draft pull request, conflicts, failing checks (only once nothing is pending), no `gh`, anything it cannot verify.
 
 ### `peal close wait`
 
 Runs `verify` until the verdict is not `WAIT` or the budget is spent
-(`PEAL_CLOSE_WAIT_BUDGET`, 540 seconds; `PEAL_CLOSE_WAIT_INTERVAL`, 20).
+(`PEAL_CLOSE_WAIT_BUDGET`, 540 seconds; `PEAL_CLOSE_WAIT_INTERVAL`, 20). A failing check
+is reported only once nothing is pending, so the whole run has ended. Main writes (idea
+filing, ship) still stop at the first failure.
 
 ## `peal decision`
 

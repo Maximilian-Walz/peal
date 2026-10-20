@@ -662,6 +662,13 @@ checks() {
     --arg s "$(git -C "$wt" rev-parse HEAD)" --arg st "$1" --arg c "${2-}"
 }
 
+# two_checks CONCLUSION STATUS -> two check runs of wt's HEAD: one completed with
+# CONCLUSION, one in STATUS (completed ones succeed).
+two_checks() {
+  gh_save checks '[{sha: $s, status: "completed", conclusion: $c}, {sha: $s, status: $st, conclusion: (if $st == "completed" then "failure" else null end)}]' \
+    --arg s "$(git -C "$wt" rev-parse HEAD)" --arg st "$2" --arg c "$1"
+}
+
 # no_gh_path -> a PATH with everything on this one but gh.
 no_gh_path() {
   local dir d f
@@ -736,6 +743,14 @@ verify_cases() {
   check "verify: a check running" "WAIT:checks-pending 3" "$(verdict)"
   checks completed failure
   check "verify: a check failed" "BLOCKED:checks-failing 1" "$(verdict)"
+  two_checks failure in_progress
+  check "verify: a check failed, another running" "WAIT:checks-failing-pending 3" "$(verdict)"
+  two_checks failure completed
+  check "verify: both completed" "BLOCKED:checks-failing 1" "$(verdict)"
+  checks completed failure
+  gh_save statuses '[{sha: $s, state: "pending"}]' --arg s "$(git -C "$wt" rev-parse HEAD)"
+  check "verify: a check failed, a status pending" "WAIT:checks-failing-pending 3" "$(verdict)"
+  gh_save statuses '[]'
   checks completed success
   gh_save statuses '[{sha: $s, state: "pending"}]' --arg s "$(git -C "$wt" rev-parse HEAD)"
   check "verify: a status pending" "WAIT:checks-pending 3" "$(verdict)"
@@ -746,6 +761,9 @@ verify_cases() {
   check "verify: mergeability unknown" "WAIT:mergeability-unknown 3" "$(verdict)"
   pull mergeable false
   check "verify: conflicts" "BLOCKED:conflicts 1" "$(verdict)"
+  pull draft true
+  check "verify: draft" "BLOCKED:draft 1" "$(verdict)"
+  pull draft false
   pull mergeable true
   check "verify: green" "READY 0" "$(verdict)"
   ln -s /dev/null "$wt/dev-null"
@@ -769,6 +787,15 @@ verify_cases() {
   ( sleep 2; checks completed success ) &
   check "wait: until READY" "READY 0" "$(in_dir "$wt" env PEAL_CLOSE_WAIT_INTERVAL=1 PEAL_CLOSE_WAIT_BUDGET=30 "$PEAL" close wait)"
   wait
+  two_checks failure in_progress
+  : >"$FAKE_GH/log"
+  check "wait: a failure with a check running, out of budget" "WAIT:checks-failing-pending 3" \
+    "$(in_dir "$wt" env PEAL_CLOSE_WAIT_BUDGET=0 "$PEAL" close wait)"
+  ( sleep 2; two_checks failure completed ) &
+  check "wait: holds on until nothing is pending" "BLOCKED:checks-failing 1" \
+    "$(in_dir "$wt" env PEAL_CLOSE_WAIT_INTERVAL=1 PEAL_CLOSE_WAIT_BUDGET=30 "$PEAL" close wait)"
+  wait
+  check "wait: read the checks again" "yes" "$([ "$(grep -c 'check-runs' "$FAKE_GH/log")" -gt 2 ] && echo yes)"
   checks completed failure
   check "wait: BLOCKED at once" "BLOCKED:checks-failing 1" "$(in_dir "$wt" env PEAL_CLOSE_WAIT_INTERVAL=5 "$PEAL" close wait)"
   check_refused "wait: a bad budget" "whole seconds" at "$wt" env PEAL_CLOSE_WAIT_BUDGET=soon "$PEAL" close wait
@@ -789,6 +816,78 @@ check_cases() {
   OUTCOME=$'Built.\n\nFiled by hand, filing having failed:\n\n  ---\n  ## Outcome\n\n  <!-- Written at close, replacing this comment. -->' \
     put "$work" "done" 0001 finished-task
   check "check: an indented, quoted placeholder passes" "0:" "$(at "$work" "$PEAL" check 2>&1; echo "$?:")"
+}
+
+# notes_cases -> --notes, the "None" human steps, and a pr.sections item titled Notes.
+notes_cases() {
+  local body
+  new_repo
+  ready 1 first-task
+  build
+  begin >/dev/null
+  outcome "Built a.txt."
+  body=$(at "$wt" "$PEAL" close body --summary s --decisions d --human-steps "Run it." --notes "Context.")
+  check "notes: order" "## Summary|## Decisions|## Human steps|## Notes|## Outcome" "$(printf '%s\n' "$body" | grep '^## ' | paste -sd'|')"
+  check "notes: the text" "Context." "$(printf '%s\n' "$body" | sed -n '/^## Notes/{n;n;p}')"
+  check "notes: the task line after them" "1" \
+    "$(printf '%s\n' "$body" | awk '/^## Notes/ { h = 1 } /^(Task 0001\.|Fixes #1)$/ && h { n++ } /^## Outcome/ { exit } END { print n + 0 }')"
+  body=$(at "$wt" "$PEAL" close body --summary s --notes-file <(echo "From a file."))
+  check "notes: --notes-file" "From a file." "$(printf '%s\n' "$body" | sed -n '/^## Notes/{n;n;p}')"
+  body=$(at "$wt" "$PEAL" close body --summary s)
+  check "notes: none given, no section" "" "$(printf '%s\n' "$body" | grep '^## Notes')"
+  check_refused "notes: empty" "--notes is empty" at "$wt" "$PEAL" close body --summary s --notes " "
+  check_refused "notes: twice" "one --notes" at "$wt" "$PEAL" close body --summary s --notes a --notes b
+  check_refused "notes: text and file" "one --notes" at "$wt" "$PEAL" close body --summary s --notes a --notes-file <(echo b)
+  check_refused "notes: file and file" "one --notes" at "$wt" "$PEAL" close body --summary s --notes-file <(echo a) --notes-file <(echo b)
+  local steps
+  for steps in None none "n/a" "N/A." "-" "None." $'none\n'; do
+    check_refused "human steps: only '$steps'" "leave it out" at "$wt" "$PEAL" close body --summary s --human-steps "$steps"
+  done
+  check "human steps: a real step passes" "## Human steps" \
+    "$(at "$wt" "$PEAL" close body --summary s --human-steps "None of the old flags work; run it." | grep '^## Human')"
+  new_repo "pr:" "  sections: [\"Notes: anything\"]"
+  ready 1 first-task
+  build
+  begin >/dev/null
+  check_refused "notes: a pr.sections item titled Notes" "clashes with --notes" at "$wt" "$PEAL" close body --summary s --section Notes x
+}
+
+# security_cases -> the Security line, optional without pr.security, required with it.
+security_cases() {
+  local body out
+  new_repo
+  ready 1 first-task
+  build
+  begin >/dev/null
+  outcome $'Built a.txt.\n\nSecurity: x'
+  check "security off: begin asks nothing" "" "$(at "$wt" "$PEAL" close begin 2>&1 | grep 'Security line')"
+  body=$(at "$wt" "$PEAL" close body --summary s --security none)
+  check "security off: the line sits right before <details>" "Security: none||<details>" \
+    "$(printf '%s\n' "$body" | grep -B2 '^<details>' | paste -sd'|')"
+  check "security off: it is the last Security: line" "Security: none" "$(printf '%s\n' "$body" | grep '^Security:' | tail -n 1)"
+  check "security off: not given, no line but the Outcome's own" "Security: x" "$(at "$wt" "$PEAL" close body --summary s | grep '^Security:')"
+  check "security: a leading Security: not doubled" "Security: none" \
+    "$(at "$wt" "$PEAL" close body --summary s --security "Security: none" | grep '^Security: ' | tail -n 1)"
+  check_refused "security: empty" "--security is empty" at "$wt" "$PEAL" close body --summary s --security " "
+  check_refused "security: twice" "one --security" at "$wt" "$PEAL" close body --summary s --security a --security b
+  check_refused "security: several lines" "one line" at "$wt" "$PEAL" close body --summary s --security $'a\nb'
+
+  new_repo "pr:" "  security: docs/security.md"
+  ready 1 first-task
+  build
+  begin >"$work/begin.out"
+  out=$(cat "$work/begin.out")
+  rm "$work/begin.out"
+  check "security on: begin names the document" "1" "$(printf '%s\n' "$out" | grep -c '^Security line finish needs, as --security TEXT: .*docs/security.md')"
+  outcome "Built a.txt."
+  check_refused "security on: body without it" "docs/security.md" at "$wt" "$PEAL" close body --summary s
+  check_refused "security on: finish without it" "docs/security.md" close_finish
+  check "security on: nothing changed" "armed|0" "$(sentinel)|$(prs)"
+  out=$(close_finish --security "docs/security.md boundary 2: reads a path" 2>&1)
+  check "security on: finish done" "0" "$?"
+  body=$(jq -r '.[0].body' "$FAKE_GH/pulls.json")
+  check "security on: one line in the finished body" "1" "$(printf '%s\n' "$body" | grep -c '^Security:')"
+  check "security on: that line" "Security: docs/security.md boundary 2: reads a path" "$(printf '%s\n' "$body" | grep '^Security:')"
 }
 
 # draft_cases -> finish marks an open draft pull request of the branch ready for review
@@ -832,6 +931,8 @@ cases() {
   finish_cases
   push_skip_cases
   no_upstream_cases
+  notes_cases
+  security_cases
   draft_cases
   char_device_cases
   merge_cases

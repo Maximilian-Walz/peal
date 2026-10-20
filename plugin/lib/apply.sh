@@ -4,18 +4,22 @@
 # files (sourced by store-files.sh's peal_store_apply) that is one commit on the main
 # branch, through lib/main-write.sh: one pull request where main takes pull requests only.
 #
-# Input: {"proposals": [{"id": ..., "kind": ..., ...}, ...]}, read by lib/apply.awk. The
-# kinds and their fields (every kind also takes "why", the reason, which goes into the
-# commit's body):
+# Input: {"proposals": [{"id": ..., "kind": ..., ...}, ...]}, read by lib/apply.awk, as
+# Belfry's tasks.commands.apply sends it. The kinds and their fields (every kind also
+# takes "why", the reason, which goes into the commit's body, and "origin", outsider or
+# writer, "" as none, which only file and add act on; "ref", "item" and "into" are
+# Belfry's own and ignored, whatever their value; Belfry leaves empty fields out, so an
+# absent optional field is none):
 #   file      title, text (a task text as peal create takes it, NNNN for its number),
 #             milestone, priority, owner (ai, human), origin (outsider, writer): those
 #             four go into the frontmatter and win over the text's; title only gives the
 #             slug, as create --title does
 #   add       task, text (a dated line under its Notes, no '---' or '## ' line), origin
 #             (outsider marks the task origin: outsider)
-#   move      task, milestone (null: none)
+#   move      task, milestone (absent or null: none)
 #   priority  task, priority (urgent, high, normal, low; normal removes the field)
-#   depends   task, on, op (add, remove)
+#   depends   task, on, remove (true takes the dependency out; absent, false or null
+#             adds it)
 #   retire    task, reason or duplicate (the Outcome "Retired <date> without being
 #             claimed: <reason>", or "...: duplicate of <id>")
 #   milestone_create  title (one line), goal (no '---' or '## ' line), due (YYYY-MM-DD),
@@ -28,17 +32,17 @@
 #   milestone_state  milestone, state (park: parked, unpark and reopen: open, close:
 #             done), reason (park only, one line); then, when none is current, the first
 #             open milestone by order made current
-#   split_milestone  from (a milestone), tasks (an array of task ids, every one in from),
-#             title, goal, due, order (as milestone_create's; by default from's + 1, else
-#             one past the highest): a new milestone, as milestone_create makes it, and
-#             those tasks moved to it. The one array Peal reads, each item a string of its
-#             own (lib/apply.awk)
+#   split_milestone  milestone (the one split), tasks (an array of task ids, each in any
+#             milestone or none), title, goal, due, order (as milestone_create's; by
+#             default milestone's + 1, else one past the highest): a new milestone, as
+#             milestone_create makes it, and those tasks moved to it. The one array Peal
+#             reads, each item a string of its own (lib/apply.awk)
 # A task, an on or a duplicate written "@<id>" is the task the file proposal <id> of the
 # batch files; for task, an earlier one. A milestone written "@<id>" (in file, move,
 # milestone_update, milestone_state) is the milestone an earlier milestone_create <id>
-# makes (a split_milestone's too, and "from" may name one); an item of tasks is a task id
-# or an "@<id>" of an earlier file proposal. fold and dismiss are Belfry's own and no
-# backlog change; both are answered invalid.
+# makes (a split_milestone's too, and its "milestone" may name one); an item of tasks is
+# a task id or an "@<id>" of an earlier file proposal. fold and dismiss are Belfry's own and no
+# backlog change; both are answered not done.
 #
 # Every proposal is checked against the main branch as the whole batch leaves it, every
 # problem reported: a task in the backlog that nobody claimed, a milestone that exists,
@@ -48,11 +52,12 @@
 # milestone closed while a task not done (its review task aside) names it, milestone
 # files peal_ms_load accepts. Any invalid proposal and nothing is written.
 #
-# Output: one JSON line per proposal, in input order: {"id", "status", "task",
-# "milestone", "detail", "change"}, status done, invalid (this one failed a check),
-# not_applied (valid, but another was not) or failed (the write failed); milestone the
-# milestone a milestone kind acted on (a new one's id); change the pull request, when the
-# write went through one. Exit 0 all done, 2 an invalid batch with nothing changed, 1 the
+# Output: one JSON line per proposal, in input order, as Belfry's ApplyResult reads it:
+# {"id", "done", "outcome", "task", "milestone", "change"}; done true only when it was
+# carried out, outcome one line (what was done, or why not: this one failed a check,
+# another did, or the write failed); task the task a kind acted on (a file's new one);
+# milestone the milestone a milestone kind acted on (a new one's id); change the pull
+# request, when the write went through one. Exit 0 all done, 2 an invalid batch with nothing changed, 1 the
 # write failed.
 
 PEAL_APPLY_KINDS="file add move priority depends retire milestone_create milestone_update milestone_state split_milestone"
@@ -187,6 +192,12 @@ _pa_has() {
   _pa_t "$1" "$2" && [ "$PA_T" != null ]
 }
 
+# _pa_removes I -> status 0 when proposal I (a depends) takes the dependency out: its
+# remove is true; absent, false or null adds it.
+_pa_removes() {
+  _pa_t "$1" remove && [ "$PA_T" = true ]
+}
+
 # _pa_bad I MESSAGE -> proposal I invalid, MESSAGE added to its detail.
 _pa_bad() {
   local st=PA_ST_$1 det=PA_DET_$1
@@ -314,14 +325,14 @@ _pa_static() {
   case $kind in
     file) allowed="title text milestone priority owner origin" required="title text" ;;
     add) allowed="task text origin" required="task text" ;;
-    move) allowed="task milestone" required="task" ;;
-    priority) allowed="task priority" required="task priority" ;;
-    depends) allowed="task on op" required="task on op" ;;
-    retire) allowed="task reason duplicate" required="task" ;;
-    milestone_create) allowed="title goal due order" required="title" ;;
-    milestone_update) allowed="milestone title due order" required="milestone" ;;
-    milestone_state) allowed="milestone state reason" required="milestone state" ;;
-    split_milestone) allowed="from tasks title goal due order" required="from tasks title" ;;
+    move) allowed="task milestone origin" required="task" ;;
+    priority) allowed="task priority origin" required="task priority" ;;
+    depends) allowed="task on remove origin" required="task on" ;;
+    retire) allowed="task reason duplicate origin" required="task" ;;
+    milestone_create) allowed="title goal due order origin" required="title" ;;
+    milestone_update) allowed="milestone title due order origin" required="milestone" ;;
+    milestone_state) allowed="milestone state reason origin" required="milestone state" ;;
+    split_milestone) allowed="milestone tasks title goal due order origin" required="milestone tasks title" ;;
     fold | dismiss)
       _pa_bad "$i" "not a backlog change; Belfry carries it out"
       return ;;
@@ -334,6 +345,9 @@ _pa_static() {
   for k in ${!kn-}; do
     tn=PA_T_${i}_$k
     t=${!tn}
+    # Belfry's own fields (the card, the item, the milestone it files into), whatever
+    # their value.
+    case $k in ref | item | into) continue ;; esac
     case " id kind why $allowed " in
       *" $k "*) ;;
       *) _pa_bad "$i" "field $k is not one $kind takes"; continue ;;
@@ -344,6 +358,8 @@ _pa_static() {
       order:n) ;;
       order:*) [ "$kind:$t" = milestone_update:null ] || _pa_bad "$i" "order is not an integer" ;;
       due:null) [ "$kind" = milestone_update ] || _pa_bad "$i" "due is not a date, YYYY-MM-DD" ;;
+      remove:true | remove:false | remove:null) ;;
+      remove:*) _pa_bad "$i" "remove is not true or false" ;;
       *:s | id:n) ;;
       why:null | origin:null | milestone:null | priority:null | owner:null) ;;
       *) _pa_bad "$i" "field $k is not a string" ;;
@@ -352,7 +368,10 @@ _pa_static() {
   for k in $required; do
     _pa_has "$i" "$k" || _pa_bad "$i" "no $k"
   done
-  [ "$kind" != move ] || _pa_t "$i" milestone || _pa_bad "$i" "no milestone (null for none)"
+  if _pa_has "$i" origin; then
+    _pa_get "$i" origin
+    case $PA_V in outsider | writer | "") ;; *) _pa_bad "$i" "origin must be outsider or writer" ;; esac
+  fi
   if [ "$kind" = priority ] && _pa_t "$i" priority && [ "$PA_T" = null ]; then _pa_bad "$i" "no priority"; fi
   if [ "$kind" = milestone_update ] && ! _pa_t "$i" title && ! _pa_t "$i" due && ! _pa_t "$i" order; then
     _pa_bad "$i" "nothing to update: give a title, a due or an order"
@@ -388,18 +407,12 @@ _pa_static() {
     _pa_get "$i" owner
     case $PA_V in ai | human) ;; *) _pa_bad "$i" "owner must be ai or human" ;; esac
   fi
-  if _pa_has "$i" origin; then
-    _pa_get "$i" origin
-    case $PA_V in outsider | writer) ;; *) _pa_bad "$i" "origin must be outsider or writer" ;; esac
-  fi
   case $kind in
     add)
       if grep -n -m1 -e '^---[[:space:]]*$' -e '^## ' "$PA_DIR/p/$i.text" >/dev/null; then
         _pa_bad "$i" "the text holds a '---' or '## ' line; a note is prose, not structure"
       fi ;;
     depends)
-      _pa_get "$i" op
-      case $PA_V in add | remove) ;; *) _pa_bad "$i" "op must be add or remove" ;; esac
       _pa_task_ref "$i" on || true ;;
     retire)
       if _pa_has "$i" reason && _pa_has "$i" duplicate; then
@@ -422,7 +435,6 @@ _pa_static_ms() {
   local i=$1 kind=$2 v f n=0 seen=$'\n'
   case $kind in
     milestone_create) ;;
-    split_milestone) _pa_ms_ref "$i" from || true ;;
     *) _pa_ms_ref "$i" milestone || true ;;
   esac
   if [ "$kind" = split_milestone ] && _pa_has "$i" tasks; then
@@ -529,10 +541,14 @@ _pa_frontmatter() {
     if [ "$PA_V" = human ]; then peal_fm_set "$file" owner human || return 2
     else peal_fm_unset "$file" owner || return 2; fi
   fi
-  if _pa_has "$i" origin; then
+  # Only a file acts on its origin; "" is as good as none.
+  _pa_get "$i" kind
+  if [ "$PA_V" = file ] && _pa_has "$i" origin; then
     _pa_get "$i" origin
-    if [ "$PA_V" = outsider ]; then peal_fm_set "$file" origin outsider || return 2
-    else peal_fm_unset "$file" origin || return 2; fi
+    case $PA_V in
+      outsider) peal_fm_set "$file" origin outsider || return 2 ;;
+      writer) peal_fm_unset "$file" origin || return 2 ;;
+    esac
   fi
 }
 
@@ -589,6 +605,8 @@ _pa_item() {
       printf 'noted on %s' "$id" >"$PA_S/res.$i.detail" ;;
     move)
       _pa_frontmatter "$i" "$f" || return 2
+      # Belfry leaves an empty milestone out: none.
+      if ! _pa_t "$i" milestone; then peal_fm_unset "$f" milestone || return 2; fi
       v=$(peal_fm_get "$f" milestone 2>/dev/null)
       printf 'task %s: milestone %s' "$id" "${v:-none}" >"$PA_S/res.$i.detail" ;;
     priority)
@@ -603,8 +621,7 @@ _pa_item() {
         return 2
       fi
       deps=$(peal_fm_get "$f" depends 2>/dev/null | sed '/^$/d')
-      _pa_get "$i" op
-      if [ "$PA_V" = add ]; then
+      if ! _pa_removes "$i"; then
         _peal_files_add_depend "$f" "$on" || return 2
         printf 'task %s: waits for %s' "$id" "$on" >"$PA_S/res.$i.detail"
       else
@@ -704,7 +721,7 @@ _pa_ms_item() {
     rel=$PA_MSDIR/$id.md
     f=$PA_S/ms/$rel
     if [ "$kind" = split_milestone ]; then
-      _pa_ms_resolve "$i" from || return 2
+      _pa_ms_resolve "$i" milestone || return 2
       from=$PA_RES
       frel=$(_pa_ms_path "$from") || { peal_err "milestone $from does not exist"; return 2; }
     fi
@@ -736,8 +753,6 @@ _pa_ms_item() {
           return 2
         fi
         case " ${ids[*]-} " in *" $tid "*) peal_err "task $tid is listed twice"; return 2 ;; esac
-        [ "$(peal_fm_get "$PA_S/t/$tid.text" milestone 2>/dev/null)" = "$from" ] \
-          || { peal_err "task $tid is not in milestone $from"; return 2; }
         ids+=("$tid")
       done < <(_pa_items "$i" tasks)
     fi
@@ -954,8 +969,7 @@ _pa_check() {
     for ((j = 1; j <= PA_COUNT; j++)); do
       _pa_get "$j" kind
       [ "$PA_V" = depends ] || continue
-      _pa_get "$j" op
-      [ "$PA_V" = add ] || continue
+      ! _pa_removes "$j" || continue
       _pa_read "$PA_S/res.$j.task" || continue
       id=$PA_F
       [[ ",$members," == *",$id,"* ]] || continue
@@ -1094,11 +1108,10 @@ _pa_answer() {
   local i=$1 n v
   _pa_get "$i" id
   _pa_json_v "$PA_V"
-  printf '{"id": %s' "$PA_J"
+  printf '{"id": %s, "done": ' "$PA_J"
   n=PA_ST_$i
-  _pa_json_v "${!n-}"
-  printf ', "status": %s' "$PA_J"
-  for v in task:PA_RT milestone:PA_RM detail:PA_DET; do
+  if [ "${!n-}" = "done" ]; then printf true; else printf false; fi
+  for v in outcome:PA_DET task:PA_RT milestone:PA_RM; do
     n=${v#*:}_$i
     n=${!n-}
     _pa_chomp n
@@ -1144,7 +1157,7 @@ _peal_apply_files() {
   _pa_load_manifest
   line=$PA_DOCERR
   if [ -n "$line" ] || [ -z "$PA_GOTCOUNT" ]; then
-    printf '{"id": "", "status": "invalid", "detail": %s}\n' \
+    printf '{"id": "", "done": false, "outcome": %s}\n' \
       "$(_pa_json "the proposals are no JSON document Peal reads: ${line:-unreadable}")"
     peal_err "apply: the proposals are no JSON document Peal reads: ${line:-unreadable}"
     rm -rf "$PA_DIR"

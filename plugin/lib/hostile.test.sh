@@ -473,13 +473,13 @@ awk_channels() {
       "$v" "$v" "$v" "$v" "$v" >"$INPUT"
     try "apply, escaped milestone values [${H_NAMES[i]}]" "$WORK" apply
     # A split: the hostile value as an item of tasks, as from and as the title.
-    try_runs && printf '{"proposals": [{"id": "x", "kind": "split_milestone", "from": "%s", "tasks": ["%s", "%s"], "title": "%s", "goal": "%s"}]}' \
+    try_runs && printf '{"proposals": [{"id": "x", "kind": "split_milestone", "milestone": "%s", "tasks": ["%s", "%s"], "title": "%s", "goal": "%s"}]}' \
       "$v" "$v" "$v" "$v" "$v" >"$INPUT"
     try "apply, escaped split values [${H_NAMES[i]}]" "$WORK" apply
   done
   each_input "apply, raw milestone values" "$WORK" '{"proposals": [{"id": "@", "kind": "milestone_create", "title": "@", "goal": "@", "due": "@", "order": "@"},
     {"id": "s", "kind": "milestone_state", "milestone": "@", "state": "@", "reason": "@"}]}' apply
-  each_input "apply, raw split values" "$WORK" '{"proposals": [{"id": "@", "kind": "split_milestone", "from": "@", "tasks": ["@", "@"], "title": "@", "goal": "@"}]}' apply
+  each_input "apply, raw split values" "$WORK" '{"proposals": [{"id": "@", "kind": "split_milestone", "milestone": "@", "tasks": ["@", "@"], "title": "@", "goal": "@"}]}' apply
   INPUT=$NOINPUT
   # A new milestone's title and goal land in its file byte for byte. Shard 1's alone.
   local mout mid
@@ -821,6 +821,9 @@ refs/heads/@ 0000000000000000000000000000000000000000 refs/heads/@ 0000000000000
   each "close body --decisions-file" "$wt" close body --summary s --decisions-file @
   each "close body --human-steps" "$wt" close body --summary s --human-steps @
   each "close body --human-steps-file" "$wt" close body --summary s --human-steps-file @
+  each "close body --notes" "$wt" close body --summary s --notes @
+  each "close body --notes-file" "$wt" close body --summary s --notes-file @
+  each "close body --security" "$wt" close body --summary s --security @
   each "close body --review-file" "$wt" close body --summary s --review-file @
   each "close abort REASON" "$wt" close abort @
   each "close verify ARG" "$wt" close verify @
