@@ -11,6 +11,13 @@ size: S
 
 In the files storage, for a task with a claim (claimed-live, parked, awaiting-merge), take the frontmatter fields the plan records (`touches`, and likely `size`, `plan`, `model`, `merge`) from the claim branch's copy of the task file (the local branch, else the one on the remote), falling back to main's when the branch has no copy. Keep everything else (state, title, milestone, depends) from main as now, so the read model's rules and every worktree's answer stay the same. Do it in one pass over the claims already listed in `_peal_files_claims`, so `peal board` does not get noticeably slower with many branches. Update `docs/design.md` (the files-storage read model and the `touches` field) to say where a claimed task's fields come from.
 
+## Scope
+
+- `plugin/lib/store-files.sh`: `_peal_files_claims` saves each claim's copy of the task file from the ref the claim was read from; `peal_store_list` overlays the copies' non-empty size, plan, touches and merge onto main's records before `task-state.awk`.
+- Tests in `plugin/lib/store-files.test.sh`; `plugin/lib/work.test.sh`'s files branch shows `record` then `board`.
+- `docs/design.md`: the `touches` paragraph and the Storage table's `list` row.
+- Out: `peal record` pushing (a follow-up idea), `peal_store_read`, the issues storage, `board.awk`, `task-scan.awk`, `task-state.awk`.
+
 ## Done when
 
 - `peal board` (and `peal list`) with the files storage shows, for a claimed task, the `touches` recorded on its claim branch with `peal record ID plan`, before the task merges
