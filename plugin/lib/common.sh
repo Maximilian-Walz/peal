@@ -129,6 +129,25 @@ peal_ssh_batch_mode() {
   export GIT_SSH_COMMAND="$cmd -o BatchMode=yes -o ConnectTimeout=10"
 }
 
+# peal_extract_tree REF PATH DEST -> REF's PATH copied under DEST; nothing if absent.
+# Status 2 and one line saying why when git or tar fails. tar's input is drained after it
+# is done: a tar that stops reading before the archive's padding (bsdtar) would otherwise
+# kill git with SIGPIPE under pipefail, silently.
+peal_extract_tree() {
+  local err status=0 reason
+  git cat-file -e "$1:$2" 2>/dev/null || return 0
+  err=$(mktemp) || { peal_err "could not read $2 at $1: no temporary file"; return 2; }
+  { git archive "$1" -- "$2" 2>>"$err" \
+      | { tar -x -C "$3" 2>>"$err"; status=$?; cat >/dev/null; exit $status; }; } || status=$?
+  if [ $status != 0 ]; then
+    reason=$(tr '\n' ' ' <"$err" | sed 's/  */ /g; s/ *$//')
+    peal_err "could not read $2 at $1: ${reason:-exit status $status}"
+    status=2
+  fi
+  rm -f "$err"
+  return $status
+}
+
 # peal_git_try CMD ARGS... -> CMD ARGS... (a git fetch, push or ls-remote) run quietly:
 # stdout kept (ls-remote's own), stderr captured. Its own status is returned; on failure
 # PEAL_GIT_ERR holds the reason, one line, trimmed (empty when none was written); on

@@ -385,7 +385,7 @@ _peal_dec_build_index() {
   tmp=$(mktemp -d) || return 2
   mkdir -p "$tmp/tree/$PEAL_DEC_DIR"
   if git cat-file -e "$base:$PEAL_DEC_DIR" 2>/dev/null; then
-    git archive "$base" -- "$PEAL_DEC_DIR" | tar -x -C "$tmp/tree" || status=2
+    peal_extract_tree "$base" "$PEAL_DEC_DIR" "$tmp/tree" || status=2
   fi
   if [ $status = 0 ] && ! _peal_dec_render "$tmp/tree/$PEAL_DEC_DIR" >"$tmp/index.md"; then
     peal_err "decision publish: an entry on $PEAL_MAIN is malformed (above); nothing published"
