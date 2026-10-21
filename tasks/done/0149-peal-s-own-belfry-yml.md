@@ -3,6 +3,8 @@ milestone: m3
 plan: required
 depends: [0133]
 priority: high
+size: S
+touches: [.belfry.yml, docs/security.md]
 ---
 
 # 0149 — Peal's own .belfry.yml merges the safe pull requests by itself and uses Belfry's plan, triage and release actions
@@ -19,7 +21,15 @@ The human decided:
 
 ## Scope
 
+- `.belfry.yml`: `actions:` (milestone-review, release, plan, triage, security-pr), `policy:` (never_auto_merge, review_before_merge, auto_merge) and the `docs:` list; `tasks:` unchanged.
+- `docs/security.md`: the sentence at 238-241 rewritten, and a short paragraph naming the auto-merge tiers and the 1h grace.
+
 ## Done when
+
+- `.belfry.yml` holds the tiers and actions of the plan.
+- Every guard and harness path docs/security.md names is in a tier or among Belfry's own guards (`.belfry.yml`, `.github/**`, `.claude/settings.json`), and every listed path exists.
+- `belfry check` passes, or (no binary in the sandbox) the server's check on the merge item does.
+- docs/security.md describes what now merges without the human.
 
 ## Raw
 
@@ -182,9 +192,44 @@ docs:
   - title: Changelog
     path: CHANGELOG.md
 ```
+- 2026-10-21, the human's answers at planning: amend docs/security.md in this task; `CLAUDE.md`, `plugin/commands/*.md`, `plugin/agents/*.md` all in the review tier (`plugin/commands/release.md` stays never); `plugin/lib/init.test.sh` in the never tier, `tools/install.test.sh` in the review tier, other unnamed files (e.g. `common.sh`) in no tier; the task-files loophole (a task-files PR setting `merge: auto` on another task) is accepted for now, with an idea filed for a gate and one for a harness checking the tiers against security.md; keep the Readme entry in `docs:`; keep the candidate's other values (release button only, thresholds 10, Monday schedules off, max_lines 400, security-pr per head).
+
+## Plan
+
+Approach:
+1. Replace `.belfry.yml`'s `actions:` and `policy:` with the candidate above; keep `tasks:` (lines 3-15) exactly. Add to the candidate:
+   - never tier (`&never`): `plugin/lib/init.test.sh`;
+   - review tier: `tools/lint.test.sh`, `tools/install.test.sh`, `plugin/commands/*.md`, `plugin/agents/*.md`, `CLAUDE.md` (release.md stays never; the never tier wins).
+   - `docs:` list: the candidate's, plus the existing Readme entry.
+2. docs/security.md: rewrite 238-241 ("nothing a session builds reaches another user until ... merged by a human") to say what now merges without the human: task files and docs (CI green), `merge: auto` tasks, and guard code after a passing `security-pr` on the head plus 1h grace; the never tier always waits for the human. One short paragraph.
+3. Queue two ideas with `/peal:idea` (filed at close): a gate against a task-files-only PR setting `merge: auto`; a harness checking every guard/harness path security.md names is in a tier.
+
+Files: `.belfry.yml`, `docs/security.md`.
+
+Verification:
+- `command -v belfry && belfry check .`; if absent, say so in the PR (the server checks it on the merge item).
+- YAML parses and anchors resolve (`python3 -I` with yaml, or another parser).
+- Every non-glob listed path: `git ls-files --error-unmatch`.
+- Every Guard:/Harness: path in docs/security.md (53-60, 104-105, 142-143, 166-168, 180-181, 221-222, 230-231, 251-256, 295-301, 313-317, 332-336) is in a tier or Belfry's own guards; the table goes into the PR body.
+- Check names match `.github/workflows/ci.yml` (`shellcheck`, `harnesses (ubuntu-latest)`, `harnesses (macos-latest)`).
+- `tools/test-all.sh tools/docs.test.sh` and `tools/lint.sh`.
+
+Ranges: `.belfry.yml:1-46`, `docs/security.md:28-336`, `.github/workflows/ci.yml:19-208`, `tools/ci-changes.sh:1-38`, `tools/install.test.sh:1-11`, `plugin/commands/release.md:2-44`, `docs/design.md:31-32`, `tools/docs.test.sh:348-365`.
 
 ---
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Peal's own `.belfry.yml` now uses Belfry's merge tiers and actions; `tasks:` is unchanged.
+
+- **Merges by itself** with `shellcheck`, `harnesses (ubuntu-latest)` and `harnesses (macos-latest)` green: task-file and milestone-only pull requests, docs-only ones (both capped at 400 lines), and tasks marked `merge: auto`.
+- **Review tier:** the guard code docs/security.md names, plus `CLAUDE.md`, `plugin/commands/*.md`, `plugin/agents/*.md`, `tools/lint.test.sh` and `tools/install.test.sh`, merges by itself only once a fresh `security-pr` run passed on the head, then 1h with Hold.
+- **Never tier**, always the human's merge (and `security-pr` runs for them too): hooks, launcher, githook, git guard, session, main-write, ship, hostile harness, `release.md`, plugin and marketplace manifests, `.peal/**`, CI-change and pin tooling, docs/security.md, SECURITY.md, and `plugin/lib/init.test.sh`, on top of Belfry's own guards.
+- **Actions:** milestone-review, release (button only, single), plan and triage. Plan and triage have a threshold of 10, and their Monday schedules stay off until the human turns them on. Their `threshold` triggers start runs by themselves once this is on main, at most once a day.
+- docs/security.md no longer says a human merges everything. Its new "Auto-merge tiers" section names the tiers.
+
+Checked: `belfry check .` printed `.belfry.yml: ok`. The reviewer matched all 40 Guard:/Harness: paths in docs/security.md against the tiers and Belfry's guards with a script: none is uncovered, and every tier entry matches a tracked file. The check names match `.github/workflows/ci.yml`. `tools/docs.test.sh` and `tools/lint.sh` pass.
+
+Left, as the human agreed: a task-files-only pull request can set `merge: auto` on another task, whose later pull request then merges itself. Filed as an idea (gate-task-files-merge-auto), together with a harness that keeps the tiers in step with docs/security.md (harness-tiers-cover-security-paths). The missing `Security:` line in `/peal:close`'s pull request body is still a task of its own and is not filed here.
+
+Next session: a guard file added to docs/security.md must join a tier in `.belfry.yml` by hand until that harness exists.
