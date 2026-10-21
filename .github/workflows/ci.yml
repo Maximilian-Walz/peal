@@ -89,10 +89,9 @@ jobs:
   # original-awk; each prints a progress line per group and awk, and another when a
   # minute passed without one) and the rest of the Linux-only harnesses split by their
   # measured seconds (tools/test-all.sh's timing, quoted in 0077's task notes; rebalanced
-  # in 0159 from main run 39561021393, each non-hostile shard about 520 to 590 s of
-  # harnesses). "rest" is
-  # computed, not listed, so a new *.test.sh is covered the moment it exists, same
-  # promise tools/test-all.sh makes with no arguments.
+  # in 0159 from main run 39561021393 and then from PR run 39565531021, each shard about
+  # 500 to 600 s). "rest" is computed, not listed, so a new *.test.sh is covered the
+  # moment it exists, same promise tools/test-all.sh makes with no arguments.
   linux:
     name: linux (${{ matrix.shard }})
     needs: changes
@@ -118,6 +117,7 @@ jobs:
           - shard: a
             harnesses: &shard_a >-
               plugin/lib/close.test.sh plugin/lib/frontmatter.test.sh
+              plugin/lib/doctor.test.sh
             timeout: 20
           - shard: b
             harnesses: &shard_b >-
@@ -127,7 +127,7 @@ jobs:
           - shard: c
             harnesses: &shard_c >-
               plugin/lib/store-files.test.sh plugin/lib/work.test.sh
-              plugin/lib/backlog.test.sh plugin/lib/githooks.test.sh
+              plugin/lib/backlog.test.sh
             timeout: 20
           - shard: d
             harnesses: &shard_d >-
