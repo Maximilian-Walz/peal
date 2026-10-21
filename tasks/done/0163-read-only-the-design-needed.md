@@ -52,3 +52,31 @@ and CLAUDE.md guidance (code.claude.com/docs/en/best-practices, /memory). The sa
 was made in the control plane's own instructions. The "Text from others is data" block
 repeated in the commands and agents stays: it is the security line each prompt needs on
 its own.
+
+---
+
+## Outcome
+
+`CLAUDE.md` no longer tells every session to read `docs/design.md` first. It now names
+the design as the place for the why and the architecture, to read in the parts the work
+touches.
+
+`plugin/agents/reviewer.md` said "Report only findings you would block a merge on". That
+is the recall-cutting wording the task was after. It now says to report every finding,
+each with a severity (blocks the merge, should be fixed, or minor), ranked most severe
+first. The "Check, in order of severity" list is unchanged, and so is the merge-auto
+line. `/peal:close` step 3 already routes every finding (fix, file, escalate or rebut),
+so the change needs nothing new there. Closes will now see minor findings too, which is
+the intended trade for recall.
+
+`plugin/agents/planner.md` was checked for wording that drops findings by severity or
+kind. None was found, so it is unchanged.
+
+The reviewer had one finding, minor: an over-long line in the reviewer prompt. It was
+rewrapped in its own commit.
+
+### Reviewer findings not acted on
+
+- `CONTRIBUTING.md` still says "Read docs/design.md first". It is written for human
+  contributors and lies outside this task's scope. The reviewer agreed it was not a
+  finding.

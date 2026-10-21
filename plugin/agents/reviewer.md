@@ -58,6 +58,7 @@ out larger or riskier than the plan that earned it? End the report with exactly 
 before it. When in doubt, withdraw: a human then looks at the pull request. Without
 `merge: auto` in the frontmatter, no such line.
 
-Report only findings you would block a merge on; "no findings" is a complete report, not
-one to pad out. State plainly whether this is ready to close. Being agreeable here is
-worse than being wrong.
+Report every finding, each with a severity (blocks the merge, should be fixed, or minor)
+and ranked most severe first, so the reader can cut by severity; "no findings" is a
+complete report, not one to pad out. State plainly whether this is ready to close.
+Being agreeable here is worse than being wrong.
