@@ -27,3 +27,15 @@ close.md's rerun rule says only what the waits actually do, and a session never 
 
 - Peal never knows Belfry beyond the tool names its command markdown already names; this changes only the instruction text.
 - Finding: `wait_ci` answers `done: true` only once every check of the pushed head has finished (or the PR merged or closed); `done: false` means the limit passed first, checks possibly still running. So the `gh run watch` step is dropped; on `done: false` the session waits again rather than rerunning.
+
+---
+
+## Outcome
+
+The rerun rule in `plugin/commands/close.md` step 6 no longer tells a session to run `gh run watch` after `wait_ci`. It says instead that `wait_ci` with `done: true` ends only once every check of the pushed head has finished, so neither wait needs `gh run watch`, and that `done: false` means the limit passed with checks possibly running: wait again, do not rerun.
+
+The finding: `wait_ci`'s own tool description says it answers when a look begun after the call finds every check of the pushed head finished (or the PR merged or closed); `done: false` means the time limit passed first. So a `done: true` never comes with a check still running, and the `gh run watch` step was dead weight. `peal close wait` already holds until nothing is pending (0147).
+
+Verified: `plugin/commands/commands.test.sh` passes; no other file in plugin/, docs/ or README.md mentions `gh run watch`. The reviewer found nothing.
+
+For the next session: the rule relies on `wait_ci`'s documented contract; if that tool ever answers early, the rule needs the watch step back.
