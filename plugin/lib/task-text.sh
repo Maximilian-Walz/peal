@@ -69,6 +69,33 @@ peal_text_add_note() {
     $0 == "## Notes" && !done { print ""; print ENVIRON["PEAL_NOTE"]; done = 1 }'
 }
 
+# peal_text_add_note_or_section LINE -> the text with LINE under its "## Notes" heading
+# (as peal_text_add_note); a text without that heading gets the section with LINE just
+# before the "---" rule above "## Outcome", or at its end.
+peal_text_add_note_or_section() {
+  local text
+  text=$(cat; printf x) || return 2
+  text=${text%x}
+  if printf '%s' "$text" | peal_text_has_section Notes; then
+    printf '%s' "$text" | peal_text_add_note "$1"
+    return
+  fi
+  printf '%s' "$text" | PEAL_NOTE=$1 awk '
+    { l[NR] = $0 }
+    END {
+      p = NR + 1
+      for (i = 1; i <= NR; i++) if (l[i] == "## Outcome") { p = i; break }
+      k = p - 1
+      while (k >= 1 && l[k] ~ /^[ \t\r]*$/) k--
+      if (k >= 1 && l[k] == "---") p = k
+      for (i = 1; i < p; i++) print l[i]
+      if (p > 1 && l[p - 1] !~ /^[ \t\r]*$/) print ""
+      print "## Notes"; print ""; print ENVIRON["PEAL_NOTE"]
+      if (p <= NR) print ""
+      for (i = p; i <= NR; i++) print l[i]
+    }'
+}
+
 # peal_text_set_outcome LINE -> the text with everything from "## Outcome" on replaced by
 # that heading and LINE; a text without the heading gets it at its end.
 peal_text_set_outcome() {

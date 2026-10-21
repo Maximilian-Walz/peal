@@ -16,6 +16,10 @@
 #             slug, as create --title does
 #   add       task, text (a dated line under its Notes, no '---' or '## ' line), origin
 #             (outsider marks the task origin: outsider)
+#   vouch     task (a human vouches for an outsider's task: its origin: outsider goes and
+#             a dated line "Vouched for by a writer: <why>" goes under its Notes, a
+#             Notes section added when it has none; a task that is a writer's already is
+#             answered done, nothing written; no "@<id>" task, no origin: outsider)
 #   move      task, milestone (absent or null: none)
 #   priority  task, priority (urgent, high, normal, low; normal removes the field)
 #   depends   task, on, remove (true takes the dependency out; absent, false or null
@@ -60,7 +64,7 @@
 # request, when the write went through one. Exit 0 all done, 2 an invalid batch with nothing changed, 1 the
 # write failed.
 
-PEAL_APPLY_KINDS="file add move priority depends retire milestone_create milestone_update milestone_state split_milestone"
+PEAL_APPLY_KINDS="file add vouch move priority depends retire milestone_create milestone_update milestone_state split_milestone"
 
 # The proposals live in variables, not files read by a process each time (bash 3.2: no
 # associative arrays): PA_T_<I>_<KEY> the type of proposal I's field KEY, PA_V_<I>_<KEY>
@@ -325,6 +329,7 @@ _pa_static() {
   case $kind in
     file) allowed="title text milestone priority owner origin" required="title text" ;;
     add) allowed="task text origin" required="task text" ;;
+    vouch) allowed="task origin" required="task" ;;
     move) allowed="task milestone origin" required="task" ;;
     priority) allowed="task priority origin" required="task priority" ;;
     depends) allowed="task on remove origin" required="task on" ;;
@@ -372,6 +377,10 @@ _pa_static() {
     _pa_get "$i" origin
     case $PA_V in outsider | writer | "") ;; *) _pa_bad "$i" "origin must be outsider or writer" ;; esac
   fi
+  if [ "$kind" = vouch ] && _pa_has "$i" origin; then
+    _pa_get "$i" origin
+    [ "$PA_V" != outsider ] || _pa_bad "$i" "a vouch is a writer's, not an outsider's"
+  fi
   if [ "$kind" = priority ] && _pa_t "$i" priority && [ "$PA_T" = null ]; then _pa_bad "$i" "no priority"; fi
   if [ "$kind" = milestone_update ] && ! _pa_t "$i" title && ! _pa_t "$i" due && ! _pa_t "$i" order; then
     _pa_bad "$i" "nothing to update: give a title, a due or an order"
@@ -394,6 +403,7 @@ _pa_static() {
     _pa_get "$i" task
     v=$PA_V
     [ "$kind" != retire ] || [ "${v#@}" = "$v" ] || _pa_bad "$i" "retires a task the batch files"
+    [ "$kind" != vouch ] || [ "${v#@}" = "$v" ] || _pa_bad "$i" "vouches for a task the batch files"
   fi
   if _pa_has "$i" milestone; then _pa_ms_ref "$i" milestone || true; fi
   if _pa_has "$i" priority; then
@@ -603,6 +613,19 @@ _pa_item() {
       PEAL_PATH=$v PEAL_COMMENT="$(date -u +%Y-%m-%d): $text" \
         PEAL_COMMENT_ORIGIN=$PA_V _peal_files_rewrite_comment "$f" "$f.n" && mv "$f.n" "$f" || return 2
       printf 'noted on %s' "$id" >"$PA_S/res.$i.detail" ;;
+    vouch)
+      if [ "$(peal_fm_get "$f" origin 2>/dev/null)" != outsider ]; then
+        printf 'task %s: already a writer'"'"'s' "$id" >"$PA_S/res.$i.detail"
+        return 0
+      fi
+      _pa_get "$i" why
+      v=${PA_V//[$'\n\r\t']/ }
+      v=${v%"${v##*[! ]}"}
+      line="$(date -u +%Y-%m-%d): Vouched for by a writer"
+      if [ -n "${v//[ ]/}" ]; then line="$line: $v"; else line="$line."; fi
+      peal_fm_unset "$f" origin || return 2
+      peal_text_add_note_or_section "$line" <"$f" >"$f.n" && mv "$f.n" "$f" || return 2
+      printf 'task %s: vouched for, a writer'"'"'s now' "$id" >"$PA_S/res.$i.detail" ;;
     move)
       _pa_frontmatter "$i" "$f" || return 2
       # Belfry leaves an empty milestone out: none.

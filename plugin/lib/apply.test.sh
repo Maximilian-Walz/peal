@@ -109,6 +109,72 @@ origin: outsider
   check "a batch changing nothing" "0:{\"id\": \"a\", \"done\": true, \"outcome\": \"task 0002: priority normal\", \"task\": \"0002\"}:$before" "$?:$out:$(main_sha)"
 }
 
+# vouch -> the vouch kind: dropping origin: outsider, the note under Notes, the answers.
+vouch() {
+  local before out st
+  setup_tasks
+  put "$work" backlog 0005 fifth-task "origin: outsider"
+  put "$work" backlog 0006 sixth-task "origin: outsider"
+  put "$work" backlog 0007 seventh-task "origin: outsider"
+  # 0006 has no Notes section; 0007 an outsider's note already.
+  sed -i.bak '/^## Notes$/d' "$work/tasks/backlog/0006-sixth-task.md"
+  sed -i.bak "s/^## Notes\$/## Notes\n\n$today: outsider said: hello/" "$work/tasks/backlog/0007-seventh-task.md"
+  rm -f "$work"/tasks/backlog/*.bak
+  publish "$work"
+  git -C "$work" fetch -q origin
+  before=$(main_sha)
+  out=$(printf '%s' '{"proposals": [{"id": "v", "kind": "vouch", "task": "0007", "why": "read it, fine"}]}' | peal apply 2>/dev/null)
+  st=$?
+  check "vouch: status and answer" '0:{"id": "v", "done": true, "outcome": "task 0007: vouched for, a writer'"'"'s now", "task": "0007"}' "$st:$out"
+  check "vouch: one commit, the subject" "$before:docs(tasks): apply 1 proposal" "$(git -C "$work" rev-parse origin/main~1):$(git -C "$work" log -1 --format=%s origin/main)"
+  check "vouch: the body" "- v (vouch 0007): read it, fine" "$(git -C "$work" log -1 --format=%b origin/main | grep '^- v ')"
+  on_main "$work" tasks/backlog/0007-seventh-task.md >"$work.t"
+  check "vouch: no origin" "1" "$(peal frontmatter get "$work.t" origin >/dev/null 2>&1; echo $?)"
+  check "vouch: the line directly under Notes, the earlier note kept" "## Notes|$today: Vouched for by a writer: read it, fine|$today: outsider said: hello" \
+    "$(awk '/^## Notes$/ { n = 1 } /^---$/ { n = 0 } n && NF { printf "%s%s", sep, $0; sep = "|" }' "$work.t")"
+  git -C "$work" pull -q origin main 2>/dev/null
+  check "vouch: peal check passes" "0" "$(peal check >/dev/null 2>&1; echo $?)"
+
+  # No why.
+  out=$(printf '%s' '{"proposals": [{"id": "v", "kind": "vouch", "task": "0005"}]}' | peal apply 2>/dev/null)
+  on_main "$work" tasks/backlog/0005-fifth-task.md >"$work.t"
+  check "vouch: no why" "$today: Vouched for by a writer." "$(grep "^$today" "$work.t")"
+  # A why of several lines starting with a heading, on a task without Notes.
+  out=$(printf '%s' '{"proposals": [{"id": "v", "kind": "vouch", "task": "0006", "why": "## Heading\nsecond\tline\r\nthird"}]}' | peal apply 2>/dev/null)
+  on_main "$work" tasks/backlog/0006-sixth-task.md >"$work.t"
+  check "vouch: a multi-line why is one line, a missing Notes section added above the Outcome rule" \
+    "$today: Vouched for by a writer: ## Heading second line  third|1|## Notes|$today: Vouched for by a writer: ## Heading second line  third|---|## Outcome" \
+    "$(grep "^$today" "$work.t")|$(grep -c "^$today" "$work.t")|$(awk '/^## Notes$/ { n = 1 } n && NF { printf "%s%s", sep, $0; sep = "|" } /^## Outcome$/ { exit }' "$work.t")"
+  git -C "$work" pull -q origin main 2>/dev/null
+  check "vouch: peal check passes on a task without Notes" "0" "$(peal check >/dev/null 2>&1; echo $?)"
+
+  # A writer's task: done, nothing written.
+  git -C "$work" fetch -q origin
+  before=$(main_sha)
+  out=$(printf '%s' '{"proposals": [{"id": "v", "kind": "vouch", "task": "0001", "why": "x"}]}' | peal apply 2>/dev/null)
+  check "vouch: already a writer's" '0:{"id": "v", "done": true, "outcome": "task 0001: already a writer'"'"'s", "task": "0001"}:'"$before" "$?:$out:$(main_sha)"
+
+  # An add marking the task outsider's, then the vouch, in one batch.
+  out=$(printf '%s' '{"proposals": [{"id": "a", "kind": "add", "task": "0002", "text": "a report", "origin": "outsider"},
+    {"id": "v", "kind": "vouch", "task": "0002", "why": "checked"}]}' | peal apply 2>/dev/null)
+  st=$?
+  on_main "$work" tasks/backlog/0002-second-task.md >"$work.t"
+  check "vouch: after an outsider's add, one batch" "0:1:$today: Vouched for by a writer: checked|$today: a report" \
+    "$st:$(peal frontmatter get "$work.t" origin >/dev/null 2>&1; echo $?):$(grep "^$today" "$work.t" | paste -sd '|' -)"
+
+  # Invalids.
+  put "$work" backlog 0008 eighth-task "origin: outsider"
+  git -C "$work" push -q origin "origin/main:refs/heads/task/0008-eighth-task" 2>/dev/null
+  git -C "$work" fetch -q origin
+  local ok='{"id": "ok", "kind": "priority", "task": "0001", "priority": "low"}'
+  invalid "a vouch on a claimed task" "{\"proposals\": [$ok, {\"id\": \"b\", \"kind\": \"vouch\", \"task\": \"0008\"}]}" 2 "task 0008 is claimed"
+  invalid "a vouch on no such task" "{\"proposals\": [$ok, {\"id\": \"b\", \"kind\": \"vouch\", \"task\": \"0042\"}]}" 2 "no task 0042"
+  invalid "a vouch with an unknown field" "{\"proposals\": [$ok, {\"id\": \"b\", \"kind\": \"vouch\", \"task\": \"0001\", \"by\": \"me\"}]}" 2 "field by is not one vouch takes"
+  invalid "a vouch on an @ref" "{\"proposals\": [{\"id\": \"f\", \"kind\": \"file\", \"title\": \"Some new task\", \"text\": \"---\\norigin: outsider\\n---\\n\\n# NNNN — T\\n\\n## Raw\\n\\nx\\n\"}, {\"id\": \"b\", \"kind\": \"vouch\", \"task\": \"@f\"}]}" 2 "vouches for a task the batch files"
+  invalid "a vouch carrying origin outsider" "{\"proposals\": [$ok, {\"id\": \"b\", \"kind\": \"vouch\", \"task\": \"0001\", \"origin\": \"outsider\"}]}" 2 "a vouch is a writer's, not an outsider's"
+  invalid "a vouch without a task" "{\"proposals\": [$ok, {\"id\": \"b\", \"kind\": \"vouch\"}]}" 2 "no task"
+}
+
 # ms_batch -> a batch of task and milestone proposals, as JSON.
 ms_batch() {
   cat <<'EOF'
@@ -642,6 +708,7 @@ cases() {
   ms_padded
   belfry_shapes
   belfry_invalid
+  vouch
   invalids
   defused
   reader

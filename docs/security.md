@@ -161,7 +161,7 @@ itself) and one that holds the `-----NEXT TASK-----` delimiter is refused (it ma
 only the one task it was asked to, never more). `origin: outsider` itself marks the task
 external for whatever reads the board next (Belfry's contract): its title and text reach
 a session quoted as data, its job never runs unattended, and its pull request never
-merges itself.
+merges itself. Only a `vouch` proposal of `peal apply` drops the mark (see below).
 
 - Guard: `plugin/lib/backlog.sh` (`peal_create_filed`).
 - Harness: `plugin/lib/store-files.test.sh`, `plugin/lib/store-issues.test.sh`,
@@ -203,7 +203,7 @@ only feeds a slug. A `file` text gets the checks of `peal create --owner`'s (`me
 the delimiter refused, `peal_task_check`), an `add` text those of `peal comment` (no
 `---` or `## ` line), a `retire` reason is one line. A milestone's title and a parking's
 reason are one line with no tab, written through the frontmatter writer (quoted) or as
-the `# ` heading; a goal is prose with no `---` or `## ` line; a due a calendar date, an
+the `# ` heading; a `vouch` drops a task's `origin: outsider` and notes it, and is refused when it names an `@<id>` or itself carries `origin: outsider`. Peal cannot verify that a human sent it: it relies on the caller offering a vouch to the human only. A goal is prose with no `---` or `## ` line; a due a calendar date, an
 order an integer; a new milestone's file name is Peal's id, never the caller's. One
 invalid proposal and nothing is written.
 
