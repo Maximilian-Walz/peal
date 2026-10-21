@@ -62,4 +62,13 @@ Deferred 2026-10-19 after a claim: installed plugin 0.2.0 predates 0126 and refu
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Peal's own `.peal/config.yml` now lists the Get Peal line of
+`plugin/templates/decisions.yml` under `release.commit-files`, in the same
+`PATH: "TEXT"` form as the matching `release.version-files` entry, and the commented
+defaults block describes `commit-files: []`. From the next release on, `peal ship pin`
+sets the template's SHA to the tag's commit by itself, and the `chore(release): pin`
+gate in `plugin/lib/githooks.sh` reads the same entry.
+
+The block from 2026-10-19 is gone: the installed plugin (0.4.0) knows the setting, and
+`peal config release.commit-files` prints the line with it. The plan was skipped; the
+edit follows the Notes. The review found nothing; no ideas were filed.
