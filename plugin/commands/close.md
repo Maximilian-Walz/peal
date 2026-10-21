@@ -64,8 +64,8 @@ to the reviewer for it. Review before writing the Outcome:
 a finding caught now is an edit, one caught later a rewrite.
 
 When the Outcome must quote a real CI run (the Done when asks for one), get it before
-writing the Outcome: push the branch, open a draft pull request with `GH_TELEMETRY=0 gh pr create
---draft --base <main branch> --fill`, and read its result with `GH_TELEMETRY=0 gh pr checks` (`peal
+writing the Outcome: push the branch, open a draft pull request with `gh pr create
+--draft --base <main branch> --fill`, and read its result with `gh pr checks` (`peal
 close wait` is refused once `close begin` has armed the sentinel; with
 `mcp__belfry__wait_ci` in the session, wait with it on the draft's number instead).
 `finish` then finds that pull request, marks it ready and updates its body.
