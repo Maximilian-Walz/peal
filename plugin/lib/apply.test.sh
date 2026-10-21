@@ -707,6 +707,7 @@ giveback() {
   put "$work" backlog 0001 claimed-task
   put "$work" backlog 0002 blocker-task
   put "$work" backlog 0003 other-task
+  put "$work" backlog 0004 outsider-task
   at "$work" "$PEAL" hooks install >/dev/null
   peal claim 0001 >/dev/null 2>&1
   peal claim 0003 >/dev/null 2>&1
@@ -725,6 +726,14 @@ giveback() {
     "$st:$(peal frontmatter get "$work.t" depends):$(grep -c "Deferred $today after a claim: the blocker first" "$work.t"):$(grep -c '"done": true' <<<"$out")"
   check "giveback: one commit" "docs(tasks): apply 1 proposal" "$(main_sha >/dev/null; git -C "$work" log -1 --format=%s origin/main)"
   check "giveback: the worktree clean" "" "$(git -C "$wt" status --porcelain)"
+  # An outsider's why marks the given-back task; a writer's does not.
+  check "giveback: no origin mark without outsider" "" "$(peal frontmatter get "$work.t" origin)"
+  peal claim 0004 >/dev/null 2>&1
+  wt=$(dirname "$work")/work-wt/0004-outsider-task
+  printf '%s' '{"proposals": [{"id": "x", "kind": "depends", "task": "0004", "on": "0002", "why": "from outside", "origin": "outsider"}]}' | at "$wt" "$PEAL" apply >/dev/null 2>&1
+  on_main "$work" tasks/backlog/0004-outsider-task.md >"$work.t"
+  check "giveback: an outsider's why marks the task" "outsider:1" \
+    "$(peal frontmatter get "$work.t" origin):$(grep -c 'Deferred .* after a claim: from outside' "$work.t")"
 }
 
 cases() {

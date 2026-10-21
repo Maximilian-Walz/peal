@@ -551,6 +551,9 @@ _pa_load() {
     fi
     peal_text_add_note "Deferred $(date -u +%Y-%m-%d) after a claim: $why" <"$PA_S/t/$id.text" >"$PA_S/t/$id.text.n" \
       && mv "$PA_S/t/$id.text.n" "$PA_S/t/$id.text" || return 2
+    # As add does: an outsider's why marks the task.
+    _pa_get "$i" origin
+    [ "$PA_V" != outsider ] || peal_fm_set "$PA_S/t/$id.text" origin outsider || return 2
     printf '%s\n' "$doing" >"$PA_DIR/giveback"
     : >"$PA_S/t/$id.giveback"
     printf '%s\n' "$path" >"$PA_S/t/$id.path"

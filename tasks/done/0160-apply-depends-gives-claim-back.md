@@ -55,6 +55,13 @@ not travel. `peal defer` takes its text on stdin and does carry them. The docs
 `origin/main` (0137, which touched `apply.sh` and `store-files.sh`) was merged in before the
 review. `apply.test.sh` passes, 519 tests. The full suite was left to CI.
 
+A security review of the pull request found that the give-back wrote an outsider's `why`
+into a backlog task without the `origin: outsider` mark. It is fixed by marking, not
+refusing: an `origin: outsider` depends proposal that gives a claim back sets
+`origin: outsider` on the task, as `add` does, and `apply.test.sh` covers both cases.
+`docs/security.md` now also states the give-back's note and its `wip: defer capture`
+commit.
+
 ### Reviewer findings not acted on
 
 - The give-back checks in `_pa_load` and `_pa_giveback_capture` copy some checks from
