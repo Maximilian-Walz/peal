@@ -174,6 +174,19 @@ claimed 0003 task/0003-kept-task $(dirname "$work")/other-wt/0003-kept-task" "$?
   check "claim over a remote-only leftover: claimed elsewhere, seen here" "0003 claimed-live kept-task remote:origin" \
     "$(peal list --fetch --no-pr 0003 2>&1)"
 
+  # A remote-only leftover whose branch the remote already deleted (0166): the stale
+  # tracking ref is pruned, nothing said, and the claim goes on.
+  at "$(dirname "$work")/other-wt/0003-kept-task" "$PEAL" defer --reason "gone" < <(ID=0003 text) >/dev/null 2>&1
+  third=$(dirname "$work")/third
+  git clone -q "$(dirname "$work")/remote.git" "$third" 2>/dev/null
+  git -C "$(dirname "$work")/remote.git" branch -q -D task/0003-kept-task
+  check "claim over a gone remote branch: the stale ref is there" "1" "$(git -C "$third" for-each-ref refs/remotes/origin/task/0003-kept-task | grep -c .)"
+  err=$(mktemp)
+  out=$(at "$third" "$PEAL" claim 0003 2>"$err")
+  check "claim over a gone remote branch" "0:released 0003 origin/task/0003-kept-task, deferred, tip kept as refs/reaped/0003-kept-task" "$?:$(printf '%s\n' "$out" | grep -E '^released ')"
+  check "claim over a gone remote branch: silent" "" "$(cat "$err")"
+  rm -f "$err"
+
   # Released from elsewhere, a clean worktree git cannot delete (its directory not
   # writable) is dropped by git, emptied: the branches still go.
   peal claim 0002 >/dev/null 2>&1
