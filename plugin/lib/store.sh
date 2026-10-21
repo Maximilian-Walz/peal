@@ -29,11 +29,6 @@
 #                                          task's text from the file TEXT, REASON noted,
 #                                          written back under the same id; refused while
 #                                          the branch holds work
-#   peal_store_depend ID ON WT             task ID made to wait for task ON, written to the
-#                                          storage; WT (or "") the worktree of this
-#                                          clone's claim on ID, given back like a defer
-#                                          (lib/backlog.sh peal_depend); PEAL_RECORDS holds
-#                                          the list; status 1 for a depends cycle
 #   peal_store_apply                       the proposals on stdin (a JSON document,
 #                                          lib/apply.sh) written as one change, a JSON line
 #                                          of result per proposal; the issues storage

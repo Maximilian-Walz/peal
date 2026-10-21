@@ -229,9 +229,6 @@ issue-N on branch issue/N, labelled "in progress", as Belfry claims one):
                                 JSON document on stdin, written in one commit (one pull
                                 request where main refuses pushes), a JSON line of result
                                 per proposal (lib/apply.sh); task files only
-  depend ID ON                  make task ID wait for task ON, written straight into the
-                                storage; a live claim of this clone on ID is given back
-                                as defer does (Belfry's tasks.commands.defer)
 
 /peal:work's steps (lib/work.sh):
   work [ID | POOL]              in a task's worktree: TASK <id> <file>, PLAN required,
@@ -524,7 +521,6 @@ main() {
     record) with_store peal_record "$@" ;;
     defer) with_store peal_defer "$@" ;;
     apply) with_store peal_store_apply "$@" ;;
-    depend) [ $# -eq 2 ] || { usage >&2; exit 2; }; with_id "$1" peal_depend "$1" "$2" ;;
     close)
       # Verify and wait read the branch and GitHub only, and answer anywhere with a verdict.
       case ${1-} in

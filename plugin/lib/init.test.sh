@@ -94,17 +94,14 @@ skipped the check: belfry check is not available yet" "$out"
   check "belfry: the commands backend" "  backend: commands
     list: .peal/peal list
     start: /peal:work {task}
-    create: .peal/peal create --owner {owner} --title {title} --origin {origin}
-    milestone: .peal/peal milestone-state {id} {state} --reason {reason}" \
-    "$(grep -E '^  backend|list:|start:|create:|milestone:' "$work/.belfry.yml")"
+    create: .peal/peal create --owner {owner} --title {title} --origin {origin}" \
+    "$(grep -E '^  backend|list:|start:|create:' "$work/.belfry.yml")"
+  check "belfry: milestone, retire and defer are apply's now" "" \
+    "$(grep -E '^    (milestone|retire|defer):' "$work/.belfry.yml")"
   check "belfry: create's only placeholders are owner, title and origin" "" \
     "$(grep '^    create:' "$work/.belfry.yml" | grep -o '{[^}]*}' | grep -v -e '^{owner}$' -e '^{title}$' -e '^{origin}$')"
   check "belfry: revise is the comment command, with only task and text" "    revise: /peal:comment {task} {text}" \
     "$(grep '^    revise:' "$work/.belfry.yml")"
-  check "belfry: defer is the depend command, with only task and on" "    defer: .peal/peal depend {task} {on}" \
-    "$(grep '^    defer:' "$work/.belfry.yml")"
-  check "belfry: defer's only placeholders are task and on" "" \
-    "$(grep '^    defer:' "$work/.belfry.yml" | grep -o '{[^}]*}' | grep -v -e '^{task}$' -e '^{on}$')"
   check "belfry: apply reads its batch on stdin, no placeholders" "    apply: .peal/peal apply" \
     "$(grep '^    apply:' "$work/.belfry.yml")"
   check "belfry: the actions are suggestions" "# actions:" "$(grep 'actions:' "$work/.belfry.yml")"
