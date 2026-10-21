@@ -481,6 +481,20 @@ _peal_files_no_claim() {
   return 2
 }
 
+# _peal_files_own_claim ID -> status 0 when the only task branch claiming task ID, here
+# or on a remote, is the one this worktree has checked out (its remote copy included):
+# the claim is this clone's live one. Status 1 else, nothing said.
+_peal_files_own_claim() {
+  local id=$1 branch refs ref
+  branch=$(git symbolic-ref -q --short HEAD) || return 1
+  case $branch in "$PEAL_PREFIX$id"-*) ;; *) return 1 ;; esac
+  refs=$(git for-each-ref --format='%(refname:short)' "refs/heads/$PEAL_PREFIX$id-*" "refs/remotes/*/$PEAL_PREFIX$id-*")
+  for ref in $refs; do
+    [ "$ref" = "$branch" ] || [ "$ref" = "$PEAL_REMOTE/$branch" ] || return 1
+  done
+  return 0
+}
+
 # _peal_files_in_backlog BASE ID VERB -> PEAL_PATH, task ID's file at BASE, when it is
 # in the backlog; else status 2 and why (none, done, claimed).
 _peal_files_in_backlog() {

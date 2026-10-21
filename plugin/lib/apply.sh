@@ -513,11 +513,53 @@ _pa_resolve() {
   fi
 }
 
-# _pa_load ID BASE -> task ID's text at BASE into the compose (once): refused unless it
-# is in the backlog there and nobody has claimed it.
+# _pa_load ID BASE [KIND I] -> task ID's text at BASE into the compose (once): refused
+# unless it is in the backlog there and nobody has claimed it. Exception: for a depends
+# proposal I (KIND), the claim of this clone's own worktree (_peal_files_own_claim) is
+# given back, as peal defer does: nothing built on it (_peal_files_no_work), a "Deferred"
+# note in the text, and $PA_DIR/giveback holding the claim's file here (_peal_apply_files
+# commits it after the write).
 _pa_load() {
-  local id=$1 base=$2 path
-  [ ! -f "$PA_S/t/$id.text" ] || return 0
+  local id=$1 base=$2 kind=${3-} i=${4-} path top doing branch why
+  if [ -f "$PA_S/t/$id.text" ]; then
+    # Loaded already; a claim given back by this batch takes depends proposals only.
+    if [ -f "$PA_S/t/$id.giveback" ] && [ "$kind" != depends ]; then
+      peal_err "apply: task $id is claimed (this worktree's); only a depends proposal gives it back"
+      return 2
+    fi
+    return 0
+  fi
+  if [ "$kind" = depends ] && _peal_files_own_claim "$id"; then
+    _peal_files_in_backlog "$base" "$id" apply 2>"$PA_DIR/err.find" || { grep -v 'warning:' "$PA_DIR/err.find" >&2; return 2; }
+    path=$PEAL_PATH
+    top=$(peal_project_root) || return 2
+    doing=$PEAL_TASKS/doing/${path##*/}
+    if [ ! -f "$top/$doing" ]; then
+      peal_err "apply: no $doing here: a claim's file keeps the name it had in the backlog"
+      return 2
+    fi
+    branch=$(git symbolic-ref -q --short HEAD)
+    (cd "$top" && _peal_files_no_work "$id" "$branch" "$base" "$path" "$doing") || return 2
+    git show "$base:$path" >"$PA_S/t/$id.text" || return 2
+    cp "$PA_S/t/$id.text" "$PA_S/t/$id.old"
+    _pa_get "$i" why
+    why=${PA_V//[$'\n\r\t']/ }
+    if [ -z "${why//[ ]/}" ]; then
+      _pa_resolve "$i" on || return 2
+      why="waits for $PA_RES"
+      ! _pa_removes "$i" || why="no longer waits for $PA_RES"
+    fi
+    peal_text_add_note "Deferred $(date -u +%Y-%m-%d) after a claim: $why" <"$PA_S/t/$id.text" >"$PA_S/t/$id.text.n" \
+      && mv "$PA_S/t/$id.text.n" "$PA_S/t/$id.text" || return 2
+    # As add does: an outsider's why marks the task.
+    _pa_get "$i" origin
+    [ "$PA_V" != outsider ] || peal_fm_set "$PA_S/t/$id.text" origin outsider || return 2
+    printf '%s\n' "$doing" >"$PA_DIR/giveback"
+    : >"$PA_S/t/$id.giveback"
+    printf '%s\n' "$path" >"$PA_S/t/$id.path"
+    echo "$id" >>"$PA_S/order"
+    return 0
+  fi
   _peal_files_no_claim "$id" apply || return 2
   _peal_files_in_backlog "$base" "$id" apply 2>"$PA_DIR/err.find" || { grep -v 'warning:' "$PA_DIR/err.find" >&2; return 2; }
   path=$PEAL_PATH
@@ -595,7 +637,7 @@ _pa_item() {
   fi
   _pa_resolve "$i" task || return 2
   id=$PA_RES
-  _pa_load "$id" "$base" || return 2
+  _pa_load "$id" "$base" "$kind" "$i" || return 2
   if [ -f "$PA_S/t/$id.retired" ]; then
     peal_err "task $id is retired by an earlier proposal"
     return 2
@@ -1168,6 +1210,21 @@ _pa_finish() {
   done
 }
 
+# _pa_giveback_capture -> a claim given back by the batch: its uncommitted file here
+# committed as wip, so the worktree can go clean (as peal defer does).
+_pa_giveback_capture() {
+  local doing top id
+  [ -f "$PA_DIR/giveback" ] || return 0
+  read -r doing <"$PA_DIR/giveback"
+  id=${doing##*/}
+  id=${id%%-*}
+  top=$(peal_project_root) || return 0
+  if [ -n "$(git -C "$top" status --porcelain -- "$doing")" ] \
+      && ! git -C "$top" commit -q -m "wip: defer capture [$id]" -- "$doing" >/dev/null 2>&1; then
+    peal_err "apply: the claim is given back on $PEAL_REMOTE/$PEAL_MAIN, but $doing could not be committed; commit it before the release"
+  fi
+}
+
 # _peal_apply_files -> peal apply on the task-file storage: the proposals on stdin.
 _peal_apply_files() {
   local status=0 i line base
@@ -1225,6 +1282,7 @@ _peal_apply_files() {
   if peal_main_write_written $status; then
     PA_CHANGE=${PEAL_MW_URL-}
     _pa_finish "done" ""
+    _pa_giveback_capture
     peal_main_write_report "the numbers are final once it merges" >&2
     status=0
   else

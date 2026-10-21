@@ -94,7 +94,9 @@ Where the pieces meet, and why:
   proposals of the batch); an invalid one and nothing is written
   ([CLI](reference/cli.md#peal-apply)). It is for task files; Belfry writes a
   `github-issues` project's proposals itself, so the issues storage refuses it. Belfry also
-  sends the board's milestone actions, the Desk's Dismiss and `task_defer` through it.
+  sends the board's milestone actions, the Desk's Dismiss and `task_defer` through it. A `depends` proposal on the claim of the worktree it runs in gives that claim back, as
+  `peal defer` does, in the same commit (from main's backlog text: the claim's local edits, a
+  plan or notes, are not carried, unlike `peal defer`), which is how `task_defer` works.
 - The board's `after_deploy` list (pull requests a task waits on) is Belfry's contract
   too: Peal passes it through and never reads it.
 - `/peal:work NNNN` notices it is already inside NNNN's worktree and skips its own claim.
@@ -526,7 +528,6 @@ The interface:
 | `comment id text` | appended under `## Notes` | a comment |
 | `record id text` | the claimed task's file rewritten on its branch, committed | title, body and managed labels rewritten |
 | `defer id reason text` | the claim's text, the reason in `## Notes`, onto the backlog file on main; refused for any commit beyond the claim but those of its own file | title, body, milestone and managed labels rewritten, reason as a comment; refused for any commit on `issue/N` |
-| `depend id on wt` | `on` added to the backlog copy's `depends` and a dated note, onto main as a `defer`; a live claim of this clone (`wt`) given back | `Depends on #N` added to the body, a comment; the label taken off a claim given back |
 | `milestones` | the milestone files | the repository's milestones |
 | `milestone-text id` | the milestone's file on main | the milestone's description |
 | `milestone-state id state reason review` | the milestone's file (and the next current one's) rewritten on main | the milestone closed or opened, its "Parked" line and review in the description |

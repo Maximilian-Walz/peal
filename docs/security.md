@@ -207,6 +207,13 @@ the `# ` heading; a `vouch` drops a task's `origin: outsider` and notes it, and 
 order an integer; a new milestone's file name is Peal's id, never the caller's. One
 invalid proposal and nothing is written.
 
+Two writes go beyond the batch's own commit. A `depends` proposal on the claim of the
+worktree `apply` runs in gives that claim back, and its `why` (one line, or "waits for
+<on>") is written into the backlog task's `## Notes` as "Deferred <date> after a claim:
+<why>"; with `origin: outsider` on the proposal the task gets `origin: outsider`, as `add`
+does. And `apply` then commits in that worktree (`wip: defer capture [<id>]`), recording
+the claim's file there so the worktree can go clean; no proposal text is in that commit.
+
 A value goes to three places: the task and milestone files (checked as above), the JSON answer
 (escaped), and the commit's body and the pull request's body, which list each
 proposal's `id` and `why`. In those bodies a zero-width joiner follows every `#` and `@`,
