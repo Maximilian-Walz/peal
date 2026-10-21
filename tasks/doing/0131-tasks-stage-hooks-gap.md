@@ -19,7 +19,18 @@ docs/getting-started.md; remove that line when this lands.
 
 ## Scope
 
+Let `peal commit`, `peal close begin` and `peal close finish` run without Peal's git hooks
+where `guardrails` is not in the project's `stages`; keep the refusals where it is. Remove
+the manual `.peal/peal hooks install` stopgap from docs/getting-started.md and describe the
+rule in docs/design.md, docs/reference/cli.md and plugin/commands/close.md.
+
 ## Done when
+
+- [x] A `tasks`-only project can `peal commit` and close without installing hooks
+  (commit.test.sh case).
+- [x] A `guardrails` project is still refused without hooks (commit.test.sh,
+  close.test.sh).
+- [x] The stopgap line is gone from docs/getting-started.md; the docs state the condition.
 
 ## Raw
 
