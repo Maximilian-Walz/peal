@@ -84,6 +84,14 @@ peal_hooks_installed() {
   [ "$(git config core.hooksPath)" = "$dir" ] && [ -x "$dir/commit-msg" ] && [ -x "$dir/pre-push" ]
 }
 
+# peal_hooks_required -> status 0 if the committed config records the `guardrails` stage:
+# only then does the project ask for its commits and closes to be gated, so only then do
+# `peal commit` and `peal close` refuse without Peal's git hooks. A project at the `tasks`
+# stage alone runs them ungated. The caller's config must already be loaded.
+peal_hooks_required() {
+  peal_config_get stages 2>/dev/null | grep -qx guardrails
+}
+
 # peal_hooks_ensure -> a fresh clone whose committed config records the `guardrails`
 # stage gets its git gates without a manual step: the caller's config must already be
 # loaded (peal_config_load). Silent and a no-op when `guardrails` is not in `stages`, or
@@ -94,9 +102,8 @@ peal_hooks_installed() {
 # reason, if any, from `peal_hooks_install`'s own stderr) is reported on stderr with the
 # command to run. Always returns 0: a session's start or claim is never refused by this.
 peal_hooks_ensure() {
-  local stages dir prev out reason
-  stages=$(peal_config_get stages 2>/dev/null) || return 0
-  printf '%s\n' "$stages" | grep -qx guardrails || return 0
+  local dir prev out reason
+  peal_hooks_required || return 0
   peal_hooks_installed && return 0
   dir=$(_peal_hooks_dir 2>/dev/null) || return 0
   prev=$(git config core.hooksPath 2>/dev/null) || prev=""

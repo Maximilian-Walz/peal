@@ -121,7 +121,7 @@ other_clone() {
 
 begin_cases() {
   local out
-  new_repo
+  new_repo "stages: [tasks, guardrails]"
   ready 1 first-task
   check_refused "begin: no task here" "holds no task to close" at "$work" "$PEAL" close begin
   check_refused "begin: arguments" "takes no arguments" at "$wt" "$PEAL" close begin now
@@ -234,7 +234,7 @@ SSHEOF
 finish_cases() {
   local body full out status stopflag
   stopflag=$(scratch_dir)/stop
-  new_repo "pr:" "  sections: [\"For the player: what a player notices\"]" "checks:" "  close: [\"test ! -e $stopflag\"]"
+  new_repo "stages: [tasks, guardrails]" "pr:" "  sections: [\"For the player: what a player notices\"]" "checks:" "  close: [\"test ! -e $stopflag\"]"
   ready 1 first-task
   build
   check_refused "finish: no close begun" "no close in progress" close_finish --section "For the player" "Nothing."

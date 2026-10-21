@@ -26,7 +26,7 @@ message right before asking, never repeated in a question.
 Run `peal close begin`. It arms the Stop hook: from now on, this session cannot end a
 turn with the task's Outcome empty or its work uncommitted or unpushed, until `peal close
 finish` has run (or the close is called off, below). It refuses outside a task's
-worktree, without Peal's git hooks installed, with more than one task under `doing/`, and
+worktree, without Peal's git hooks installed (where `guardrails` is set up), with more than one task under `doing/`, and
 on a branch that adds a backlog task file: fix what it names, never work around it.
 
 Read all it prints:

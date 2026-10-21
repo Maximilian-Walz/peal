@@ -88,7 +88,7 @@ peal_close() {
 # peal_close_begin -> the close of this worktree's task declared (the sentinel written),
 # and what the session needs before it reviews and writes the Outcome: notes, the file to
 # write the Outcome in, the PR sections finish asks for, the diff and the Done when list.
-# Refused: no task held here, Peal's git hooks not installed, more than one task under
+# Refused: no task held here, Peal's git hooks not installed (where `guardrails` is set up), more than one task under
 # doing/, and a branch that adds a backlog task file (those are filed onto main).
 peal_close_begin() {
   local top task id file text tasks count added behind out status ideas empty ms gitdir sections sec
@@ -101,7 +101,7 @@ peal_close_begin() {
   }
   id=$(_peal_field "$task" 1)
   file=$(_peal_field "$task" 2)
-  if ! peal_hooks_installed; then
+  if peal_hooks_required && ! peal_hooks_installed; then
     peal_err "close begin: Peal's git hooks are not installed here, so nothing would gate the close's commits; run: .peal/peal hooks install"
     return 2
   fi
@@ -488,7 +488,7 @@ _peal_close_checks() {
 # changes, for a missing summary or PR section, an Outcome empty or holding a placeholder,
 # more than three escalations, an uncommitted path other than the Outcome's text and the
 # decision entries, a task holding merge: auto without the reviewer's merge-auto line
-# (--review-file), git hooks not installed, decision entries out of order
+# (--review-file), git hooks not installed (where `guardrails` is set up), decision entries out of order
 # (_peal_dec_check), and a failing checks.close item; then the queued ideas filed in
 # one push (a failure files nothing, or, where the storage files one by one, dequeues
 # exactly those filed), merge: auto removed from the task when the review says
@@ -524,7 +524,7 @@ peal_close_finish() {
     printf '%s\n' "$dirty" | sed 's/^/  /' >&2
     return 2
   fi
-  if ! peal_hooks_installed; then
+  if peal_hooks_required && ! peal_hooks_installed; then
     peal_err "close finish: Peal's git hooks are not installed here; run: .peal/peal hooks install"
     return 2
   fi

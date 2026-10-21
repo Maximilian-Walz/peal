@@ -463,6 +463,8 @@ something other than these stubs is a clone's own choice: `peal_hooks_ensure` on
 and names `.peal/peal hooks install`, which chains to it, rather than installing over it
 unasked. `peal close begin`, `peal close finish` and `peal commit` stay pure refusals: the
 backstop for whatever `peal_hooks_ensure` could not fix, never the first word on it.
+They refuse only where `guardrails` is in `stages:`; a project at the `tasks` stage alone
+asked for no gates, so they run ungated rather than refuse (`peal_hooks_required`).
 
 - **pre-push** lets onto the main branch only what the lifecycle commands write, told by
   subject and checked by the diff's shape. `docs(tasks): file ...` only adds backlog task

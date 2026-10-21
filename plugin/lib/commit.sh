@@ -7,9 +7,9 @@
 # staged and committed, resolved from the caller's directory as git's own are; everything
 # else in the index stays staged and out of the commit. Without any, everything staged
 # (git add -A first). The commit reported. Refused: on the main branch or a detached HEAD,
-# without Peal's git hooks installed (the commit would go ungated), a new backlog task file
-# among the named paths (those are filed onto main, never on a branch), and nothing to
-# commit among the named paths. A refusal after the git add (a new backlog file, the
+# without Peal's git hooks installed where `guardrails` is set up (the commit would go
+# ungated), a new backlog task file among the named paths (those are filed onto main,
+# never on a branch), and nothing to commit among the named paths. A refusal after the git add (a new backlog file, the
 # commit-msg gate) puts the index back byte for byte as it was before the call; nothing
 # staged leaves it alone, as the add changed nothing.
 
@@ -113,7 +113,7 @@ peal_commit() {
     peal_err "commit: refused on $main; commit on the task's branch"
     return 2
   fi
-  if ! peal_hooks_installed; then
+  if peal_hooks_required && ! peal_hooks_installed; then
     peal_err "commit: Peal's git hooks are not installed here, so nothing would gate the commit; run: .peal/peal hooks install"
     return 2
   fi
