@@ -13,7 +13,12 @@ Set `pr.security: docs/security.md` in this repository's `.peal/config.yml`, so 
 
 ## Scope
 
+- `.peal/config.yml`: add `pr.security: docs/security.md`.
+
 ## Done when
+
+- `.peal/config.yml` sets `pr.security: docs/security.md`, and `peal config` prints it.
+- The installed plugin's commands (`peal work`, `peal close begin`) run with the key set, and `peal close begin` asks for a Security line.
 
 ## Raw
 
