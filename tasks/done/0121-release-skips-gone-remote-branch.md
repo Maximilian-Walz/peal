@@ -116,4 +116,41 @@ Ranges:
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Built as planned. Two shared helpers in `plugin/lib/claim.sh` replace the duplicated
+release block of both storages (`peal_store_release` in `store-files.sh` and
+`store-issues.sh`):
+
+- `peal_release_branch` deletes the local branch with `git update-ref -d` (guarded by
+  the tip), and removes `branch.<name>` from the git config only when it has keys
+  (exact prefix match in awk). A config that cannot be changed is one `warning:` line
+  naming `git config --remove-section branch.<name>` ("the git config is locked" for a
+  lock, git's reason otherwise); the release never fails on it.
+- `peal_release_remote` keeps the ancestor check; when the remote delete fails it asks
+  `git ls-remote --exit-code`: status 2 (no such ref) prunes the stale tracking ref
+  silently, anything else warns `could not delete <remote>/<branch> (<git's reason>)`.
+
+What was found: a locked config can never fail the remote delete. The lock errors seen
+in sandboxed sessions came from `git branch -D`, which takes the config lock for every
+branch, prints `error: could not lock config file` and still exits 0; the reap folded
+that stderr into its output. Avoiding the config write for a branch without settings
+removes them in the common case. The `origin/refs/heads/...` hint from the Notes could
+not be traced; with git's stderr captured at both places no raw git hint reaches the
+output any more.
+
+Decided with the human: `ls-remote` over matching git's wording (the extra network call
+is paid only after a failed delete); `update-ref` over `git branch -D`; one warning line
+for a locked config; git's reason added to the real-failure warning.
+
+Tests: `claim.test.sh` gained `release_remote` (gone branch, locked config with and
+without an upstream, unreachable remote) and `reap_gone` (session-start output clean);
+`store-issues.test.sh` a gone-branch case. After merging origin/main the reviewer ran
+claim.test.sh 330/0, store-issues.test.sh 657/0, store-files.test.sh 636/0; shellcheck
+clean. The review found the gone-branch case discarded stderr while naming a "no stderr"
+check; fixed on the branch to assert stderr empty.
+
+Left: `peal_store_takeover` has the same stale-ref delete (a deferred remote-only branch
+already gone refuses the claim); filed as an idea, out of scope by the human's choice.
+
+Edge for a future reader: `peal_git_try` returns 2 when `mktemp` fails, which
+`peal_release_remote` would read as "gone" and prune the tracking ref; harmless (the
+next fetch restores it) and not worth a branch.
