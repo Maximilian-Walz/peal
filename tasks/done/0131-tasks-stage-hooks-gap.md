@@ -39,3 +39,31 @@ rule in docs/design.md, docs/reference/cli.md and plugin/commands/close.md.
 > installed here, so nothing would gate the commit".
 
 ## Notes
+
+---
+
+## Outcome
+
+Built: `peal commit`, `peal close begin` and `peal close finish` refuse without Peal's git
+hooks only where `guardrails` is in the project's `stages`. A project at the `tasks` stage
+alone now commits and closes without any manual step. The check is one function,
+`peal_hooks_required` in plugin/lib/githooks.sh, which `peal_hooks_ensure` now shares
+instead of repeating the stage test. commit.test.sh gained a tasks-only case. commit.test.sh
+and close.test.sh set `guardrails` before their hook refusal cases.
+
+Decided: of the three options the task named, the gate follows the `guardrails` stage
+instead of installing the hooks at the `tasks` stage or at claim. `guardrails` is the stage
+that asks for gated commits (docs/design.md, Git gates), so installing hooks for a project
+that did not opt in would impose gates it never asked for. Without the hooks a plain
+`git commit` was never gated either, so this opens no new way around the gates. Where
+`guardrails` is set up, `peal_hooks_ensure` still installs the hooks and the refusals remain
+its backstop.
+
+Docs: the manual `.peal/peal hooks install` stopgap and its leftover paragraph are gone
+from docs/getting-started.md. docs/design.md, docs/reference/cli.md (`peal commit`,
+`peal close begin`/`finish`) and plugin/commands/close.md state the condition.
+
+### Reviewer findings not acted on
+
+- A few edited doc and comment lines run past the usual wrap width. This is cosmetic and
+  not worth a commit of its own.
