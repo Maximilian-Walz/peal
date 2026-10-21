@@ -69,12 +69,12 @@ ready() {
   text=""
 }
 
-# build -> a commit on the task's branch, pushed when it has an upstream.
+# build -> a commit on the task's branch, pushed when its branch is on the remote.
 build() {
   echo built >"$wt/a.txt"
   git -C "$wt" add -A
   git -C "$wt" commit -q -m "feat: build a.txt [$(id 1)]"
-  git -C "$wt" rev-parse -q --verify '@{upstream}' >/dev/null 2>&1 && git -C "$wt" push -q 2>/dev/null
+  git -C "$wt" rev-parse -q --verify "refs/remotes/origin/$(git -C "$wt" symbolic-ref --short HEAD)" >/dev/null 2>&1 && git -C "$wt" push -q origin HEAD 2>/dev/null
   return 0
 }
 
@@ -319,7 +319,7 @@ Built a.txt.
   check "finish: the body credits the idea" "- $(id 2): A later idea" "$(printf '%s\n' "$body" | grep '^- .*A later idea' | sed 's/ (.*//')"
   check "finish: the idea filed" "0" "$(at "$wt" "$PEAL" read "$(id 2)" >/dev/null 2>&1; echo $?)"
   check "finish: the queue empty" "" "$(at "$wt" "$PEAL" ideas)"
-  check "finish: pushed" "0" "$(git -C "$wt" rev-list --count '@{upstream}..HEAD')"
+  check "finish: pushed" "0" "$(git -C "$wt" rev-list --count "refs/remotes/origin/$(git -C "$wt" symbolic-ref --short HEAD)..HEAD")"
   check "finish: clean" "" "$(git -C "$wt" status --porcelain)"
   check "finish: the close commit" "$(closing)" "$(git -C "$wt" log -1 --format=%s)"
   if [ $kind = files ]; then
@@ -378,11 +378,12 @@ push_skip_cases() {
 }
 
 # no_upstream_cases -> a sandbox that cannot write the repository's config (a lock file
-# in the way) still lets finish push: git exits 0 and the remote-tracking ref moves, only
-# the branch's upstream is missing. Verify, the Stop hook and finish's own already-pushed
-# check go by that ref.
+# in the way) still lets finish push, quietly: finish pushes without -u, so git has no
+# config to write, and the remote-tracking ref moves while the branch's upstream stays
+# missing. Verify, the Stop hook and finish's own already-pushed check go by that ref.
+# peal check and peal brief write no config and run clean under the lock.
 no_upstream_cases() {
-  local out status b lock
+  local out status b lock noise
   new_repo
   ready 1 first-task
   build
@@ -391,18 +392,21 @@ no_upstream_cases() {
   git -C "$wt" branch --unset-upstream 2>/dev/null
   b=$(git -C "$wt" symbolic-ref --short HEAD)
   lock=$(git -C "$wt" rev-parse --path-format=absolute --git-common-dir)/config.lock
+  noise='could not lock\|unable to write\|^error:\|^hint:\|^NOTE:'
   : >"$lock"
+  check "no upstream: peal brief exits 0, clean" "0:" "$(at "$wt" "$PEAL" brief planner 2>&1 >/dev/null | grep "$noise"; echo "${PIPESTATUS[0]}:")"
   out=$(close_finish 2>&1)
   status=$?
   check "no upstream: finish succeeds" "0" "$status"
   check "no upstream: the push is not reported failed" "0" "$(printf '%s\n' "$out" | grep -c 'the push failed')"
-  check "no upstream: finish says the upstream was not recorded" "1" "$(printf '%s\n' "$out" | grep -c '^NOTE: pushed; the upstream could not be recorded')"
+  check "no upstream: no raw git lines, no note" "0" "$(printf '%s\n' "$out" | grep -c "$noise")"
   check "no upstream: one pull request" "1" "$(prs)"
   check "no upstream: no upstream configured" "" "$(git -C "$wt" config "branch.$b.merge")"
   check "no upstream: the tracking ref is at HEAD" "$(git -C "$wt" rev-parse HEAD)" "$(git -C "$wt" rev-parse "refs/remotes/origin/$b")"
   check "no upstream: verify finds the push" "WAIT:no-checks-yet 3" "$(verdict)"
   rearm_sentinel
   check "no upstream: stop does not say never pushed" "0" "$(stop | grep -c 'was never pushed')"
+  check "no upstream: peal check exits 0, clean" "0:" "$(at "$work" "$PEAL" check 2>&1 | grep "$noise"; echo "${PIPESTATUS[0]}:")"
   rm -f "$lock"
   git -C "$wt" remote set-url origin "$(scratch_dir)/gone.git"
   : >"$lock"
@@ -412,6 +416,23 @@ no_upstream_cases() {
   git -C "$wt" commit -q --allow-empty -m "feat: more [$(id 1)]"
   check "no upstream: a commit beyond the tracking ref" "BLOCKED:unpushed 1" "$(verdict)"
   rm -f "$lock"
+
+  # An upstream set beforehand: the push still writes no config, and says nothing.
+  new_repo
+  ready 1 first-task
+  build
+  begin >/dev/null
+  outcome "Built a.txt."
+  b=$(git -C "$wt" symbolic-ref --short HEAD)
+  git -C "$wt" config "branch.$b.remote" origin
+  git -C "$wt" config "branch.$b.merge" "refs/heads/$b"
+  lock=$(git -C "$wt" rev-parse --path-format=absolute --git-common-dir)/config.lock
+  : >"$lock"
+  out=$(close_finish 2>&1)
+  status=$?
+  rm -f "$lock"
+  check "upstream set: finish succeeds, no raw git lines, no note" "0|0" "$status|$(printf '%s\n' "$out" | grep -c "$noise")"
+  check "upstream set: pushed" "0" "$(git -C "$wt" rev-list --count "refs/remotes/origin/$b..HEAD")"
 }
 
 # char_device_cases -> an untracked symlink to /dev/null (what a sandbox's /dev/null mount
@@ -428,7 +449,7 @@ char_device_cases() {
   begin >/dev/null
   outcome "Built a.txt."
   [ $kind = issues ] || git -C "$wt" commit -q -am "docs(tasks): outcome [$(id 1)]"
-  git -C "$wt" push -q
+  git -C "$wt" push -q origin HEAD
   dev=$wt/dev-null
   ln -s /dev/null "$dev"
   check "char device: raw git lists it as untracked (the control)" "?? dev-null" \
@@ -516,7 +537,7 @@ rerun_cases() {
   git -C "$wt" remote set-url origin "$url"
   printf 'POST repos/*/pulls' >"$FAKE_GH/fail"
   check_fails "rerun: the pull request fails" 1 "  gh pr create --base main" close_finish
-  check "rerun: pushed, still armed" "0|armed" "$(git -C "$wt" rev-list --count '@{upstream}..HEAD')|$(sentinel)"
+  check "rerun: pushed, still armed" "0|armed" "$(git -C "$wt" rev-list --count "refs/remotes/origin/$(git -C "$wt" symbolic-ref --short HEAD)..HEAD")|$(sentinel)"
   rm "$FAKE_GH/fail"
   out=$(close_finish 2>&1)
   check "rerun: done" "0|1|clear" "$?|$(prs)|$(sentinel)"
@@ -625,9 +646,9 @@ Finish it: write the Outcome, then peal close finish. If the close is off, peal 
   git -C "$wt" add a.txt
   git -C "$wt" commit -q -m "feat: build [$(id 1)]"
   [ $kind = issues ] || git -C "$wt" commit -q -am "docs(tasks): outcome [$(id 1)]"
-  check "stop: unpushed" "2:  - $(git -C "$wt" rev-list --count '@{upstream}..HEAD') commit(s) of $(git -C "$wt" symbolic-ref --short HEAD) are not pushed" \
+  check "stop: unpushed" "2:  - $(git -C "$wt" rev-list --count "refs/remotes/origin/$(git -C "$wt" symbolic-ref --short HEAD)..HEAD") commit(s) of $(git -C "$wt" symbolic-ref --short HEAD) are not pushed" \
     "$(stop | sed -n '1s/:.*/:/p;2p' | tr -d '\n')"
-  git -C "$wt" push -q
+  git -C "$wt" push -q origin HEAD
   check "stop: all done, silent" "0:" "$(stop)"
   echo dirty >"$wt/b.txt"
   check "stop: another session's close is cleared" "0:|clear" \
@@ -724,7 +745,7 @@ verify_cases() {
     git -C "$wt" commit -q --allow-empty -m "feat: more [1]"
   fi
   check "verify: unpushed" "BLOCKED:unpushed 1" "$(verdict)"
-  git -C "$wt" push -q
+  git -C "$wt" push -q origin HEAD
   nogh=$(no_gh_path)
   check "verify: no gh" "BLOCKED:no-gh 1" "$(in_dir "$wt" env PATH="$nogh" "$PEAL" close verify)"
   check "verify: no pull request" "BLOCKED:no-pr 1" "$(verdict)"
@@ -907,7 +928,7 @@ draft_cases() {
   out=$(close_finish 2>&1)
   status=$?
   check "draft: a failing mutation stops finish" "1|armed|true" "$status|$(sentinel)|$(jq -r '.[0].draft' "$FAKE_GH/pulls.json")"
-  check "draft: nothing pushed before the mutation" "$([ $kind = files ] && echo 1 || echo 0)" "$(git -C "$wt" rev-list --count '@{upstream}..HEAD')"
+  check "draft: nothing pushed before the mutation" "$([ $kind = files ] && echo 1 || echo 0)" "$(git -C "$wt" rev-list --count "refs/remotes/origin/$(git -C "$wt" symbolic-ref --short HEAD)..HEAD")"
   rm -f "$FAKE_GH/fail"
   out=$(close_finish 2>&1)
   status=$?
@@ -917,7 +938,7 @@ draft_cases() {
   check "draft: updated too" "updated the title and body of pull request #50" "$(printf '%s\n' "$out" | grep '^updated')"
   check "draft: the final Outcome in the body" "Built a.txt." "$(jq -r '.[0].body' "$FAKE_GH/pulls.json" | grep Built)"
   check "draft: the sentinel cleared" "clear" "$(sentinel)"
-  check "draft: pushed" "0" "$(git -C "$wt" rev-list --count '@{upstream}..HEAD')"
+  check "draft: pushed" "0" "$(git -C "$wt" rev-list --count "refs/remotes/origin/$(git -C "$wt" symbolic-ref --short HEAD)..HEAD")"
   # Not a draft: no mutation, no message.
   : >"$FAKE_GH/log"
   rearm_sentinel

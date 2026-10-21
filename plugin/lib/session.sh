@@ -293,7 +293,7 @@ peal_turn_budget() {
 # pushed, so no work stays on one machine only. What git says goes to the worktree's
 # git directory, peal-session-end.log.
 peal_session_end() {
-  local reason task id gitdir branch remote log devices=() dev
+  local reason task id gitdir branch remote log devices=() dev ref
   reason=$(peal_hook_field reason)
   [ -z "$(peal_hook_field agent_id)" ] || return 0
   case $reason in logout | prompt_input_exit | other) ;; *) return 0 ;; esac
@@ -317,10 +317,10 @@ peal_session_end() {
       git add -A -- . ${devices[@]+"${devices[@]}"} && git commit -q -m "wip: session-end autosave [$id]" \
         -m "Committed by Peal when the session ended ($reason), with whatever was in flight."
     fi
-    if git rev-parse -q --verify "$branch@{upstream}" >/dev/null; then
-      [ "$(git rev-list --count "$branch@{upstream}..$branch")" = 0 ] || git push -q "$remote" "$branch"
+    if ref=$(peal_remote_ref "$branch" "$remote"); then
+      [ "$(git rev-list --count "$ref..$branch")" = 0 ] || git push -q "$remote" "$branch"
     else
-      git push -q -u "$remote" "$branch"
+      git push -q "$remote" "$branch"
     fi
   } >>"$log" 2>&1
   return 0
