@@ -26,3 +26,4 @@ close.md's rerun rule says only what the waits actually do, and a session never 
 ## Notes
 
 - Peal never knows Belfry beyond the tool names its command markdown already names; this changes only the instruction text.
+- Finding: `wait_ci` answers `done: true` only once every check of the pushed head has finished (or the PR merged or closed); `done: false` means the limit passed first, checks possibly still running. So the `gh run watch` step is dropped; on `done: false` the session waits again rather than rerunning.
