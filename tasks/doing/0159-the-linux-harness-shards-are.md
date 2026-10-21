@@ -2,6 +2,8 @@
 milestone: m3
 plan: required
 priority: high
+size: S
+touches: [.github/workflows/ci.yml, tools/test-all.sh, tools/test-all.test.sh, CONTRIBUTING.md]
 ---
 
 # 0159 — The Linux harness shards are balanced again, so no shard runs much longer than the others
@@ -16,7 +18,17 @@ Split them again by measured seconds, as 0077 did, so that every Linux shard, `r
 
 ## Scope
 
+- `.github/workflows/ci.yml`: shard lists, a new named shard `d`, timeouts, comments, `PEAL_TEST_BUDGET`.
+- `tools/test-all.sh`: prints its total; warns over `PEAL_TEST_BUDGET`.
+- `tools/test-all.test.sh` (new): the harness for `tools/test-all.sh`.
+- `CONTRIBUTING.md`: one sentence on how the shards are balanced and how drift shows.
+
 ## Done when
+
+- On the pull request's CI, every Linux shard job finishes within about 12.5 minutes, and no non-hostile shard's harness total is above 1.15× another's.
+- `rest` is still computed and runs every `*.test.sh` the named shards do not name.
+- `tools/test-all.sh` prints its total, and warns (never fails) when the total exceeds `PEAL_TEST_BUDGET`; under `GITHUB_ACTIONS=true` the warning is a `::warning` annotation.
+- `tools/test-all.test.sh` covers the total, the warning, its annotation form and a bad budget value.
 
 ## Raw
 
@@ -27,6 +39,37 @@ Split them again by measured seconds, as 0077 did, so that every Linux shard, `r
 - 0128 (the docs harness runs faster) shrinks `tools/docs.test.sh` itself. Rebalancing does not wait for it, but the measured seconds change once it lands.
 - `.github/workflows/ci.yml` never merges by itself under Belfry, so the human merges this one.
 - The anchors `&shard_a` and so on, and the "rest" step that reads them, are in `.github/workflows/ci.yml`; 0077's notes have how the split was measured.
+- 2026-10-21, plan agreed with the human: Scope and Done when as above; a fifth named shard `d`; drift shows as both the total and a budget warning (`PEAL_TEST_BUDGET=780` for every Linux shard, one value); the smaller defaults below as the planner proposed.
+- Measured after 0128 landed (main run 39561021393, 07:18): `tools/docs.test.sh` is now 31 s. rest ≈1210 s (apply 309, next 144, claim 135, ship 122, session 89, tasks 88, main-write 64, doctor 53, review 41, init 39, setup 35, docs 31, migrate 20, commit 20, rest small); a ≈600 (close 549, frontmatter 29, git-guard 23); b ≈451 (store-issues 268, decisions 162, milestones 21); c ≈576 (backlog 192, store-files 181, githooks 107, work 96). Run 39559464837 (07:04) has the same shape, 15 to 20% faster.
+
+## Plan
+
+Approach: a fifth named shard `d`, balanced from run 39561021393 (cross-check 39559464837):
+
+| shard | harnesses | seconds |
+|---|---|---|
+| a | close, frontmatter | ≈578 |
+| b | store-issues, decisions, ship, milestones | ≈573 |
+| c | backlog, store-files, githooks, work (unchanged) | ≈576 |
+| d | apply, next, claim | ≈588 |
+| rest (computed) | everything else, git-guard included | ≈520 |
+
+- `.github/workflows/ci.yml`: add `shard: d` anchored `&shard_d`, alias `SHARD_D: *shard_d` in the rest step and include it in `named=`; move `ship` to b and `git-guard` to rest; `rest`'s timeout 45 → 20 and the comment above `timeout-minutes` fixed; the job comment cites 0159 and the run id; job-level `env: PEAL_TEST_BUDGET: '780'` on `linux`.
+- `tools/test-all.sh`: always print the total (`test-all: all N harnesses passed in Ts`, and the total on the failure line too); optional `PEAL_TEST_BUDGET=<seconds>`: over it, a warning on stderr, as `::warning title=…::` under `GITHUB_ACTIONS=true`; exit status unchanged. A value that is not a non-negative integer exits 2 before anything runs. Header comment updated.
+- `tools/test-all.test.sh` (new): throwaway harnesses in a temp dir passed as absolute paths; cases: all pass (total, exit 0), one fails (failed list, total, exit 1), budget 0 with a 1 s harness (warning, exit 0), `GITHUB_ACTIONS=true` (`::warning` prefix), budget unset or above total (no warning), `PEAL_TEST_BUDGET=abc` (exit 2, nothing run).
+- `CONTRIBUTING.md` (around lines 63-66): one sentence: shards are balanced from `test-all.sh`'s timings, it prints its total, CI warns over `PEAL_TEST_BUDGET`. No fenced block.
+- Hostile shards stay 4/4; that 3 might do is noted in the Outcome.
+
+Verification: `tools/test-all.test.sh` and `tools/lint.sh` pass; on the pull request's CI all Linux jobs and the gate pass, the `rest` list holds no path a/b/c/d name, the union of a, b, c, d, rest and hostile is every `*.test.sh`, each non-hostile total ≤ about 660 s, no job over about 12.5 minutes, no budget warning fires. If a shard comes out over target, reshuffle once from that run's numbers. Record the run id and timings in the Outcome.
+
+Ranges:
+- tasks/doing/0159-the-linux-harness-shards-are.md:1-35
+- .github/workflows/ci.yml:85-177
+- .github/workflows/ci.yml:179-200
+- tools/test-all.sh:1-40
+- CONTRIBUTING.md:47-66
+- tasks/done/0077-speed-up-linux-ci.md:49-70
+- tasks/done/0077-speed-up-linux-ci.md:156-182
 
 ---
 
