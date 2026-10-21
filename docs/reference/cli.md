@@ -414,7 +414,10 @@ free tasks, best first, and `MORE <bucket> <count>` for each bucket with some le
 ## `peal release`
 
 `peal release ID` releases a claim: removes its worktree and branch (the remote's too, if
-it holds nothing more), the tip kept as `refs/reaped/NNNN-slug` for 30 days. It stays,
+it holds nothing more; a remote branch already gone, deleted on merge, only has its stale
+tracking ref pruned, silently), the tip kept as `refs/reaped/NNNN-slug` for 30 days. A
+locked git config does not fail it: one `warning:` line names the
+`git config --remove-section` that finishes the job. It stays,
 with the reason, while:
 
 - it is the calling worktree, unless its claim was deferred;

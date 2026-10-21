@@ -1075,14 +1075,8 @@ peal_store_release() {
   if [ -n "$wt" ]; then
     peal_release_worktree "$wt" || return 2
   fi
-  git branch -q -D "$branch" || return 2
-  if git rev-parse -q --verify "refs/remotes/$PEAL_REMOTE/$branch" >/dev/null; then
-    if ! git merge-base --is-ancestor "refs/remotes/$PEAL_REMOTE/$branch" "$tip"; then
-      peal_err "warning: $PEAL_REMOTE/$branch holds commits this machine never had; left in place"
-    elif ! git push -q "$PEAL_REMOTE" --delete "$branch" 2>/dev/null; then
-      peal_err "warning: could not delete $PEAL_REMOTE/$branch"
-    fi
-  fi
+  peal_release_branch "$branch" "$tip" || return 2
+  peal_release_remote "$branch" "$tip"
   echo "released $id $branch, tip kept as refs/reaped/$name$(peal_release_said)"
 }
 
