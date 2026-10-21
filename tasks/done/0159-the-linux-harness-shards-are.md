@@ -75,4 +75,20 @@ Ranges:
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Rebalanced the Linux harness shards by measured seconds, from main run 39561021393 (after 0128 made `tools/docs.test.sh` about 31 s). There is a fifth named shard `d` (apply, next, claim). `ship` moved to `b`, and `git-guard` moved from `a` to the computed `rest`. On those numbers each non-hostile shard holds about 520 to 590 s of harnesses: a 578, b 573, c 576, d 588, rest about 525. `close.test.sh` (about 550 s) stays the floor for any one shard. `rest` is still computed from `find` minus the anchored lists, and its timeout dropped from 45 to 20 minutes like the others.
+
+Drift now shows in two ways:
+- `tools/test-all.sh` prints its total on both the passed line and the failed line.
+- With `PEAL_TEST_BUDGET=<seconds>` set, a total over the budget warns without changing the exit status. Under `GITHUB_ACTIONS=true` the warning is a `::warning` annotation. A value that is not a non-negative integer exits 2 before anything runs.
+
+CI sets the budget to 780 s for every Linux shard, about 30% over the target, because two main runs differed by 15 to 20% from noise alone. The new `tools/test-all.test.sh` (24 checks) covers the total, the warning, its annotation form and bad values. It runs in `rest`.
+
+Why a budget and not a comparison of shard durations in the gate job: a comparison needs `actions: read` or an artifact action, and a fixed per-shard budget catches the same drift.
+
+The first Done when line, the timings, can only be met on the pull request's own CI run. The run id and the per-shard figures are added below once it is green. If a shard comes in over target, reshuffle once from that run's numbers.
+
+For the next session:
+- The hostile shards take 3 to 4 minutes each at 4/4. Three of them would still finish well under the others and would pay back the extra runner `d` costs. That was left out of scope.
+- When a budget warning appears, re-measure from that run's `test-all` timings and move harnesses between the anchored lists in `ci.yml`.
+
+The review found nothing to act on.
