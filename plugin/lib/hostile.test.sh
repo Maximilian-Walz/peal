@@ -273,17 +273,36 @@ INPUT=$NOINPUT
 # cover TARGET -> TARGET (a dispatch target of bin/peal: "claim", "hook stop") has a case.
 cover() { COVERED="$COVERED$1 "; }
 
+# try_runs -> status 0 when the next try lands in this shard: round-robin by call order,
+# shifted by one for each awk pass of a group (PASS), so that a slow try does not land in
+# the same shard under every awk.
+try_runs() {
+  [ $(((TRIES + PASS) % SHARD_N)) -eq $((SHARD_K - 1)) ]
+}
+
+# progress [WHAT] -> a line saying the run is alive: the group, the awk, the seconds
+# since the start, the tries run here of those counted so far.
+progress() {
+  printf 'hostile: %s [%s] %s %ds, ran %d of %d\n' "$GROUP" "${awk_name:-awk}" "${1:-at}" "$SECONDS" "$RAN" "$TRIES"
+  LAST_PROGRESS=$SECONDS
+}
+
 # try LABEL CWD ARG... -> peal ARG... run in CWD with INPUT on stdin, judged; a problem
 # fails the check, unless KNOWN lists "LABEL:problem kind" in full (LABEL may itself hold
 # spaces and colons, e.g. "issues: list", so a KNOWN entry is matched here as the whole
 # string "$label:$kind", never cut at a space or a colon of its own). Counts every call
 # toward TRIES; with PEAL_HOSTILE_SHARD set, only the tries that land in this shard
-# (round-robin by call order) actually run assess, and RAN_LABELS records which did.
+# (try_runs) actually run assess, and RAN_LABELS records which did. A progress line
+# when a minute has passed since the last.
 try() {
   local label=$1 cwd=$2 problems kind known
   shift 2
+  if ! try_runs; then
+    TRIES=$((TRIES + 1))
+    return 0
+  fi
   TRIES=$((TRIES + 1))
-  [ $(( (TRIES - 1) % SHARD_N )) -eq $((SHARD_K - 1)) ] || return 0
+  [ $((SECONDS - LAST_PROGRESS)) -lt 60 ] || progress
   RAN=$((RAN + 1))
   RAN_LABELS="$RAN_LABELS$label"$'\n'
   problems=$(assess "$cwd" "$INPUT" "$PEAL" "$@")
@@ -299,6 +318,9 @@ KNOWN_HIT=""
 TRIES=0
 RAN=0
 RAN_LABELS=$'\n'
+PASS=0
+GROUP=""
+LAST_PROGRESS=0
 
 # each LABEL CWD ARG... -> try once per hostile value, the value in place of every @ among
 # the ARGs.
@@ -330,6 +352,8 @@ each_input() {
   local label=$1 cwd=$2 template=$3 i
   shift 3
   for ((i = 0; i < ${#H[@]}; i++)); do
+    # Only a try this shard runs needs its input.
+    try_runs || { TRIES=$((TRIES + 1)); continue; }
     INPUT=$BASE/input
     printf '%s' "${template//@/${H[i]}}" >"$INPUT"
     try "$label [${H_NAMES[i]}]" "$cwd" "$@"
@@ -373,19 +397,22 @@ awk_channels() {
   try "milestones, hostile fields" "$WORK" milestones
   try "milestones --json, hostile fields" "$WORK" milestones --json
   try "check, hostile names in the work tree" "$WORK" check
-  # What the refusals leave working, and what they say.
-  check_fails "check names a task file whose slug breaks the rule" 2 \
-    "tasks/backlog/0013--rf.md: the slug is not kebab-case" at "$WORK" "$PEAL" check
-  check_fails "list skips it, with a warning" 0 "0013--rf.md: the slug is not kebab-case words of a-z and 0-9; skipped" \
-    at "$WORK" "$PEAL" list --no-pr
-  check "list: the tasks whose names keep the rule" "0001 0002 0003 0023 0030" \
-    "$(at "$WORK" "$PEAL" list --no-pr 2>/dev/null | cut -d' ' -f1 | tr '\n' ' ' | sed 's/ $//')"
-  check "read: a task that keeps the rule" "# 0001 — Title of 0001" \
-    "$(at "$WORK" "$PEAL" read 0001 2>/dev/null | grep '^# ')"
-  check_refused "read: a file name that breaks it is no task" "no task 0013" at "$WORK" "$PEAL" read 0013
-  check_refused "read: an id of three digits" "refused: no task id '001'" at "$WORK" "$PEAL" read 001
-  check_refused "decision brief: a diff base that reads as an option" "refused: decision brief: no commit '--output" \
-    at "$WORK" "$PEAL" decision brief --diff "--output=$CANARY/x"
+  # What the refusals leave working, and what they say: checks outside try(), so shard 1's
+  # alone.
+  if [ "$SHARD_K" = 1 ]; then
+    check_fails "check names a task file whose slug breaks the rule" 2 \
+      "tasks/backlog/0013--rf.md: the slug is not kebab-case" at "$WORK" "$PEAL" check
+    check_fails "list skips it, with a warning" 0 "0013--rf.md: the slug is not kebab-case words of a-z and 0-9; skipped" \
+      at "$WORK" "$PEAL" list --no-pr
+    check "list: the tasks whose names keep the rule" "0001 0002 0003 0023 0030" \
+      "$(at "$WORK" "$PEAL" list --no-pr 2>/dev/null | cut -d' ' -f1 | tr '\n' ' ' | sed 's/ $//')"
+    check "read: a task that keeps the rule" "# 0001 — Title of 0001" \
+      "$(at "$WORK" "$PEAL" read 0001 2>/dev/null | grep '^# ')"
+    check_refused "read: a file name that breaks it is no task" "no task 0013" at "$WORK" "$PEAL" read 0013
+    check_refused "read: an id of three digits" "refused: no task id '001'" at "$WORK" "$PEAL" read 001
+    check_refused "decision brief: a diff base that reads as an option" "refused: decision brief: no commit '--output" \
+      at "$WORK" "$PEAL" decision brief --diff "--output=$CANARY/x"
+  fi
   local id
   for id in 0003 0010 0011 0012 0013 0014 0015 0016 0017 0018 0019 0020 0021 0022 0023 0030 \
       0040 0041 0042 0043 0044 0045; do
@@ -404,18 +431,21 @@ awk_channels() {
 
   # peal_create_filed's own promise: the text lands in the file exactly as given, only
   # NNNN replaced by the id it is given (dollar's the only hostile value here that both
-  # passes touches' own checks and stays one line, so cmp is exact byte for byte).
+  # passes touches' own checks and stays one line, so cmp is exact byte for byte). Shard
+  # 1's alone.
   local btmpl binput bout bid
-  btmpl=$(hostile_text)
-  binput=${btmpl//@/${H[0]}}
-  bout=$(printf '%s' "$binput" | at "$WORK" "$PEAL" create --owner ai --title "Hostile hex byte check" 2>&1)
-  bid=$(printf '%s\n' "$bout" | tail -n 1 | sed -n 's/^filed: //p')
-  if [ -n "$bid" ]; then
-    git -C "$WORK" fetch -q origin 2>/dev/null
-    check "create --owner --title: hostile stdin byte for byte, only NNNN replaced" "${binput//NNNN/$bid}" \
-      "$(git -C "$WORK" show "origin/main:tasks/backlog/$bid-hostile-hex-byte-check.md" 2>/dev/null)"
-  else
-    check "create --owner --title: hostile stdin filed, to compare it byte for byte" "filed" "not filed: $bout"
+  if [ "$SHARD_K" = 1 ]; then
+    btmpl=$(hostile_text)
+    binput=${btmpl//@/${H[0]}}
+    bout=$(printf '%s' "$binput" | at "$WORK" "$PEAL" create --owner ai --title "Hostile hex byte check" 2>&1)
+    bid=$(printf '%s\n' "$bout" | tail -n 1 | sed -n 's/^filed: //p')
+    if [ -n "$bid" ]; then
+      git -C "$WORK" fetch -q origin 2>/dev/null
+      check "create --owner --title: hostile stdin byte for byte, only NNNN replaced" "${binput//NNNN/$bid}" \
+        "$(git -C "$WORK" show "origin/main:tasks/backlog/$bid-hostile-hex-byte-check.md" 2>/dev/null)"
+    else
+      check "create --owner --title: hostile stdin filed, to compare it byte for byte" "filed" "not filed: $bout"
+    fi
   fi
   # peal apply's JSON on stdin: each value raw in every field (mostly no JSON then), and
   # escaped as JSON in a note's text and a filing's title, text and milestone, and in a
@@ -424,23 +454,26 @@ awk_channels() {
   each_input "apply, raw values" "$WORK" '{"proposals": [{"id": "@", "kind": "add", "task": "0002", "text": "@"},
     {"id": "f", "kind": "file", "title": "@", "text": "@", "milestone": "@", "why": "@"}]}' apply
   local i v t
+  # Each input built only when this shard runs its try.
   for ((i = 0; i < ${#H[@]}; i++)); do
     v=$(json_escape "${H[i]}")
-    t=$(hostile_text)
-    t=$(json_escape "${t//@/${H[i]}}")
     INPUT=$BASE/input
-    printf '{"proposals": [{"id": "%s", "kind": "add", "task": "0002", "text": "%s", "why": "%s"},
-      {"id": "f", "kind": "file", "title": "Hostile %s", "text": "%s", "milestone": "%s"}]}' \
-      "$v" "$v" "$v" "$v" "$t" "$v" >"$INPUT"
+    if try_runs; then
+      t=$(hostile_text)
+      t=$(json_escape "${t//@/${H[i]}}")
+      printf '{"proposals": [{"id": "%s", "kind": "add", "task": "0002", "text": "%s", "why": "%s"},
+        {"id": "f", "kind": "file", "title": "Hostile %s", "text": "%s", "milestone": "%s"}]}' \
+        "$v" "$v" "$v" "$v" "$t" "$v" >"$INPUT"
+    fi
     try "apply, escaped values [${H_NAMES[i]}]" "$WORK" apply
     # The milestone kinds: a title, a goal and a reason, stored or refused.
-    printf '{"proposals": [{"id": "m", "kind": "milestone_create", "title": "Hostile %s", "goal": "%s", "why": "%s"},
+    try_runs && printf '{"proposals": [{"id": "m", "kind": "milestone_create", "title": "Hostile %s", "goal": "%s", "why": "%s"},
       {"id": "u", "kind": "milestone_update", "milestone": "@m", "title": "%s"},
       {"id": "s", "kind": "milestone_state", "milestone": "@m", "state": "park", "reason": "%s"}]}' \
       "$v" "$v" "$v" "$v" "$v" >"$INPUT"
     try "apply, escaped milestone values [${H_NAMES[i]}]" "$WORK" apply
     # A split: the hostile value as an item of tasks, as from and as the title.
-    printf '{"proposals": [{"id": "x", "kind": "split_milestone", "milestone": "%s", "tasks": ["%s", "%s"], "title": "%s", "goal": "%s"}]}' \
+    try_runs && printf '{"proposals": [{"id": "x", "kind": "split_milestone", "milestone": "%s", "tasks": ["%s", "%s"], "title": "%s", "goal": "%s"}]}' \
       "$v" "$v" "$v" "$v" "$v" >"$INPUT"
     try "apply, escaped split values [${H_NAMES[i]}]" "$WORK" apply
   done
@@ -448,15 +481,17 @@ awk_channels() {
     {"id": "s", "kind": "milestone_state", "milestone": "@", "state": "@", "reason": "@"}]}' apply
   each_input "apply, raw split values" "$WORK" '{"proposals": [{"id": "@", "kind": "split_milestone", "milestone": "@", "tasks": ["@", "@"], "title": "@", "goal": "@"}]}' apply
   INPUT=$NOINPUT
-  # A new milestone's title and goal land in its file byte for byte.
+  # A new milestone's title and goal land in its file byte for byte. Shard 1's alone.
   local mout mid
-  mout=$(printf '{"proposals": [{"id": "m", "kind": "milestone_create", "title": "Hostile %s", "goal": "%s %s"}]}' \
-    "$(json_escape "${H[0]}")" "$(json_escape "${H[0]}")" "$(json_escape "${H[1]}")" | at "$WORK" "$PEAL" apply 2>&1)
-  mid=$(printf '%s\n' "$mout" | sed -n 's/.*"milestone": "\([^"]*\)".*/\1/p')
-  git -C "$WORK" fetch -q origin 2>/dev/null
-  check "apply milestone_create: hostile title and goal byte for byte" "# Hostile ${H[0]}|${H[0]} ${H[1]}" \
-    "$(git -C "$WORK" show "origin/main:docs/milestones/${mid:-none}.md" 2>/dev/null | sed -n -e '/^# /p' -e '/^## Goal/{n;n;p;}' | paste -sd '|' -)"
-  check "apply milestone_create: nothing run" "" "$(ls "$CANARY/dollar" "$CANARY/backtick" 2>/dev/null)"
+  if [ "$SHARD_K" = 1 ]; then
+    mout=$(printf '{"proposals": [{"id": "m", "kind": "milestone_create", "title": "Hostile %s", "goal": "%s %s"}]}' \
+      "$(json_escape "${H[0]}")" "$(json_escape "${H[0]}")" "$(json_escape "${H[1]}")" | at "$WORK" "$PEAL" apply 2>&1)
+    mid=$(printf '%s\n' "$mout" | sed -n 's/.*"milestone": "\([^"]*\)".*/\1/p')
+    git -C "$WORK" fetch -q origin 2>/dev/null
+    check "apply milestone_create: hostile title and goal byte for byte" "# Hostile ${H[0]}|${H[0]} ${H[1]}" \
+      "$(git -C "$WORK" show "origin/main:docs/milestones/${mid:-none}.md" 2>/dev/null | sed -n -e '/^# /p' -e '/^## Goal/{n;n;p;}' | paste -sd '|' -)"
+    check "apply milestone_create: nothing run" "" "$(ls "$CANARY/dollar" "$CANARY/backtick" 2>/dev/null)"
+  fi
 
   claim_wt 0001
   wt=$WT
@@ -820,6 +855,8 @@ hook_cases() {
 
 self_test() {
   local unsafe=$BASE/unsafe problems probe
+  # Checks outside try() only: shard 1's alone.
+  [ "$SHARD_K" = 1 ] || return 0
   hostile_repo
   printf '#!/usr/bin/env bash\neval "echo $1" >/dev/null\n' >"$unsafe.eval"
   printf '#!/usr/bin/env bash\nprintf x >"$1"\n' >"$unsafe.write"
@@ -880,39 +917,54 @@ coverage() {
 # hook_cases), all by default; the coverage check runs with all of them only.
 # PEAL_HOSTILE_SHARD=K/N (parsed and validated above, before anything ran): only shard K
 # of N's tries actually run try()'s peal call, round-robin by call order across every
-# group that runs here; unset or 1/1 is today's full serial run. Every group's own body
-# (hostile_repo, cover, and the direct check/check_fails/self_test calls outside try())
-# still runs in every shard, so each shard's COVERED stays complete and its own
-# coverage() check (below, when PEAL_HOSTILE_CASES is unset) passes on its own; there is
-# no cross-job aggregation. Slicing mid-group means a shard's repository state can drift
-# from what a full serial run would leave a try seeing, since a skipped try's write never
-# happens in this shard; a local serial run still covers today's exact sequence. With N=1
-# (unset or 1/1) a not-hit KNOWN entry always fails, as before sharding existed; with N>1
-# it only fails in the shard whose RAN_LABELS actually ran that label, so the other
-# shards don't each report the same known finding as newly missing. Composes with
-# PEAL_HOSTILE_CASES and PEAL_TEST_AWK unchanged.
+# group that runs here, shifted by one at each awk pass (try_runs); unset or 1/1 is the
+# full serial run. A try this shard skips is still counted, its input not even built.
+# Every group's own body (hostile_repo, cover, claim_wt) still runs in every shard, so
+# each shard's COVERED stays complete and its own coverage() check (below, when
+# PEAL_HOSTILE_CASES is unset) passes on its own; there is no cross-job aggregation. The
+# direct checks outside try() (check, check_fails, check_refused on peal's output, and
+# self_test) run in shard 1 only: once per run is enough, and every shard paid for them.
+# Slicing mid-group means a shard's repository state can drift from what a full serial
+# run would leave a try seeing, since a skipped try's write never happens in this shard;
+# a local serial run still covers the exact sequence. With N=1 (unset or 1/1) a not-hit
+# KNOWN entry always fails, as before sharding existed; with N>1 it only fails in the
+# shard whose RAN_LABELS actually ran that label, so the other shards don't each report
+# the same known finding as newly missing. Composes with PEAL_HOSTILE_CASES and
+# PEAL_TEST_AWK unchanged. Each awk pass of a group prints a progress line, and try()
+# another when a minute passed without one, so a long shard is seen to be alive.
 cases=${PEAL_HOSTILE_CASES:-self_test awk_channels issues_channels arg_cases hook_cases}
-# run_group NAME CMD... -> CMD, if NAME is one of the groups to run.
+# run_group NAME CMD... -> CMD, if NAME is one of the groups to run; GROUP is NAME.
 run_group() {
   local name=$1
   shift
-  [[ " $cases " != *" $name "* ]] || "$@"
+  [[ " $cases " == *" $name "* ]] || return 0
+  GROUP=$name
+  "$@"
 }
-run_group self_test self_test
-run_group awk_channels for_each_awk awk_channels
-run_group issues_channels for_each_awk issues_channels
+# pass -> one awk pass of GROUP: its progress line, GROUP run, PASS counted (in every
+# shard alike, so that every shard numbers the passes the same).
+pass() {
+  progress "starts at"
+  "$GROUP"
+  PASS=$((PASS + 1))
+}
+run_group self_test pass
+run_group awk_channels for_each_awk pass
+run_group issues_channels for_each_awk pass
 # The rest under the first awk only: their values never reach awk as a task text.
 first_awk=""
 for candidate in mawk gawk nawk original-awk; do
   command -v "$candidate" >/dev/null && { first_awk=$candidate; break; }
 done
 if [ -n "$first_awk" ] && [ -z "${PEAL_TEST_AWK-}" ]; then
-  PEAL_TEST_AWK=$first_awk run_group arg_cases for_each_awk arg_cases
-  PEAL_TEST_AWK=$first_awk run_group hook_cases for_each_awk hook_cases
+  PEAL_TEST_AWK=$first_awk run_group arg_cases for_each_awk pass
+  PEAL_TEST_AWK=$first_awk run_group hook_cases for_each_awk pass
 else
-  run_group arg_cases for_each_awk arg_cases
-  run_group hook_cases for_each_awk hook_cases
+  run_group arg_cases for_each_awk pass
+  run_group hook_cases for_each_awk pass
 fi
+GROUP=all
+progress "ends at"
 [ -n "${PEAL_HOSTILE_CASES-}" ] || coverage
 # A KNOWN entry not hit fails, unless this is a shard (N>1) that never ran its label
 # (RAN_LABELS); with N=1 (unset or 1/1, a full run) every entry is checked regardless,

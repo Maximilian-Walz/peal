@@ -214,6 +214,10 @@ and every `issues/` and `pull/`, so a closing keyword in outside text ("Fixes #1
 "closes owner/repo#3", an issue's URL) closes nothing and an `@mention` pings nobody when
 the write merges.
 
+`apply.sh` holds the fields in shell variables, each named only from a proposal's index
+(digits) and a key matching `^[a-z_]+$` (checked by `apply.awk` and again as the manifest
+is loaded); a value is only ever data, never part of a variable's name or a command.
+
 - Guard: `plugin/lib/apply.awk`, `plugin/lib/apply.sh`.
 - Harness: `plugin/lib/apply.test.sh`, `plugin/lib/hostile.test.sh`.
 

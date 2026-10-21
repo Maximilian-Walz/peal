@@ -54,42 +54,64 @@ function skipws(    c) {
 }
 
 # str() -> the string at pos (on its opening quote), decoded; pos after it. A problem
-# with its content (not its syntax) is left in serr.
-function str(    out, c, e, v, lo) {
+# with its content (not its syntax) is left in serr. Linear in the string's length, its
+# escapes included: the document is read in windows of 4096 bytes, each split once at
+# its backslashes; the plain run up to the next backslash is appended in one piece (cut
+# at a quote or a line break in it), an escape is read from the window, and a window's
+# decoded text joins the result once. An escape that may run past the window's end
+# starts the next window. One byte at a time, appended to the whole result, a long string
+# took time quadratic in its length (busybox's substr is also linear in the document's).
+function str(    out, seg, w, wl, nb, parts, bp, k, j, b, run, q, nl, e, v, lo, adv) {
   out = ""
   pos++
   while (pos <= len) {
-    c = substr(doc, pos, 1)
-    if (c == "\"") { pos++; return out }
-    if (c == "\n") { fail("a line break inside a string; JSON writes it \\n"); return "" }
-    if (c == "\\") {
-      e = substr(doc, pos + 1, 1)
-      pos += 2
-      if (e == "n") out = out "\n"
-      else if (e == "t") out = out "\t"
-      else if (e == "r") out = out "\r"
-      else if (e == "b") out = out "\b"
-      else if (e == "f") out = out "\f"
-      else if (e == "/" || e == "\\" || e == "\"") out = out e
+    w = substr(doc, pos, 4096)
+    wl = length(w)
+    nb = split(w, parts, "\\") - 1
+    b = 0
+    for (k = 1; k <= nb; k++) { b += length(parts[k]) + 1; bp[k] = b }
+    seg = ""
+    j = 1
+    k = 1
+    for (;;) {
+      while (k <= nb && bp[k] < j) k++
+      b = k <= nb ? bp[k] : wl + 1
+      run = substr(w, j, b - j)
+      q = index(run, "\"")
+      nl = index(run, "\n")
+      if (nl && (!q || nl < q)) { fail("a line break inside a string; JSON writes it \\n"); return "" }
+      if (q) { pos += j + q - 1; return out seg substr(run, 1, q - 1) }
+      seg = seg run
+      if (b > wl) { pos += wl; break }
+      # An escape is at most 12 bytes (a surrogate pair): one that may not fit is read
+      # from the next window, unless this one ends the document.
+      if (b + 11 > wl && pos + wl <= len) { pos += b - 1; break }
+      e = substr(w, b + 1, 1)
+      adv = 2
+      if (e == "n") seg = seg "\n"
+      else if (e == "t") seg = seg "\t"
+      else if (e == "r") seg = seg "\r"
+      else if (e == "b") seg = seg "\b"
+      else if (e == "f") seg = seg "\f"
+      else if (e == "/" || e == "\\" || e == "\"") seg = seg e
       else if (e == "u") {
-        v = hexval(substr(doc, pos, 4))
+        v = hexval(substr(w, b + 2, 4))
         if (v < 0) { fail("a \\u escape without four hex digits"); return "" }
-        pos += 4
+        adv = 6
         if (v >= 55296 && v < 56320) {
           lo = -1
-          if (substr(doc, pos, 2) == "\\u") lo = hexval(substr(doc, pos + 2, 4))
+          if (substr(w, b + 6, 2) == "\\u") lo = hexval(substr(w, b + 8, 4))
           if (lo >= 56320 && lo < 57344) {
-            pos += 6
+            adv = 12
             v = 65536 + (v - 55296) * 1024 + (lo - 56320)
-          } else { serr = "a lone surrogate (\\u" substr(doc, pos - 4, 4) ")"; continue }
-        } else if (v >= 56320 && v < 57344) { serr = "a lone surrogate (\\u" substr(doc, pos - 4, 4) ")"; continue }
-        if (v == 0) { serr = "a \\u0000 in a string"; continue }
-        out = out utf8(v)
+          } else { serr = "a lone surrogate (\\u" substr(w, b + 2, 4) ")"; v = -1 }
+        } else if (v >= 56320 && v < 57344) { serr = "a lone surrogate (\\u" substr(w, b + 2, 4) ")"; v = -1 }
+        else if (v == 0) { serr = "a \\u0000 in a string"; v = -1 }
+        if (v >= 0) seg = seg utf8(v)
       } else { fail("an unknown escape \\" e); return "" }
-      continue
+      j = b + adv
     }
-    out = out c
-    pos++
+    out = out seg
   }
   fail("a string that does not end")
   return ""

@@ -22,6 +22,7 @@ jobs:
   # with, a failed diff), runs them all.
   changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       harnesses: ${{ steps.decide.outputs.harnesses }}
     steps:
@@ -41,6 +42,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.harnesses == 'true'
     runs-on: macos-latest
+    timeout-minutes: 30
     env:
       # The full set runs on Linux (the "linux" job below), so a pull request is not
       # waiting on macOS too. Trimmed or grown against the timings tools/test-all.sh
@@ -82,11 +84,13 @@ jobs:
 
   # Every hostile.test.sh case that used to run serially in "harnesses (ubuntu-latest)"
   # now runs across these shards instead: 4 that each take a slice of hostile.test.sh
-  # (plugin/lib/hostile.test.sh:PEAL_HOSTILE_SHARD, measured to keep each under about 6
-  # minutes) and the rest of the Linux-only harnesses split by their measured seconds
-  # (tools/test-all.sh's timing, quoted in 0077's task notes). "rest" is computed, not
-  # listed, so a new *.test.sh is covered the moment it exists, same promise
-  # tools/test-all.sh makes with no arguments.
+  # (plugin/lib/hostile.test.sh:PEAL_HOSTILE_SHARD; in 0152 about 3.5 minutes each of a
+  # 14-minute serial run, measured locally under mawk and busybox, CI adding gawk and
+  # original-awk; each prints a progress line per group and awk, and another when a
+  # minute passed without one) and the rest of the Linux-only harnesses split by their
+  # measured seconds (tools/test-all.sh's timing, quoted in 0077's task notes). "rest" is
+  # computed, not listed, so a new *.test.sh is covered the moment it exists, same
+  # promise tools/test-all.sh makes with no arguments.
   linux:
     name: linux (${{ matrix.shard }})
     needs: changes
@@ -97,28 +101,38 @@ jobs:
         include:
           - shard: hostile 1/4
             hostile_shard: 1/4
+            timeout: 20
           - shard: hostile 2/4
             hostile_shard: 2/4
+            timeout: 20
           - shard: hostile 3/4
             hostile_shard: 3/4
+            timeout: 20
           - shard: hostile 4/4
             hostile_shard: 4/4
+            timeout: 20
           # Anchored (&shard_a etc.) so the "rest" step below can read the same three
           # lists by alias instead of a second, driftable copy of these paths.
           - shard: a
             harnesses: &shard_a >-
               plugin/lib/close.test.sh plugin/lib/frontmatter.test.sh
               plugin/lib/git-guard.test.sh
+            timeout: 20
           - shard: b
             harnesses: &shard_b >-
               plugin/lib/store-issues.test.sh plugin/lib/decisions.test.sh
               plugin/lib/milestones.test.sh
+            timeout: 20
           - shard: c
             harnesses: &shard_c >-
               plugin/lib/store-files.test.sh plugin/lib/work.test.sh
               plugin/lib/backlog.test.sh plugin/lib/githooks.test.sh
+            timeout: 20
           - shard: rest
+            timeout: 45
     runs-on: ubuntu-latest
+    # Each entry's own: "rest" runs about 20 to 25 minutes, the others well under 20.
+    timeout-minutes: ${{ matrix.timeout }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Every awk the harnesses can find is one they run under; Peal must work with
@@ -172,6 +186,7 @@ jobs:
     needs: [changes, linux]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Every Linux shard passed, or none had to run
         env:
@@ -186,6 +201,7 @@ jobs:
 
   shellcheck:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: shellcheck --version
