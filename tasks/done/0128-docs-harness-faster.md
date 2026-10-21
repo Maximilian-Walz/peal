@@ -91,4 +91,34 @@ Ranges: `tools/docs.test.sh:1-56`, `tools/docs.test.sh:85-91`,
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Built: in `tools/docs.test.sh`, `docs_problems ROOT [FILE...]` now checks only the given
+documents, or all of them when none are given. `reference_problems`, which checks the
+command headings, still runs on every call. `mutant` passes the one document it edits, so
+each of the 30 negative cases reruns only that document's checks and blocks, plus the
+reference checks, instead of every document's. The real-repository pass is unchanged.
+No CI shard was added. The human chose to make each mutant check one document only.
+
+Timings, measured on the same machine with `time bash tools/docs.test.sh` (real / user / sys):
+
+- `origin/main` before: 5m46.7s / 1m33.8s / 4m33.9s
+- Before 0119 (`ad16567^1`, its own harness on its own documents, 26 checks):
+  2m36.3s / 0m47.3s / 2m11.6s
+- After: 0m36.4s / 0m10.2s / 0m30.3s, so about 4 times faster than before 0119.
+  The reviewer measured 0m36.5s.
+
+Checked: the harness passes 37 of 37 and `tools/lint.sh` is clean. All 30 negative cases
+are unchanged and still fail on their own. A temporary case was also tried and not
+committed: it pointed "the filed line is" at `CONTRIBUTING.md`, and it failed, which
+shows the restriction is real.
+
+Agreed trade-off: a mutant no longer reports a problem that its change causes in
+another document, such as a broken anchor elsewhere. Only the pass on the real
+repository catches those.
+
+Left: the comment in `.github/workflows/ci.yml` about the "rest" shard's run time
+("about 20 to 25 minutes") is now an overestimate. It was left alone because that file
+is outside this task's scope, as agreed.
+
+### Reviewer findings not acted on
+
+None. The reviewer found nothing to block and kept `merge-auto`.
