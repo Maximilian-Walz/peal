@@ -92,4 +92,34 @@ Ranges:
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+The `GH_TELEMETRY=0` prefixes 0145 added as a fallback are gone. They were on `gh pr create`
+and `gh pr checks` in `plugin/commands/close.md`, two calls each in `next.md` and `setup.md`,
+and the by-hand `gh pr create` line `plugin/lib/close.sh` prints. The SessionStart hook's
+`export GH_TELEMETRY="${GH_TELEMETRY:-0}"` line in `CLAUDE_ENV_FILE` is now the only mechanism,
+so a user's own `GH_TELEMETRY` holds again and allow rules such as `Bash(gh pr create:*)`
+match the commands as written. `docs/security.md` lost its belt-and-braces clause.
+`plugin/lib/close.test.sh` now expects the by-hand line to start with `  gh pr create`
+(two spaces, substring match), so a returning prefix fails the test.
+
+What was observed live, 2026-10-21:
+- **Headless:** proven. 43 recent sessions of another project, on a Peal build with 0145, have
+  the line in their env file. 42 of them are headless sandboxed Belfry jobs (entrypoint
+  `sdk-cli`). They ran bare `gh pr create`, `gh pr view` and `gh api` with no
+  `cafe.github.com` deny. Sessions on the old plugin logged that deny for the same calls.
+- **Interactive:** not observed (1 session with the line, no gh call). It uses the same
+  mechanism; the human judged the headless proof enough.
+- **Subagents:** not observed, and irrelevant here. Every prefixed call sits in a slash
+  command, which runs in the main session; no agent in `plugin/agents/` runs gh.
+
+This machine's own installed plugin (cache 0.2.0) predated 0145, so this session could not
+probe itself. A nested `claude -p` from inside the sandbox is not representative either: the
+sandbox denies writes to the session-env directory.
+
+Decided with the human: drop the prefixes outright rather than switch to the
+`${GH_TELEMETRY:-0}` form (that form still breaks allow-rule matching). The printed by-hand
+line loses its prefix too: gh run outside Claude Code is the user's own, as
+`docs/security.md` already says. Left unchanged on purpose: `docs/design.md:311` and
+`docs/reference/cli.md:144` (they describe only the env file), and `CHANGELOG.md` (release
+history).
+
+The review found nothing to act on. No ideas were filed.
