@@ -926,7 +926,7 @@ _pa_compose() {
     n=$((n + 1))
   done
   PA_MSDIR=$(peal_config_get milestones) || return 2
-  _peal_files_extract "$base" "$PA_MSDIR" "$PA_S/ms" || return 2
+  peal_extract_tree "$base" "$PA_MSDIR" "$PA_S/ms" || return 2
   peal_ms_load "$PA_S/ms" || return 2
   printf '%s\n' "$PEAL_MILESTONES" | awk -F '\t' -v OFS='\t' 'NF { print $1, $6 }' >"$PA_S/ms.idx"
   printf '%s\n' "$PEAL_MILESTONES" | sed '/^$/d' >"$PA_S/ms.start"

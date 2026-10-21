@@ -248,7 +248,10 @@ peal_cycle_check() {
 _peal_cycle_records() {
   local err status=0
   err=$(mktemp) || return 2
-  peal_store_list --no-pr 2>"$err" || { status=2; cat "$err" >&2; }
+  peal_store_list --no-pr 2>"$err" || {
+    status=2; cat "$err" >&2
+    peal_err "create: could not list the tasks on $PEAL_REMOTE/$PEAL_MAIN to check for depends cycles"
+  }
   rm -f "$err"
   return $status
 }

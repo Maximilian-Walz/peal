@@ -433,18 +433,19 @@ awk_channels() {
   # NNNN replaced by the id it is given (dollar's the only hostile value here that both
   # passes touches' own checks and stays one line, so cmp is exact byte for byte). Shard
   # 1's alone.
-  local btmpl binput bout bid
+  local btmpl binput bout bid bstatus
   if [ "$SHARD_K" = 1 ]; then
     btmpl=$(hostile_text)
     binput=${btmpl//@/${H[0]}}
-    bout=$(printf '%s' "$binput" | at "$WORK" "$PEAL" create --owner ai --title "Hostile hex byte check" 2>&1)
+    bstatus=0
+    bout=$(printf '%s' "$binput" | at "$WORK" "$PEAL" create --owner ai --title "Hostile hex byte check" 2>&1) || bstatus=$?
     bid=$(printf '%s\n' "$bout" | tail -n 1 | sed -n 's/^filed: //p')
     if [ -n "$bid" ]; then
       git -C "$WORK" fetch -q origin 2>/dev/null
       check "create --owner --title: hostile stdin byte for byte, only NNNN replaced" "${binput//NNNN/$bid}" \
         "$(git -C "$WORK" show "origin/main:tasks/backlog/$bid-hostile-hex-byte-check.md" 2>/dev/null)"
     else
-      check "create --owner --title: hostile stdin filed, to compare it byte for byte" "filed" "not filed: $bout"
+      check "create --owner --title: hostile stdin filed, to compare it byte for byte" "filed" "not filed (status $bstatus): $bout"
     fi
   fi
   # peal apply's JSON on stdin: each value raw in every field (mostly no JSON then), and
