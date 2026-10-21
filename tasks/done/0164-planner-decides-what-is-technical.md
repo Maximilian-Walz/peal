@@ -206,3 +206,58 @@ The human's answers to the planner's questions (2026-10-21):
 - .belfry.yml:100-148
 - .peal/config.yml:9-13
 - docs/milestones/m3.md:1-27
+
+---
+
+## Outcome
+
+Built as planned. `plan` takes three values: `skipped`, `auto` and `required`. A task
+with no `plan` now reads `PLAN auto`, where before it read `skipped`.
+- `task-check.awk` accepts `auto`.
+- `work.sh` prints `PLAN auto`. It prints `PLAN agreed` for `auto` or `required` with a
+  filled `## Plan`, and `PLAN required` for an `auto` task whose `origin` is `outsider`.
+
+The planner (`plugin/agents/planner.md`) now returns two lists:
+- **Human questions:** the categories from Scope. When unsure, a question is the human's.
+- **Decisions:** each with a one-line reason. Under `auto` it says "raise to `required`"
+  when the plan touches a human category.
+
+`/peal:work`:
+- Under `auto` with no human question, it records the plan and builds without asking. It
+  writes the planner's decisions under `## Notes`, in a block headed "Decisions of the
+  planner".
+- Under `auto` with human questions, it asks only those. It adds the planner's
+  `merge: auto` recommendation as one extra question, never as a stop of its own.
+- For `skipped`, the main session picks the model by the planner's rule and adds a Notes
+  line with the reason.
+- A `STOPPED` implementer on the default model is retried once on `models.planner`.
+
+`/peal:close` re-reviews after an implementer fix of a blocking finding. A second
+blocking round sends the next fix to the stronger model, the Outcome names any
+escalation, and `--decisions` names the planner's decisions.
+
+The reviewer treats a planner decision that was the human's as a blocking finding.
+
+Idea, split and setup write `skipped` only for plainly trivial work. The templates write
+`plan: auto`. The docs, `design.md` and `getting-started.md` included, describe the three
+values. `security.md` says an outsider task is always `required`. Existing
+`plan: skipped` tasks were not migrated, as the human decided.
+
+Review found two things, both fixed in b3b3d1b:
+- The ten new text checks in `commands.test.sh` ran after `finish`, so they could not
+  fail the run. They are now counted: 168 checks, and a broken phrase makes the run exit 1.
+- The planned "auto with a Plan is agreed" test was missing. It is added and runs on both
+  storages.
+
+For the next session: `tools/test-all.sh` was not run to the end here (time limit). The
+work, store-files, commands, setup and docs tests and the lint pass; CI is the full check.
+The outsider rule is tested on the files storage only, since the issues storage carries
+no `origin`. This change takes effect for this repository's own process only once the
+installed plugin is updated from `main`.
+
+### Escalations
+
+- The Done when line "a hand run of one `auto` task with no human question goes from
+  claim to implementer without asking" is not met yet. The sandbox has no interactive
+  Claude session for a `claude --plugin-dir plugin` run, so per the human's HandRun answer
+  it is the human's check after merge.
