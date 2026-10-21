@@ -1,6 +1,6 @@
 ---
 plan: required
-touches: [plugin/lib/store-files.sh, plugin/lib/tasks.sh, plugin/lib/main-write.sh, plugin/lib/decisions.sh, plugin/lib/store-files.test.sh, plugin/lib/hostile.test.sh]
+touches: [plugin/lib/store-files.sh, plugin/lib/common.sh, plugin/lib/tasks.sh, plugin/lib/main-write.sh, plugin/lib/decisions.sh, plugin/lib/apply.sh, plugin/lib/store-files.test.sh, plugin/lib/hostile.test.sh]
 milestone: m3
 size: M
 ---
@@ -49,6 +49,7 @@ Two things follow. First, `peal create` must never fail silently: wherever `peal
 - `docs/reference/cli.md` documents `peal create`; update it if the error output changes in a way it describes.
 - 2026-10-21, from the planning session: the failed macOS log (run 39164703986 attempt 1) is unreachable from the session; the diagnosis is from the code. Human's answers: widen Done-when to every silent create failure, push_main's included; fix `decisions.sh`'s identical pipe here; run the temporary CI stress loop and keep the fix whatever its counts; keep the "nothing was filed" line unchanged; flatten the new reasons and push_main's existing multi-line failure output to one line; trust tar's exit 0 after the drain (no ls-tree count check); fix `_peal_files_overlay`'s status here; file an idea for hostile `try()` flagging a status-2 run with no `peal:` reason line.
 - 2026-10-21, the temporary macOS stress run (PR #287, run 39589581516, reverted before review): old pipe `git archive | tar -x` under pipefail 0/500 non-zero, new `peal_extract_tree` 0/500 non-zero (5 files of about 10 KB); the macOS harnesses, hostile awk_channels included, passed (217 passed, 0 failed), and one extra awk_channels run passed before the step's 10-minute limit. The bsdtar SIGPIPE cause is not reproduced; the fix stays as agreed, on the code reading.
+- 2026-10-21, at close: the extract moved out of `store-files.sh` into `plugin/lib/common.sh` as `peal_extract_tree`, because `decisions.sh` is loaded without `store-files.sh` (plan step 2); its other caller in `plugin/lib/apply.sh` was renamed. Both files were added to `touches`. The human accepted the macOS run's shortfall against Done-when line 4: 1 of the 5 extra awk_channels runs finished (2 counting the full harness run), on a small tree. Since the cause was not reproduced, more runs would prove little.
 
 ## Plan
 
