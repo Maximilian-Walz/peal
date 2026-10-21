@@ -75,4 +75,22 @@ Other ranges relied on: `plugin/lib/session.sh:290-327`, `plugin/lib/githooks.sh
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Built both halves, as agreed with the human.
+
+- **Prevention:** the implementer brief (`plugin/agents/implementer.md`) now has a "Never rewrite a pushed commit" rule. It names the `wip: session-end autosave`, forbids reset, amend, rebase and squash, and uses close begin's wording ("never rebase a pushed branch").
+- **Cure:** `peal close finish` runs a new `_peal_close_remote_check` (`plugin/lib/close.sh`) in its refusal phase, before `_peal_close_checks`.
+  - It fetches the task branch first. When the fetch fails and a remote ref is already known, it warns and uses that ref.
+  - If the remote tip is not an ancestor of HEAD and its tree equals the tree of a commit in base..HEAD, finish merges it with `-s ours`. The merge runs after the ideas flush and before the decisions commit and the storage's finish commit, so `docs(tasks): close` stays last. Its subject is `Merge <ref>: the pushed autosave, already here [ID]`.
+  - With no tree match, or with the remote strictly ahead, finish refuses with status 2 before anything changes, naming `git merge <ref>`.
+  - A rerun is idempotent: once the remote ref is an ancestor of HEAD, nothing merges.
+- **Tests:** `autosave_rewritten_cases` in `plugin/lib/close.test.sh` covers the repaired case, the no-match refusal and the remote-ahead refusal, on both storages. Results: `close.test.sh` 1365 passed, 0 failed; `session.test.sh` 159 passed, 0 failed; `tools/lint.sh` clean.
+- **Docs:** `docs/reference/cli.md` (`peal close finish`, its Refuses and Then) and `docs/design.md` (the SessionEnd bullet and the finish bullet).
+
+For the next session:
+- With the issues storage there is no close commit, so the merge commit is the last commit of the pull request.
+- The plan's optional case, a stale tracking ref proved by a push from a second clone, was not written.
+- The SessionEnd hook's own push still fails silently into its log on a rewritten branch. The human chose to leave that out of scope.
+
+### Reviewer findings not acted on
+
+- One new line in `docs/reference/cli.md` runs past the surrounding wrap width. It is cosmetic, and Markdown renders it the same.
