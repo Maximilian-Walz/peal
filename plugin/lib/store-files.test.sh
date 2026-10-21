@@ -69,7 +69,7 @@ filed 0017 tasks/backlog/0017-idea-two.md — milestone: m2, plan: -, size: - �
 
   # The template files as it is.
   out=$(peal create from-the-template <"$PEAL_ROOT/templates/task.md" 2>&1)
-  check "the template" "0:filed 0018 tasks/backlog/0018-from-the-template.md — milestone: -, plan: skipped, size: - — \"Title\"" "$?:$out"
+  check "the template" "0:filed 0018 tasks/backlog/0018-from-the-template.md — milestone: -, plan: auto, size: - — \"Title\"" "$?:$out"
 
   # The project's own fields: declared ones pass, with their values checked.
   mkdir -p "$work/.peal"
