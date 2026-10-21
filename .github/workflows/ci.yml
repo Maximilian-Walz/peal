@@ -81,18 +81,6 @@ jobs:
           # the Linux job below runs all of them, coverage check included.
           PEAL_HOSTILE_CASES: 'self_test awk_channels'
         run: tools/test-all.sh $HARNESSES
-      - name: TEMP stress (task 0137)
-        if: always()
-        run: |
-          tools/stress-extract.sh
-          for n in 1 2 3 4 5; do
-            if PEAL_HOSTILE_CASES=awk_channels bash plugin/lib/hostile.test.sh >"$RUNNER_TEMP/h$n.log" 2>&1; then
-              echo "stress hostile awk_channels run $n: ok"
-            else
-              echo "stress hostile awk_channels run $n: FAILED"
-              tail -n 20 "$RUNNER_TEMP/h$n.log"
-            fi
-          done
 
   # Every hostile.test.sh case that used to run serially in "harnesses (ubuntu-latest)"
   # now runs across these shards instead: 4 that each take a slice of hostile.test.sh
