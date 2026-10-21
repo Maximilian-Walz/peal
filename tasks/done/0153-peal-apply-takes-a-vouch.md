@@ -56,4 +56,12 @@ Ranges: tasks/doing/0153-peal-apply-takes-a-vouch.md:1-31; plugin/lib/apply.sh:1
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+`peal apply` now takes a `vouch` proposal (`task`, plus `why`). On an unclaimed backlog task marked `origin: outsider`, it removes the mark and adds `<date>: Vouched for by a writer: <why>` under `## Notes` (or `...: Vouched for by a writer.` without a why; newline, CR and tab in why become spaces), in the batch's one commit with the body line `- <id> (vouch NNNN): <why>`. A task without `## Notes` gains the section, through the new `peal_text_add_note_or_section` in `plugin/lib/task-text.sh`, placed above the `---` before `## Outcome` or at the end.
+
+Decided with the human at planning: a vouch for a task that is already a writer's is answered done ("task NNNN: already a writer's") and writes nothing, so a retry or a double click is harmless; the line names a fixed "a writer" (the proposal has no `by` field; Belfry's #588 would have to add one to say more); a vouch naming `@<id>` or carrying `origin: outsider` is refused; earlier Notes lines are left as they are, with no hint that they came from outside.
+
+Trust: Peal cannot tell that a human sent a vouch. `docs/security.md` says so and that it relies on the caller (Belfry's human-only action) offering it to the human only; `docs/reference/tasks.md`'s `origin` row and `docs/reference/cli.md` name `vouch` as the one way the mark is removed.
+
+Tests: `apply.test.sh` has a `vouch` case covering the success, the flattened why, no why, the missing Notes section, the writer's task, `add` outsider then `vouch` in one batch, and six invalids (501 passed under every awk). `hostile.test.sh` folds vouch proposals into the existing escaped-values, escaped-split and raw-split tries: the try count stays 2441, serial and four shards green. The success case uses task 0007 rather than the 0005 the Done when named; nothing else rests on the number.
+
+The reviewer found nothing to act on. The project keeps no decisions directory, so no entry was written.
