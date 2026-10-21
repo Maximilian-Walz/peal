@@ -518,7 +518,7 @@ release_remote() {
   git -C "$work" remote update -p origin >/dev/null 2>&1
   git -C "$(dirname "$work")/remote.git" branch -q -D "$b"
   check "release: the stale tracking ref is there to start with" "1" "$(git -C "$work" for-each-ref "refs/remotes/origin/$b" | grep -c .)"
-  err=$TMPDIR/gone.err
+  err=$(mktemp)
   out=$(peal release 0001 2>"$err")
   status=$?
   check "release: a gone remote branch" "0:released 0001 $b, tip kept as refs/reaped/0001-gone-one" "$status:$out"
