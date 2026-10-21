@@ -129,7 +129,7 @@ peal_push_main() {
   local build=$1 command=${2-} reuse=${3-} attempt=1 max=${PEAL_PUSH_ATTEMPTS:-5} route base sha new err status replaces="" repo branch node
   PEAL_MW_PR="" PEAL_MW_URL="" PEAL_MW_STATE="" PEAL_MW_RIVALS=""
   route=$(_peal_mw_route) || return 2
-  err=$(mktemp) || return 2
+  err=$(mktemp) || { peal_err "could not make a temporary file"; return 2; }
   [ "$route" != pr ] || _peal_mw_fetch_branches
   if [ "$route" = pr ] && [ -n "$reuse" ] && repo=$(peal_github_repo) && _peal_mw_find_reuse "$repo" "$reuse"; then
     branch=$PEAL_MW_REUSE_BRANCH
@@ -161,7 +161,8 @@ peal_push_main() {
       peal_err "$PEAL_REMOTE/$PEAL_MAIN is gone"; rm -f "$err"; return 2; }
     PEAL_TREE="" PEAL_SUBJECT="" PEAL_BODY=""
     "$build" "$base" || { status=$?; rm -f "$err"; return $status; }
-    sha=$(git commit-tree "$PEAL_TREE" -p "$base" -m "$PEAL_SUBJECT" ${PEAL_BODY:+-m "$PEAL_BODY"}) || { rm -f "$err"; return 2; }
+    sha=$(git commit-tree "$PEAL_TREE" -p "$base" -m "$PEAL_SUBJECT" ${PEAL_BODY:+-m "$PEAL_BODY"}) || {
+      peal_err "could not commit the new tree (git commit-tree failed)"; rm -f "$err"; return 2; }
     if [ "$route" = pr ]; then
       _peal_mw_pr "$sha" "$command" "$replaces"
       status=$?
@@ -199,8 +200,7 @@ peal_push_main() {
         _peal_mw_fetch_branches
         continue
       fi
-      peal_err "the push to $PEAL_REMOTE/$PEAL_MAIN failed, and not from a race:"
-      cat "$err" >&2
+      peal_err "the push to $PEAL_REMOTE/$PEAL_MAIN failed, and not from a race: $(tr '\n' ' ' <"$err" | sed 's/  */ /g; s/ *$//')"
       rm -f "$err"
       return 1
     fi
