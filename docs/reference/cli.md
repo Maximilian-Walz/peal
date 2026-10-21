@@ -447,7 +447,7 @@ taken off. Once on main the claim reads as given back
 
 `peal work [ID | POOL]`, the steps of `/peal:work`.
 
-- In a task's worktree: `TASK <id> <file>`, `PLAN required|agreed|skipped`, and
+- In a task's worktree: `TASK <id> <file>`, `PLAN skipped|auto|required|agreed` (an absent `plan` is `auto`; `origin: outsider` forces `required`), and
   `MODEL <role> <model>` per subagent. Claims nothing.
 - Elsewhere: claims `ID` (`CLAIMED <id> <path>`; refused for a human task) or offers
   `POOL`.

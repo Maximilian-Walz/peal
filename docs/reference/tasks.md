@@ -39,7 +39,7 @@ Peal's fields, all optional.
 | Field | Meaning |
 |---|---|
 | `milestone` | a milestone id; absent means unassigned |
-| `plan` | `required` or `skipped`; `/peal:idea` sets it from `plan.required-paths` and the declared size |
+| `plan` | `skipped` (no planner: plainly trivial work), `auto` (the planner runs and the human answers only the questions that are theirs; the default when absent) or `required` (the human agrees the whole plan). `/peal:idea` writes `required` for work touching `plan.required-paths`, `skipped` only for plainly trivial work and `auto` otherwise; size plays no part. The planner may raise `auto` to `required`; a task with `origin: outsider` is always `required` |
 | `size` | `S`, `M` or `L`, the tool-call tiers of `sizes`; empty until the planner sizes it |
 | `depends` | a list of task ids that must be done first, plus the keywords `milestone` and `human`; see below |
 | `part-of` | the task this one was split from; filed by `/peal:split` only |
@@ -89,8 +89,10 @@ The body after the title:
 ```
 
 - `Raw` is the human's words and never rewritten.
-- `Plan` follows `Notes` for a task with `plan: required`, once the human agrees the
-  plan; until it holds something, the plan is not agreed.
+- `Plan` follows `Notes` for a task with `plan: auto` or `required`, once the plan is
+  agreed (by the human, or under `auto` with no human question by the planner, whose
+  decisions are then listed under `Notes`); until it holds something, the plan is not
+  agreed.
 - `Outcome` is written at close and must not be empty or a placeholder.
 
 ## Claim states

@@ -159,16 +159,22 @@ documents and the project's own rules. The planner has no Bash; the brief gives 
 would otherwise have to parse the config for.
 
 `/peal:work` is a script's decisions plus a conversation: `peal work` decides every step a
-script can (resume, claim, offer), and the session stops for the human to agree the plan,
-asking through `AskUserQuestion` so the same step works interactive and headless. The
+script can (resume, claim, offer), and the session stops for the human when the plan
+needs them. A task's `plan` is `skipped` (no planner), `auto` (the default: the planner
+runs and the session asks only the questions that are the human's, building at once when
+none is left; `merge: auto` is never written for a plan the human did not see) or
+`required` (the human agrees the whole plan; always so for an outsider's text). The
+session asks, through `AskUserQuestion` so the same step works interactive and headless. The
 plan is recorded on the claim, where a restarted session finds it. The implementer builds
 and its `QUESTION`s go to the human; the main session never writes the task's code.
 
 What Peal shows the human is short, or it goes unread. Every question has a `header` (a
 label of up to 12 characters) and one or two sentences; what the questions share, the
-whole plan for instance, is the session's message right before asking. The planner writes
-each ambiguity as a label, a short question and a default, and every command that asks
-carries the same rule.
+whole plan for instance, is the session's message right before asking. The planner sorts
+its open points: the human's (what the work is for, what they see or use, money, a
+security boundary, a recorded decision) are asked as a label, a short question and a
+default, and every command that asks carries the same rule; the rest it decides itself
+with a one-line reason, listed for the human and the reviewer to read afterwards.
 
 The backlog commands call the storage only, through the `peal` CLI. `/peal:idea` composes
 a task in one pass, never asking, so filing costs the human no attention. `/peal:defer`

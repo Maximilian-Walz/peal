@@ -76,7 +76,10 @@ Each finding goes into exactly one of:
 
 - **Fix** it on the branch, as a commit of its own (`peal commit`). A fix that is more
   than a small change is the implementer's: resume it, or start a fresh
-  `peal:implementer` with the finding, as `/peal:work` does.
+  `peal:implementer` with the finding, as `/peal:work` does. After an implementer fixed
+  a blocking finding, review again (step 2). When the second review finds a blocking
+  finding in the work again, the next implementer run uses the stronger model
+  (`MODEL planner`), unless it already ran on it; the Outcome says so.
 - **File** it as an idea (`/peal:idea`), only if leaving it would cost a future session;
   it queues on this branch and is filed at finish.
 - **Escalate** it under `### Escalations` in the Outcome, one bullet each: only for what
@@ -91,7 +94,8 @@ Each finding goes into exactly one of:
 Under `## Outcome` in the file `begin` named, replacing the placeholder comment: what was
 built, what was decided and why, what was found and left (each an idea filed), and what
 the next session needs to know, written for someone who remembers nothing of this one;
-then the Escalations and the rebuttals of step 3. Leave the Outcome uncommitted: finish
+then the Escalations and the rebuttals of step 3; and any escalation to the stronger
+implementer model (from `/peal:work` or step 3) and why. Leave the Outcome uncommitted: finish
 commits it with the task's move. Anything else changed now is committed now.
 
 When the project records decisions (`peal config decisions` names a directory) and the
@@ -111,7 +115,7 @@ Outcome as unfinished work.
 Write the summary for the person who merges: at most five bullets, one line each, on what
 changes as they will notice it, not how it was built, the first naming what to look at.
 Pass `--decisions` for the calls the merger should know (name any decision entry you
-recorded) and `--human-steps` for what the human must do; leave either out when there is
+recorded, and the planner's decisions from the task's `## Notes`) and `--human-steps` for what the human must do; leave either out when there is
 none. Human steps are only actions the human takes: when there are none, leave the flag
 out, never write "None" (the script refuses it); other context for the merger goes in
 `--notes`. Where `begin` printed a Security line request, the project keeps a threat

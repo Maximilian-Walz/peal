@@ -166,7 +166,7 @@ point at; with nothing fitting, propose nothing and skip to step 6.
 
   ```markdown
   ---
-  plan: skipped
+  plan: auto
   ---
 
   # NNNN — <Title>
@@ -195,7 +195,8 @@ point at; with nothing fitting, propose nothing and skip to step 6.
   ```
 
   `plan: required` instead when `peal config plan.required-paths` names a path the work
-  touches. Report each `filed` line. A refusal: report it; the proposal can be filed
+  touches, and `plan: skipped` only for plainly trivial work (a typo, a one-line doc fix).
+  Report each `filed` line. A refusal: report it; the proposal can be filed
   later with `/peal:idea`.
 
 ## 6. Hand the commit over

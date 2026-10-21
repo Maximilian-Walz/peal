@@ -31,7 +31,7 @@ under `storage`.
 | `worktrees` | `../{repo}-wt` | where claims live; each is `{worktrees}/NNNN-slug` |
 | `worktree-setup` | `""` | a command run once in each new or resumed claim's worktree, with `PEAL_PRIMARY` the primary checkout's path; a failure fails the claim |
 | `sizes` | `{S: 60, M: 120, L: 200}` | tool calls per size tier; the turn budget nudges there |
-| `plan.required-paths` | `[]` | a task touching one of these gets `plan: required` |
+| `plan.required-paths` | `[]` | a task touching one of these gets `plan: required`; any other gets `auto` (or `skipped` when trivial) |
 | `review.skip-paths` | `[docs/, tasks/]` | a diff only under these skips the reviewer |
 | `context` | `[]` | documents the planner, reviewer and `/peal:idea` read |
 | `checks.commit` | `[]` | commands the `commit-msg` gate runs; `"PATH...: COMMAND"` only when the commit touches one of those paths |
@@ -39,7 +39,7 @@ under `storage`.
 | `pr.sections` | `[]` | extra prose sections close asks the session for, each `"Title: what to write"` |
 | `pr.security` | `""` | the project's threat model document, a path; set, `peal close` requires a `Security:` line in the pull request body (`--security`), naming the boundary the change touches or `none`, and `peal doctor` warns when the file is missing |
 | `commit.areas` | `[]` | allowed `<area>` values in commit subjects, then required; empty allows any or none; `tasks` is always one |
-| `models` | `{planner: opus, reviewer: opus, implementer: sonnet}` | the subagents' models; a task's `model` overrides the implementer's |
+| `models` | `{planner: opus, reviewer: opus, implementer: sonnet}` | the subagents' models; a task's `model` overrides the implementer's; the planner's is also the stronger model an implementer is escalated to after a `STOPPED` or a second blocking review |
 | `task.fields` | `{}` | the project's own frontmatter fields: name, and optionally the allowed values |
 | `storage.kind` | `files` | where tasks live: `files` or `issues` ([Storage](storage.md)) |
 | `storage.issues.repo` | `""` | `owner/name`; empty: the remote's GitHub repository |

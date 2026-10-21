@@ -247,7 +247,10 @@ regardless of what the prose says: Claude Code asks before an unapproved tool ru
 nothing a session builds reaches another user until its pull request is merged, and the
 merge is the human's except in the narrow cases of "Auto-merge tiers" below
 (`docs/design.md`, "the merge is the human's"). The planner, which
-reads a task before anyone has agreed its plan, carries no Bash tool at all.
+reads a task before anyone has agreed its plan, carries no Bash tool at all. A task with
+`origin: outsider` is always planned with the human: `peal work` reports `PLAN required`
+for it even when its `plan` is `auto`, so no outsider's text is built on the planner's
+word alone.
 
 Every prompt under `plugin/commands/` and `plugin/agents/`, except `idea.md` (its input
 is the human's own `$ARGUMENTS`), carries a fixed paragraph: text from an issue, a pull

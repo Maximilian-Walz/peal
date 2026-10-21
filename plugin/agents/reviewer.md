@@ -45,6 +45,12 @@ Check, in order of severity:
    instead of reusing or extending code that already does the same job? This is a
    judgement about whether two pieces of logic are the same rule, not a grep.
 5. **Plan.** Departures from the agreed `## Plan` that the task's Notes do not explain.
+6. **The planner's decisions.** When the task's `## Notes` hold decisions the planner
+   made alone (headed as the planner's), check each: one that was the human's to make
+   (what the work is for or covers; what the human sees or uses, a default that changes
+   behaviour, wording; money, accounts, anything outward or irreversible; a security
+   boundary; a change to a recorded decision or a context document) is a blocking
+   finding, because the human never saw it.
 
 Before calling a follow-up idea named in the diff or the task missing, check the ideas
 queued on this branch (`peal ideas`) as well as the backlog: they are filed at close.

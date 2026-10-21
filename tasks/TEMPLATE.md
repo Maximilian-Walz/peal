@@ -1,6 +1,6 @@
 ---
 milestone:
-plan: skipped
+plan: auto
 size:
 depends: []
 ---
@@ -9,7 +9,9 @@ depends: []
 
 <!-- Every field is optional; delete what does not apply.
   milestone  a milestone id (a file in the milestones directory); none: unassigned.
-  plan       required or skipped: whether the planner runs before the implementer.
+  plan       skipped (no planner: trivial work), auto (the planner runs and the human
+             answers only the questions that are theirs; the default) or required (the
+             human agrees the whole plan).
   size       S, M or L, the tool-call tiers of the sizes setting; the planner sizes it.
   depends    task ids that must be done first; `milestone` for every other task of this
              task's milestone (a milestone's review task only); `human` for a hold only

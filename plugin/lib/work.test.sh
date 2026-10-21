@@ -114,12 +114,15 @@ CANDIDATE $(id 2) unassigned Title of $(id 2)" "$(at "$work" "$PEAL" work)"
 }
 
 inside() {
-  local one two three out file
+  local one two three four five out file
   new_repo "models: {planner: haiku}"
   task 1 skipped-plan plan=skipped
   task 2 required-plan plan=required model=opus
   task 3 plain-task
-  one=$(claim 1) two=$(claim 2) three=$(claim 3)
+  task 4 auto-plan plan=auto
+  [ $kind != files ] || task 5 outsider-plan plan=auto origin=outsider
+  one=$(claim 1) two=$(claim 2) three=$(claim 3) four=$(claim 4)
+  [ $kind != files ] || five=$(claim 5)
 
   out=$(at "$one" "$PEAL" work "$(id 1)")
   file=$(printf '%s\n' "$out" | sed -n 's/^TASK [0-9]* //p')
@@ -130,11 +133,14 @@ MODEL implementer sonnet
 MODEL reviewer opus" "$out"
   check "work: TASK names the task's text" "Title of $(id 1)" "$(cd "$one" && peal_text_title "$(id 1)" <"$file")"
   check "work: bare, in the worktree" "TASK $(id 1) $file" "$(at "$one" "$PEAL" work | head -n 1)"
-  check "work: no plan field is skipped" "PLAN skipped" "$(at "$three" "$PEAL" work | sed -n 2p)"
+  check "work: no plan field is auto" "PLAN auto" "$(at "$three" "$PEAL" work | sed -n 2p)"
   check_refused "work: another task from a task's worktree" "this worktree holds task $(id 1)" \
     at "$one" "$PEAL" work "$(id 3)"
   check_refused "work: a pool from a task's worktree" "this worktree holds task $(id 1)" \
     at "$one" "$PEAL" work current
+  check "work: plan auto is PLAN auto" "PLAN auto" "$(at "$four" "$PEAL" work | sed -n 2p)"
+  # origin is carried by the files storage only
+  [ $kind != files ] || check "work: an outsider's auto is required" "PLAN required" "$(at "$five" "$PEAL" work | sed -n 2p)"
   check "work: plan required, the task's model" "PLAN required
 MODEL implementer opus" "$(at "$two" "$PEAL" work | grep -e PLAN -e implementer)"
 }

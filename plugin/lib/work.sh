@@ -53,7 +53,7 @@ peal_work() {
 # is empty (the storage could not read it: an issue the write-access rule no longer
 # admits, most likely).
 _peal_work_here() {
-  local id=$1 file=$2 plan model role err
+  local id=$1 file=$2 plan model role err origin
   if [ ! -s "$file" ]; then
     err=$(peal_store_read "$id" 2>&1 >/dev/null)
     if [ -n "$err" ]; then printf '%s\n' "$err" >&2; else peal_err "work: could not read task $id"; fi
@@ -62,8 +62,14 @@ _peal_work_here() {
   printf 'TASK %s %s\n' "$id" "$file"
   plan=$(peal_fm_get "$file" plan 2>/dev/null)
   case $plan in
-    required) ! peal_text_section_filled Plan <"$file" || plan=agreed ;;
-    *) plan=skipped ;;
+    skipped) ;;
+    required|auto|"")
+      [ -n "$plan" ] || plan=auto
+      origin=$(peal_fm_get "$file" origin 2>/dev/null)
+      # an outsider's task is always planned with the human (docs/security.md)
+      [ "$origin" != outsider ] || plan=required
+      ! peal_text_section_filled Plan <"$file" || plan=agreed
+      ;;
   esac
   printf 'PLAN %s\n' "$plan"
   for role in $PEAL_WORK_ROLES; do

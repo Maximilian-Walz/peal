@@ -52,7 +52,8 @@ Frontmatter, per piece:
 - `milestone`: the origin's, written out. A piece gated on something no other piece
   builds may go into a `parked` milestone; only a split may do that.
 - `plan`: `required` when the piece's work touches one of `peal config
-  plan.required-paths` (unsure counts as required), else `skipped`.
+  plan.required-paths` (unsure counts as required), else `skipped` only for plainly trivial work (a typo, a
+  one-line doc fix) and `auto` otherwise (unsure counts as `auto`).
 - `depends`: `ORIGIN` when the piece needs the origin's own work; `PART1`..`PARTn` for a
   sibling filed in this same push, numbered in the order of the slugs below; real ids,
   `human`. Judge each piece on its own: one that builds on a sibling's work depends on
@@ -64,7 +65,7 @@ Write `NNNN` for the piece's own number in its heading, as `/peal:idea` does:
 ```markdown
 ---
 milestone: <the origin's>
-plan: <required | skipped>
+plan: <required | auto | skipped>
 depends: [ORIGIN, PART2]
 part-of: ORIGIN
 ---

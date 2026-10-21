@@ -213,7 +213,7 @@ refusals() {
   check_refused "done milestone" "bad-one: milestone m0 is done" peal create bad-one < <(text "milestone: m0")
   check_refused "parked milestone" "bad-one: milestone m3 is parked" peal create bad-one < <(text "milestone: m3")
   check_refused "milestone as a list" "bad-one: milestone takes a single value" peal create bad-one < <(text "milestone: [m1]")
-  check_refused "plan" "bad-one: plan maybe is not required or skipped" peal create bad-one < <(text "plan: maybe")
+  check_refused "plan" "bad-one: plan maybe is not skipped, auto or required" peal create bad-one < <(text "plan: maybe")
   check_refused "size" "bad-one: size XL is not one of" peal create bad-one < <(text "size: XL")
   check_refused "priority" "bad-one: priority soon is not urgent, high, normal or low" peal create bad-one < <(text "priority: soon")
   check_refused "merge" "bad-one: merge always is not auto" peal create bad-one < <(text "merge: always")
