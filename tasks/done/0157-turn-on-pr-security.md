@@ -33,4 +33,8 @@ Set `pr.security: docs/security.md` in this repository's `.peal/config.yml`, so 
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+`.peal/config.yml` now sets `pr.security: docs/security.md`. From now on `/peal:close` in this repository asks each session for a `Security:` line, naming the boundary of `docs/security.md` the change touches, or `none`. `peal close finish` refuses to run without that line.
+
+The precondition held when this task was claimed. 0150's merge is in the v0.4.0 and v0.5.0 tags. With the key set, the installed plugin ran `peal config`, `peal doctor` and `peal work` without refusing it. This task's own `peal close begin` already asked for the Security line.
+
+The review found nothing. `peal doctor` reports two FAILs in this worktree, and both appear without this change too. One is a version mismatch: the session ran 0.4.0 while 0.5.0 is installed. The other is stale git hooks. A fresh session fixes both, and so does `.peal/peal hooks install`.
