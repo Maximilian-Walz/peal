@@ -73,16 +73,19 @@ Type `/peal:work 0001`. This is where Peal does most of its work, and where it k
   *worktree*). Your own checkout stays as it was, so you can keep working there, and
   several tasks can be worked at once without mixing.
 - It asks a helper, a Claude *subagent* called the planner, to read the task and the code
-  and write a plan. You see the plan and answer any questions in it. Nothing is built
-  until you agree.
-- Once you agree, another subagent, the implementer, builds the plan in the worktree and
+  and write a plan. It decides the technical questions itself and asks you only what is
+  yours (what the work is for, what you see or use, money, security, a recorded
+  decision); you see its decisions afterwards in the task's Notes. When it has no
+  question for you, the build starts without stopping. A task with `plan: required`
+  waits until you agree the whole plan.
+- Once the plan is agreed, another subagent, the implementer, builds the plan in the worktree and
   commits as it goes.
 
-An idea comes out with `plan: skipped`, empty *Scope* and *Done when* sections, and its
-open questions in the Notes. For such a task no planner runs: the implementer reads the
+An idea comes out with `plan: auto` (or `skipped` for plainly trivial work), empty *Scope* and *Done when* sections, and its
+open questions in the Notes. For a `skipped` task no planner runs: the implementer reads the
 task and, if it cannot tell what to build, stops and asks you, with a proposed answer for
 each question. Reply, and your answers go into the task and the build goes on. (A task with
-`plan: required` gets the planner first, as described above.)
+`plan: auto` or `required` gets the planner first, as described above.)
 
 Without a number, `/peal:work` offers you the next task in the backlog. When the build
 is done it carries on to the close, described next.

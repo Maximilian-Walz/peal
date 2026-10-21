@@ -306,7 +306,7 @@ _pa_task_ref() {
 
 # _pa_static I -> proposal I checked on its own: its kind, its fields, their values.
 _pa_static() {
-  local i=$1 kind id allowed required k t j v slug words kn tn
+  local i=$1 kind id allowed required k t j v slug words kn tn sec
   _pa_get "$i" kind
   kind=$PA_V
   _pa_get "$i" id
@@ -398,6 +398,12 @@ _pa_static() {
     printf -v "PA_SLUG_$i" '%s' "$slug"
     [ -s "$PA_DIR/p/$i.text" ] || _pa_bad "$i" "an empty text"
     ! grep -qF -- "$PEAL_TASK_DELIMITER" "$PA_DIR/p/$i.text" || _pa_bad "$i" "the text holds '$PEAL_TASK_DELIMITER'; one task per proposal"
+    if _pa_has "$i" origin; then
+      _pa_get "$i" origin
+      if [ "$PA_V" = outsider ] && sec=$(peal_text_human_section <"$PA_DIR/p/$i.text"); then
+        _pa_bad "$i" "an outsider's text holds a filled '## $sec'; only the human's agreement writes one"
+      fi
+    fi
   else
     _pa_task_ref "$i" task earlier || true
     _pa_get "$i" task

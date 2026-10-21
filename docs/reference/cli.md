@@ -268,7 +268,8 @@ final once it merges`. A cycle through a task the text adds or changes exits 1 w
   `tasks.commands.create`. One task, its slug the first five words of `TITLE`. `OWNER`
   (`ai` or `human`) is written into `owner`, winning over the text's own; `outsider` is
   written into `origin`, `writer` or none writes no field; the issues storage has no label for `origin`, so
-  `--origin outsider` is refused there. Ends with `filed: <id>`.
+  `--origin outsider` is refused there, as is an outsider's text with a filled `## Plan`
+  or `## Outcome` (`docs/security.md`). Ends with `filed: <id>`.
 
 ## `peal idea`
 
@@ -323,7 +324,7 @@ empty fields out, so an absent optional field is none:
 
 | kind | fields | what it does |
 |---|---|---|
-| `file` | `title`, `text`, `milestone`, `priority`, `owner`, `origin` | files `text` as `peal create` does (`NNNN` for its number); the four fields go into the frontmatter, winning over the text's; `title` gives the slug, its first five words |
+| `file` | `title`, `text`, `milestone`, `priority`, `owner`, `origin` | files `text` as `peal create` does (`NNNN` for its number); the four fields go into the frontmatter, winning over the text's; `title` gives the slug, its first five words; with `origin: outsider`, a text with a filled `## Plan` or `## Outcome` is refused |
 | `add` | `task`, `text`, `origin` | a dated line under the task's `## Notes`, as `peal comment`; `origin: outsider` marks the task |
 | `vouch` | `task`, `origin` | a human's word that an outsider's task counts as a writer's: drops `origin: outsider` and adds the dated line "Vouched for by a writer: <why>" ("Vouched for by a writer." with no `why`; line breaks in `why` become spaces) under `## Notes`, adding that section when the task has none. A task that is a writer's already is answered done ("already a writer's") and nothing is written. `task` cannot be `@<id>`, and `origin: outsider` is refused |
 | `move` | `task`, `milestone` | sets the milestone; absent or `null` removes it (`""` is invalid) |
@@ -447,7 +448,7 @@ taken off. Once on main the claim reads as given back
 
 `peal work [ID | POOL]`, the steps of `/peal:work`.
 
-- In a task's worktree: `TASK <id> <file>`, `PLAN required|agreed|skipped`, and
+- In a task's worktree: `TASK <id> <file>`, `PLAN skipped|auto|required|agreed` (an absent `plan` is `auto`; `origin: outsider` forces `required`, whatever `plan` says, until a `## Plan` is filled), and
   `MODEL <role> <model>` per subagent. Claims nothing.
 - Elsewhere: claims `ID` (`CLAIMED <id> <path>`; refused for a human task) or offers
   `POOL`.

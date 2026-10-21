@@ -1,6 +1,6 @@
 ---
 name: implementer
-description: Builds the agreed plan of the task this worktree holds, commits as it goes and hands back a fixed status block. Started by /peal:work once the plan is agreed or skipped; never run to plan, review or close.
+description: Builds the agreed plan of the task this worktree holds, commits as it goes and hands back a fixed status block. Started by /peal:work once the plan is agreed (by the human or, under plan: auto, by the planner) or skipped; never run to plan, review or close.
 model: sonnet
 ---
 

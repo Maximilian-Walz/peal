@@ -168,4 +168,30 @@ check "close: step 6 handles conflict: true" "1" "$(has6 '`conflict: true`')"
 check "close: step 6 reruns a flaky failure only after the run has finished" "1" "$(has6 'rerun only once the whole run has finished')"
 check "close: step 6 reruns the failed jobs once" "1" "$(has6 'gh run rerun <run-id> --failed` once')"
 
+# plan: auto (0164): the planner sorts its questions, /peal:work asks only the human's,
+# merge: auto only on the human's word, a skipped plan's model, escalation, the reviewer.
+flat() { tr '\n' ' ' <"$1" | tr -s ' '; }
+# shellcheck disable=SC2016 # the literal backticks
+check "planner: two lists, the human's questions and its decisions" "1|1" \
+  "$(flat "$agents/planner.md" | grep -c -F '**Human questions** and **Decisions.**')|$(flat "$agents/planner.md" | grep -c -F 'When you are unsure which list a point belongs in, it is the human')"
+check "planner: the human categories" "1" \
+  "$(flat "$agents/planner.md" | grep -c -F 'money, accounts, anything outward or irreversible; a security boundary; a change to a recorded decision or a context document')"
+check "planner: names the hard cases for the model" "1" \
+  "$(flat "$agents/planner.md" | grep -c -F 'a security boundary or gate, git or race semantics, a parser, ordering semantics')"
+# shellcheck disable=SC2016 # the literal backticks
+check "planner: may raise auto to required" "1" "$(flat "$agents/planner.md" | grep -c -F 'raise to `required`')"
+# shellcheck disable=SC2016 # the literal backticks
+check "work: PLAN auto, built without asking when no human question is left" "1|1" \
+  "$(flat "$commands/work.md" | grep -c -F -- '- `auto`: the plan is not agreed yet')|$(flat "$commands/work.md" | grep -c -F 'with no human question: ask nothing and stop for nothing')"
+check "work: never merge auto for a plan the human did not see" "1" \
+  "$(flat "$commands/work.md" | grep -c -F 'never for a plan the human did not see')"
+check "work: a skipped plan gets a model by the planner's rule" "1" \
+  "$(flat "$commands/work.md" | grep -c -F 'you choose the implementer'\''s model by the planner'\''s rule')"
+check "work: STOPPED on the default model is followed by the stronger one" "1" \
+  "$(flat "$commands/work.md" | grep -c -F 'start a fresh implementer on the stronger model at once, once')"
+check "close: a second blocking round goes to the stronger model" "1" \
+  "$(flat "$commands/close.md" | grep -c -F 'the next implementer run uses the stronger model')"
+check "reviewer: a planner decision that was the human's is blocking" "1" \
+  "$(flat "$agents/reviewer.md" | grep -c -F 'is a blocking finding, because the human never saw it')"
+
 finish

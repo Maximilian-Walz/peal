@@ -56,7 +56,7 @@ $ peal claim 0001
 claimed 0001 task/0001-health-check …
 $ cd ../repo-wt/0001-health-check && peal work
 TASK 0001 tasks/doing/0001-health-check.md
-PLAN skipped
+PLAN auto
 ```
 
 The repository here is called `repo`, so its worktrees lie in `../repo-wt`; the setting

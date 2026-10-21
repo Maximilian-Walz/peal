@@ -47,8 +47,9 @@ Frontmatter, triaged now:
   `open` milestone only when the idea names it. Never a `parked` or `done` one: `peal
   idea` refuses them, moving a task there is a milestone review's call.
 - `plan`: `required` when the work the idea describes (not merely what it mentions) will
-  touch one of `plan.required-paths`; unsure counts as `required`. `skipped` otherwise,
-  and whenever that list is empty.
+  touch one of `plan.required-paths`; unsure counts as `required`. `skipped` only for
+  plainly trivial work (a typo, a one-line doc fix); `auto` otherwise, and when unsure
+  between the two. Size plays no part.
 - `depends`: only when the idea says, in terms of a task, that it cannot be worked before
   that task is done: its id. `human` when it waits on the human (a hand-over, a decision
   only they can make); left in prose only, no claim could see it. A number you are unsure
@@ -74,7 +75,7 @@ the number it gets. Never invent a number.
 ```markdown
 ---
 milestone: <id, or leave the line out>
-plan: <required | skipped>
+plan: <required | auto | skipped>
 depends: [<ids, human>]
 priority: <urgent | high | low, or leave the line out>
 touches: [<paths the idea names plainly, or leave the line out>]
