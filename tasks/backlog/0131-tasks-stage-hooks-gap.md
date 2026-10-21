@@ -1,5 +1,7 @@
 ---
 plan: skipped
+milestone: m3
+priority: high
 ---
 
 # 0131 — A tasks-only project cannot commit or close until hooks are installed by hand

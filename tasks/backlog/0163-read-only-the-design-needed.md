@@ -4,6 +4,7 @@ size: S
 depends: []
 priority: high
 touches: [CLAUDE.md, plugin/agents/reviewer.md, plugin/agents/planner.md]
+milestone: m3
 ---
 
 # 0163 — Sessions read only the parts of the design they need

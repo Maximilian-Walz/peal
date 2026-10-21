@@ -1,5 +1,6 @@
 ---
 plan: required
+milestone: m3
 ---
 
 # 0121 — Release and the reaper do not warn about a remote branch already gone
