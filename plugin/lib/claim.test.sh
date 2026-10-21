@@ -509,7 +509,7 @@ gone_claim() {
 # release_remote -> a release whose remote branch is already gone, whose git config is
 # locked, or whose remote cannot be reached (0121).
 release_remote() {
-  local out status b lock
+  local out status b lock err
   work=$(repo)
 
   # Deleted on the remote behind the clone's back: nothing said, the stale ref pruned.
@@ -518,12 +518,13 @@ release_remote() {
   git -C "$work" remote update -p origin >/dev/null 2>&1
   git -C "$(dirname "$work")/remote.git" branch -q -D "$b"
   check "release: the stale tracking ref is there to start with" "1" "$(git -C "$work" for-each-ref "refs/remotes/origin/$b" | grep -c .)"
-  out=$(peal release 0001 2>/dev/null)
+  err=$TMPDIR/gone.err
+  out=$(peal release 0001 2>"$err")
   status=$?
   check "release: a gone remote branch" "0:released 0001 $b, tip kept as refs/reaped/0001-gone-one" "$status:$out"
+  check "release: a gone remote branch: empty stderr" "" "$(cat "$err")"
+  rm -f "$err"
   check "release: a gone remote branch: both refs gone" "0" "$(git -C "$work" for-each-ref "refs/remotes/origin/$b" "refs/heads/$b" | grep -c .)"
-  out=$(git -C "$work" for-each-ref "refs/remotes/origin/$b")
-  check "release: a gone remote branch: no stderr" "" "$out"
 
   # A locked config with an upstream set: one line, no raw git.
   gone_claim 0002 locked-one
