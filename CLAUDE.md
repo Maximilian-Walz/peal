@@ -1,7 +1,8 @@
 # Peal
 
 A Claude Code plugin: the task-file process (task files, claim, offer, board, idea,
-work, close, milestones), made generic. Read `docs/design.md` first.
+work, close, milestones), made generic. `docs/design.md` holds the why and
+the architecture: read the parts the work touches.
 
 Rules:
 - Peal generalises the process of a reference project. Where that project lives is
