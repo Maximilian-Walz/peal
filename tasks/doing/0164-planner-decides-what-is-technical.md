@@ -4,7 +4,7 @@ plan: required
 size: M
 depends: []
 priority: high
-touches: [plugin/agents/planner.md, plugin/commands/work.md, plugin/commands/idea.md, plugin/lib/**, docs/reference/tasks.md, docs/reference/configuration.md, tasks/TEMPLATE.md]
+touches: [plugin/agents/*.md, plugin/commands/*.md, plugin/commands/commands.test.sh, plugin/lib/task-check.awk, plugin/lib/work.sh, plugin/lib/work.test.sh, plugin/lib/store-files.test.sh, plugin/templates/task.md, tasks/TEMPLATE.md, docs/reference/*.md, docs/design.md, docs/getting-started.md, docs/guides/working-a-task.md, docs/security.md]
 ---
 
 # 0164 — The planner decides what is technical and asks the human only theirs
@@ -90,3 +90,119 @@ questions.
 The control plane starts using Peal's workflow on its own issues next; this should land
 first, so its unattended jobs do not put a plan approval in the human's inbox for every
 issue.
+
+The human's answers to the planner's questions (2026-10-21):
+
+- **DefaultPlan:** a task with no `plan` field means `auto`.
+- **SizeRule:** size plays no part in the `plan` value; correct the line in
+  `docs/reference/tasks.md` that says `/peal:idea` uses the declared size.
+- **IdeaSkip:** `/peal:idea`, split and setup write `skipped` only for plainly trivial
+  work (a typo, a one-line doc fix), `auto` otherwise; unsure counts as `auto`.
+- **Backlog:** no migration of existing `plan: skipped` tasks.
+- **Stronger:** the stronger model is `models.planner` (the `MODEL planner` line of
+  `peal work`); no escalation when the implementer already runs on it.
+- **Escalate:** on `STOPPED` from a default-model implementer, retry at once on the
+  stronger model, once; a second `STOPPED` goes to the human as today.
+- **ReReview:** `/peal:close` re-reviews after an implementer fix for a blocking
+  finding; a second blocking round sends the next fix to the stronger model.
+- **MergeAsk:** under `auto`, the planner's `merge: auto` recommendation is asked as one
+  extra question only when human questions are already being asked; never a stop of
+  its own, never written otherwise.
+- **Unsure:** a question the planner cannot place is the human's.
+- **Outsider:** `origin: outsider` forces `required`: `peal work` reports `PLAN required`
+  for an outsider task holding `auto` (with a test), and `docs/security.md` says so.
+- **SkipModel:** for a skipped plan, always a Notes line with the model reason; the
+  frontmatter `model` only when it is not the default.
+- **ImplQs:** the implementer's own `QUESTION`s are unchanged: all go to the human.
+- **HandRun:** the implementer tries a `claude --plugin-dir plugin` run in a scratch
+  repository; if it cannot, the Outcome hands the hand run to the human after merge.
+- **Template:** both templates write `plan: auto`.
+- **Design doc:** rewrite `docs/design.md` 161–171 and `docs/getting-started.md` 75–85
+  to describe the three values.
+
+## Plan
+
+**Script side (tested):**
+- `plugin/lib/task-check.awk`: accept `plan: auto`; the refusal reads "is not skipped,
+  auto or required".
+- `plugin/lib/work.sh` (`_peal_work_here`): `required|auto` with a filled `## Plan` →
+  `PLAN agreed`; `required` → `PLAN required`; `auto` → `PLAN auto` (but `PLAN required`
+  when the task's `origin` is `outsider`); `skipped` → `PLAN skipped`; a missing or empty
+  `plan` → `auto`.
+- Tests: `plugin/lib/work.test.sh` ("no plan field is auto", "plan auto is PLAN auto",
+  "auto with a Plan is agreed", "outsider auto is required"); `plugin/lib/store-files.test.sh`
+  (`peal create` accepts `plan: auto`, refuses `plan: maybe` with the new message). Both
+  storages.
+
+**Prompt side:**
+- `plugin/agents/planner.md`: section 7 becomes two lists, **Human questions** (label,
+  question, default) and **Decisions** (label, choice, one-line reason); the human
+  categories from Scope verbatim, with "when unsure, it is the human's"; under `auto` it
+  says "raise to `required`" and why when the plan touches a human category; the model
+  rule names the hard cases (security boundary or gate, git or race semantics, a parser,
+  ordering semantics); the description no longer says `plan: required` only.
+- `plugin/commands/work.md`: step 4 gains `PLAN auto`. Step 5: `required` as today;
+  `auto` raised by the planner → `peal frontmatter set <file> plan required`, then the
+  required flow; `auto` with human questions → show the plan, ask only those (plus
+  merge per MergeAsk), record, build; `auto` with none → no question: write `## Plan`,
+  the planner's decisions under `## Notes` headed as the planner's, size/model/touches,
+  `peal record <id> plan`, build. `merge auto` only on the human's word. New step for
+  `skipped`: model by the planner's rule, Notes line with the reason, `model` when not
+  default, `peal record <id> notes`. Step 6: `STOPPED` on the default model → a fresh
+  implementer on the stronger model once, noted for the Outcome.
+- `plugin/commands/close.md`: re-review after an implementer fix of a blocking finding;
+  a second blocking round → next implementer on the stronger model; `--decisions` names
+  the planner's decisions; the Outcome notes any escalation.
+- `plugin/agents/reviewer.md`: reads the planner's decisions in Notes; one in a human
+  category is a blocking finding.
+- `plugin/agents/implementer.md`: description only.
+- `plugin/commands/idea.md`, `split.md`, `setup.md`: triage `required` / `auto` /
+  `skipped` per IdeaSkip.
+- `plugin/commands/commands.test.sh`: text checks for the planner's two lists and
+  categories, `PLAN auto` and building without asking in `work.md`, `merge auto` only on
+  the human's word, the escalation sentences in `work.md` and `close.md`, and the
+  reviewer's check; update existing merge/touches checks if phrases move.
+
+**Docs:** `docs/reference/tasks.md`, `configuration.md`, `cli.md` (`PLAN` states),
+`commands.md`; `docs/design.md` 161–171; `docs/getting-started.md` 75–85;
+`docs/guides/working-a-task.md` (docs-check output becomes `PLAN auto`);
+`docs/security.md` (outsider forces `required`); `plugin/templates/task.md` and
+`tasks/TEMPLATE.md` (`plan: auto`, comment names three values).
+
+**Verification:** the tests above on both storages, `bash tools/lint.sh`,
+`tools/test-all.sh`; the hand run per HandRun.
+
+**Ranges relied on:**
+- tasks/doing/0164-planner-decides-what-is-technical.md:1-93
+- plugin/agents/planner.md:1-73
+- plugin/agents/reviewer.md:29-64
+- plugin/agents/implementer.md:1-11
+- plugin/commands/work.md:65-144
+- plugin/commands/idea.md:42-81
+- plugin/commands/close.md:50-125
+- plugin/commands/split.md:49-70
+- plugin/commands/setup.md:166-199
+- plugin/commands/commands.test.sh:53-92
+- plugin/commands/commands.test.sh:145-150
+- plugin/lib/work.sh:51-75
+- plugin/lib/work.sh:135-186
+- plugin/lib/work.test.sh:116-140
+- plugin/lib/work.test.sh:142-208
+- plugin/lib/task-check.awk:51-75
+- plugin/lib/store-files.test.sh:210-220
+- plugin/templates/task.md:1-38
+- tasks/TEMPLATE.md:1-38
+- docs/reference/tasks.md:35-55
+- docs/reference/tasks.md:88-94
+- docs/reference/configuration.md:23-43
+- docs/reference/cli.md:446-453
+- docs/reference/commands.md:7-52
+- docs/design.md:145-172
+- docs/design.md:325-334
+- docs/getting-started.md:67-88
+- docs/guides/working-a-task.md:45-60
+- docs/security.md:240-263
+- docs/security.md:346-359
+- .belfry.yml:100-148
+- .peal/config.yml:9-13
+- docs/milestones/m3.md:1-27
