@@ -1117,9 +1117,14 @@ peal_store_takeover() {
     peal_err "claim: could not keep the tip of $PEAL_REMOTE/$rb as refs/reaped/$name; nothing removed"
     return 2
   fi
-  if ! peal_git_try git push -q --force-with-lease="refs/heads/$rb:$tip" "$PEAL_REMOTE" ":refs/heads/$rb"; then
-    peal_err "claim: could not delete the deferred $PEAL_REMOTE/$rb${PEAL_GIT_ERR:+ ($PEAL_GIT_ERR)}"
-    return 2
+  if ! LC_ALL=C peal_git_try git push -q --force-with-lease="refs/heads/$rb:$tip" "$PEAL_REMOTE" ":refs/heads/$rb"; then
+    local why=$PEAL_GIT_ERR status=0
+    # Already gone on the remote (ls-remote --exit-code, status 2): only the stale ref is left.
+    peal_git_try git ls-remote -q --exit-code "$PEAL_REMOTE" "refs/heads/$rb" >/dev/null || status=$?
+    if [ "$status" != 2 ]; then
+      peal_err "claim: could not delete the deferred $PEAL_REMOTE/$rb${why:+ ($why)}"
+      return 2
+    fi
   fi
   git update-ref -d "refs/remotes/$PEAL_REMOTE/$rb" 2>/dev/null
   echo "released $id $PEAL_REMOTE/$rb, deferred, tip kept as refs/reaped/$name"
