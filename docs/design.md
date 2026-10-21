@@ -50,8 +50,8 @@ following:
 
 | | Peal provides | Belfry expects |
 |---|---|---|
-| tasks | list, offer, claim (printing the worktree), board, idea, create, depend (`tasks.commands.defer`) and apply commands | the `commands` backend of its contract |
-| milestones | milestones as data; `peal milestone-state`; `/peal:milestone-review {milestone}` | a milestone list in the board output; `tasks.commands.milestone` for its Close, Park and Un-park; actions with the `milestone` trigger |
+| tasks | list, offer, claim (printing the worktree), board, idea, create, revise and apply commands | the `commands` backend of its contract |
+| milestones | milestones as data; `peal milestone-state`; `/peal:milestone-review {milestone}` | a milestone list in the board output; `tasks.commands.apply` for its Close, Park and Un-park; actions with the `milestone` trigger |
 | a session | `/peal:work` and `/peal:close` in the claimed worktree | claim before the session; finished means a PR open and green |
 | the human | questions through `AskUserQuestion` | routes them to its inbox |
 | releases | `/peal:release {version}` | an action marked `release: true`, which its Releases tab's button runs |
@@ -71,10 +71,7 @@ tasks:
     idea: /peal:idea {idea}
     create: .peal/peal create --owner {owner} --title {title} --origin {origin}
     board: .peal/peal board
-    milestone: .peal/peal milestone-state {id} {state} --reason {reason}
-    retire: .peal/peal retire {task} --reason {reason}
     revise: /peal:comment {task} {text}
-    defer: .peal/peal depend {task} {on}
     apply: .peal/peal apply
 actions:
   milestone-review:
@@ -85,14 +82,9 @@ actions:
 
 Where the pieces meet, and why:
 
-- The commands of the contract (`list`, `offer`, `board`, `create`, `claim`,
-  `milestone-state`) print exactly the shapes Belfry reads
-  ([CLI](reference/cli.md#peal-list)). `claim` is idempotent, so a re-run job continues
-  where the last one stopped.
-- `defer` (`peal depend {task} {on}`) is what Belfry's `task_defer` runs when a session
-  finds its task blocked on another: `{on}` goes into `{task}`'s `depends`, straight into
-  the storage, a depends cycle refused. A live claim of the clone it runs in is given back
-  as `peal defer` does. It is for task files; the `github-issues` backend defers natively.
+- The commands of the contract (`list`, `offer`, `board`, `create`, `claim`) print
+  exactly the shapes Belfry reads ([CLI](reference/cli.md#peal-list)). `claim` is
+  idempotent, so a re-run job continues where the last one stopped.
 - `apply` (`peal apply`) is what Belfry runs when a triage or planning run ends with
   changes the human accepted: the whole list as one JSON document on stdin, written as one
   commit (one pull request where main is protected) instead of a pull request per
@@ -101,7 +93,8 @@ Where the pieces meet, and why:
   milestone_state, split_milestone; a new milestone's id is Peal's, named `@<proposal id>` by later
   proposals of the batch); an invalid one and nothing is written
   ([CLI](reference/cli.md#peal-apply)). It is for task files; Belfry writes a
-  `github-issues` project's proposals itself, so the issues storage refuses it.
+  `github-issues` project's proposals itself, so the issues storage refuses it. Belfry also
+  sends the board's milestone actions, the Desk's Dismiss and `task_defer` through it.
 - The board's `after_deploy` list (pull requests a task waits on) is Belfry's contract
   too: Peal passes it through and never reads it.
 - `/peal:work NNNN` notices it is already inside NNNN's worktree and skips its own claim.
