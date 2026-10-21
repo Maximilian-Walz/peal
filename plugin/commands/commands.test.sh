@@ -168,8 +168,6 @@ check "close: step 6 handles conflict: true" "1" "$(has6 '`conflict: true`')"
 check "close: step 6 reruns a flaky failure only after the run has finished" "1" "$(has6 'rerun only once the whole run has finished')"
 check "close: step 6 reruns the failed jobs once" "1" "$(has6 'gh run rerun <run-id> --failed` once')"
 
-finish
-
 # plan: auto (0164): the planner sorts its questions, /peal:work asks only the human's,
 # merge: auto only on the human's word, a skipped plan's model, escalation, the reviewer.
 flat() { tr '\n' ' ' <"$1" | tr -s ' '; }
@@ -195,3 +193,5 @@ check "close: a second blocking round goes to the stronger model" "1" \
   "$(flat "$commands/close.md" | grep -c -F 'the next implementer run uses the stronger model')"
 check "reviewer: a planner decision that was the human's is blocking" "1" \
   "$(flat "$agents/reviewer.md" | grep -c -F 'is a blocking finding, because the human never saw it')"
+
+finish

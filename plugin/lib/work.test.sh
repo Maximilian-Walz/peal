@@ -150,6 +150,7 @@ record() {
   new_repo "sizes: {S: 10, M: 20, L: 30}"
   task 1 planned-task plan=required milestone=m1
   task 2 other-task
+  task 3 auto-planned plan=auto
   wt=$(claim 1)
   # After the fixtures' own commits on main, which the gates would refuse.
   at "$work" "$PEAL" hooks install >/dev/null
@@ -186,6 +187,13 @@ record() {
   check "record: the plan recorded" "0" "$status"
   check "record: the plan is agreed" "PLAN agreed
 MODEL implementer opus" "$(at "$wt" "$PEAL" work | grep -e PLAN -e implementer)"
+  # plan: auto with a filled Plan is agreed too.
+  local wt3
+  wt3=$(claim 3)
+  at "$wt3" "$PEAL" read "$(id 3)" | with_plan "Build it, the planner agreed." >"$wt3/.agreed"
+  at "$wt3" "$PEAL" record "$(id 3)" plan <"$wt3/.agreed" >/dev/null 2>&1
+  rm -f "$wt3/.agreed"
+  check "record: auto with a Plan is agreed" "PLAN agreed" "$(at "$wt3" "$PEAL" work | sed -n 2p)"
   check "record: the plan in the task's text" "Build it with a loop." \
     "$(at "$wt" "$PEAL" read "$(id 1)" | peal_text_section Plan | grep Build)"
   check "record: the size in its frontmatter" "S" \
