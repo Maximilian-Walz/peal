@@ -51,6 +51,7 @@ changes, plus the whole-repo reference checks. No check is removed or weakened;
   `reference_problems` runs for every mutant (A6). The `ci.yml` timing comment is left
   stale and mentioned in the Outcome (A4). The pre-0119 time is the older harness on
   the older documents, reported as such (A7). merge: auto agreed.
+- 2026-10-21, implementer, timings (real/user/sys): origin/main before 5m46.7s / 1m33.8s / 4m33.9s; pre-0119 (ad16567^1, own harness, 26 checks) 2m36.3s / 0m47.3s / 2m11.6s; after 0m36.4s / 0m10.2s / 0m30.3s.
 
 ## Plan
 
