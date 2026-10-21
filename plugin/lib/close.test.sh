@@ -515,7 +515,7 @@ rerun_cases() {
     "$(sentinel)|$(git -C "$wt" log -1 --format=%s)|$(prs)"
   git -C "$wt" remote set-url origin "$url"
   printf 'POST repos/*/pulls' >"$FAKE_GH/fail"
-  check_fails "rerun: the pull request fails" 1 "gh pr create --base main" close_finish
+  check_fails "rerun: the pull request fails" 1 "  gh pr create --base main" close_finish
   check "rerun: pushed, still armed" "0|armed" "$(git -C "$wt" rev-list --count '@{upstream}..HEAD')|$(sentinel)"
   rm "$FAKE_GH/fail"
   out=$(close_finish 2>&1)
