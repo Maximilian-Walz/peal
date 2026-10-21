@@ -3,6 +3,7 @@ milestone: m3
 plan: skipped
 size: M
 depends: [0133]
+priority: high
 ---
 
 # 0160 — `apply`'s `depends` gives this clone's live claim back

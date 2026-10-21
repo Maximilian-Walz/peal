@@ -2,6 +2,7 @@
 plan: skipped
 depends: [0150]
 touches: [.peal/config.yml]
+milestone: m3
 ---
 
 # 0157 — Turn on pr.security for this repository
