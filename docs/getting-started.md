@@ -43,9 +43,6 @@ Merge that branch into your main branch before you go on. Setup offers to open t
 request for you. This matters because Peal starts every task from the main branch, so a
 task cannot begin until the setup is there.
 
-`.peal/peal` is the launcher setup wrote; the plain `peal` command exists only inside
-Claude Code. If you merged on GitHub, update your checkout first.
-
 Setup works in stages, and this first one, `tasks`, is all you need. Later you can add
 guards for commit messages, milestones, or Belfry (a separate tool that runs Claude Code
 sessions unattended). [Setting up in stages](guides/setting-up.md) lists them and how
