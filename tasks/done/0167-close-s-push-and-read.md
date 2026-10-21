@@ -102,4 +102,18 @@ Ranges: `plugin/lib/close.sh:487-628`, `close.sh:662-674`, `close.sh:700-712`, `
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Built: no push Peal makes from a task branch records an upstream any more. That covers claim, resumed claim, the session-end autosave and close finish. A sandbox's read-only `.git/config` (a `config.lock` left in place) therefore no longer makes these pushes print git's raw "could not lock config file" / "unable to write upstream branch configuration" lines and the misleading hint. Finish's 0101 NOTE about the unrecorded upstream is deleted.
+- `_peal_close_remote_ref` moved to `plugin/lib/common.sh` as `peal_remote_ref BRANCH REMOTE`: the upstream when one exists (a harness may set it), else `refs/remotes/REMOTE/BRANCH`. Close (finish, Stop hook, verify) and the session-end autosave's "pushed?" check use it. Release's own inline fallback in `claim.sh` was left alone.
+- A branch claimed now has no upstream, so a bare `git push` in a claim worktree fails with "no upstream branch". The Stop hook therefore adds "Push the branch with: git push REMOTE BRANCH" when it reports an unpushed branch, and `/peal:close`'s push mentions name the explicit command.
+- Traced: neither `peal brief` nor `peal check` writes `.git/config`. The reported lock lines came from finish's `push -u` (printed right after `checks.close`) and from the sandbox's own `config.lock` handling. Both commands get a locked-config harness case and no code change.
+- Step 6 of `/peal:close` already waits with a harness's CI-wait tool on main, and `docs/design.md` records naming that tool as a deliberate exception. The human chose to leave both as they are.
+
+Verified:
+- Locked-config harness cases cover each push site: claim and resume in `claim.test.sh`, autosave in `session.test.sh`, finish with and without a preset upstream in `close.test.sh`, plus brief and check. Each asserts no lock, `error:` or `hint:` lines, the remote updated, and no `branch.<b>.merge` written.
+- Existing `@{upstream}` and bare-push assertions now push `origin HEAD` or count against the tracking ref. `gone_claim` sets an upstream by hand for the release cases about removing one.
+- These harnesses pass: claim 342/0, session 165/0, close 1323/0, decisions 564/0, backlog 309/0. `tools/lint.sh` passes.
+- `tools/test-all.sh` did not finish within the session's 10-minute limit; CI runs the full set.
+
+Left: `peal_hooks_ensure`'s first `core.hooksPath` write can still hit a locked config (idea queued, filed with this close). Task 0168 edits the same autosave and finish-push blocks; it should merge main in after this lands.
+
+The reviewer found nothing to act on.
