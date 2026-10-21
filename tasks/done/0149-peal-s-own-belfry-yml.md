@@ -220,4 +220,16 @@ Ranges: `.belfry.yml:1-46`, `docs/security.md:28-336`, `.github/workflows/ci.yml
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Peal's own `.belfry.yml` now uses Belfry's merge tiers and actions; `tasks:` is unchanged.
+
+- **Merges by itself** with `shellcheck`, `harnesses (ubuntu-latest)` and `harnesses (macos-latest)` green: task-file and milestone-only pull requests, docs-only ones (both capped at 400 lines), and tasks marked `merge: auto`.
+- **Review tier:** the guard code docs/security.md names, plus `CLAUDE.md`, `plugin/commands/*.md`, `plugin/agents/*.md`, `tools/lint.test.sh` and `tools/install.test.sh`, merges by itself only once a fresh `security-pr` run passed on the head, then 1h with Hold.
+- **Never tier**, always the human's merge (and `security-pr` runs for them too): hooks, launcher, githook, git guard, session, main-write, ship, hostile harness, `release.md`, plugin and marketplace manifests, `.peal/**`, CI-change and pin tooling, docs/security.md, SECURITY.md, and `plugin/lib/init.test.sh`, on top of Belfry's own guards.
+- **Actions:** milestone-review, release (button only, single), plan and triage. Plan and triage have a threshold of 10, and their Monday schedules stay off until the human turns them on. Their `threshold` triggers start runs by themselves once this is on main, at most once a day.
+- docs/security.md no longer says a human merges everything. Its new "Auto-merge tiers" section names the tiers.
+
+Checked: `belfry check .` printed `.belfry.yml: ok`. The reviewer matched all 40 Guard:/Harness: paths in docs/security.md against the tiers and Belfry's guards with a script: none is uncovered, and every tier entry matches a tracked file. The check names match `.github/workflows/ci.yml`. `tools/docs.test.sh` and `tools/lint.sh` pass.
+
+Left, as the human agreed: a task-files-only pull request can set `merge: auto` on another task, whose later pull request then merges itself. Filed as an idea (gate-task-files-merge-auto), together with a harness that keeps the tiers in step with docs/security.md (harness-tiers-cover-security-paths). The missing `Security:` line in `/peal:close`'s pull request body is still a task of its own and is not filed here.
+
+Next session: a guard file added to docs/security.md must join a tier in `.belfry.yml` by hand until that harness exists.
