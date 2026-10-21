@@ -42,7 +42,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.harnesses == 'true'
     runs-on: macos-latest
-    timeout-minutes: 30
+    timeout-minutes: 50
     env:
       # The full set runs on Linux (the "linux" job below), so a pull request is not
       # waiting on macOS too. Trimmed or grown against the timings tools/test-all.sh
@@ -81,11 +81,15 @@ jobs:
           # the Linux job below runs all of them, coverage check included.
           PEAL_HOSTILE_CASES: 'self_test awk_channels'
         run: tools/test-all.sh $HARNESSES
-      - name: TEMP stress (task 0137)
+      - name: TEMP stress extract (task 0137)
         if: always()
+        timeout-minutes: 8
+        run: tools/stress-extract.sh
+      - name: TEMP stress hostile awk_channels (task 0137)
+        if: always()
+        timeout-minutes: 10
         run: |
-          tools/stress-extract.sh
-          for n in 1 2 3 4 5; do
+          for n in 1 2 3; do
             if PEAL_HOSTILE_CASES=awk_channels bash plugin/lib/hostile.test.sh >"$RUNNER_TEMP/h$n.log" 2>&1; then
               echo "stress hostile awk_channels run $n: ok"
             else

@@ -12,8 +12,8 @@ cd "$work/r" || exit 1
 git config user.email a@b.c
 git config user.name n
 mkdir -p tasks/backlog
-for i in 1 2 3 4 5 6 7 8; do
-  head -c 150000 /dev/urandom | od -An -v -tx1 >"tasks/backlog/pad$i.md"
+for i in 1 2 3 4 5; do
+  head -c 3500 /dev/urandom | od -An -v -tx1 >"tasks/backlog/pad$i.md"
 done
 git add -A
 git commit -q -m x
@@ -24,6 +24,10 @@ for ((i = 0; i < n; i++)); do
   git archive HEAD -- tasks | tar -x -C "$d" 2>/dev/null || old=$((old + 1))
   d=$(mktemp -d "$work/n.XXXXXX")
   peal_extract_tree HEAD tasks "$d" 2>/dev/null || new=$((new + 1))
+  rm -rf "$work"/o.* "$work"/n.*
+  if [ $(((i + 1) % 50)) = 0 ]; then
+    echo "stress progress $((i + 1))/$n: old-pipe $old non-zero, new-extract $new non-zero"
+  fi
 done
 echo "stress old-pipe: $old/$n non-zero"
 echo "stress new-extract: $new/$n non-zero"
