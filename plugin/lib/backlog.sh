@@ -112,15 +112,16 @@ peal_revise() {
 # --origin outsider is refused there. Refused (status 2), nothing written: an
 # option other than --owner, --title or --origin, either --owner or --title missing or
 # given twice, --origin given twice, OWNER not ai or human, ORIGIN not outsider or
-# writer, a slug of one word, no text on stdin, or a text that sets merge (only a human,
+# writer, a slug of one word, no text on stdin, a text that sets merge (only a human,
 # editing the task itself, earns merge: auto) or holds the task delimiter (one task at a
-# time here). PEAL_MAIN_WRITE_BUDGET is capped to about 90s unless the caller set it, so
+# time here), or an outsider's text with a filled "## Plan" or "## Outcome"
+# (peal_text_human_section). PEAL_MAIN_WRITE_BUDGET is capped to about 90s unless the caller set it, so
 # a caller waiting on this synchronously does not hang; an open pull request at that cap
 # still counts as filed, status 0 like a merged one (the storage's own status 3 would
 # read as "not filed, retry" to a caller and file it twice). Prints the storage's own
 # lines, then "filed: <id>" as the very last line.
 peal_create_filed() {
-  local owner="" title="" origin="" origin_given="" slug words tmp outfile out status=0 id
+  local owner="" title="" origin="" origin_given="" slug words tmp outfile out status=0 id sec
   while [ $# -gt 0 ]; do
     case $1 in
       --owner)
@@ -180,6 +181,11 @@ peal_create_filed() {
   fi
   if [ -n "$(peal_fm_get "$tmp" merge 2>/dev/null)" ]; then
     peal_err "create: the text sets merge; only a human, editing the task itself, sets merge: auto"
+    rm -f "$tmp"
+    return 2
+  fi
+  if [ "$origin" = outsider ] && sec=$(peal_text_human_section <"$tmp"); then
+    peal_err "create: an outsider's text holds a filled '## $sec'; only the human's agreement writes one"
     rm -f "$tmp"
     return 2
   fi

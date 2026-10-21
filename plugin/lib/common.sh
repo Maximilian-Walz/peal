@@ -165,6 +165,19 @@ peal_git_try() {
   return $status
 }
 
+# peal_remote_ref BRANCH REMOTE -> where BRANCH is on REMOTE: its upstream when one is
+# recorded, else the remote-tracking ref a push updates without writing config (a
+# sandbox can lock the config); status 1 and nothing when neither exists.
+peal_remote_ref() {
+  if git rev-parse -q --verify "$1@{upstream}" >/dev/null; then
+    echo "$1@{upstream}"
+  elif git rev-parse -q --verify "refs/remotes/$2/$1" >/dev/null; then
+    echo "refs/remotes/$2/$1"
+  else
+    return 1
+  fi
+}
+
 # peal_valid_date DATE -> status 0 for a real calendar date, YYYY-MM-DD (next's declined
 # dates, apply's milestone due).
 peal_valid_date() {

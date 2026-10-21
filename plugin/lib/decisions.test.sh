@@ -456,7 +456,7 @@ docs(decisions): record 0001 [0001]" "$(git -C "$wt" log -2 --format=%s)"
   fi
   check "close: the entry alone in it" "$DEC/0001-built-a-txt.md" \
     "$(git -C "$wt" log -1 --format= --name-only --grep '^docs(decisions)')"
-  check "close: clean and pushed" "|0" "$(git -C "$wt" status --porcelain)|$(git -C "$wt" rev-list --count '@{upstream}..HEAD')"
+  check "close: clean and pushed" "|0" "$(git -C "$wt" status --porcelain)|$(git -C "$wt" rev-list --count "refs/remotes/origin/$(git -C "$wt" symbolic-ref --short HEAD)..HEAD")"
 
   # The commit gate: a (decisions) commit is always allowed, and holds only entries.
   entry "$wt" 0002 another-call

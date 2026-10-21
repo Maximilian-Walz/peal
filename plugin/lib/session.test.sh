@@ -120,7 +120,7 @@ budget() {
 }
 
 autosave() {
-  local work wt before
+  local work wt before lock
   work=$(peal_repo)
   put "$work" backlog 0001 saved-task
   (cd "$work" && "$PEAL" claim 0001) >/dev/null 2>&1
@@ -152,12 +152,20 @@ autosave() {
   hook "$wt" session-end '{"reason":"logout"}' >/dev/null
   check "autosave: an unpushed commit pushed" "$(git -C "$wt" rev-parse HEAD)" "$(remote_tip)"
 
-  # No upstream yet: pushed and tracked.
-  git -C "$wt" branch -q --unset-upstream
+  # No upstream, and a locked config: pushed by the tracking ref, no lock line, no upstream
+  # written; a second run pushes nothing.
+  git -C "$wt" branch -q --unset-upstream 2>/dev/null
   git -C "$wt" commit -q --allow-empty -m "wip: untracked"
+  lock=$(git -C "$wt" rev-parse --path-format=absolute --git-common-dir)/config.lock
+  : >"$lock"
   hook "$wt" session-end '{"reason":"other"}' >/dev/null
   check "autosave: no upstream, pushed" "$(git -C "$wt" rev-parse HEAD)" "$(remote_tip)"
-  check "autosave: and tracked" "origin/task/0001-saved-task" "$(git -C "$wt" rev-parse --abbrev-ref '@{upstream}')"
+  check "autosave: no upstream written" "" "$(git -C "$wt" config branch.task/0001-saved-task.merge)"
+  check "autosave: no lock line in the log" "0" "$(grep -c 'could not lock\|unable to write\|error:' "$(git -C "$wt" rev-parse --absolute-git-dir)/peal-session-end.log")"
+  before=$(remote_tip)
+  hook "$wt" session-end '{"reason":"other"}' >/dev/null
+  rm -f "$lock"
+  check "autosave: a second run pushes nothing" "$before" "$(remote_tip)"
 
   # The main checkout is no task's: nothing is committed there.
   echo stray >"$work/stray.txt"

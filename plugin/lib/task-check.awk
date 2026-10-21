@@ -68,8 +68,8 @@ END {
   if (mode == "revise" && m != oldms && oldms != "" && msstate[oldms] == "parked")
     problem("milestone " oldms " is parked; only a milestone review moves a task out of it")
 
-  if (("plan" in kind) && single("plan") && value["plan"] !~ /^(required|skipped)?$/)
-    problem("plan " value["plan"] " is not required or skipped")
+  if (("plan" in kind) && single("plan") && value["plan"] !~ /^(required|auto|skipped)?$/)
+    problem("plan " value["plan"] " is not skipped, auto or required")
   if (("size" in kind) && single("size") && value["size"] != "" && !(value["size"] in sizes))
     problem("size " value["size"] " is not one of the sizes setting's tiers")
   if ("model" in kind) single("model")

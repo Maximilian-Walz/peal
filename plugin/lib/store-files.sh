@@ -1016,7 +1016,7 @@ peal_store_claim() {
     rm -f "$err"
     return 2
   fi
-  if ! LC_ALL=C git -C "$wt" push -q -u "$PEAL_REMOTE" "$branch" 2>"$err"; then
+  if ! LC_ALL=C git -C "$wt" push -q "$PEAL_REMOTE" "$branch" 2>"$err"; then
     if [ -n "$(git ls-remote "$PEAL_REMOTE" "refs/heads/$PEAL_PREFIX$id-*" 2>/dev/null)" ]; then
       peal_err "claim: task $id was claimed elsewhere first: the push of $branch lost the race; taken back"
       status=3
@@ -1055,7 +1055,7 @@ _peal_files_resume() {
   else
     ahead=1
   fi
-  if [ "$ahead" -gt 0 ] && ! peal_git_try git -C "$wt" push -q -u "$PEAL_REMOTE" "$branch"; then
+  if [ "$ahead" -gt 0 ] && ! peal_git_try git -C "$wt" push -q "$PEAL_REMOTE" "$branch"; then
     peal_err "warning: resumed $branch, but could not push it${PEAL_GIT_ERR:+ ($PEAL_GIT_ERR)}; until it is pushed, the claim holds on this machine only"
   fi
   PEAL_CLAIM_PATH=$(cd "$wt" && pwd -P)

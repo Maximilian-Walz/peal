@@ -580,12 +580,12 @@ peal_close_finish() {
   fi
 
   branch=$(git symbolic-ref -q --short HEAD) || return 2
-  if remote_ref=$(_peal_close_remote_ref "$branch") && [ "$(git rev-parse HEAD)" = "$(git rev-parse "$remote_ref")" ]; then
+  if remote_ref=$(peal_remote_ref "$branch" "$PEAL_REMOTE") && [ "$(git rev-parse HEAD)" = "$(git rev-parse "$remote_ref")" ]; then
     # Already on the remote: a session pushed it itself, or an earlier finish got
     # this far. Nothing to push, so nothing that could hang reaching the remote.
     set --
   else
-    set -- git push -q -u "$PEAL_REMOTE" "$branch"
+    set -- git push -q "$PEAL_REMOTE" "$branch"
   fi
   repo=$(peal_github_repo) || return 2
   if ! out=$(peal_gh "repos/$repo/pulls?state=open&head=${repo%%/*}:$(peal_urlencode "$branch")" \
@@ -608,10 +608,6 @@ peal_close_finish() {
   if [ $# -gt 0 ] && ! "$@"; then
     peal_err "close finish: the push failed (above): the close is committed here, not on $PEAL_REMOTE. Run finish again once it can push."
     return 1
-  fi
-  if [ $# -gt 0 ] && ! git rev-parse -q --verify "$branch@{upstream}" >/dev/null; then
-    # git exits 0 when only the upstream write failed (a locked config in a sandbox).
-    echo "NOTE: pushed; the upstream could not be recorded (above), so verify and wait compare with $PEAL_REMOTE/$branch"
   fi
 
   body=$gitdir/$PEAL_CLOSE_BODY
@@ -679,9 +675,9 @@ _peal_close_remote_check() {
   local branch=$1 ref name tip c
   PEAL_REMOTE_MERGE=""
   peal_git_try git fetch -q "$PEAL_REMOTE" "$branch" \
-    || { ! _peal_close_remote_ref "$branch" >/dev/null \
+    || { ! peal_remote_ref "$branch" "$PEAL_REMOTE" >/dev/null \
          || peal_err "warning: could not fetch $PEAL_REMOTE/$branch${PEAL_GIT_ERR:+ ($PEAL_GIT_ERR)}; comparing with what is known here"; }
-  ref=$(_peal_close_remote_ref "$branch") || return 0
+  ref=$(peal_remote_ref "$branch" "$PEAL_REMOTE") || return 0
   git merge-base --is-ancestor "$ref" HEAD && return 0
   name=$(git rev-parse --abbrev-ref "$ref" 2>/dev/null) || name=$ref
   if git merge-base --is-ancestor HEAD "$ref"; then
@@ -699,26 +695,12 @@ _peal_close_remote_check() {
   return 2
 }
 
-# _peal_close_remote_ref BRANCH -> where BRANCH is on the remote: its upstream when one is
-# recorded, else the remote-tracking ref a push updates without writing config (a
-# sandbox can lock the config); status 1 and nothing when neither exists. Needs
-# PEAL_REMOTE.
-_peal_close_remote_ref() {
-  if git rev-parse -q --verify "$1@{upstream}" >/dev/null; then
-    echo "$1@{upstream}"
-  elif git rev-parse -q --verify "refs/remotes/$PEAL_REMOTE/$1" >/dev/null; then
-    echo "refs/remotes/$PEAL_REMOTE/$1"
-  else
-    return 1
-  fi
-}
-
 # peal_close_stop -> the Stop hook: silent unless a close is in progress here; then status
 # 2 and why on stderr (which Claude Code shows the session) while the Outcome is empty or
 # holds a placeholder, or work is uncommitted or unpushed. Never twice in a row (Claude
 # Code's stop_hook_active), and a sentinel another session left is cleared, not enforced.
 peal_close_stop() {
-  local gitdir sentinel session id text problems=() branch ahead remote_ref
+  local gitdir sentinel session id text problems=() branch ahead remote_ref pushcmd=
   [ "$(peal_hook_field stop_hook_active)" != true ] || return 0
   peal_hook_project || return 0
   gitdir=$(_peal_close_gitdir) || return 0
@@ -742,17 +724,22 @@ peal_close_stop() {
   [ -z "$(peal_status_porcelain 2>/dev/null)" ] || problems+=("work is uncommitted (git status)")
   if branch=$(git symbolic-ref -q --short HEAD); then
     PEAL_REMOTE=$(peal_config_get remote 2>/dev/null) || PEAL_REMOTE=origin
-    if ! remote_ref=$(_peal_close_remote_ref "$branch"); then
+    if ! remote_ref=$(peal_remote_ref "$branch" "$PEAL_REMOTE"); then
       problems+=("$branch was never pushed")
+      pushcmd="git push $PEAL_REMOTE $branch"
     else
       ahead=$(git rev-list --count "$remote_ref..$branch" 2>/dev/null)
-      [ "${ahead:-0}" = 0 ] || problems+=("$ahead commit(s) of $branch are not pushed")
+      if [ "${ahead:-0}" != 0 ]; then
+        problems+=("$ahead commit(s) of $branch are not pushed")
+        pushcmd="git push $PEAL_REMOTE $branch"
+      fi
     fi
   fi
   [ ${#problems[@]} -gt 0 ] || return 0
   {
     echo "Peal: the close of task $id is in progress (peal close begin) and not finished:"
     printf '  - %s\n' "${problems[@]}"
+    [ -z "$pushcmd" ] || echo "Push the branch with: $pushcmd"
     echo "Finish it: write the Outcome, then peal close finish. If the close is off, peal close abort REASON."
   } >&2
   return 2
@@ -796,7 +783,7 @@ _peal_close_verify() {
   [ ! -f "$gitdir/$PEAL_CLOSE_SENTINEL" ] || { echo "BLOCKED:close-unfinished"; return 1; }
   [ -z "$(peal_status_porcelain)" ] || { echo "BLOCKED:uncommitted"; return 1; }
   PEAL_REMOTE=$(peal_config_get remote) || { echo "BLOCKED:no-settings"; return 1; }
-  remote_ref=$(_peal_close_remote_ref "$branch") || { echo "BLOCKED:not-pushed"; return 1; }
+  remote_ref=$(peal_remote_ref "$branch" "$PEAL_REMOTE") || { echo "BLOCKED:not-pushed"; return 1; }
   ahead=$(git rev-list --count "$remote_ref..$branch")
   [ "$ahead" = 0 ] || { echo "BLOCKED:unpushed"; return 1; }
   command -v gh >/dev/null 2>&1 || { echo "BLOCKED:no-gh"; return 1; }

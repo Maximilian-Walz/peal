@@ -12,8 +12,13 @@ for what a script can decide and keeps the judgement for itself. The reasons are
   claims nothing. Elsewhere four digits claim that task; a pool, or nothing (the pool
   `current,unassigned`), offers the best tasks through `AskUserQuestion`.
 - A task with `owner: human` is refused; `peal claim` still makes its worktree.
-- After a claim the session enters the worktree. The planner runs when the plan is
-  required, and the session stops for the human to agree it.
+- After a claim the session enters the worktree. The planner runs for `plan: auto`
+  and `required`. Under `required` the session stops for the human to agree the whole
+  plan; under `auto` it asks only the planner's human questions (the planner may raise
+  the task to `required`) and builds at once when there is none, listing the planner's
+  decisions under `## Notes`. `skipped` has no planner: the session picks the
+  implementer's model by the planner's rule. An implementer that stops on the default
+  model is followed once by one on the stronger model (`models.planner`).
 - The agreed plan goes into the task's `## Plan`, with the size, a non-default `model`,
   the planner's `touches` and, only on the human's word, `merge: auto`.
   `peal record ID plan` puts the text on the claim.
@@ -43,7 +48,8 @@ its `## Done when` holds, or once it is decided against.
 pass, asking nothing.
 
 - `milestone`: the current one, only with direct evidence; else none, never a parked one.
-- `plan` from `plan.required-paths`; `size` left to the planner; `priority` only when the
+- `plan`: `required` from `plan.required-paths`, `skipped` for plainly trivial work,
+  `auto` otherwise; `size` left to the planner; `priority` only when the
   idea says so plainly.
 - On a task branch the idea is queued and filed when the task closes. Elsewhere it is
   filed at once.

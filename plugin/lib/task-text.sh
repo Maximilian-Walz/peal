@@ -53,6 +53,22 @@ peal_text_section_filled() {
     END { exit !filled }'
 }
 
+# peal_text_human_section -> the first of Plan and Outcome filled in the task text on
+# stdin, status 0, or status 1 when neither is: the sections only the human's agreement
+# (or the close) writes, which an outsider's filed text may not bring (docs/security.md,
+# "Hostile prose is read, never run"): a filled Plan reads as agreed to peal work.
+peal_text_human_section() {
+  local text sec
+  text=$(cat)
+  for sec in Plan Outcome; do
+    if printf '%s\n' "$text" | peal_text_section_filled "$sec"; then
+      printf '%s\n' "$sec"
+      return 0
+    fi
+  done
+  return 1
+}
+
 # peal_text_outcome_placeholder -> status 0 if "## Outcome" still holds an HTML comment,
 # the template's placeholder or a note left in it, outside any indented (quoted) block: an
 # idea copied out of the queue by hand and indented into the Outcome carries its own
