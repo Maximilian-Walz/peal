@@ -140,7 +140,7 @@ $wt" "$?:$out"
   check "claim: the file in doing/" "tasks/doing/0001-first-task.md" "$(git -C "$wt" ls-files tasks/doing)"
   check "claim: the commit" "docs(tasks): claim 0001 first-task [0001]" "$(git -C "$wt" log -1 --format=%s)"
   check "claim: pushed" "refs/heads/task/0001-first-task" "$(on_remote task/0001-first-task)"
-  check "claim: tracks the remote" "origin/task/0001-first-task" "$(git -C "$wt" rev-parse --abbrev-ref '@{upstream}')"
+  check "claim: no upstream recorded, the tracking ref at HEAD" "|$(git -C "$wt" rev-parse HEAD)" "$(git -C "$wt" config branch.task/0001-first-task.merge)|$(git -C "$wt" rev-parse refs/remotes/origin/task/0001-first-task)"
   check "claim: the caller untouched" "$head:" "$(git -C "$work" rev-parse HEAD):$(git -C "$work" status --porcelain)"
   check "claim: listed" "0001 claimed-live first-task wt:$wt" "$(state_of 0001)"
   check "claim: the turn budget at zero" "0" "$(cat "$(admin "$wt")/peal-turns")"
@@ -170,7 +170,7 @@ $wt" "$?:$out"
   mkdir -p "$wt/tasks/done"
   git -C "$wt" mv tasks/doing/0001-first-task.md tasks/done/
   git -C "$wt" commit -q -m close
-  git -C "$wt" push -q 2>/dev/null
+  git -C "$wt" push -q origin HEAD 2>/dev/null
   check_refused "claim: awaiting merge" "task 0001 is finished and awaits the merge" peal claim 0001
 
   # A worktree in the way.
@@ -251,6 +251,42 @@ $wt" "$?:$out"
   put "$work" backlog 0002 stale-task
   git -C "$work" branch -q task/0002-stale-task origin/main
   check_refused "resume: a stale branch" "holds nothing beyond main" peal claim 0002
+}
+
+# locked_cases -> a claim and a resumed claim in a sandbox whose .git/config cannot be
+# locked: they push without -u, so git prints no config-lock lines, the remote and the
+# tracking ref are at HEAD and no upstream is written.
+locked_cases() {
+  local work wt out status lock b noise
+  work=$(repo)
+  noise='could not lock\|unable to write\|^error:\|^hint:'
+  put "$work" backlog 0001 locked-new
+  put "$work" backlog 0002 locked-resumed
+  peal hooks install >/dev/null 2>&1
+  lock=$(git -C "$work" rev-parse --path-format=absolute --git-common-dir)/config.lock
+  : >"$lock"
+  wt=$(dirname "$work")/work-wt/0001-locked-new
+  b=task/0001-locked-new
+  out=$(peal claim 0001 2>&1)
+  status=$?
+  check "locked claim: exit 0, no raw git lines" "0|0" "$status|$(printf '%s\n' "$out" | grep -c "$noise")"
+  check "locked claim: remote and tracking ref at HEAD, no upstream" "1|1|" "$([ "$(on_remote $b | wc -l)" = 1 ] && echo 1)|$([ "$(git -C "$wt" rev-parse HEAD)" = "$(git -C "$wt" rev-parse refs/remotes/origin/$b)" ] && echo 1)|$(git -C "$wt" config branch.$b.merge)"
+
+  rm -f "$lock"
+  peal claim 0002 >/dev/null 2>&1
+  wt=$(dirname "$work")/work-wt/0002-locked-resumed
+  b=task/0002-locked-resumed
+  echo work >"$wt/work.txt"
+  git -C "$wt" add work.txt
+  git -C "$wt" commit -q -m "wip: some work"
+  git -C "$work" worktree remove "$wt"
+  git -C "$work" config --remove-section "branch.$b" 2>/dev/null
+  : >"$lock"
+  out=$(peal claim 0002 2>&1)
+  status=$?
+  rm -f "$lock"
+  check "locked resume: exit 0, no raw git lines" "0|0" "$status|$(printf '%s\n' "$out" | grep -c "$noise")"
+  check "locked resume: pushed, no upstream" "$(git -C "$wt" rev-parse HEAD)|" "$(git -C "$work" ls-remote origin refs/heads/$b | cut -f1)|$(git -C "$wt" config branch.$b.merge)"
 }
 
 worktree_setup() {
@@ -355,7 +391,7 @@ release() {
   git -C "$wt" add scratch.txt
   git -C "$wt" commit -q -m "wip: scratch"
   check_refused "release: unpushed" "stays: its branch holds commits not pushed" peal release 0001
-  git -C "$wt" push -q 2>/dev/null
+  git -C "$wt" push -q origin HEAD 2>/dev/null
   check "release: nothing removed so far" "1" "$([ -d "$wt" ] && echo 1)"
 
   # An untracked symlink to /dev/null does not count as dirty.
@@ -503,6 +539,10 @@ $wt" "$out"
 gone_claim() {
   put "$work" backlog "$1" "$2"
   peal claim "$1" >/dev/null 2>&1
+  # A claim records no upstream (it is pushed without -u); these cases are about the
+  # release removing one, so set it as a session's own push -u would have.
+  git -C "$work" config "branch.task/$1-$2.remote" origin
+  git -C "$work" config "branch.task/$1-$2.merge" "refs/heads/task/$1-$2"
   land "$work" "$1" "$2"
 }
 
@@ -578,6 +618,7 @@ cases() {
   claim
   race
   resume
+  locked_cases
   worktree_setup
   overlap
   release
