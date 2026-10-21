@@ -461,9 +461,10 @@ awk_channels() {
     if try_runs; then
       t=$(hostile_text)
       t=$(json_escape "${t//@/${H[i]}}")
-      printf '{"proposals": [{"id": "%s", "kind": "add", "task": "0002", "text": "%s", "why": "%s"},
+      printf '{"proposals": [{"id": "%s", "kind": "add", "task": "0002", "text": "%s", "why": "%s", "origin": "outsider"},
+        {"id": "v", "kind": "vouch", "task": "0002", "why": "%s"},
         {"id": "f", "kind": "file", "title": "Hostile %s", "text": "%s", "milestone": "%s"}]}' \
-        "$v" "$v" "$v" "$v" "$t" "$v" >"$INPUT"
+        "$v" "$v" "$v" "$v" "$v" "$t" "$v" >"$INPUT"
     fi
     try "apply, escaped values [${H_NAMES[i]}]" "$WORK" apply
     # The milestone kinds: a title, a goal and a reason, stored or refused.
@@ -473,13 +474,15 @@ awk_channels() {
       "$v" "$v" "$v" "$v" "$v" >"$INPUT"
     try "apply, escaped milestone values [${H_NAMES[i]}]" "$WORK" apply
     # A split: the hostile value as an item of tasks, as from and as the title.
-    try_runs && printf '{"proposals": [{"id": "x", "kind": "split_milestone", "milestone": "%s", "tasks": ["%s", "%s"], "title": "%s", "goal": "%s"}]}' \
-      "$v" "$v" "$v" "$v" "$v" >"$INPUT"
+    try_runs && printf '{"proposals": [{"id": "x", "kind": "split_milestone", "milestone": "%s", "tasks": ["%s", "%s"], "title": "%s", "goal": "%s"},
+      {"id": "v", "kind": "vouch", "task": "%s"}]}' \
+      "$v" "$v" "$v" "$v" "$v" "$v" >"$INPUT"
     try "apply, escaped split values [${H_NAMES[i]}]" "$WORK" apply
   done
   each_input "apply, raw milestone values" "$WORK" '{"proposals": [{"id": "@", "kind": "milestone_create", "title": "@", "goal": "@", "due": "@", "order": "@"},
     {"id": "s", "kind": "milestone_state", "milestone": "@", "state": "@", "reason": "@"}]}' apply
-  each_input "apply, raw split values" "$WORK" '{"proposals": [{"id": "@", "kind": "split_milestone", "milestone": "@", "tasks": ["@", "@"], "title": "@", "goal": "@"}]}' apply
+  each_input "apply, raw split values" "$WORK" '{"proposals": [{"id": "@", "kind": "split_milestone", "milestone": "@", "tasks": ["@", "@"], "title": "@", "goal": "@"},
+    {"id": "v", "kind": "vouch", "task": "@", "why": "@"}]}' apply
   INPUT=$NOINPUT
   # A new milestone's title and goal land in its file byte for byte. Shard 1's alone.
   local mout mid
