@@ -521,7 +521,14 @@ _pa_resolve() {
 # commits it after the write).
 _pa_load() {
   local id=$1 base=$2 kind=${3-} i=${4-} path top doing branch why
-  [ ! -f "$PA_S/t/$id.text" ] || return 0
+  if [ -f "$PA_S/t/$id.text" ]; then
+    # Loaded already; a claim given back by this batch takes depends proposals only.
+    if [ -f "$PA_S/t/$id.giveback" ] && [ "$kind" != depends ]; then
+      peal_err "apply: task $id is claimed (this worktree's); only a depends proposal gives it back"
+      return 2
+    fi
+    return 0
+  fi
   if [ "$kind" = depends ] && _peal_files_own_claim "$id"; then
     _peal_files_in_backlog "$base" "$id" apply 2>"$PA_DIR/err.find" || { grep -v 'warning:' "$PA_DIR/err.find" >&2; return 2; }
     path=$PEAL_PATH
@@ -537,10 +544,15 @@ _pa_load() {
     cp "$PA_S/t/$id.text" "$PA_S/t/$id.old"
     _pa_get "$i" why
     why=${PA_V//[$'\n\r\t']/ }
-    if [ -z "${why//[ ]/}" ]; then _pa_resolve "$i" on || return 2; why="waits for $PA_RES"; fi
+    if [ -z "${why//[ ]/}" ]; then
+      _pa_resolve "$i" on || return 2
+      why="waits for $PA_RES"
+      ! _pa_removes "$i" || why="no longer waits for $PA_RES"
+    fi
     peal_text_add_note "Deferred $(date -u +%Y-%m-%d) after a claim: $why" <"$PA_S/t/$id.text" >"$PA_S/t/$id.text.n" \
       && mv "$PA_S/t/$id.text.n" "$PA_S/t/$id.text" || return 2
     printf '%s\n' "$doing" >"$PA_DIR/giveback"
+    : >"$PA_S/t/$id.giveback"
     printf '%s\n' "$path" >"$PA_S/t/$id.path"
     echo "$id" >>"$PA_S/order"
     return 0
@@ -1198,12 +1210,14 @@ _pa_finish() {
 # _pa_giveback_capture -> a claim given back by the batch: its uncommitted file here
 # committed as wip, so the worktree can go clean (as peal defer does).
 _pa_giveback_capture() {
-  local doing top
+  local doing top id
   [ -f "$PA_DIR/giveback" ] || return 0
   read -r doing <"$PA_DIR/giveback"
+  id=${doing##*/}
+  id=${id%%-*}
   top=$(peal_project_root) || return 0
   if [ -n "$(git -C "$top" status --porcelain -- "$doing")" ] \
-      && ! git -C "$top" commit -q -m "wip: defer capture" -- "$doing" >/dev/null 2>&1; then
+      && ! git -C "$top" commit -q -m "wip: defer capture [$id]" -- "$doing" >/dev/null 2>&1; then
     peal_err "apply: the claim is given back on $PEAL_REMOTE/$PEAL_MAIN, but $doing could not be committed; commit it before the release"
   fi
 }

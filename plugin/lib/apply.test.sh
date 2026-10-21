@@ -716,6 +716,8 @@ giveback() {
   check "giveback: a claim elsewhere is refused" "1:$before" "$(grep -c 'task 0003 is claimed' <<<"$out"):$(main_sha)"
   out=$(printf '%s' '{"proposals": [{"id": "x", "kind": "priority", "task": "0001", "priority": "low"}]}' | at "$wt" "$PEAL" apply 2>/dev/null)
   check "giveback: another kind on the own claim is refused" "1:$before" "$(grep -c 'task 0001 is claimed' <<<"$out"):$(main_sha)"
+  out=$(printf '%s' '{"proposals": [{"id": "x", "kind": "depends", "task": "0001", "on": "0002"}, {"id": "y", "kind": "priority", "task": "0001", "priority": "low"}]}' | at "$wt" "$PEAL" apply 2>/dev/null)
+  check "giveback: another kind after the depends is refused" "1:$before" "$(grep -c 'task 0001 is claimed' <<<"$out"):$(main_sha)"
   out=$(printf '%s' '{"proposals": [{"id": "x", "kind": "depends", "task": "0001", "on": "0002", "why": "the blocker first"}]}' | at "$wt" "$PEAL" apply 2>/dev/null)
   st=$?
   on_main "$work" tasks/backlog/0001-claimed-task.md >"$work.t"
