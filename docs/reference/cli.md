@@ -470,7 +470,7 @@ The steps of `/peal:close`, in the task's worktree.
 
 Declares the close: a sentinel in the git directory arms the Stop hook.
 
-- Refuses outside a task's worktree, without the git hooks, with more than one task under
+- Refuses outside a task's worktree, without the git hooks (where `guardrails` is set up), with more than one task under
   `doing/`, and on a branch that adds a backlog file.
 - Notes, never refusing: how far the branch is behind main, the paths a merge of main
   would conflict in, milestone files the branch changes, the ideas queued, an empty
@@ -497,7 +497,7 @@ file. `FILE` is the reviewer's report.
   where `pr.security` is set, an empty Outcome or one
   with a placeholder, more than three escalations, a task holding `merge: auto` without
   the report and its `merge-auto:` line, an uncommitted path besides the Outcome, missing
-  git hooks, and a failing `checks.close` command.
+  git hooks (where `guardrails` is set up), and a failing `checks.close` command.
 - Then: files the queued ideas in one push; on `merge-auto: withdraw` removes
   `merge: auto`; commits the move to `done/` as `docs(tasks): close ID [ID]` (empty when
   nothing else changed); marks an open draft pull request ready for review; pushes;
