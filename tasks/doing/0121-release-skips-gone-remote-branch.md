@@ -1,6 +1,8 @@
 ---
 plan: required
 milestone: m3
+size: M
+touches: [plugin/lib/claim.sh, plugin/lib/claim.test.sh, plugin/lib/store-files.sh, plugin/lib/store-issues.sh, plugin/lib/store-issues.test.sh, docs/reference/cli.md]
 ---
 
 # 0121 — Release and the reaper do not warn about a remote branch already gone
@@ -15,7 +17,33 @@ tracking ref, no warning) apart from a real failure (warn as now).
 
 ## Scope
 
+When a release (`peal release` or the session-start reap, both `peal_store_release`)
+fails to delete the remote branch, tell three cases apart:
+
+- already gone on the remote: prune the stale tracking ref, print nothing;
+- the git config is locked (the local branch delete's `branch.<name>` removal): one
+  clear `warning:` line naming the manual fix, no raw git lines;
+- a real failure: warn as now, with git's reason.
+
+The release avoids config writes when the branch has no `branch.<name>` keys. Both
+storages (files, issues). Out of scope: `peal_store_takeover`'s same stale-ref delete
+(filed as an idea at close).
+
 ## Done when
+
+- `claim.test.sh` `release()`: a remote branch deleted behind the clone's back releases
+  with only `released ...`, exit 0, empty stderr, and the stale tracking ref is gone.
+- Locked config (`config.lock`) with an upstream set: the release succeeds, branch gone,
+  tip kept, exactly one line about the locked config, no `error: could not lock` from git.
+- Locked config with no upstream: only `released ...`.
+- Remote URL pointing at a missing path: local release succeeds and prints
+  `warning: could not delete origin/<b> (` plus git's reason.
+- The existing remote-delete case still passes.
+- `claim.test.sh` `reap()`: a landed claim with its remote branch already gone is reaped,
+  and the whole session-start output has no `could not delete` line and no git line.
+- `store-issues.test.sh`: the gone-branch case on the issues storage, same expectations.
+- shellcheck and the full suite green; `docs/reference/cli.md` says a gone remote branch
+  is pruned silently.
 
 ## Raw
 
@@ -31,6 +59,58 @@ tracking ref, no warning) apart from a real failure (warn as now).
   release path, and its twin in `plugin/lib/store-issues.sh`.
 - Open: `git ls-remote` after a failed delete costs a network call; matching the error
   text ("remote ref does not exist") is cheaper but depends on git's wording.
+
+2026-10-21, planning with the human: confirm "already gone" with `git ls-remote
+--exit-code` (status 2), not by matching git's wording; delete the local branch with
+`git update-ref -d` and remove `branch.<name>` only when it has keys, instead of
+`git branch -D`; a locked config gets one `warning:` line naming `git config
+--remove-section branch.<name>`; a real failure's warning adds git's reason;
+`peal_store_takeover`'s same bug is left out and filed as an idea at close. Finding: a
+locked config cannot fail the remote delete; the lock errors come from `git branch -D`
+(exit 0, stderr captured into the reap's output, `claim.sh:532`).
+
+## Plan
+
+1. Shared helpers in `plugin/lib/claim.sh`, beside `peal_release_worktree`:
+   - `peal_release_branch BRANCH TIP`: `git update-ref -d refs/heads/$BRANCH $TIP` (after
+     the worktree is removed or detached, as now); then, only if a `branch.<BRANCH>.*` key
+     exists (`git config --name-only --get-regexp '^branch\.'` with an exact prefix match
+     in awk, no regex built from the name), `LC_ALL=C git config --remove-section
+     branch.$BRANCH` with stderr captured. On `could not lock config file`: one `peal_err`
+     line, `warning: the git config is locked; branch.<B>'s settings stay in it (remove
+     them with git config --remove-section branch.<B>)`; any other failure the same line
+     with git's reason. Neither fails the release.
+   - `peal_release_remote BRANCH TIP`: today's twin block (ancestor check and its warning
+     unchanged); the delete runs under `LC_ALL=C peal_git_try`; on failure
+     `git ls-remote --exit-code "$PEAL_REMOTE" refs/heads/$BRANCH`: status 2 →
+     `git update-ref -d refs/remotes/$PEAL_REMOTE/$BRANCH`, silent; else
+     `warning: could not delete $PEAL_REMOTE/$BRANCH ($PEAL_GIT_ERR)`.
+2. Both `peal_store_release` call the helpers; the duplicated block goes.
+3. Tests first, against the tests' local bare remote: branch deleted on the remote, a
+   `config.lock` (as `close.test.sh:393`), a remote URL at a missing path.
+4. One sentence in `docs/reference/cli.md` under `peal release`.
+
+Files: `plugin/lib/claim.sh`, `plugin/lib/store-files.sh`, `plugin/lib/store-issues.sh`,
+`plugin/lib/claim.test.sh`, `plugin/lib/store-issues.test.sh`, `docs/reference/cli.md`.
+
+Verification: the Done-when cases, shellcheck, the full suite.
+
+Ranges:
+- plugin/lib/store-files.sh:1056-1123
+- plugin/lib/store-issues.sh:919-951
+- plugin/lib/claim.sh:1-15
+- plugin/lib/claim.sh:361-395
+- plugin/lib/claim.sh:429-437
+- plugin/lib/claim.sh:515-542
+- plugin/lib/common.sh:132-147
+- plugin/lib/session.sh:184-202
+- plugin/lib/close.sh:598-605
+- plugin/lib/close.test.sh:380-415
+- plugin/lib/claim.test.sh:18
+- plugin/lib/claim.test.sh:339-430
+- plugin/lib/store-issues.test.sh:708-717
+- plugin/lib/store-files.sh:988-1012
+- docs/reference/cli.md:414-423
 
 ---
 
