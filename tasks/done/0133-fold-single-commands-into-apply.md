@@ -130,4 +130,31 @@ Ranges: `.belfry.yml:1-17`, `plugin/lib/init.sh:382-432`, `plugin/lib/init.test.
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Built as planned. Belfry's PR #546 decided that `tasks.commands.apply` replaces
+`milestone`, `retire` and `defer`, and that `create` and `revise` stay; Peal follows:
+
+- `peal init --stage belfry` (files) no longer writes `milestone:`, `retire:`, `defer:`;
+  it writes list, offer, pool, claim, start, idea, create, board, revise, apply.
+  `init.test.sh` checks the three are absent. The issues contract is unchanged.
+- This repository's `.belfry.yml` `tasks.commands` now equals init's output, `apply:`
+  added (the installed `.peal/peal`, v0.3.0+, has `apply`); `doctor`'s belfry check passes.
+- `peal depend` is deleted, with `peal_depend`, `peal_store_depend` in both stores,
+  `_peal_files_rewrite_depend`, their tests (`backlog.test.sh`) and the `hostile.test.sh`
+  cover lines. `_peal_files_add_depend` (used by apply) and `_peal_issues_no_work` (used
+  by defer) stay. `peal retire`, `peal milestone-state` and `peal create --owner` stay:
+  Peal's slash commands or the contract use them.
+- Docs follow: design.md (contract table, YAML block, bullets, and one sentence that
+  Belfry also sends the board's milestone actions, the Desk's Dismiss and `task_defer`
+  through `apply`), guides/belfry.md, security.md, reference/cli.md, storage.md, tasks.md.
+
+Left, as agreed in the plan: Belfry with `apply:` set sends `task_defer` as a `depends`
+proposal on the session's own claimed task, which `apply` refuses
+(`_peal_files_no_claim`); `peal depend` used to give the claim back. Until the idea filed
+from this task (`apply`'s `depends` gives this clone's live claim back) lands, such a
+deferral is refused.
+
+For the next session: the build was saved mid-way by the session-end autosave; it was
+recommitted as one commit, and the pushed autosave merged in with `-s ours` rather than
+force-pushed over. The hostile suite takes about ten minutes in the sandbox.
+
+The reviewer found nothing to act on.
