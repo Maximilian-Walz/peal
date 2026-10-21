@@ -7,8 +7,8 @@
 # A batch of mixed proposals as one commit, by push and through a pull request (the fake
 # gh, which needs jq); filed numbers skipping a rival's; the milestone kinds, mixed with
 # task ones, their states and the next current milestone, a new milestone's id; each kind
-# of invalid batch changing nothing; the JSON reader's escapes; the issues storage
-# refusing.
+# of invalid batch changing nothing; the JSON reader's escapes, a 1 MiB string among
+# them; values ending in 20,000 newlines; the issues storage refusing.
 set -uo pipefail
 # shellcheck source=test-lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/test-lib.sh"
@@ -517,6 +517,42 @@ next line 😀" "$(on_main "$work" tasks/backlog/0001-first-task.md | grep -A1 "
   check "reader: nothing run" "" "$(find "$work" -maxdepth 1 -name 'pwned*')"
 }
 
+# decoder -> a string of over 1 MiB, its escapes straddling the reader's windows,
+# decoded byte for byte (and in time linear in its length: this case took minutes when
+# each character was appended on its own).
+decoder() {
+  local dir enc dec unit_enc unit_dec n
+  dir=$(scratch_dir)
+  unit_enc="$(printf 'abcdefghij%.0s' 1 2 3 4 5 6 7 8 9)"'\n\t\\\"\/é😀'
+  unit_dec="$(printf 'abcdefghij%.0s' 1 2 3 4 5 6 7 8 9)"$'\n\t\\"/\xc3\xa9\xf0\x9f\x98\x80'
+  enc=$unit_enc dec=$unit_dec n=1
+  while [ ${#enc} -lt 1048576 ]; do enc=$enc$enc dec=$dec$dec n=$((n * 2)); done
+  printf '{"proposals": [{"id": "x", "text": "%s"}]}' "$enc" | LC_ALL=C awk -v dir="$dir" -v arrays=tasks \
+    -f "$PEAL_ROOT/lib/apply.awk" >"$dir/manifest"
+  check "decoder: a 1 MiB string read" "1	id	s
+1	text	s
+count	1" "$(cat "$dir/manifest")"
+  printf '%s' "$dec" >"$dir/expected"
+  check "decoder: $n escaped runs, byte for byte" "same" "$(cmp -s "$dir/expected" "$dir/1.text" && echo same)"
+}
+
+# trailing -> an id and a why ending in 20,000 escaped newlines: the answer's id without
+# them (as $(...) strips them), the commit's body with each made a space; in time linear
+# in their length (stripping one newline at a time took minutes here).
+trailing() {
+  local nl sp out
+  setup_tasks
+  nl=$(printf '\\n%.0s' $(seq 20000))
+  sp=$(printf ' %.0s' $(seq 20000))
+  out=$(printf '{"proposals": [{"id": "x%s", "kind": "priority", "task": "0001", "priority": "low", "why": "y%s"}]}' \
+    "$nl" "$nl" | peal apply 2>&1)
+  check "trailing: the newlines at the end of an id stripped" \
+    '{"id": "x", "done": true, "outcome": "task 0001: priority low", "task": "0001"}' "$out"
+  main_sha >/dev/null
+  check "trailing: the id and why in the body, newlines made spaces" "- x$sp (priority 0001): y$sp" \
+    "$(git -C "$work" log -1 --format=%b origin/main | grep '^- ')"
+}
+
 # belfry_batch -> a batch as Belfry's ApplyBatch marshals it (internal/api/apply.go): each
 # proposal's keys in ApplyProposal's order (id, kind, ref, the fields, why, origin), empty
 # values left out.
@@ -609,6 +645,8 @@ cases() {
   invalids
   defused
   reader
+  decoder
+  trailing
   if command -v jq >/dev/null; then
     pr
     ms_pr

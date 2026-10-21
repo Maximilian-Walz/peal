@@ -39,7 +39,9 @@
 #   plugin/lib/task-check.awk, a heading in cli.md for every subcommand of `peal --help`
 #   (grouped second words too), a heading in commands.md for every plugin/commands/*.md;
 # - the guides in docs/guides/ are among the documents, each with a marked block;
-# Then negative cases on scratch copies: each mistake must be reported.
+# Then negative cases on scratch copies: each mistake must be reported. A case rechecks
+# only the document it edits, plus the reference checks; what a mutation does to other
+# documents is left to the pass on the real repository.
 # No network. bash and awk only.
 set -uo pipefail
 # shellcheck source=../plugin/lib/test-lib.sh
@@ -379,9 +381,11 @@ decision_block() {
 # anchors FILE -> the heading anchors of a Markdown file.
 anchors() { facts "$1" | awk -F'\t' '$1 == "head" { print $3 }'; }
 
-# docs_problems ROOT -> one line per problem in the documents under ROOT.
+# docs_problems ROOT [FILE...] -> one line per problem in the documents under ROOT, or
+# only in the FILEs (relative to ROOT) when given. The reference checks run either way.
 docs_problems() {
   local root=$1 file kind ln text target path anchor tmp b
+  shift
   tmp=$(scratch_dir)
   while IFS= read -r file; do
     while IFS=$'\t' read -r kind ln text; do
@@ -450,7 +454,7 @@ docs_problems() {
         *) printf '%s:%s: unknown docs-check marker %s\n' "$file" "$ln" "$kind" ;;
       esac
     done
-  done < <(doc_files "$root")
+  done < <(if [ $# -gt 0 ]; then printf '%s\n' "$@"; else doc_files "$root"; fi)
   reference_problems "$root"
 }
 
@@ -519,7 +523,7 @@ mutant() { # mutant FILE SED-SCRIPT -> problems of a copy with FILE edited
   cp "$REPO/tools/install.test.sh" "$copy/tools/"
   ln -s "$REPO/plugin" "$copy/plugin"
   sed -i -E "$2" "$copy/$1"
-  docs_problems "$copy"
+  docs_problems "$copy" "$1"
 }
 has() { # has NAME OUTPUT PATTERN
   if grep -q -F -- "$3" <<<"$2"; then check "$1" ok ok; else check "$1" "a problem containing: $3" "$2"; fi

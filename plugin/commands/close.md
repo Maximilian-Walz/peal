@@ -193,7 +193,7 @@ Act on the one verdict line, from `verify` or `wait`:
   finished, so this is ordinary work on the branch), then wait again.
   (A `checks-failing` that looks flaky: see the rule below first.)
   `close-unfinished`: finish did not run through; run it again. `no-pr`: finish opened
-  none; run it again. `no-gh`, `gh-failed`: report it and stay (`gh-failed (host H is denied by the network sandbox ...)` names the host to ask the human to allow). The others
+  none; run it again. `draft`: the pull request is a draft; report it and stay, the human marks it ready. `no-gh`, `gh-failed`: report it and stay (`gh-failed (host H is denied by the network sandbox ...)` names the host to ask the human to allow). The others
   (`not-a-repo`, `detached-head`, `on-main`): find out where this session is first.
 
 A failing check that looks flaky (it tests nothing the diff touched, its log shows a

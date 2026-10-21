@@ -732,7 +732,7 @@ peal_close_stop() {
 #                               close-unfinished (finish has not run through), uncommitted,
 #                               not-pushed, unpushed, no-gh, gh-failed (naming the host when
 #                               the sandbox denies it), no-pr,
-#                               conflicts, checks-failing: stay and fix it here
+#                               draft (the pull request is a draft), conflicts, checks-failing: stay and fix it here
 # The branch checked out here is the one checked; anything that cannot be verified is
 # BLOCKED, never READY.
 peal_close_verify() {
@@ -745,7 +745,7 @@ peal_close_verify() {
 }
 
 _peal_close_verify() {
-  local top branch main gitdir ahead remote_ref repo pr state merged mergeable sha checks status
+  local top branch main gitdir ahead remote_ref repo pr state merged mergeable draft sha checks status
   top=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "BLOCKED:not-a-repo"; return 1; }
   cd "$top" || { echo "BLOCKED:not-a-repo"; return 1; }
   peal_config_load 2>/dev/null || { echo "BLOCKED:no-settings"; return 1; }
@@ -764,15 +764,16 @@ _peal_close_verify() {
   pr=$(peal_gh "repos/$repo/pulls?state=all&head=${repo%%/*}:$(peal_urlencode "$branch")" \
     --jq '.[0] | select(. != null) | .number') || { peal_gh_failed; return 1; }
   [ -n "$pr" ] || { echo "BLOCKED:no-pr"; return 1; }
-  state=$(peal_gh "repos/$repo/pulls/$pr" --jq '[.state, (.merged | tostring), (.mergeable | tostring)] | @tsv') \
+  state=$(peal_gh "repos/$repo/pulls/$pr" --jq '[.state, (.merged | tostring), (.mergeable | tostring), (.draft | tostring)] | @tsv') \
     || { peal_gh_failed; return 1; }
-  IFS="$(printf '\t')" read -r state merged mergeable <<<"$state"
+  IFS="$(printf '\t')" read -r state merged mergeable draft <<<"$state"
   [ "$merged" != true ] || { echo "READY:merged"; return 0; }
   case $state in
     closed) echo "READY:pr-closed"; return 0 ;;
     open) ;;
     *) peal_gh_failed; return 1 ;;
   esac
+  [ "$draft" != true ] || { echo "BLOCKED:draft"; return 1; }
   [ "$mergeable" != false ] || { echo "BLOCKED:conflicts"; return 1; }
   sha=$(git rev-parse HEAD)
   checks=$(peal_pr_checks "$repo" "$sha")

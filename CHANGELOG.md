@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4.0 (2026-10-21)
+
+v0.4.0: 5 features since v0.3.0.
+
+### Features
+
+- Close wait reports a failure only once the whole run has finished: Built: `peal_pr_checks` (`plugin/lib/github.sh`) now answers `WAIT:checks-failing-pending` (status 3) while a check has failed and another check or status on the commit is still pending, and `BLOCKED:checks-failing` (status 1) only once nothing is pending. ([0147](https://github.com/Maximilian-Walz/peal/blob/v0.4.0/tasks/done/0147-close-wait-whole-run.md), #257)
+- `peal apply` reads and answers what Belfry's contract sends: `peal apply` now takes and answers the shapes Belfry's contract sends (Belfry's docs/contract.md "Proposals" and "Carrying out proposals", internal/api/apply.go `ApplyProposal`/`ApplyResult`), so a project that adds `apply:` to its `.belfry.yml` (0133) gets its batches carried out instead of refused. ([0154](https://github.com/Maximilian-Walz/peal/blob/v0.4.0/tasks/done/0154-peal-apply-reads-and-answers.md), #269)
+- Close writes a Security: line in the pull request body when the project keeps a threat model: Built: `peal close finish` and `peal close body` gain `--security TEXT` and `--notes TEXT | --notes-file FILE`. ([0150](https://github.com/Maximilian-Walz/peal/blob/v0.4.0/tasks/done/0150-close-writes-a-security-line.md), #271)
+- `close verify` blocks on a draft pull request: `peal close verify` now reads the pull request's `draft` field in the same `gh` call that already reads state, merged and mergeable. ([0124](https://github.com/Maximilian-Walz/peal/blob/v0.4.0/tasks/done/0124-close-verify-draft-verdict.md), #272)
+- The hostile shards run in minutes again, print progress, and a job that hangs fails fast: The cost was `peal apply` itself, run once per awk in `awk_channels`, not its write onto main (the hostile repositories push to a local bare remote, so nothing polls). ([0152](https://github.com/Maximilian-Walz/peal/blob/v0.4.0/tasks/done/0152-the-hostile-shards-run-in.md), #268)
+
 ## v0.3.0 (2026-10-20)
 
 v0.3.0: 55 features since v0.2.0.
