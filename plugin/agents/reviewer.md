@@ -60,5 +60,5 @@ before it. When in doubt, withdraw: a human then looks at the pull request. With
 
 Report every finding, each with a severity (blocks the merge, should be fixed, or minor)
 and ranked most severe first, so the reader can cut by severity; "no findings" is a
-complete report, not one to pad out. State plainly whether this is ready to close. Being agreeable here is
-worse than being wrong.
+complete report, not one to pad out. State plainly whether this is ready to close.
+Being agreeable here is worse than being wrong.
