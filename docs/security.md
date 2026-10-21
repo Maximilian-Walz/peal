@@ -161,7 +161,7 @@ itself) and one that holds the `-----NEXT TASK-----` delimiter is refused (it ma
 only the one task it was asked to, never more). `origin: outsider` itself marks the task
 external for whatever reads the board next (Belfry's contract): its title and text reach
 a session quoted as data, its job never runs unattended, and its pull request never
-merges itself.
+merges itself. Only a `vouch` proposal of `peal apply` drops the mark (see below).
 
 - Guard: `plugin/lib/backlog.sh` (`peal_create_filed`).
 - Harness: `plugin/lib/store-files.test.sh`, `plugin/lib/store-issues.test.sh`,
@@ -203,7 +203,7 @@ only feeds a slug. A `file` text gets the checks of `peal create --owner`'s (`me
 the delimiter refused, `peal_task_check`), an `add` text those of `peal comment` (no
 `---` or `## ` line), a `retire` reason is one line. A milestone's title and a parking's
 reason are one line with no tab, written through the frontmatter writer (quoted) or as
-the `# ` heading; a goal is prose with no `---` or `## ` line; a due a calendar date, an
+the `# ` heading; a `vouch` drops a task's `origin: outsider` and notes it, and is refused when it names an `@<id>` or itself carries `origin: outsider`. Peal cannot verify that a human sent it: it relies on the caller offering a vouch to the human only. A goal is prose with no `---` or `## ` line; a due a calendar date, an
 order an integer; a new milestone's file name is Peal's id, never the caller's. One
 invalid proposal and nothing is written.
 
@@ -237,8 +237,9 @@ frontmatter and body, `peal brief` — read by bash and awk field extraction, ne
 `eval`'d or passed to a shell as code. What a session decides to *do* with hostile prose
 once it has read it is a risk no parser removes; two things bound it instead, true
 regardless of what the prose says: Claude Code asks before an unapproved tool runs, and
-nothing a session builds reaches another user until its pull request is reviewed and
-merged by a human (`docs/design.md`, "the merge is the human's"). The planner, which
+nothing a session builds reaches another user until its pull request is merged, and the
+merge is the human's except in the narrow cases of "Auto-merge tiers" below
+(`docs/design.md`, "the merge is the human's"). The planner, which
 reads a task before anyone has agreed its plan, carries no Bash tool at all.
 
 Every prompt under `plugin/commands/` and `plugin/agents/`, except `idea.md` (its input
@@ -334,6 +335,21 @@ unpinned reference in the template or in Peal's workflows.
   `plugin/templates/decisions.yml`, `tools/pins.sh`.
 - Harness: `tools/pins.test.sh`; Scorecard's weekly run reports an unpinned action or a
   broad permission.
+
+### Auto-merge tiers
+
+Merging ships: the marketplace installs `./plugin` from the default branch. Under
+Belfry's contract (`.belfry.yml`), these pull requests merge without the human, each
+only with `shellcheck` and both `harnesses` jobs green: task files and milestone texts,
+documentation outside `docs/security.md`, and tasks the human marked `merge: auto` when
+agreeing the plan. Guard code (the `review_before_merge` paths: the CLI, the storage,
+claim and work libraries, the prompts under `plugin/commands/` and `plugin/agents/`,
+`CLAUDE.md`) merges by itself only once a fresh `security-pr` review passed on the
+pull request's head, after an hour's grace for the human's Hold. What could loosen the
+gates or the release chain (hooks, launcher and githook, `githooks.sh`, `git-guard.sh`,
+`session.sh`, `main-write.sh`, `ship.sh`, `plugin/commands/release.md`, the plugin and
+marketplace manifests, `.peal/`, CI helpers, this file and `SECURITY.md`) always waits
+for the human, as do `.belfry.yml`, `.github/**` and `.claude/settings.json`.
 
 ## What this milestone leaves open
 

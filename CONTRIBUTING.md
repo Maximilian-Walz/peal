@@ -64,6 +64,8 @@ CI runs the lint and every harness on each pull request; a pull request that cha
 tasks or milestones skips the harnesses. The slow harnesses are split into shards, and
 "rest" is computed, so a new `*.test.sh` is covered the moment it exists
 (`.github/workflows/ci.yml`).
+The shards are balanced from the seconds `tools/test-all.sh` prints per harness; it prints
+its total too, and CI warns when a shard's total passes `PEAL_TEST_BUDGET`, so drift shows.
 
 ## Running on itself
 

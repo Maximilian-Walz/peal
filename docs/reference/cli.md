@@ -316,7 +316,7 @@ body. Task files only; the issues storage refuses (status 2), since Belfry write
 
 Each proposal is an object with an `id` (Belfry's, echoed back), a `kind`, an optional
 `why`, an optional `origin` (`outsider` or `writer`; `""` is none) which only `file` and
-`add` act on, and the kind's fields. Belfry's own `ref`, `item` and `into` are ignored,
+`add` act on (a `vouch` carrying `origin: outsider` is refused), and the kind's fields. Belfry's own `ref`, `item` and `into` are ignored,
 whatever scalar they hold (an object or array is still refused); every other unknown field makes the proposal invalid. Belfry leaves
 empty fields out, so an absent optional field is none:
 
@@ -324,6 +324,7 @@ empty fields out, so an absent optional field is none:
 |---|---|---|
 | `file` | `title`, `text`, `milestone`, `priority`, `owner`, `origin` | files `text` as `peal create` does (`NNNN` for its number); the four fields go into the frontmatter, winning over the text's; `title` gives the slug, its first five words |
 | `add` | `task`, `text`, `origin` | a dated line under the task's `## Notes`, as `peal comment`; `origin: outsider` marks the task |
+| `vouch` | `task`, `origin` | a human's word that an outsider's task counts as a writer's: drops `origin: outsider` and adds the dated line "Vouched for by a writer: <why>" ("Vouched for by a writer." with no `why`; line breaks in `why` become spaces) under `## Notes`, adding that section when the task has none. A task that is a writer's already is answered done ("already a writer's") and nothing is written. `task` cannot be `@<id>`, and `origin: outsider` is refused |
 | `move` | `task`, `milestone` | sets the milestone; absent or `null` removes it (`""` is invalid) |
 | `priority` | `task`, `priority` | `urgent`, `high`, `normal` (removes the field) or `low` |
 | `depends` | `task`, `on`, `remove` | adds `on` to the task's `depends`, or takes it out with `"remove": true` (absent, `false` or `null` adds) |
