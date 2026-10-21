@@ -94,7 +94,8 @@ Where the pieces meet, and why:
   proposals of the batch); an invalid one and nothing is written
   ([CLI](reference/cli.md#peal-apply)). It is for task files; Belfry writes a
   `github-issues` project's proposals itself, so the issues storage refuses it. Belfry also
-  sends the board's milestone actions, the Desk's Dismiss and `task_defer` through it.
+  sends the board's milestone actions, the Desk's Dismiss and `task_defer` through it. A `depends` proposal on the claim of the worktree it runs in gives that claim back, as
+  `peal defer` does, in the same commit, which is how `task_defer` works.
 - The board's `after_deploy` list (pull requests a task waits on) is Belfry's contract
   too: Peal passes it through and never reads it.
 - `/peal:work NNNN` notices it is already inside NNNN's worktree and skips its own claim.

@@ -699,7 +699,34 @@ issues() {
   check_refused "issues storage refuses" "the issues storage takes no batch" peal apply < <(printf '{"proposals": []}')
 }
 
+# A depends proposal on the claim of the worktree apply runs in gives the claim back and
+# writes the dependency in one commit; a claim elsewhere, and other kinds, are refused.
+giveback() {
+  local wt out st before
+  work=$(repo)
+  put "$work" backlog 0001 claimed-task
+  put "$work" backlog 0002 blocker-task
+  put "$work" backlog 0003 other-task
+  at "$work" "$PEAL" hooks install >/dev/null
+  peal claim 0001 >/dev/null 2>&1
+  peal claim 0003 >/dev/null 2>&1
+  wt=$(dirname "$work")/work-wt/0001-claimed-task
+  before=$(main_sha)
+  out=$(printf '%s' '{"proposals": [{"id": "x", "kind": "depends", "task": "0003", "on": "0002"}]}' | at "$wt" "$PEAL" apply 2>/dev/null)
+  check "giveback: a claim elsewhere is refused" "1:$before" "$(grep -c 'task 0003 is claimed' <<<"$out"):$(main_sha)"
+  out=$(printf '%s' '{"proposals": [{"id": "x", "kind": "priority", "task": "0001", "priority": "low"}]}' | at "$wt" "$PEAL" apply 2>/dev/null)
+  check "giveback: another kind on the own claim is refused" "1:$before" "$(grep -c 'task 0001 is claimed' <<<"$out"):$(main_sha)"
+  out=$(printf '%s' '{"proposals": [{"id": "x", "kind": "depends", "task": "0001", "on": "0002", "why": "the blocker first"}]}' | at "$wt" "$PEAL" apply 2>/dev/null)
+  st=$?
+  on_main "$work" tasks/backlog/0001-claimed-task.md >"$work.t"
+  check "giveback: the own claim, given back with the dependency" "0:0002:1:1" \
+    "$st:$(peal frontmatter get "$work.t" depends):$(grep -c "Deferred $today after a claim: the blocker first" "$work.t"):$(grep -c '"done": true' <<<"$out")"
+  check "giveback: one commit" "docs(tasks): apply 1 proposal" "$(main_sha >/dev/null; git -C "$work" log -1 --format=%s origin/main)"
+  check "giveback: the worktree clean" "" "$(git -C "$wt" status --porcelain)"
+}
+
 cases() {
+  giveback
   mixed
   ms_mixed
   ms_split
