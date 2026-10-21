@@ -88,9 +88,10 @@ jobs:
   # 14-minute serial run, measured locally under mawk and busybox, CI adding gawk and
   # original-awk; each prints a progress line per group and awk, and another when a
   # minute passed without one) and the rest of the Linux-only harnesses split by their
-  # measured seconds (tools/test-all.sh's timing, quoted in 0077's task notes). "rest" is
-  # computed, not listed, so a new *.test.sh is covered the moment it exists, same
-  # promise tools/test-all.sh makes with no arguments.
+  # measured seconds (tools/test-all.sh's timing, quoted in 0077's task notes; rebalanced
+  # in 0159 from main run 39561021393 and then from PR run 39565531021, each shard about
+  # 500 to 600 s). "rest" is computed, not listed, so a new *.test.sh is covered the
+  # moment it exists, same promise tools/test-all.sh makes with no arguments.
   linux:
     name: linux (${{ matrix.shard }})
     needs: changes
@@ -111,28 +112,37 @@ jobs:
           - shard: hostile 4/4
             hostile_shard: 4/4
             timeout: 20
-          # Anchored (&shard_a etc.) so the "rest" step below can read the same three
+          # Anchored (&shard_a etc.) so the "rest" step below can read the same four
           # lists by alias instead of a second, driftable copy of these paths.
           - shard: a
             harnesses: &shard_a >-
               plugin/lib/close.test.sh plugin/lib/frontmatter.test.sh
-              plugin/lib/git-guard.test.sh
+              plugin/lib/doctor.test.sh
             timeout: 20
           - shard: b
             harnesses: &shard_b >-
               plugin/lib/store-issues.test.sh plugin/lib/decisions.test.sh
-              plugin/lib/milestones.test.sh
+              plugin/lib/ship.test.sh plugin/lib/milestones.test.sh
             timeout: 20
           - shard: c
             harnesses: &shard_c >-
               plugin/lib/store-files.test.sh plugin/lib/work.test.sh
-              plugin/lib/backlog.test.sh plugin/lib/githooks.test.sh
+              plugin/lib/backlog.test.sh
+            timeout: 20
+          - shard: d
+            harnesses: &shard_d >-
+              plugin/lib/apply.test.sh plugin/lib/next.test.sh
+              plugin/lib/claim.test.sh
             timeout: 20
           - shard: rest
-            timeout: 45
+            timeout: 20
     runs-on: ubuntu-latest
-    # Each entry's own: "rest" runs about 20 to 25 minutes, the others well under 20.
+    # Each entry's own; every shard is balanced to about 10 minutes (0159).
     timeout-minutes: ${{ matrix.timeout }}
+    env:
+      # tools/test-all.sh warns (::warning, never a failure) when a shard's harnesses take
+      # longer than this many seconds: the sign that the split has drifted.
+      PEAL_TEST_BUDGET: '780'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Every awk the harnesses can find is one they run under; Peal must work with
@@ -159,13 +169,14 @@ jobs:
         env:
           PEAL_REQUIRE_CLAUDE: '1'
           PEAL_REQUIRE_JQ: '1'
-          # Aliases of the anchors on shards a/b/c above: the one place those paths are
+          # Aliases of the anchors on shards a/b/c/d above: the one place those paths are
           # written, so a harness moved between shards can't be left stale here too.
           SHARD_A: *shard_a
           SHARD_B: *shard_b
           SHARD_C: *shard_c
+          SHARD_D: *shard_d
         run: |
-          named=$(printf '%s\n' $SHARD_A $SHARD_B $SHARD_C plugin/lib/hostile.test.sh | sort)
+          named=$(printf '%s\n' $SHARD_A $SHARD_B $SHARD_C $SHARD_D plugin/lib/hostile.test.sh | sort)
           all=$(find . -name '*.test.sh' -not -path './.git/*' -printf '%P\n' | sort)
           mapfile -t rest < <(comm -23 <(printf '%s\n' "$all") <(printf '%s\n' "$named"))
           if [ ${#rest[@]} -eq 0 ]; then
