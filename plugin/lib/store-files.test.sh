@@ -681,6 +681,37 @@ claim_copies() {
     "$(bfield 0010 touches)|$(bfield 0010 state)"
 }
 
+# A tar that stops reading early (bsdtar does, before the archive's padding) must not fail
+# the read; one that fails says why, before create's "nothing was filed".
+extract_tar() {
+  local work out stub i
+  work=$(repo)
+  put "$work" backlog 0001 existing-task
+  for i in 1 2 3 4 5 6; do
+    head -c 400000 /dev/urandom | od -An -v -tx1 >"$work/tasks/backlog/pad$i.txt"
+  done
+  publish "$work"
+  stub=$(dirname "$work")/stub
+  mkdir -p "$stub"
+
+  printf '#!/bin/sh\nhead -c 1 >/dev/null\nexec 0<&-\nexit 0\n' >"$stub/tar"
+  chmod +x "$stub/tar"
+  out=$(PATH="$stub:$PATH" peal list 2>&1)
+  check "tar closing stdin early: list reads on" "0" "$?"
+  check "tar closing stdin early: no complaint" "0" "$(grep -c 'could not read' <<<"$out")"
+  out=$(text | PATH="$stub:$PATH" peal create early-task 2>&1)
+  check "tar closing stdin early: create files" "0:1" "$?:$(grep -c '^filed 0002 ' <<<"$out")"
+
+  printf '#!/bin/sh\ncat >/dev/null\necho "tar: boom" >&2\nexit 1\n' >"$stub/tar"
+  out=$(PATH="$stub:$PATH" peal list 2>&1)
+  check "tar failing: list says why" "2:1" "$?:$(grep -c 'could not read tasks at refs/remotes/origin/main: tar: boom' <<<"$out")"
+  out=$(text | PATH="$stub:$PATH" peal create boom-task 2>&1)
+  check "tar failing: create says why, then nothing filed" "2:peal: could not read docs/milestones at refs/remotes/origin/main: tar: boom
+peal: could not read tasks at refs/remotes/origin/main: tar: boom
+peal: create: could not list the tasks on origin/main to check for depends cycles
+peal: nothing was filed" "$?:$(grep -v '^peal: warning' <<<"$out")"
+}
+
 cases() {
   create
   create_belfry
@@ -692,6 +723,7 @@ cases() {
   cycles
   refusals
   race
+  extract_tar
   ideas
   revise
   retire

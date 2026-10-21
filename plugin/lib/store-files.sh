@@ -48,17 +48,11 @@ _peal_files_fetch() {
   fi
 }
 
-# _peal_files_extract REF PATH DEST -> REF's PATH copied under DEST; nothing if absent.
-_peal_files_extract() {
-  git cat-file -e "$1:$2" 2>/dev/null || return 0
-  git archive "$1" -- "$2" | tar -x -C "$3"
-}
-
 # _peal_files_scan REF -> task-scan.awk's records for REF's task files, by id.
 _peal_files_scan() {
   local tmp status=0
   tmp=$(mktemp -d) || return 2
-  _peal_files_extract "$1" "$PEAL_TASKS" "$tmp" || status=2
+  peal_extract_tree "$1" "$PEAL_TASKS" "$tmp" || status=2
   _peal_files_scan_dir "$tmp"
   rm -rf "$tmp"
   return $status
@@ -261,7 +255,7 @@ _peal_files_prs() {
 # and merge replaced by the non-empty values of the claim copies under COPIES. Of the copies'
 # warnings only a frontmatter that does not parse is shown; such a copy reads as main's.
 _peal_files_overlay() {
-  local tmp
+  local tmp status=0
   tmp=$(mktemp -d) || return 2
   _peal_files_scan_dir "$1" 2>"$tmp/err" >"$tmp/copies"
   LC_ALL=C grep -a -v '^peal: warning: ' "$tmp/err" >&2
@@ -271,8 +265,9 @@ _peal_files_overlay() {
       split("9 10 16 17", cols, " ")
       for (k = 1; k <= 4; k++) { i = cols[k]; if (c[$1, i] != "") $i = c[$1, i] }
     }
-    { print }' "$tmp/copies" "$2"
+    { print }' "$tmp/copies" "$2" || status=$?
   rm -rf "$tmp"
+  return $status
 }
 
 peal_store_list() {
@@ -334,7 +329,7 @@ _peal_files_check_context() {
 _peal_files_milestones_at() {
   local tmp status=0
   tmp=$(mktemp -d) || return 2
-  _peal_files_extract "$1" "$(peal_config_get milestones)" "$tmp" && peal_ms_load "$tmp" || status=2
+  peal_extract_tree "$1" "$(peal_config_get milestones)" "$tmp" && peal_ms_load "$tmp" || status=2
   rm -rf "$tmp"
   [ $status = 0 ] && [ -n "$PEAL_MILESTONES" ] && printf '%s\n' "$PEAL_MILESTONES"
   return $status
@@ -466,7 +461,7 @@ _peal_files_build_create() {
     PEAL_CREATE_TITLES+=("$(peal_text_title "${PEAL_CREATE_IDS[i]}" <"$PEAL_CREATE_DIR/out$i")")
     args+=(add "${PEAL_CREATE_PATHS[i]}" "$PEAL_CREATE_DIR/out$i")
   done
-  peal_write_tree "$base" "${args[@]}" || return 2
+  peal_write_tree "$base" "${args[@]}" || { peal_err "create: could not write the new tree"; return 2; }
   subject=${PEAL_CREATE_IDS[0]}
   [ "$count" = 1 ] || subject="$subject-${PEAL_CREATE_IDS[count - 1]}"
   case $PEAL_CREATE_MODE in
@@ -1181,7 +1176,7 @@ peal_store_milestone_text() {
 _peal_files_build_ms_state() {
   local base=$1 root=$PEAL_MS_TMP/tree line file old next="" final args=()
   rm -rf "$root" && mkdir -p "$root" || return 2
-  _peal_files_extract "$base" "$(peal_config_get milestones)" "$root" || return 2
+  peal_extract_tree "$base" "$(peal_config_get milestones)" "$root" || return 2
   peal_ms_load "$root" || return 2
   line=$(printf '%s\n' "$PEAL_MILESTONES" | awk -F '\t' -v id="$PEAL_MS_ID" '$1 == id')
   [ -n "$line" ] || { peal_err "milestone-state: no milestone $PEAL_MS_ID on $PEAL_REMOTE/$PEAL_MAIN"; return 2; }
