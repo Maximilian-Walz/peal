@@ -500,8 +500,13 @@ file. `FILE` is the reviewer's report.
   where `pr.security` is set, an empty Outcome or one
   with a placeholder, more than three escalations, a task holding `merge: auto` without
   the report and its `merge-auto:` line, an uncommitted path besides the Outcome, missing
-  git hooks (where `guardrails` is set up), and a failing `checks.close` command.
-- Then: files the queued ideas in one push; on `merge-auto: withdraw` removes
+  git hooks (where `guardrails` is set up), a remote tip of the branch (fetched first;
+  a failed fetch warns and the known ref is used) that is ahead of it, or that holds
+  commits this branch rewrote with no commit here of the same tree (the refusal names
+  `git merge <remote>/<branch>`), and a failing `checks.close` command.
+- Then: files the queued ideas in one push; merges a remote tip whose tree equals the
+  tree of a commit in the branch (a pushed autosave rewritten locally) with
+  `git merge -s ours`, as `Merge <ref>: the pushed autosave, already here [ID]`; on `merge-auto: withdraw` removes
   `merge: auto`; commits the move to `done/` as `docs(tasks): close ID [ID]` (empty when
   nothing else changed); marks an open draft pull request ready for review; pushes;
   opens the pull request or updates the open one.

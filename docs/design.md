@@ -312,7 +312,8 @@ other state. The states and their meaning are in
   (`peal_status_porcelain`, `peal_untracked_devices`); seen from outside the sandbox the
   same path is an ordinary empty file, and the autosave commits it like any other
   untracked file (0087), the remedy being git's own `.gitignore` or `.git/info/exclude`,
-  not Peal code.
+  not Peal code. The autosave is pushed, so a session builds on it and never resets,
+  amends or rebases it (the implementer's brief says so).
 
 The heartbeat, the turn count and the autosave's log live in the worktree's git
 directory, where no commit sees them. The hooks are listed in
@@ -337,7 +338,10 @@ in [CLI](reference/cli.md#peal-close).
   running it again goes on where it stopped: the ideas filed are taken off the queue as
   they are, so a rerun never files one twice, and the `docs(tasks): close` commit is
   empty when nothing else changed, since a pull request needs one. More than three
-  escalations refuse: the task was underspecified, and the human decides first.
+  escalations refuse: the task was underspecified, and the human decides first. It
+  fetches the branch first: a remote tip whose tree equals a commit of the branch (a
+  pushed autosave the session rewrote anyway) is merged with `-s ours`, losing nothing,
+  where any other divergence, or a remote ahead, is refused naming `git merge`.
 - **The pull request's body** is generated, so every pull request says the same things in
   the same order, and the project's `pr.sections` are asked for, not remembered. It opens
   with `## Summary`, at most five one-line bullets on what changes as the merger will

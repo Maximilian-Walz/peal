@@ -925,6 +925,70 @@ draft_cases() {
   check "ready already: no mutation, no message" "0|0" "$(grep -c 'POST graphql' "$FAKE_GH/log")|$(printf '%s\n' "$out" | grep -c '^marked')"
 }
 
+# autosave_pushed -> a change to b.txt committed as the session-end autosave and pushed, as
+# the SessionEnd hook leaves it.
+autosave_pushed() {
+  echo wip >"$wt/b.txt"
+  git -C "$wt" add -A
+  git -C "$wt" commit -q -m "wip: session-end autosave [$(id 1)]"
+  git -C "$wt" push -q -u origin HEAD 2>/dev/null
+}
+
+# autosave_rewritten_cases -> a pushed autosave the session reset and recommitted: finish
+# merges the remote tip with -s ours when a commit here has its tree, and refuses, before
+# anything changes, when none has or the remote is ahead.
+autosave_rewritten_cases() {
+  local out old
+  new_repo
+  ready 1 first-task
+  build
+  autosave_pushed
+  old=$(git -C "$wt" rev-parse HEAD)
+  git -C "$wt" reset -q --soft HEAD~1
+  git -C "$wt" commit -q -m "feat: b [$(id 1)]"
+  begin >/dev/null
+  outcome "Built a.txt."
+  out=$(close_finish 2>&1)
+  check "autosave: finish succeeds" "0|1|clear" "$?|$(prs)|$(sentinel)"
+  check "autosave: merged with -s ours, said so" "1" "$(printf '%s\n' "$out" | grep -c '^merged .*-s ours')"
+  check "autosave: no push failure" "0" "$(printf '%s\n' "$out" | grep -c 'the push failed')"
+  check "autosave: the old tip an ancestor of the remote branch" "0" \
+    "$(git -C "$wt" merge-base --is-ancestor "$old" "$(git -C "$wt" rev-parse '@{upstream}')"; echo $?)"
+  check "autosave: the merge commit kept" "1" "$(git -C "$wt" log --format=%s origin/main..HEAD | grep -c "^Merge .*: the pushed autosave, already here \[$(id 1)\]")"
+  # Task files: the close commit stays last; issues have none, the merge is then last.
+  out=$(git -C "$wt" log -1 --format=%s)
+  [ $kind = files ] || out=${out:0:13}
+  check "autosave: the close commit still last" "$([ $kind = files ] && closing || echo 'Merge origin/')" "$out"
+  check "autosave: verify is not unpushed" "0" "$(verdict | grep -c 'BLOCKED:unpushed')"
+
+  # Not reconcilable: the rewrite changed a file, so no tree matches.
+  new_repo
+  ready 1 first-task
+  build
+  autosave_pushed
+  git -C "$wt" reset -q --soft HEAD~1
+  echo changed >"$wt/b.txt"
+  git -C "$wt" add -A
+  git -C "$wt" commit -q -m "feat: b [$(id 1)]"
+  begin >/dev/null
+  outcome "Built a.txt."
+  old=$(git -C "$wt" rev-parse HEAD)
+  check_refused "autosave: no tree matches" "git merge origin/" close_finish
+  check "autosave: nothing moved" "armed|0|$old" "$(sentinel)|$(prs)|$(git -C "$wt" rev-parse HEAD)"
+
+  # The remote strictly ahead.
+  new_repo
+  ready 1 first-task
+  build
+  begin >/dev/null
+  autosave_pushed
+  git -C "$wt" reset -q --hard HEAD~1
+  outcome "Built a.txt."
+  old=$(git -C "$wt" rev-parse HEAD)
+  check_refused "autosave: the remote is ahead" "is ahead of this branch" close_finish
+  check "autosave: ahead, nothing moved" "armed|0|$old" "$(sentinel)|$(prs)|$(git -C "$wt" rev-parse HEAD)"
+}
+
 cases() {
   begin_cases
   begin_unreachable_cases
@@ -937,6 +1001,7 @@ cases() {
   char_device_cases
   merge_cases
   rerun_cases
+  autosave_rewritten_cases
   flush_cases
   wontfix_cases
   abort_cases
