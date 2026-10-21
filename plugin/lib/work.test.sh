@@ -114,15 +114,16 @@ CANDIDATE $(id 2) unassigned Title of $(id 2)" "$(at "$work" "$PEAL" work)"
 }
 
 inside() {
-  local one two three four five out file
+  local one two three four five six out file
   new_repo "models: {planner: haiku}"
   task 1 skipped-plan plan=skipped
   task 2 required-plan plan=required model=opus
   task 3 plain-task
   task 4 auto-plan plan=auto
   [ $kind != files ] || task 5 outsider-plan plan=auto origin=outsider
+  [ $kind != files ] || task 6 outsider-skipped plan=skipped origin=outsider
   one=$(claim 1) two=$(claim 2) three=$(claim 3) four=$(claim 4)
-  [ $kind != files ] || five=$(claim 5)
+  [ $kind != files ] || { five=$(claim 5); six=$(claim 6); }
 
   out=$(at "$one" "$PEAL" work "$(id 1)")
   file=$(printf '%s\n' "$out" | sed -n 's/^TASK [0-9]* //p')
@@ -141,6 +142,7 @@ MODEL reviewer opus" "$out"
   check "work: plan auto is PLAN auto" "PLAN auto" "$(at "$four" "$PEAL" work | sed -n 2p)"
   # origin is carried by the files storage only
   [ $kind != files ] || check "work: an outsider's auto is required" "PLAN required" "$(at "$five" "$PEAL" work | sed -n 2p)"
+  [ $kind != files ] || check "work: an outsider's skipped is required" "PLAN required" "$(at "$six" "$PEAL" work | sed -n 2p)"
   check "work: plan required, the task's model" "PLAN required
 MODEL implementer opus" "$(at "$two" "$PEAL" work | grep -e PLAN -e implementer)"
 }
@@ -151,6 +153,7 @@ record() {
   task 1 planned-task plan=required milestone=m1
   task 2 other-task
   task 3 auto-planned plan=auto
+  [ $kind != files ] || task 4 outsider-planned plan=skipped origin=outsider
   wt=$(claim 1)
   # After the fixtures' own commits on main, which the gates would refuse.
   at "$work" "$PEAL" hooks install >/dev/null
@@ -194,6 +197,16 @@ MODEL implementer opus" "$(at "$wt" "$PEAL" work | grep -e PLAN -e implementer)"
   at "$wt3" "$PEAL" record "$(id 3)" plan <"$wt3/.agreed" >/dev/null 2>&1
   rm -f "$wt3/.agreed"
   check "record: auto with a Plan is agreed" "PLAN agreed" "$(at "$wt3" "$PEAL" work | sed -n 2p)"
+  # An outsider's task, the human's plan recorded: agreed (the filed text brought none).
+  if [ $kind = files ]; then
+    local wt4
+    wt4=$(claim 4)
+    check "record: an outsider's task before its plan is required" "PLAN required" "$(at "$wt4" "$PEAL" work | sed -n 2p)"
+    at "$wt4" "$PEAL" read "$(id 4)" | with_plan "Build it, the human agreed." >"$wt4/.agreed"
+    at "$wt4" "$PEAL" record "$(id 4)" plan <"$wt4/.agreed" >/dev/null 2>&1
+    rm -f "$wt4/.agreed"
+    check "record: an outsider's task with the human's Plan is agreed" "PLAN agreed" "$(at "$wt4" "$PEAL" work | sed -n 2p)"
+  fi
   check "record: the plan in the task's text" "Build it with a loop." \
     "$(at "$wt" "$PEAL" read "$(id 1)" | peal_text_section Plan | grep Build)"
   check "record: the size in its frontmatter" "S" \

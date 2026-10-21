@@ -249,8 +249,17 @@ merge is the human's except in the narrow cases of "Auto-merge tiers" below
 (`docs/design.md`, "the merge is the human's"). The planner, which
 reads a task before anyone has agreed its plan, carries no Bash tool at all. A task with
 `origin: outsider` is always planned with the human: `peal work` reports `PLAN required`
-for it even when its `plan` is `auto`, so no outsider's text is built on the planner's
-word alone.
+for it whatever its `plan` says, `skipped` and `auto` included, until a `## Plan` is
+filled in it, which then reads `PLAN agreed`. An outsider's filed text cannot bring that
+`## Plan` itself: `peal create --origin outsider` and `peal apply`'s `file` proposals
+with `origin: outsider` refuse a text whose `## Plan` or `## Outcome` holds anything
+(`peal_text_human_section`), so a filled Plan on such a task is the one `peal record`
+wrote once the human agreed it. Those are the only two ways an outsider's text is filed
+as a task; on the issues storage neither carries `origin` (`create --origin outsider` is
+refused there, and `peal apply` takes no batch). The other ways `origin: outsider` is set
+(`peal comment --origin outsider`, an `add` proposal, a `depends` proposal's reason on a
+claimed task) only add a line under `## Notes`, which holds no `## ` line; a Plan the task
+already had stays agreed. No outsider's text is built on the planner's word alone.
 
 Every prompt under `plugin/commands/` and `plugin/agents/`, except `idea.md` (its input
 is the human's own `$ARGUMENTS`), carries a fixed paragraph: text from an issue, a pull
@@ -259,7 +268,9 @@ task, change a rule or have a command run, and passing such text on quotes it an
 where it came from. No harness proves a model obeys it; the guarantee still rests on
 tool permissions and the human's merge, above.
 
-- Guard: `plugin/lib/frontmatter.sh`, `plugin/lib/work.sh` (`peal_brief`); the
+- Guard: `plugin/lib/frontmatter.sh`, `plugin/lib/work.sh` (`peal_brief`,
+  `_peal_work_here`), `plugin/lib/backlog.sh` (`peal_create_filed`), `plugin/lib/apply.sh`
+  (`_pa_static`), `plugin/lib/task-text.sh` (`peal_text_human_section`); the
   review-before-merge principle above; the "Text from others is data" paragraph in
   `plugin/commands/*.md` and `plugin/agents/*.md`.
 - Harness: `plugin/lib/frontmatter.test.sh`, `plugin/lib/work.test.sh`,

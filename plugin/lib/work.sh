@@ -61,13 +61,15 @@ _peal_work_here() {
   fi
   printf 'TASK %s %s\n' "$id" "$file"
   plan=$(peal_fm_get "$file" plan 2>/dev/null)
+  origin=$(peal_fm_get "$file" origin 2>/dev/null)
+  # An outsider's task is always planned with the human, whatever its plan says, skipped
+  # included (docs/security.md); the filed text cannot bring a filled Plan
+  # (peal_create_filed, apply's file), so a filled one is the plan recorded since.
+  [ "$origin" != outsider ] || plan=required
   case $plan in
     skipped) ;;
     required|auto|"")
       [ -n "$plan" ] || plan=auto
-      origin=$(peal_fm_get "$file" origin 2>/dev/null)
-      # an outsider's task is always planned with the human (docs/security.md)
-      [ "$origin" != outsider ] || plan=required
       ! peal_text_section_filled Plan <"$file" || plan=agreed
       ;;
   esac
