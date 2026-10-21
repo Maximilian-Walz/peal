@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.5.0 (2026-10-21)
+
+v0.5.0: 6 features since v0.4.0.
+
+### Features
+
+- Check the env-file line live, then drop the gh telemetry prefixes: The `GH_TELEMETRY=0` prefixes 0145 added as a fallback are gone. ([0148](https://github.com/Maximilian-Walz/peal/blob/v0.5.0/tasks/done/0148-drop-gh-telemetry-prefixes.md), #277)
+- Fold the single contract commands into `apply`: Built as planned. ([0133](https://github.com/Maximilian-Walz/peal/blob/v0.5.0/tasks/done/0133-fold-single-commands-into-apply.md), #279)
+- Close's rerun rule trusts wait_ci's whole-run answer, if it gives one: The rerun rule in `plugin/commands/close.md` step 6 no longer tells a session to run `gh run watch` after `wait_ci`. ([0151](https://github.com/Maximilian-Walz/peal/blob/v0.5.0/tasks/done/0151-close-rerun-after-wait-ci.md), #281)
+- Peal's own .belfry.yml merges the safe pull requests by itself and uses Belfry's plan, triage and release actions: Peal's own `.belfry.yml` now uses Belfry's merge tiers and actions; `tasks:` is unchanged. ([0149](https://github.com/Maximilian-Walz/peal/blob/v0.5.0/tasks/done/0149-peal-s-own-belfry-yml.md), #283)
+- The Linux harness shards are balanced again, so no shard runs much longer than the others: Rebalanced the Linux harness shards by measured seconds, from main run 39561021393 (after 0128 made `tools/docs.test.sh` about 31 s). ([0159](https://github.com/Maximilian-Walz/peal/blob/v0.5.0/tasks/done/0159-the-linux-harness-shards-are.md), #280)
+- `peal apply` takes a `vouch` proposal that drops a task's `origin: outsider`: `peal apply` now takes a `vouch` proposal (`task`, plus `why`). ([0153](https://github.com/Maximilian-Walz/peal/blob/v0.5.0/tasks/done/0153-peal-apply-takes-a-vouch.md), #286)
+
 ## v0.4.0 (2026-10-21)
 
 v0.4.0: 5 features since v0.3.0.
