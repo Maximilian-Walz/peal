@@ -17,7 +17,15 @@ commented default, so Peal's own releases pin the SHA without a hand edit.
 
 ## Scope
 
+- `.peal/config.yml`: `release.commit-files` lists the Get Peal line of
+  `plugin/templates/decisions.yml`, and the commented defaults block describes
+  `commit-files: []`.
+
 ## Done when
+
+- `peal config release.commit-files` prints
+  `plugin/templates/decisions.yml: "fetch -q --depth 1 https://github.com/Maximilian-Walz/peal"`
+  with the installed plugin.
 
 ## Raw
 
