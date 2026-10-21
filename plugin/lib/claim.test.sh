@@ -499,6 +499,77 @@ $wt" "$out"
     "$(printf '%s\n' "$out" | grep -c "could not be installed.*\\.peal/peal hooks install")"
 }
 
+# gone_claim ID SLUG -> in $work, task ID claimed and landed, ready to release.
+gone_claim() {
+  put "$work" backlog "$1" "$2"
+  peal claim "$1" >/dev/null 2>&1
+  land "$work" "$1" "$2"
+}
+
+# release_remote -> a release whose remote branch is already gone, whose git config is
+# locked, or whose remote cannot be reached (0121).
+release_remote() {
+  local out status b lock
+  work=$(repo)
+
+  # Deleted on the remote behind the clone's back: nothing said, the stale ref pruned.
+  gone_claim 0001 gone-one
+  b=task/0001-gone-one
+  git -C "$work" remote update -p origin >/dev/null 2>&1
+  git -C "$(dirname "$work")/remote.git" branch -q -D "$b"
+  check "release: the stale tracking ref is there to start with" "1" "$(git -C "$work" for-each-ref "refs/remotes/origin/$b" | grep -c .)"
+  out=$(peal release 0001 2>/dev/null)
+  status=$?
+  check "release: a gone remote branch" "0:released 0001 $b, tip kept as refs/reaped/0001-gone-one" "$status:$out"
+  check "release: a gone remote branch: both refs gone" "0" "$(git -C "$work" for-each-ref "refs/remotes/origin/$b" "refs/heads/$b" | grep -c .)"
+  out=$(git -C "$work" for-each-ref "refs/remotes/origin/$b")
+  check "release: a gone remote branch: no stderr" "" "$out"
+
+  # A locked config with an upstream set: one line, no raw git.
+  gone_claim 0002 locked-one
+  b=task/0002-locked-one
+  lock=$(git -C "$work" rev-parse --path-format=absolute --git-common-dir)/config.lock
+  : >"$lock"
+  out=$(peal release 0002 2>&1)
+  status=$?
+  rm -f "$lock"
+  check "release: locked config: released" "0" "$status"
+  check "release: locked config: one line about it" "1" "$(printf '%s\n' "$out" | grep -c "^peal: warning: the git config is locked; branch.$b's settings stay in it (remove them with git config --remove-section branch.$b)$")"
+  check "release: locked config: no raw git" "0" "$(printf '%s\n' "$out" | grep -c 'error:')"
+  check "release: locked config: branch gone, tip kept" ":1" "$(git -C "$work" branch --list "$b"):$(git -C "$work" rev-parse -q --verify refs/reaped/0002-locked-one | grep -c .)"
+
+  # A locked config with no upstream: nothing to remove, nothing said.
+  gone_claim 0003 plain-one
+  b=task/0003-plain-one
+  git -C "$work" config --remove-section "branch.$b" 2>/dev/null
+  : >"$lock"
+  out=$(peal release 0003 2>&1)
+  rm -f "$lock"
+  check "release: locked config, no upstream" "released 0003 $b, tip kept as refs/reaped/0003-plain-one" "$out"
+
+  # An unreachable remote: a real failure, with git's reason.
+  gone_claim 0004 lost-one
+  b=task/0004-lost-one
+  git -C "$work" remote set-url origin "$(dirname "$work")/missing.git"
+  out=$(peal release 0004 2>&1)
+  status=$?
+  git -C "$work" remote set-url origin "$(dirname "$work")/remote.git"
+  check "release: unreachable remote: released" "0" "$status"
+  check "release: unreachable remote: warned with the reason" "1" "$(printf '%s\n' "$out" | grep -c "^peal: warning: could not delete origin/$b (.")"
+}
+
+# reap_gone -> the session-start reap of a claim whose remote branch is already gone
+# prints no warning and no git line.
+reap_gone() {
+  local out
+  work=$(repo)
+  mkdir "$work/.peal"
+  gone_claim 0001 gone-one
+  git -C "$(dirname "$work")/remote.git" branch -q -D task/0001-gone-one
+  out=$(at "$work" "$PEAL" hook session-start <<<'{"source":"startup"}' 2>&1)
+  check "reap: a gone remote branch" "1:0" "$(printf '%s\n' "$out" | grep -c '^reaped 0001'):$(printf '%s\n' "$out" | grep -c 'could not delete\|error:\|hint:\|fatal:')"
+}
+
 cases() {
   offer
   offer_priority
@@ -510,6 +581,8 @@ cases() {
   overlap
   release
   reap
+  release_remote
+  reap_gone
   gates
 }
 

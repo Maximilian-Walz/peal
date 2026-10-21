@@ -715,6 +715,14 @@ $(dirname "$work")/work-wt/issue-4" "$?:$out"
     peal_store_load && peal_store_release 1' _ "$PEAL_ROOT" 2>&1)
   check "release: an open issue's label comes off" "released 1 issue/1, tip kept as refs/reaped/issue-1|" "$out|$(labels 1)"
   check "release: the pushed branch deleted" "" "$(git -C "$work" ls-remote origin refs/heads/issue/1)"
+
+  # A remote branch already gone (deleted on merge): released silently, the stale ref pruned.
+  git -C "$(dirname "$work")/remote.git" branch -q -D issue/5
+  # shellcheck disable=SC2016 # expanded by the inner shell
+  out=$(at "$work" bash -c 'PEAL_ROOT=$1; for f in common config claim tasks store github; do . "$1/lib/$f.sh"; done
+    peal_store_load && peal_store_release 5' _ "$PEAL_ROOT" 2>&1)
+  check "release: a gone remote branch: only the released line" "released 5 issue/5, tip kept as refs/reaped/issue-5" "$out"
+  check "release: a gone remote branch: the stale ref pruned" "" "$(git -C "$work" for-each-ref refs/remotes/origin/issue/5)"
 }
 
 session() {

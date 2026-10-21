@@ -394,6 +394,49 @@ peal_release_worktree() {
   PEAL_RELEASE_LEFT=$wt
 }
 
+# peal_release_branch BRANCH TIP -> the local BRANCH (at TIP) deleted, and its
+# branch.<BRANCH> section of the git config when it has one. Not git branch -D: that
+# rewrites the config even for a branch with no settings, and a locked config (a sandbox)
+# then fails with git's raw lines. A config that cannot be changed is one warning naming
+# the fix, never a failed release. Status 1 only when the branch itself could not go.
+peal_release_branch() {
+  local branch=$1 tip=$2 err
+  git update-ref -d "refs/heads/$branch" "$tip" || return 1
+  git config --name-only --get-regexp '^branch\.' 2>/dev/null \
+    | awk -v p="branch.$branch." 'index($0, p) == 1 { f = 1 } END { exit !f }' || return 0
+  if ! err=$(LC_ALL=C git config --remove-section "branch.$branch" 2>&1); then
+    case $err in
+      *"could not lock config file"*) err="the git config is locked" ;;
+      *) err="could not change the git config: $(printf '%s' "$err" | tr '\n' ' ' | sed 's/ *$//')" ;;
+    esac
+    peal_err "warning: $err; branch.$branch's settings stay in it (remove them with git config --remove-section branch.$branch)"
+  fi
+  return 0
+}
+
+# peal_release_remote BRANCH TIP -> the remote's BRANCH deleted when its tracking ref
+# holds nothing the local TIP does not. A delete that fails because the remote no longer
+# has the branch (ls-remote --exit-code, status 2) prunes the stale tracking ref, silently;
+# any other failure warns with git's reason.
+peal_release_remote() {
+  local branch=$1 tip=$2 ref status=0
+  ref=refs/remotes/$PEAL_REMOTE/$branch
+  git rev-parse -q --verify "$ref" >/dev/null || return 0
+  if ! git merge-base --is-ancestor "$ref" "$tip"; then
+    peal_err "warning: $PEAL_REMOTE/$branch holds commits this machine never had; left in place"
+    return 0
+  fi
+  LC_ALL=C peal_git_try git push -q "$PEAL_REMOTE" --delete "$branch" && return 0
+  local why=$PEAL_GIT_ERR
+  peal_git_try git ls-remote -q --exit-code "$PEAL_REMOTE" "refs/heads/$branch" >/dev/null || status=$?
+  if [ "$status" = 2 ]; then
+    git update-ref -d "$ref"
+  else
+    peal_err "warning: could not delete $PEAL_REMOTE/$branch${why:+ ($why)}"
+  fi
+  return 0
+}
+
 # peal_claim_clear WT -> status 0 if a claim may make its worktree at WT: nothing there,
 # an empty directory (git worktree add takes it; what git leaves when it drops a worktree
 # it could not delete), or a worktree a release left in place (peal_release_worktree),
