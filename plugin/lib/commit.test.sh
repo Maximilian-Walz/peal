@@ -20,8 +20,15 @@ cases() {
   work=$(repo)
 
   git -C "$work" checkout -q -b task/0001-some-task
+  mkdir -p "$work/.peal"
+  printf 'stages: [tasks]\n' >"$work/.peal/config.yml"
+  echo t >"$work/t"
+  out=$(peal commit "feat: x [0001]" t 2>&1)
+  check "tasks stage only: commits without hooks" "0:yes" "$?:$(git -C "$work" log -1 --format=%s | grep -qx 'feat: x \[0001\]' && echo yes)"
+  printf 'stages: [tasks, guardrails]\n' >"$work/.peal/config.yml"
   check_refused "no hooks installed" "Peal's git hooks are not installed here" peal commit "feat: x [0001]"
   git -C "$work" checkout -q main
+  rm -rf "$work/.peal"
   peal hooks install >/dev/null
   check_refused "on main" "commit: refused on main" peal commit "feat: x [0001]"
   git -C "$work" checkout -q --detach
