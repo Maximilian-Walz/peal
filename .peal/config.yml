@@ -17,6 +17,7 @@ release:
   version-files:
     - "plugin/.claude-plugin/plugin.json: version"
     - "plugin/templates/decisions.yml: \"fetch -q --depth 1 https://github.com/Maximilian-Walz/peal\""
+  commit-files: ["plugin/templates/decisions.yml: \"fetch -q --depth 1 https://github.com/Maximilian-Walz/peal\""]
   changelog: CHANGELOG.md
 
 # Peal's defaults:
@@ -62,4 +63,7 @@ release:
 #                                 # "PATH: FIELD", a top-level field of a JSON, TOML or YAML file
 #                                 # (in YAML also KEY.KEY, a nested one), or "PATH: \"TEXT\"",
 #                                 # the one line of a file holding TEXT
+#   commit-files: []              # files with one marked line holding a commit SHA that
+#                                 # `peal ship pin` sets to the tag's commit, each
+#                                 # "PATH: \"TEXT\""
 # decisions: false                # the decisions module, or its directory to turn it on
