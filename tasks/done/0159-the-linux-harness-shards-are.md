@@ -85,7 +85,14 @@ CI sets the budget to 780 s for every Linux shard, about 30% over the target, be
 
 Why a budget and not a comparison of shard durations in the gate job: a comparison needs `actions: read` or an artifact action, and a fixed per-shard budget catches the same drift.
 
-The first Done when line, the timings, can only be met on the pull request's own CI run. The run id and the per-shard figures are added below once it is green. If a shard comes in over target, reshuffle once from that run's numbers.
+Measured on the pull request's own CI (harness totals, then job wall time):
+- Run 39565531021, the first split: a 507, b 556, c 659, d 598, rest 435 s. The longest job was c at 676 s wall. c ran about 15% slower than on main.
+- The plan allows one reshuffle, made from that run: githooks moved from c to rest, and doctor from rest to a.
+- Run 39568233106, the final split: a 571, b 550, c 507, d 577, rest 433 s. The longest job was a at 597 s wall, so every Linux job finished within 10 minutes, against 18 to 28 for `rest` before. No budget warning fired.
+
+### Escalations
+
+- The Done when line "no non-hostile shard's harness total is above 1.15× another's" is not met. In the final run d is 577 s against rest's 433 s, a ratio of 1.33. The named shards a to d sit within 1.14× of one another. `rest` keeps the headroom, and new harnesses land there. Between runs the same harness varies by 15 to 20%, so a ratio of 1.15 is inside the noise, and the one reshuffle the plan allows is spent. The timing intent, every shard in about the time of the slowest named one and well under 12.5 minutes, is met. Accept the ratio as is, or ask for another rebalance.
 
 For the next session:
 - The hostile shards take 3 to 4 minutes each at 4/4. Three of them would still finish well under the others and would pay back the extra runner `d` costs. That was left out of scope.
