@@ -75,4 +75,21 @@ Two things follow. First, `peal create` must never fail silently: wherever `peal
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+`peal create` no longer ends with a bare "nothing was filed". Every failure on its path now prints a one-line reason above that line, and the line itself is unchanged.
+
+**Where the failure probably was.** The failed macOS run printed the seeded backlog's warnings before "nothing was filed". On create, those warnings appear only when the depends-cycle check's task listing fails. So the failure was before `peal_push_main`, whose push failures already printed a reason. That listing extracts the store with `git archive | tar -x` under `pipefail`, which fails silently when git dies of SIGPIPE: the likely trigger is macOS's bsdtar exiting before git's last write. The failed attempt's CI log was no longer reachable, so this comes from reading the code. A temporary macOS stress run did not reproduce it: 0/500 for both the old pipe and the new extract (PR #287, run 39589581516, reverted). The fix stays on the code reading, as the human agreed. The human also accepted that only 1 of the 5 extra hostile awk_channels runs finished in time (2 counting the full harness run, which passed).
+
+**What was built.**
+- `peal_extract_tree` (`plugin/lib/common.sh`, moved out of `store-files.sh` so `decisions.sh` can share it) reads the rest of the pipe after tar exits. On failure it prints `could not read <path> at <ref>: <reason>` on one line. Its callers in `store-files.sh`, `apply.sh` and `decisions.sh` now use it.
+- `_peal_cycle_records` says that it could not list the tasks to check for depends cycles.
+- `_peal_files_overlay` returns awk's status rather than `rm -rf`'s.
+- `peal_push_main` gives a reason for its `mktemp` and `commit-tree` failures, `_peal_files_build_create` reports a failed tree write, and "failed, and not from a race:" plus git's output is now one line.
+- The hostile byte-for-byte check prints `not filed (status N): ...`, with no retry.
+- New `store-files.test.sh` cases use stub `tar`s: one closes stdin early over a large tree (create still files), and one fails (create and list name the reason).
+
+**For the next session.** A create against a failing tar prints two `could not read` lines, one for docs/milestones and one for tasks, because the context check extracts first. The hostile harness's `try()` still accepts a silent status 2. That is the idea filed with this close.
+
+### Reviewer findings not acted on
+
+- The stress run fell short of Done-when line 4 (1 of 5 extra runs, a small tree): accepted by the human at close; since the cause did not reproduce, more runs would prove little.
+
