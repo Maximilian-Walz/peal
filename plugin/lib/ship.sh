@@ -629,6 +629,27 @@ peal_ship_notes() {
   return $status
 }
 
+# A bump or pin pull request is waited for until it merged, however long its checks take
+# (PEAL_SHIP_MERGE_BUDGET, two hours; PEAL_MAIN_WRITE_BUDGET overrides): a caller runs
+# it in the background, not within one tool call's ten minutes.
+PEAL_SHIP_MERGE_BUDGET=7200
+
+# _peal_ship_pr_failed -> status 0 when the write's pull request is left open with its
+# checks failing (status 1 of peal_push_main); the caller turns that into status 3.
+_peal_ship_pr_failed() {
+  [ -n "${PEAL_MW_PR-}" ] && [ "${PEAL_MW_STATE-}" = open ]
+}
+
+# _peal_ship_not_merged WHAT TAG FAILED NEXT -> the line for a pull request left open:
+# FAILED (1 when its checks failed) says so, NEXT is what to run once it merged.
+_peal_ship_not_merged() {
+  if [ "$3" = 1 ]; then
+    echo "not merged, its checks failed or its head moved: $(peal_main_write_report "never push onto it; fix the cause in a pull request of its own, then peal ship $1 $2 again builds the write afresh")"
+  else
+    echo "not merged yet: $(peal_main_write_report "$4")"
+  fi
+}
+
 # peal_ship_bump VERSION -> each file of release.version-files set to VERSION (without
 # the tag prefix), and the release's entry (its notes) inserted into release.changelog,
 # on the remote's main branch, in one commit "chore(release): <tag>"; on
@@ -638,10 +659,10 @@ peal_ship_notes() {
 # Nothing when every file holds the version already and the changelog an entry of the
 # tag. Refused as peal ship tag refuses the version, and for a file missing, or with no
 # field (or marked line) holding a string, or a changelog that is not a plain file: main
-# unchanged. Status 3 when the pull request is still open after the budget
-# (PEAL_MAIN_WRITE_BUDGET): run it again once it merged.
+# unchanged. Status 3 when the pull request is left open: its checks failed (named), or the budget
+# (PEAL_SHIP_MERGE_BUDGET) ran out; run it again once it merged.
 peal_ship_bump() {
-  local tag dir status=0 files all
+  local tag dir status=0 files all failed
   [ $# -eq 1 ] || { peal_err "ship bump: VERSION"; return 2; }
   PEAL_PREFIX=$(peal_config_get release.tag-prefix) || return 2
   tag=$(_peal_ship_version "$1") || return 2
@@ -665,7 +686,10 @@ peal_ship_bump() {
     fi
   fi
   : >"$dir/changed"
-  PEAL_MAIN_WRITE_WAIT=merged peal_push_main _peal_ship_bump_build "ship bump" "chore(release): $tag" || status=$?
+  PEAL_MAIN_WRITE_WAIT=merged PEAL_MAIN_WRITE_BUDGET=${PEAL_MAIN_WRITE_BUDGET:-$PEAL_SHIP_MERGE_BUDGET} \
+    peal_push_main _peal_ship_bump_build "ship bump" "chore(release): $tag" || status=$?
+  failed=0
+  if [ $status = 1 ] && _peal_ship_pr_failed; then status=3 failed=1; fi
   files=$(cut -f2 "$dir/changed" | paste -s -d ' ' -)
   all=$(printf '%s\n' "$(cut -f1 <<<"$PEAL_SHIP_FILES")" "$PEAL_SHIP_CHANGELOG" | awk 'NF' | paste -s -d ' ' -)
   rm -rf "$dir"
@@ -680,7 +704,7 @@ peal_ship_bump() {
     4) echo "already at $PEAL_SHIP_VERSION: $all"; status=0 ;;
     3)
       if [ -n "$PEAL_MW_PR" ]; then
-        echo "not merged yet: $(peal_main_write_report "run peal ship bump $tag again once it merged, then peal ship tag $tag")"
+        _peal_ship_not_merged bump "$tag" $failed "run peal ship bump $tag again once it merged, then peal ship tag $tag"
       fi
       ;;
   esac
@@ -792,7 +816,7 @@ peal_ship_tag() {
 # holding exactly one object name: main unchanged. Nothing when every file holds it
 # already, or when the setting is empty. Status 3 as for peal ship bump.
 peal_ship_pin() {
-  local tag dir status=0 files
+  local tag dir status=0 files failed
   [ $# -eq 1 ] || { peal_err "ship pin: VERSION"; return 2; }
   PEAL_PREFIX=$(peal_config_get release.tag-prefix) || return 2
   tag=$(_peal_ship_version "$1") || return 2
@@ -815,7 +839,10 @@ peal_ship_pin() {
   dir=$(mktemp -d) || return 2
   PEAL_SHIP_DIR=$dir
   PEAL_SHIP_TAG=$tag
-  PEAL_MAIN_WRITE_WAIT=merged peal_push_main _peal_ship_pin_build "ship pin" "chore(release): pin $tag" || status=$?
+  PEAL_MAIN_WRITE_WAIT=merged PEAL_MAIN_WRITE_BUDGET=${PEAL_MAIN_WRITE_BUDGET:-$PEAL_SHIP_MERGE_BUDGET} \
+    peal_push_main _peal_ship_pin_build "ship pin" "chore(release): pin $tag" || status=$?
+  failed=0
+  if [ $status = 1 ] && _peal_ship_pr_failed; then status=3 failed=1; fi
   files=$(cut -f1 <<<"$PEAL_PIN_FILES" | paste -s -d ' ' -)
   rm -rf "$dir"
   case $status in
@@ -829,7 +856,7 @@ peal_ship_pin() {
     4) echo "already at $(git rev-parse --short "$PEAL_PIN_SHA"): $files"; status=0 ;;
     3)
       if [ -n "$PEAL_MW_PR" ]; then
-        echo "not merged yet: $(peal_main_write_report "run peal ship pin $tag again once it merged")"
+        _peal_ship_not_merged pin "$tag" $failed "run peal ship pin $tag again once it merged"
       fi
       ;;
   esac

@@ -652,7 +652,9 @@ since v0.1.0.`, the tag's message), then Breaking, Features and Fixes, a line pe
 `peal ship bump VERSION` sets each file of `release.version-files` to the version without
 the prefix, and inserts the release's entry into `release.changelog`, on the remote's
 main, in one commit `chore(release): <tag>`. Either key alone is enough. Waits until a
-pull request merged (status 3 if still open: run it again). `already at <version>` when
+pull request merged, for its checks and the merge however long they take (two hours, or
+`PEAL_MAIN_WRITE_BUDGET`; run it in the background). Status 3: the pull request is left
+open, its checks failed (named) or the budget ran out; fix it there, then run it again. `already at <version>` when
 the files hold it and the changelog has an entry `## <tag>`. Refused for a path outside
 the repository, a dotted field of a JSON or TOML file, a missing file or field, a field
 not a string; for a nested YAML field (`KEY.KEY`, through block mappings, never into a
@@ -682,8 +684,8 @@ after.
 on the one marked line of each file of `release.commit-files`, on the remote's main, in
 one commit `chore(release): pin <tag>`, after `peal ship tag`: a release commit cannot
 hold its own SHA. Only that SHA changes, and the line's `# vX.Y.Z` is not checked against
-the tag (the two settings are independent). Waits as `peal ship bump` does (status 3 if a
-pull request is still open: run it again). `already at <sha>` when every file holds it;
+the tag (the two settings are independent). Waits as `peal ship bump` does (status 3 if the
+pull request is left open: its checks failed or its head moved off the commit Peal built, auto-merge then turned off. Never push onto it: fix the cause in a pull request of its own, then run it again, which closes the stale one and builds afresh on the new main). `already at <sha>` when every file holds it;
 `nothing to pin` with the setting empty. Refused for a tag not here and on the remote
 (`peal ship tag` first), a tag whose commit the remote's main does not hold, a missing
 file, a marker held by no line or by two, a line without exactly one hexadecimal
@@ -710,7 +712,7 @@ within five minutes) or `WAIT:<why>` (3).
 | `PEAL_ROOT` | the Peal to run, taken as it is by the launcher; the git hooks verify it |
 | `PEAL_PRIMARY` | the primary checkout's path, set for `worktree-setup` |
 | `PEAL_MAIN_WRITE_WAIT` | `merged`: a write through a pull request waits for the merge |
-| `PEAL_MAIN_WRITE_BUDGET` | seconds to wait for it, 540 |
+| `PEAL_MAIN_WRITE_BUDGET` | seconds to wait for it, 540 (`peal ship bump` and `pin`: 7200) |
 | `PEAL_MAIN_WRITE_INTERVAL` | seconds between polls, 20 |
 | `PEAL_PUSH_ATTEMPTS` | tries of a write that keeps losing a race, 5 |
 | `PEAL_CLOSE_WAIT_BUDGET`, `PEAL_CLOSE_WAIT_INTERVAL` | `peal close wait`, 540 and 20 |
