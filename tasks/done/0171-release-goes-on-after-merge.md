@@ -87,6 +87,16 @@ Next session: the frontmatter `touches` lists only `release.md` and `ship.sh`, b
 diff also touches `main-write.sh`, `fake-gh`, `ship.test.sh` and `cli.md`, all in service
 of the Scope.
 
+Security fix after review: the earlier prompt told the session to push a fix onto the
+failing bump or pin pull request, which has auto-merge on, so a push would land on main
+unreviewed. Now `release.md` forbids any push onto a `peal/main-write-*` branch: the cause
+is fixed in a pull request of its own, then `peal ship bump`/`pin` is rerun. In code, a
+rerun no longer reuses an open write pull request whose head is not the commit Peal built
+on the current main (it closes it and builds afresh), `_peal_mw_wait_merged` turns
+auto-merge off and returns 1 when the head moved off the built commit, and a failing
+commit status is named by its context. Tests in `ship.test.sh` (`bump_auto_merge`,
+`bump_pushed_onto`).
+
 ### Reviewer findings not acted on
 
 - The gap between the Scope's "`wait_ci` under Belfry" and the script polling GitHub itself

@@ -139,7 +139,12 @@ peal_push_main() {
     # The branch fetched must still be exactly what the pull request's head names: a
     # stranger's own branch of the same name, pushed after ours or while ours moved on,
     # is never reused (nor is a race where the fetch landed something else).
-    if [ -n "$sha" ] && [ "$sha" = "$PEAL_MW_REUSE_SHA" ] && [ -n "$node" ]; then
+    # Nor is one whose branch is not exactly the commit Peal built (its name holds that
+    # commit's short sha) on the newest main: someone pushed onto it, or main moved on, and
+    # whatever auto-merge it carries must not land. It is closed and built again.
+    if [ -n "$sha" ] && [ "$sha" = "$PEAL_MW_REUSE_SHA" ] && [ -n "$node" ] \
+        && [ "$branch" = "$PEAL_MW_PREFIX$(git rev-parse --short "$sha")" ] \
+        && [ "$(git rev-parse -q --verify "$sha^" 2>/dev/null)" = "$(git rev-parse -q --verify "refs/remotes/$PEAL_REMOTE/$PEAL_MAIN" 2>/dev/null)" ]; then
       PEAL_MW_STATE=open
       peal_err "pull request #$PEAL_MW_PR $PEAL_MW_URL is open already; waiting for it"
       _peal_mw_pr_manage "$repo" "$branch" "$sha" "$node"
@@ -153,7 +158,10 @@ peal_push_main() {
       attempt=$((attempt + 1))
       git fetch -q "$PEAL_REMOTE" "$PEAL_MAIN" 2>/dev/null
     else
-      PEAL_MW_PR="" PEAL_MW_URL=""
+      peal_err "#$PEAL_MW_PR ($branch) is not the commit Peal built on the current $PEAL_MAIN (pushed onto, or $PEAL_MAIN moved); closed, and built again"
+      _peal_mw_drop "$repo" "$PEAL_MW_PR" "$branch"
+      replaces=$PEAL_MW_PR
+      PEAL_MW_PR="" PEAL_MW_URL="" PEAL_MW_STATE=""
     fi
   fi
   while :; do
@@ -262,6 +270,7 @@ _peal_mw_pr() {
 # checks fail.
 _peal_mw_pr_manage() {
   local repo=$1 branch=$2 sha=$3 node=$4 mergeable e
+  PEAL_MW_BUILT=$sha PEAL_MW_NODE=$node
 
   # Built on the same main, an earlier pull request may hold what this one does: the
   # lower number wins, this one is built again.
@@ -357,10 +366,19 @@ _peal_mw_merge_self() {
   done
 }
 
+# _peal_mw_automerge_off NODE -> auto-merge turned off on the pull request (best effort).
+_peal_mw_automerge_off() {
+  # shellcheck disable=SC2016 # GraphQL's $variables
+  peal_gh graphql -f query='mutation($id: ID!) { disablePullRequestAutoMerge(input: {pullRequestId: $id}) { clientMutationId } }' \
+    -f id="$1" >/dev/null 2>&1 \
+    || peal_err "auto-merge could not be turned off on #$PEAL_MW_PR; turn it off by hand"
+}
+
 # _peal_mw_wait_merged REPO BRANCH -> PEAL_MW_PR, auto-merge on, waited for until merged,
 # within the same budget. Its checks are watched too: one that failed (nothing pending)
 # ends the wait, since auto-merge will not merge it. Status 0 merged, 1 closed unmerged
-# or its checks failing (left open, the failing checks named), 3 still open.
+# or its checks failing (left open, the failing checks named), or its head moved off the
+# commit Peal built (PEAL_MW_BUILT: auto-merge turned off, left open), 3 still open.
 _peal_mw_wait_merged() {
   local repo=$1 branch=$2 start=$SECONDS state merged sha checks names
   _peal_mw_budget || return 2
@@ -371,11 +389,20 @@ _peal_mw_wait_merged() {
       "closed true"|"open true") _peal_mw_merged "$repo" "$branch"; return 0 ;;
       "closed "*) PEAL_MW_STATE=""; peal_err "#$PEAL_MW_PR was closed unmerged: $PEAL_MW_URL"; return 1 ;;
     esac
+    if [ -n "$sha" ] && [ -n "${PEAL_MW_BUILT-}" ] && [ "$sha" != "$PEAL_MW_BUILT" ]; then
+      _peal_mw_automerge_off "${PEAL_MW_NODE-}"
+      PEAL_MW_STATE=open
+      peal_err "#$PEAL_MW_PR's head moved off the commit Peal built: auto-merge turned off, it stays open, unmerged, $PEAL_MW_URL"
+      return 1
+    fi
     if [ -n "$sha" ]; then
       checks=$(peal_pr_checks "$repo" "$sha" 2>/dev/null)
       if [ "$checks" = BLOCKED:checks-failing ]; then
         names=$(peal_gh "repos/$repo/commits/$sha/check-runs?per_page=100" \
-          --jq '.check_runs[] | select(.status == "completed" and .conclusion != "success" and .conclusion != "neutral" and .conclusion != "skipped") | (.name // "a check")' 2>/dev/null | paste -s -d ',' - | sed 's/,/, /g')
+          --jq '.check_runs[] | select(.status == "completed" and .conclusion != "success" and .conclusion != "neutral" and .conclusion != "skipped") | (.name // "a check")' 2>/dev/null)
+        names="$names
+$(peal_gh "repos/$repo/commits/$sha/status" --jq '.statuses[] | select(.state == "failure" or .state == "error") | (.context // "a status")' 2>/dev/null)"
+        names=$(printf '%s\n' "$names" | sed '/^$/d' | paste -s -d ',' - | sed 's/,/, /g')
         PEAL_MW_STATE=open
         peal_err "#$PEAL_MW_PR's checks fail${names:+ ($names)}: it stays open, unmerged, $PEAL_MW_URL"
         return 1

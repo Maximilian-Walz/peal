@@ -199,6 +199,13 @@ if [ "$path" = graphql ]; then
       save pulls 'map(if .node_id == $id then . + {auto_merge: {merge_method: "squash"}} else . end)' --arg id "$id"
       out '{"data":{"enablePullRequestAutoMerge":{"clientMutationId":null}}}'
       ;;
+    *disablePullRequestAutoMerge*)
+      id=$(field id)
+      jq -e --arg id "$id" 'any(.[]; .node_id == $id and .state == "open")' "$FAKE_GH/pulls.json" >/dev/null \
+        || { printf 'GraphQL: Could not resolve to a node with the global id of %s\n' "$id" >&2; exit 1; }
+      save pulls 'map(if .node_id == $id then del(.auto_merge) else . end)' --arg id "$id"
+      out '{"data":{"disablePullRequestAutoMerge":{"clientMutationId":null}}}'
+      ;;
     *markPullRequestReadyForReview*)
       id=$(field id)
       jq -e --arg id "$id" 'any(.[]; .node_id == $id and .state == "open")' "$FAKE_GH/pulls.json" >/dev/null \
@@ -225,7 +232,7 @@ if [ "$path" = graphql ]; then
             )}
           }}] | from_entries)}}' "$FAKE_GH/issues.json")"
       ;;
-    *) die "graphql: only enablePullRequestAutoMerge, markPullRequestReadyForReview and the re-label check's edits query are faked" ;;
+    *) die "graphql: only enablePullRequestAutoMerge, disablePullRequestAutoMerge, markPullRequestReadyForReview and the re-label check's edits query are faked" ;;
   esac
   exit 0
 fi

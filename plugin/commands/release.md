@@ -66,12 +66,17 @@ again for it; the first line and links change with the version, the items do not
    it waits for the pull request's checks and its merge, however long they take, and ends
    when it merged. Status 3, the pull request left open: its checks failed (the failing
    check is named), or auto-merge is off and it stays open. Never stop and ask for a rerun.
-   On a failed check fix it on that pull request, as on a send-back: check out its branch,
-   fix, push, wait for its checks (`mcp__belfry__wait_ci` under Belfry, else `peal close
-   wait`'s way), and once it merged run `peal ship bump <version>` again (`already at` is
-   success) and go on to step 2. A session resumed on that pull request (a send-back, or
-   a CI failure) does the same: fixes it, and finishes the release from this step, the tag
-   and the publish included, rather than ending with "run it again". Only a pull request
+   On a failed check (or a head that moved), never push onto, check out to fix, or
+   otherwise change that pull request's branch: it is a `peal/main-write-*` pull request
+   with auto-merge on, and whatever lands on it merges unreviewed. Fix the cause in a pull
+   request of its own (an ordinary branch and pull request, merged by the human or the
+   project's tiers; never set auto-merge yourself), or report it to the human when you
+   cannot. Once that fix is on main, run `peal ship bump <version>` again (in the
+   background): it closes the stale pull request and builds the write afresh on the new
+   main (`already at` is success), then go on to step 2. A session resumed on that pull
+   request (a send-back, or a CI failure) does the same, no push onto it; once the write
+   merged (that pull request, or the rebuilt one) it reruns bump (`already at` is
+   success), tags and publishes rather than ending with "run it again". A pull request
    that stays unmerged for a reason you cannot fix (auto-merge off, a review wanted) is
    reported to the human.
 2. `peal ship tag <version>`: the annotated tag on the remote's main branch, the notes'
@@ -90,8 +95,9 @@ again for it; the first line and links change with the version, the items do not
    main branch in one commit `chore(release): pin <tag>`, as `bump` writes its own (a
    pull request where main refuses direct pushes, waited for). `already at <sha>` means
    they hold it (a rerun). A file it refuses stops here, the tag and release standing:
-   report it. Run it in the background as the bump. Status 3: handle it as for the bump,
-   then `peal ship pin <version>` again (`already at` is success) finishes the release.
+   report it. Run it in the background as the bump. Status 3: handle it as for the bump
+   (never push onto its pull request), then `peal ship pin <version>` again (`already at`
+   is success) finishes the release.
 
 ## 4. The release's CI
 

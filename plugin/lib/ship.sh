@@ -634,7 +634,7 @@ _peal_ship_pr_failed() {
 # FAILED (1 when its checks failed) says so, NEXT is what to run once it merged.
 _peal_ship_not_merged() {
   if [ "$3" = 1 ]; then
-    echo "not merged, its checks failed: $(peal_main_write_report "fix them on that pull request; it merges once they pass, then peal ship $1 $2 finishes")"
+    echo "not merged, its checks failed or its head moved: $(peal_main_write_report "never push onto it; fix the cause in a pull request of its own, then peal ship $1 $2 again builds the write afresh")"
   else
     echo "not merged yet: $(peal_main_write_report "$4")"
   fi

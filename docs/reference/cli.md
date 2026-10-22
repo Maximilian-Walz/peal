@@ -683,7 +683,7 @@ on the one marked line of each file of `release.commit-files`, on the remote's m
 one commit `chore(release): pin <tag>`, after `peal ship tag`: a release commit cannot
 hold its own SHA. Only that SHA changes, and the line's `# vX.Y.Z` is not checked against
 the tag (the two settings are independent). Waits as `peal ship bump` does (status 3 if the
-pull request is left open: fix it, then run it again). `already at <sha>` when every file holds it;
+pull request is left open: its checks failed or its head moved off the commit Peal built, auto-merge then turned off. Never push onto it: fix the cause in a pull request of its own, then run it again, which closes the stale one and builds afresh on the new main). `already at <sha>` when every file holds it;
 `nothing to pin` with the setting empty. Refused for a tag not here and on the remote
 (`peal ship tag` first), a tag whose commit the remote's main does not hold, a missing
 file, a marker held by no line or by two, a line without exactly one hexadecimal
