@@ -136,9 +136,20 @@ over the network.
 Off a task branch (the main checkout, or anywhere else): never run `peal idea` here — a
 sandboxed session under Belfry has neither `gh`'s login nor SSH keys, and the shell
 command hangs with no output. Call the `task_create` tool instead, with `title` the
-title above, `body` the whole composed text, frontmatter and the
-`# NNNN — Title` heading included (the same text `peal idea` and the `idea` tool get;
-`peal create` refuses a body without them) and `owner` the idea's owner (`ai` unless the idea plainly names a human).
+title above and `owner` the idea's owner (`ai` unless the idea plainly names a human).
+Its other arguments depend on the storage (`peal config storage.kind`):
+
+- `files`: `body` the whole composed text, frontmatter and the `# NNNN — Title` heading
+  included (the same text `peal idea` and the `idea` tool get; `peal create` refuses a
+  body without them).
+- `issues`: the control plane opens the issue as it is given, so do not send the
+  frontmatter or the heading. Pipe the composed text through `peal idea-fields` (it
+  reads stdin, offline) and pass what it prints: `body` the text after its `body:`
+  line, `labels` the list of its `label:` lines (without the prefix; for example
+  `priority: high`, `needs: gpu`, `plan: auto`), `milestone` its `milestone:` line
+  when it has one. The control plane adds its own filter label and `owner: human`
+  itself; the milestone becomes a proposal the human decides, not a direct move.
+
 Report the id it returns, as `filed ...` above. If `task_create` refuses because this
 session is not a filing job, call the `idea` tool instead, with `text` the composed text
 and the same `owner`.

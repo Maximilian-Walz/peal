@@ -54,7 +54,8 @@ pass, asking nothing.
 - On a task branch the idea is queued and filed when the task closes. Elsewhere it is
   filed at once.
 - Under Belfry, off a task branch, it files through Belfry's `task_create` tool, never
-  the shell.
+  the shell. On the issues storage it sends the body, labels and milestone `peal
+  idea-fields` makes of the text, not the text itself.
 
 ## `/peal:split`
 

@@ -369,6 +369,12 @@ _peal_files_create_taken() {
   return 1
 }
 
+# peal_store_idea_fields -> refused: task files take the whole text.
+peal_store_idea_fields() {
+  peal_err "idea-fields: only the issues storage has fields to split; send the whole text"
+  return 2
+}
+
 # peal_store_create MODE ORIGIN SLUG... -> the tasks whose texts are on stdin, one per
 # SLUG, separated by lines "-----NEXT TASK-----", filed onto the main branch in one
 # commit; a line per task: "filed NNNN PATH — milestone: M, plan: P, size: S — "Title"".

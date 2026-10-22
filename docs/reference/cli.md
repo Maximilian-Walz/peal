@@ -278,6 +278,16 @@ final once it merges`. A cycle through a task the text adds or changes exits 1 w
 `peal idea SLUG [--now]` queues an idea on a task branch, for the close to file; anywhere
 else, or with `--now`, files it at once. The text is on stdin.
 
+## `peal idea-fields`
+
+`peal idea-fields` (issues storage only; refused on task files) reads an idea's text on
+stdin and prints the issue `peal create` would open from it: `title: T`, `milestone: M`
+when there is one, a `label: L` line per label (`priority`, `needs`, `plan`, `size`, the
+project's fields), then `body:` and the body (the `Part of`, `Depends on` and `After
+deploy of` lines, then the text without frontmatter and heading). For a control plane
+that opens the issue itself; a text that sets `merge` is refused, as `peal create
+--owner` refuses it.
+
 ## `peal ideas`
 
 `peal ideas [--flush | --export | --drop N|--all]` works the queue: `--flush` files the
