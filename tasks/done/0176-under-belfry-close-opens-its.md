@@ -55,6 +55,7 @@ Revised 2026-10-22: split: 0203 holds the rest
   - Idea flush: under Belfry, `close.md` files each queued idea through `task_create` before finish, then drops it from the queue.
   - Verdict: a new `BLOCKED:no-gh-login`.
   - Body size: over 64 KiB is refused with a clear message, with no truncation.
+- 2026-10-22, building: the plan's "`peal board` already passes `--no-pr`" was wrong: `peal_board` asks gh for pull requests like `peal list`. It gets the same quiet no-login handling through `_peal_files_prs`, and its JSON then carries no `pr` key for the task; the test checks that instead of "no gh call". `close opened` also takes `--unchanged`, for `pr_create`'s "already open, unchanged" answer.
 
 ## Plan
 
@@ -99,4 +100,23 @@ Ranges: `docs/design.md:106-120`, `docs/security.md:351-365`, `docs/guides/belfr
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Built: under Belfry, `close` opens its pull request through Belfry's `pr_create` tool instead of gh, and Peal's task-file reads stop warning when gh has no login.
+
+- `peal_gh` (`plugin/lib/github.sh`) maps gh's exit 4 (not logged in) to status 4 and sets `PEAL_GH_NOAUTH`; `close verify` then answers `BLOCKED:no-gh-login`. `fake-gh` exits 4 while `$FAKE_GH/no-auth` exists.
+- `close finish --pr-by-tool` (also taken by itself when gh reports no login) does everything up to the push, writes the body to the git dir, prints the `OPEN-PR` hand-off (title, body file, `draft=false`) and exits 5 with the close still in progress. The session calls `pr_create` with it and hands the number back with `peal close opened N URL [--unchanged]`. A title over 256 or a body over 65536 characters is refused, not truncated.
+- `close.md`: under Belfry, no early draft in step 2, queued ideas filed through `task_create` before finish, the `pr_create` hand-off in step 5, `BLOCKED:no-gh-login` trusted to `wait_ci`, and the one CI rerun as an empty commit. `next.md` names `pr_create` beside both of its gh pull request lines.
+- `peal list` and `peal board` keep the pull request unknown, silently, on gh's exit 4 (`_peal_files_prs`); other gh failures still warn.
+- Docs: the gh boundary of `docs/security.md`, the Belfry bullet of `docs/design.md`, `docs/reference/cli.md`, `docs/reference/commands.md`, `docs/guides/belfry.md`.
+
+**The Belfry release that carries #671 (the worker's gh login hidden from sessions) and #701 (the `pr_create` tool) waits for this task**: until a Peal release with it is installed, `close` under such a Belfry cannot open its pull request.
+
+Left for others:
+- Belfry has no tool to update an open pull request. Re-running finish on an already-open one leaves its title and body as they were (`close opened --unchanged` says so). Belfry should add a `pr_update` tool.
+- The other gh callers (`peal ship`, main-write's pull request route, the issues storage) are 0203.
+- Verified by harness only (`close.test.sh`'s `pr_tool_cases` under fake-gh's no-auth mode, `tasks.test.sh`, `commands.test.sh`). A real `pr_create` round trip is Belfry's release check. The empty-commit rerun and the `task_create` idea flush are instructions in `close.md`, checked only for being named.
+- This close itself ran on the installed plugin (from main), which predates the change.
+
+### Reviewer findings not acted on
+
+- `--pr-by-tool` with gh logged in is not exercised, and its no-auth run checks only status and title: it is the same code path as the auto-detected one, which is checked in full; a small gap, not worth a task.
+- `plugin/bin/peal` is outside the touches list: only its usage text for the new flag and subcommand.
