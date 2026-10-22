@@ -3,6 +3,7 @@ plan: auto
 size: M
 depends: []
 touches: [plugin/lib/apply.test.sh, plugin/lib/store-issues.test.sh, plugin/lib/doctor.sh, .github/workflows/ci.yml, .belfry.yml]
+milestone: m9
 ---
 
 # 0202 — Published contract fixtures: Peal's CI checks its .belfry.yml and its commands' outputs against fixtures the control plane publishes
@@ -26,6 +27,8 @@ No test in either project runs the other: each models the other by hand. Peal's 
 > yes, go ahead with all of it and file those proposals.
 
 ## Notes
+
+2026-10-22: Waits for belfry#709 (the published fixtures); write its PR number into after_deploy when it merges.
 
 2026-10-22: The control plane's side is filed as belfry#709 (published contract fixtures); this task waits for it.
 

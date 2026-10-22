@@ -2,6 +2,7 @@
 plan: skipped
 priority: low
 touches: [CONTRIBUTING.md]
+milestone: m8
 ---
 
 # 0210 — CONTRIBUTING says to read only the parts of the design the work touches

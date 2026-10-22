@@ -3,6 +3,7 @@ plan: auto
 size: S
 depends: []
 touches: [plugin/lib/work.sh, plugin/commands/work.md, plugin/lib/config-defaults.yml, docs/reference/cli.md]
+milestone: m7
 ---
 
 # 0199 — Plan rounds recorded on the claim, so a control plane can show round 2 of 3
@@ -27,6 +28,8 @@ A control plane's plan card wants to say "round k of n" and offer Send back (Bel
 > yes, go ahead with all of it and file those proposals.
 
 ## Notes
+
+2026-10-22: Re-plan 2026-10-22: the control plane's #691 (its plan card in the inbox) reads the round from the board; name the field that carries it in the Outcome and keep the name stable, since the control plane reads it.
 
 - Usability review P8. Do not let the round number be anything a session can use to bypass the human's agreement.
 - Security: none beyond the consent rule (`merge` is not touched).

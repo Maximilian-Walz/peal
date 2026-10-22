@@ -26,6 +26,8 @@ Split from 0176
 
 ## Notes
 
+2026-10-22: Re-plan 2026-10-22: the issues storage's refusal is the stopgap; the path through the control plane's `task_record` is its belfry#727 and Peal's 0227 (Contract kept), which closes the "file an idea" default of this piece's planner.
+
 - From the origin's plan, as agreed with the human: no Belfry tool can stand in for these writes. `pr_create` only opens from the job's own branch, so main-write's `peal/main-write-*` pull requests have no Belfry path. The plan's proposal is that `_peal_mw_pr` refuses before it pushes a branch, and `peal ship publish` and the issues storage refuse the same way. Use the origin's no-login status (`peal_gh` exit 4, `BLOCKED:no-gh-login`) and `fake-gh`'s no-auth mode.
 - Inventory, as proposed: one row per shell function under `plugin/lib/*.sh` that calls `peal_gh` or `gh`, in a table in `docs/guides/belfry.md` grouped under command headings. A new `plugin/lib/gh-callers.test.sh` compares the functions it extracts with awk against the table, failing on both missing and stale rows.
 - Open for this piece's planner (the planner's defaults, not yet decided by the human):

@@ -47,6 +47,8 @@ Filed as issue #60 (https://github.com/Maximilian-Walz/peal/issues/60) from an i
 
 ## Notes
 
+2026-10-22: Re-plan 2026-10-22: split as its planner proposed before working it: the field, validation and display first; then the issues mapping; the PR title; the release notes and bump. The control plane's contract names `/peal:brief` and `peal done` (its #708) as if they existed; they exist after this milestone.
+
 Deferred 2026-09-28 after a claim: stale claim: its session stopped; given back so auto mode picks it up again
 
 Today a task has no kind. What comes nearest:

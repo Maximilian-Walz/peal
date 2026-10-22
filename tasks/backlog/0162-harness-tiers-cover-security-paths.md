@@ -1,5 +1,5 @@
 ---
-milestone: m4
+milestone: m7
 plan: auto
 size: M
 depends: []
@@ -21,6 +21,8 @@ Found in 0149. `.belfry.yml`'s `never_auto_merge` and `review_before_merge` path
 > Found in 0149: file an idea for a harness checking the tiers against security.md. (The human's answer at planning.)
 
 ## Notes
+
+2026-10-22: Re-plan 2026-10-22: moved into Cheaper tasks as the precondition of the merge-rules task (0219): once every guard path is in a tier, a pull request outside the tiers can merge by itself.
 
 Revised 2026-10-22: Widened by the security review (finding 5)
 

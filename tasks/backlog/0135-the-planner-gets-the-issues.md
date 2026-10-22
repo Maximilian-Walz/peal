@@ -1,5 +1,6 @@
 ---
 plan: required
+milestone: m7
 ---
 
 # 0135 — The planner gets the issues and pull requests its task cites

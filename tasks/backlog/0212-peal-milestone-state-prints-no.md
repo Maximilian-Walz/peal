@@ -1,5 +1,6 @@
 ---
 plan: required
+milestone: m8
 ---
 
 # 0212 — peal milestone-state prints no raw config-lock errors and says when the new milestone becomes current

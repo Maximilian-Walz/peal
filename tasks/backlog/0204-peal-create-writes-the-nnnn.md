@@ -1,6 +1,7 @@
 ---
 plan: required
 priority: high
+milestone: m6
 ---
 
 # 0204 — peal create writes the `# 0204 — Title` heading when the text comes without one

@@ -3,6 +3,7 @@ plan: required
 size: M
 depends: [0176]
 touches: [plugin/lib/close.sh, plugin/commands/close.md, plugin/lib/config-defaults.yml, plugin/lib/doctor.sh, docs/reference/configuration.md]
+milestone: m8
 ---
 
 # 0198 — A pluggable pull request host for close: gh, the control plane's pr_create, or none

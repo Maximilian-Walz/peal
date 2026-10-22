@@ -1,6 +1,7 @@
 ---
 plan: required
 touches: [plugin/lib/hostile.test.sh]
+milestone: m7
 ---
 
 # 0165 — Hostile try() flags a silent status-2 run

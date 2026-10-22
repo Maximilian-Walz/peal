@@ -2,6 +2,7 @@
 plan: required
 priority: high
 touches: [plugin/lib/main-write.sh, plugin/lib/main-write.test.sh, plugin/lib/fake-gh, docs/security.md]
+milestone: m4
 ---
 
 # 0207 — A main-write pull request's auto-merge is pinned to the commit Peal built

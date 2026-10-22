@@ -33,6 +33,8 @@ The usability review found several small defects, each cheap, in the first hour 
 
 ## Notes
 
+2026-10-22: Re-plan 2026-10-22: add to doctor (reliability review, finding 14): a task file whose heading number differs from its id, or with two frontmatter blocks, is a FAIL with the fix; 0174 was filed that way (`# 0170 — …` under id 0174, two frontmatter blocks) and `peal create` accepted it. The commit gate's task check refuses the same.
+
 - Usability review F2, F4, F8, F9, F10, F11 (each small). Left out on purpose: F5 (titles in `list`) and F13 to F18 of the review, for later.
 - Security: none.
 

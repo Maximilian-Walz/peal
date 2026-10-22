@@ -1,6 +1,7 @@
 ---
 plan: required
 touches: [plugin/lib/doctor.sh, plugin/lib/doctor.test.sh]
+milestone: m4
 ---
 
 # 0205 — peal doctor's launcher fix runs the verified Peal, not the .peal/peal it just flagged

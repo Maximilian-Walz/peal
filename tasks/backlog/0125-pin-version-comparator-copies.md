@@ -1,5 +1,6 @@
 ---
 plan: required
+milestone: m4
 ---
 
 # 0125 — Pin session.sh's version comparator to the launcher's

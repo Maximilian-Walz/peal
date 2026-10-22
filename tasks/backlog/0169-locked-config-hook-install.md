@@ -1,6 +1,7 @@
 ---
 plan: required
 touches: [plugin/lib/githooks.sh]
+milestone: m7
 ---
 
 # 0169 — A locked config does not make the git-hook install print raw lock errors

@@ -3,6 +3,7 @@ plan: auto
 size: S
 depends: []
 touches: [plugin/lib/status.sh, plugin/bin/peal, docs/reference/cli.md, docs/getting-started.md]
+milestone: m8
 ---
 
 # 0201 — peal status: one human-readable screen of the project's state
