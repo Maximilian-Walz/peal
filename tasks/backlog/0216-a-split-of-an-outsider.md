@@ -2,6 +2,7 @@
 plan: required
 priority: high
 touches: [plugin/commands/split.md, docs/security.md]
+milestone: m4
 ---
 
 # 0216 — A split of an outsider's task keeps origin: outsider on every piece
