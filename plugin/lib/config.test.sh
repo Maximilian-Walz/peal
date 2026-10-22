@@ -38,6 +38,7 @@ task.fields: {}
 storage.kind: files
 storage.issues.repo:
 storage.issues.label:
+storage.issues.apps: []
 release.tag-prefix: v
 release.wait-ci: false
 release.report: []
