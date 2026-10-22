@@ -46,3 +46,37 @@ Found while putting the control plane on Peal (its issue #42), filed from that s
 idea. A milestone given through task_create becomes a proposal the human decides there,
 not a direct move, so the control plane's guard against a session steering its auto
 mode stays.
+
+---
+
+## Outcome
+
+Built `peal idea-fields` (issues storage only): it reads an idea's composed text on
+stdin and prints the issue `peal create` would open from it, as `title:`, `milestone:`
+(when there is one), one `label:` line per label, then `body:` and the body. That body
+holds the `Part of`, `Depends on` and `After deploy of` lines, then the text without
+frontmatter and heading. The helper calls `_peal_issues_from_text`, so the mapping stays
+the storage's own. It runs offline. On task files `peal_store_idea_fields` refuses with
+status 2, because they take the whole text.
+
+`plugin/commands/idea.md`'s control-plane branch (off a task branch, `task_create`) now
+splits on `peal config storage.kind`. `files` still sends the whole text as `body`.
+`issues` pipes the text through `peal idea-fields` and passes `body`, `labels` and
+`milestone`. Documented in `docs/reference/cli.md` and `docs/reference/commands.md`.
+
+Verified by a new check in `plugin/lib/store-issues.test.sh`. It feeds `peal
+idea-fields` the text `peal create` filed as issue 3 and compares the title, milestone,
+labels and body with that issue. A second check covers the refusal of a text with no
+heading. The suite gives 741 passed, 0 failed under mawk, nawk and busybox awk, and
+`peal.test.sh` gives 29 passed.
+
+For the next session:
+- The `idea` tool fallback (when `task_create` refuses) still takes the whole composed
+  text. That is the control plane's to map.
+- Whether the control plane's `task_create` accepts `labels` and `milestone` was not
+  checked from here. The control plane is outside this repository.
+
+### Reviewer findings not acted on
+
+None. The one finding was fixed in its own commit: the files-storage stub had separated
+`peal_store_create` from its doc comment.
