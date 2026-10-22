@@ -19,3 +19,9 @@ Found in 0149. The `task files` auto-merge tier lets a pull request that touches
 ## Raw
 
 > Found in 0149: the task-files loophole (a task-files PR setting `merge: auto` on another task) is accepted for now; file an idea for a gate. (The human's answer at planning.)
+
+## Notes
+
+Revised 2026-10-22: Widened by the security review (finding 7)
+
+- Widened by the security review (finding 7): the direct revise and comment pushes are the same gap by another route, so the gate must cover both (see the revise-shape task of Safe under Belfry), and the board must not read `merge` from a claim copy (the consent task of the same milestone). Moved into Safe under Belfry, priority high.
