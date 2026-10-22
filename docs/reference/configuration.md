@@ -35,7 +35,7 @@ under `storage`.
 | `review.skip-paths` | `[docs/, tasks/]` | a diff only under these skips the reviewer |
 | `context` | `[]` | documents the planner, reviewer and `/peal:idea` read |
 | `checks.commit` | `[]` | commands the `commit-msg` gate runs; `"PATH...: COMMAND"` only when the commit touches one of those paths |
-| `checks.close` | `[]` | commands `peal close finish` runs before opening the pull request |
+| `checks.close` | `[]` | commands `peal close finish` runs before opening the pull request, read from the main branch's tip (not the work tree), run on the branch's tree |
 | `pr.sections` | `[]` | extra prose sections close asks the session for, each `"Title: what to write"` |
 | `pr.security` | `""` | the project's threat model document, a path; set, `peal close` requires a `Security:` line in the pull request body (`--security`), naming the boundary the change touches or `none`, and `peal doctor` warns when the file is missing |
 | `commit.areas` | `[]` | allowed `<area>` values in commit subjects, then required; empty allows any or none; `tasks` is always one |

@@ -468,11 +468,23 @@ peal_close_body_cmd() {
   peal_close_body "$PEAL_ID"
 }
 
-# _peal_close_checks -> each of checks.close run from the top of the work tree; status 1
-# at the first that fails.
+# _peal_close_checks -> each of checks.close, read from the main branch's tip (never the
+# work tree's, so a branch cannot choose the checks its own close runs), run from the top
+# of the work tree; one note when the work tree's list differs; status 2 when main's
+# config does not load, 1 at the first check that fails. Needs peal_branch_base's
+# PEAL_MAIN_REF; fetches nothing.
 _peal_close_checks() {
-  local checks item
-  checks=$(peal_config_get checks.close) || return 1
+  local checks mine item
+  # A subshell: the work tree's PEAL_CONFIG stays for the rest of finish.
+  checks=$(peal_config_load_ref "$PEAL_MAIN_REF" && peal_config_get checks.close) || {
+    peal_err "close finish: the close checks cannot be read from $PEAL_MAIN_REF; nothing is moved or filed."
+    return 2
+  }
+  mine=$(peal_config_get checks.close) || return 2
+  echo "close: the close checks come from $PEAL_MAIN_REF"
+  if [ "$mine" != "$checks" ]; then
+    echo "close: note: checks.close differs: this branch has [$(printf '%s' "$mine" | paste -sd, -)], $PEAL_MAIN_REF has [$(printf '%s' "$checks" | paste -sd, -)]; running $PEAL_MAIN_REF's"
+  fi
   while IFS= read -r item; do
     [ -n "$item" ] || continue
     echo "close: running $item"
@@ -489,7 +501,7 @@ _peal_close_checks() {
 # more than three escalations, an uncommitted path other than the Outcome's text and the
 # decision entries, a task holding merge: auto without the reviewer's merge-auto line
 # (--review-file), git hooks not installed (where `guardrails` is set up), decision entries out of order
-# (_peal_dec_check), and a failing checks.close item; then the queued ideas filed in
+# (_peal_dec_check), and a failing checks.close item (the list read from the main branch's tip); then the queued ideas filed in
 # one push (a failure files nothing, or, where the storage files one by one, dequeues
 # exactly those filed), merge: auto removed from the task when the review says
 # withdraw, the uncommitted decision entries committed on their own
