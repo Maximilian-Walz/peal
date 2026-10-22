@@ -103,4 +103,37 @@ Ranges: `plugin/lib/config.sh:1-47`, `plugin/lib/close.sh:21-39`,
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Built as planned. `peal close finish` now reads `checks.close` from the main branch's tip
+(`PEAL_MAIN_REF`, as `peal_branch_base` sets it; no fetch) and runs those commands from
+the top of the branch's work tree. A branch can no longer drop or add close checks by
+editing its own `.peal/config.yml`.
+
+- `plugin/lib/config.sh`: the defaults-plus-project merge is now `_peal_config_merge`,
+  shared by `peal_config_load` and the new `peal_config_load_ref REF`. The new helper reads
+  `REF:.peal/config.yml` with `git show`, falls back to Peal's defaults when the file is
+  absent, and returns 2 naming `REF:.peal/config.yml` when the file does not parse, has
+  an unknown key, or the ref does not exist. 0091 can reuse it.
+- `plugin/lib/close.sh` `_peal_close_checks`: it reads main's list in a subshell, so the
+  work tree's `PEAL_CONFIG` stays for every other setting finish reads (`pr.security`,
+  `remote`, `main` unchanged, as decided at planning). It prints `close: the close checks
+  come from <ref>`, and one note naming both lists when the branch's list differs. It
+  returns 2 when main's config does not load. The checks still run before the idea flush,
+  so a refusal changes nothing.
+- Tests: `close.test.sh` `main_checks_cases` (both storages) and `config.test.sh` (the
+  helper: ref's file, no file, invalid file, work tree ignored, unknown ref). Docs:
+  `security.md` (the new limit entry, naming the tests and the remaining main-ref-name
+  hole for 0091), `design.md`, `configuration.md`, `cli.md`. `plugin/commands/close.md`
+  needed no change: it names no source for the list.
+
+Verified on the tip after merging origin/main: `config.test.sh` 96/0, `close.test.sh`
+1449/0, `docs.test.sh` 37/0, `tools/lint.sh` (shellcheck on 76 scripts, pins, launcher,
+`peal check`) clean. The full `tools/test-all.sh` exceeds a session's 600s command limit;
+CI runs it.
+
+For the next session: most of the code came in through a session-end `wip:` autosave
+(dd18897), which skipped the commit gate's checks. The reviewer re-ran the build and the
+tests on the tip instead. 0170 (`worktree-setup` from main) and 0091 (gate settings and
+the main ref's name from main) remain; both build on `peal_config_load_ref`.
+
+The reviewer had no findings. One line break in `docs/security.md` was joined after the
+review.
