@@ -388,5 +388,6 @@ This threat model is m1's first task; the rest of m1 closes what it can only nam
 0039 runs every command against hostile values in CI; 0040 showed the git hooks and the
 launcher execute nothing a repository ships, and that `peal init --remove` leaves
 nothing behind, with the limits listed under the first boundary above; 0041 pinned the CI
-supply chain and checked each job's permissions. 0089 reads `checks.close` from the main branch's tip; reading
+supply chain and checked each job's permissions. 0089 reads `checks.close` from the main
+branch's tip; reading
 the gates' settings from it as well (and the main ref's name, 0091) is a task of its own.
