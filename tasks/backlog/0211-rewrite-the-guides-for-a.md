@@ -1,6 +1,7 @@
 ---
 plan: skipped
 touches: [docs/guides/]
+milestone: m8
 ---
 
 # 0211 — Rewrite the guides for a newcomer, like the README
