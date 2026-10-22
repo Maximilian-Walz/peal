@@ -313,8 +313,31 @@ Task: none in this worktree. /peal:work claims one into a worktree of its own." 
   check "hint: issues storage, still no gh call of its own" "$n1" "$n3"
 }
 
+# launcher -> the SessionStart "Launcher:" line (0088): only when .peal/peal exists and
+# differs from the running Peal's template, on every source, the hook still exiting 0.
+launcher() {
+  local work out
+  work=$(peal_repo)
+  mkdir -p "$work/.peal"
+  cp "$PEAL_ROOT/templates/launcher" "$work/.peal/peal"
+  publish "$work"
+  out=$(hook_stdout "$work" session-start '{"source":"startup"}')
+  check "launcher: identical, no line" "0" "$(printf '%s\n' "$out" | grep -c '^Launcher:')"
+
+  printf '# edited\n' >>"$work/.peal/peal"
+  out=$(hook_stdout "$work" session-start '{"source":"startup"}')
+  check "launcher: differs, the line, exit 0" "0:1" "${out%%:*}:$(printf '%s\n' "$out" | grep -c '^Launcher: .peal/peal differs')"
+  out=$(hook_stdout "$work" session-start '{"source":"resume"}')
+  check "launcher: shown on resume too" "1" "$(printf '%s\n' "$out" | grep -c '^Launcher:')"
+
+  rm "$work/.peal/peal"
+  out=$(hook_stdout "$work" session-start '{"source":"startup"}')
+  check "launcher: missing, no line" "0" "$(printf '%s\n' "$out" | grep -c '^Launcher:')"
+}
+
 cases() {
   orientation
+  launcher
   budget
   autosave
   gates

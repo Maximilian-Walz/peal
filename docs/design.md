@@ -665,7 +665,9 @@ Finding Peal's scripts at run time:
   `installed_plugins.json` is there, a path and version its `peal@` entries list. A root
   refused is named on stderr with the reason and the next is tried. The git hooks run the
   same check (one block, the same text in both templates), `$PEAL_ROOT` included. The
-  SessionStart hook does not record a root inside the repository.
+  SessionStart hook does not record a root inside the repository. It also reports a committed
+  `.peal/peal` that differs from the plugin's template, since a branch can replace the
+  launcher.
 
 The `peal` CLI is the one entry point for all scripts (`peal list`, `peal claim`, ...);
 commands and hooks call it too, so there is a single place that loads config and storage.
