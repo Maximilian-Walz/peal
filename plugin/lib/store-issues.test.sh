@@ -234,7 +234,7 @@ app_admission() {
   local refused="refused: issue 1 is no task: opened by someone without write access to acme/widgets; set storage.issues.label and label it, or file it anew yourself (peal idea)"
   local edited="refused: issue 1 is no task: edited after it was labelled 'tasks' by someone without write access to acme/widgets; read the edit, then take the label 'tasks' off and add it again to make it a task"
   local outsider="refused: issue 1 is no task: opened by an App acme/widgets trusts, but labelled 'origin: outsider', which takes the App's trust away; file it anew yourself (peal idea)"
-  local work wt
+  local work wt out
 
   # No label: the App's issue is a task with the setting, refused without it.
   ISSUES_CONFIG='    apps: [belfry-server]
@@ -244,8 +244,8 @@ app_admission() {
   check "list: an App's issue is a task" "1 free app-s-issue -" "$(list 2>&1)"
   wt=$(peal claim 1 --print-path 2>/dev/null | tail -n 1)
   check "claim: an App's issue is claimed" "1" "$(git -C "$wt" branch --show-current | sed 's|issue/||')"
-  at "$wt" "$PEAL" defer --reason "no longer mine" --dry-run < <(cat "$(git -C "$wt" rev-parse --absolute-git-dir)/peal-task.md") >"$TMPDIR/defer.out" 2>&1
-  check "defer: an App's issue is not refused" "0" "$(grep -c 'refused:' "$TMPDIR/defer.out")"
+  out=$(at "$wt" "$PEAL" defer --reason "no longer mine" --dry-run < <(cat "$(git -C "$wt" rev-parse --absolute-git-dir)/peal-task.md") 2>&1)
+  check "defer: an App's issue is not refused" "0" "$(grep -c 'refused:' <<<"$out")"
 
   issues_repo
   issue 1 "App's issue" --assoc NONE --user "belfry-server[bot]" --edited-at 2026-03-01T00:00:00Z belfry-server
