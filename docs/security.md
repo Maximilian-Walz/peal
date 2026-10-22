@@ -302,8 +302,17 @@ any task's; the boundary above bounds what a session does with prose once it has
 whether an issue reaches a session at all. `admitted()` (`plugin/lib/issues-lib.awk`) is
 the one rule every read path of the issues storage applies: the filter label
 (`storage.issues.label`) when one is set, else an opener with write access to the
-repository (OWNER, MEMBER or COLLABORATOR) — anyone may open an issue on a public
-repository. `read`, `claim`, `work` and `defer` refuse an issue the rule does not admit
+repository (OWNER, MEMBER or COLLABORATOR) or an App the project's config names in
+`storage.issues.apps` — anyone may open an issue on a public repository. An App counts
+only by its REST login `<slug>[bot]` (compared case-insensitively; a user's login cannot
+contain `[`, so the suffix cannot be forged, and the bare slug is a user's), as opener,
+editor and renamer, and for the pull requests that mark an issue awaiting merge. An App
+relaying text from outside labels its issue `origin: outsider`, which takes the App's
+trust away (the write-access rule stays; with a filter label the label still vouches, an
+edit after it does not); that refusal names the label and quotes nothing. The limit: the
+setting is read from the work tree, as `storage.issues.label`, so a branch could widen it
+for its own session; moving both to the main branch's config is the gate-settings-from-main
+task (0091). `read`, `claim`, `work` and `defer` refuse an issue the rule does not admit
 and quote none of its text; `list`, the board, the depends expansion and `ship`'s release
 notes apply the same rule, an unadmitted issue a commit subject names getting the
 commit's own subject in the notes, never the issue's title.
@@ -331,7 +340,7 @@ A task depending on a stranger's issue still reads its state (open or closed) to
 whether it is done, the one thing that crosses the boundary, never its text. No command
 reads comments.
 
-- Guard: `plugin/lib/issues-lib.awk` (`admitted()`, `edit_admitted()`,
+- Guard: `plugin/lib/issues-lib.awk` (`writer()`, `admitted()`, `edit_admitted()`,
   `edit_row_admitted()`), `plugin/lib/issues-scan.awk`, `plugin/lib/store-issues.sh`
   (`_peal_issues_admitted`, `_peal_issues_edits_batch`, `_peal_issues_scan`),
   `plugin/lib/claim.sh`, `plugin/lib/work.sh`, `plugin/lib/ship.sh`

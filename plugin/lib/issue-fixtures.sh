@@ -51,14 +51,16 @@ milestone() {
 
 # issue NUMBER TITLE [--closed | --not-planned] [--label L]... [--labelled-at T]...
 # [--milestone M] [--body TEXT] [--assoc ASSOCIATION] [--edited-at T BY]
-# [--renamed-at T BY]... -> an issue on the fake GitHub, opened by its owner (login
+# [--renamed-at T BY]... [--user LOGIN] -> an issue on the fake GitHub, opened by its owner (login
 # "author") unless --assoc says otherwise. --labelled-at T records a labelling of the
 # most recent --label at time T; --edited-at and --renamed-at, the re-label check's
 # GraphQL edits query (lib/fake-gh): BY is the editor's or renamer's login ("author" for
-# the issue's own opener, so its write access is --assoc's).
+# the issue's own opener, so its write access is --assoc's). --user LOGIN is the opener's
+# login (default "author"), "name[bot]" for an App; the GraphQL author is the login
+# without "[bot]", as GitHub gives it.
 issue() {
   local n=$1 title=$2 state=open reason="" labels="[]" ms="" body="" assoc=OWNER \
-    lastlabel="" labelled="[]" edited_at="" editor="" renamed="[]"
+    lastlabel="" labelled="[]" edited_at="" editor="" renamed="[]" login=author
   shift 2
   while [ $# -gt 0 ]; do
     case $1 in
@@ -69,6 +71,7 @@ issue() {
       --milestone) ms=$2; shift ;;
       --body) body=$2; shift ;;
       --assoc) assoc=$2; shift ;;
+      --user) login=$2; shift ;;
       --edited-at) edited_at=$2; editor=$3; shift 2 ;;
       --renamed-at) renamed=$(jq -c --arg t "$2" --arg b "$3" '. + [{at: $t, by: $b}]' <<<"$renamed"); shift 2 ;;
     esac
@@ -78,31 +81,32 @@ issue() {
       state_reason: (if $r == "" then null else $r end), body: $b, labels: $l,
       author_association: $a, html_url: ("https://github.com/acme/widgets/issues/" + $n),
       milestone: (if $m == "" then null else ($ms[0][] | select(.title == $m) | {number, title}) end),
-      author_login: "author", labeled_events: $lb,
+      user: {login: $u}, author_login: ($u | sub("\\[bot\\]$"; "")), labeled_events: $lb,
       last_edited_at: (if $e == "" then null else $e end), editor: (if $e == "" then null else $ed end),
       renamed_events: $rn}]' \
     --arg n "$n" --arg t "$title" --arg s "$state" --arg r "$reason" --arg b "$body" \
     --argjson l "$labels" --arg a "$assoc" --arg m "$ms" --slurpfile ms "$FAKE_GH/milestones.json" \
-    --argjson lb "$labelled" --arg e "$edited_at" --arg ed "$editor" --argjson rn "$renamed"
+    --arg u "$login" --argjson lb "$labelled" --arg e "$edited_at" --arg ed "$editor" --argjson rn "$renamed"
 }
 
-# pr NUMBER BODY [--draft] [--fork ASSOCIATION] [--closed] -> a pull request on the fake
+# pr NUMBER BODY [--draft] [--fork ASSOCIATION] [--closed] [--user LOGIN] -> a pull request on the fake
 # GitHub, from a branch of the repository unless --fork names its author's association.
 pr() {
-  local n=$1 body=$2 draft=false head=acme/widgets assoc=OWNER state=open
+  local n=$1 body=$2 draft=false head=acme/widgets assoc=OWNER state=open login=author
   shift 2
   while [ $# -gt 0 ]; do
     case $1 in
       --draft) draft=true ;;
       --fork) head=someone/widgets assoc=$2; shift ;;
       --closed) state=closed ;;
+      --user) login=$2; shift ;;
     esac
     shift
   done
   gh_save pulls '. + [{number: ($n | tonumber), body: $b, draft: $d, state: $s,
-      author_association: $a, html_url: ("https://github.com/acme/widgets/pull/" + $n),
+      user: {login: $u}, author_association: $a, html_url: ("https://github.com/acme/widgets/pull/" + $n),
       head: {ref: ("issue/" + $n), repo: {full_name: $h}}, base: {repo: {full_name: "acme/widgets"}}}]' \
-    --arg n "$n" --arg b "$body" --argjson d "$draft" --arg s "$state" --arg a "$assoc" --arg h "$head"
+    --arg n "$n" --arg b "$body" --argjson d "$draft" --arg s "$state" --arg a "$assoc" --arg h "$head" --arg u "$login"
 }
 
 # gh_save FILE FILTER [ARGS...] -> the fake GitHub's FILE.json rewritten by the jq FILTER.

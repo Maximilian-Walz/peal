@@ -36,6 +36,11 @@ _peal_ship_settings() {
   PEAL_PREFIX=$(peal_config_get release.tag-prefix) || return 2
   PEAL_GH_REPO=$(peal_config_get storage.issues.repo) || return 2
   PEAL_LABEL=$(peal_config_get storage.issues.label) || return 2
+  if [ "$PEAL_KIND" = issues ]; then
+    # shellcheck source=store-issues.sh
+    declare -F _peal_issues_apps >/dev/null || . "$PEAL_ROOT/lib/store-issues.sh"
+    _peal_issues_apps || return 2
+  fi
   # The remote's own URL, not what a local insteadOf makes of it.
   [ -n "$PEAL_GH_REPO" ] \
     || PEAL_GH_REPO=$(peal_github_repo_of "$(git config --get "remote.$PEAL_REMOTE.url")") || PEAL_GH_REPO=""
@@ -416,22 +421,26 @@ _peal_ship_file_items() {
   done <"$dir/added"
 }
 
-# _peal_ship_admitted ASSOC LABELS -> status 0 when the write-access rule or the filter
-# label (PEAL_LABEL) admits an issue whose author_association is ASSOC and labels
-# (comma-joined) are LABELS (lib/issues-lib.awk's admitted()).
+# _peal_ship_admitted ASSOC LABELS LOGIN -> status 0 when the write-access rule (or a
+# trusted App, PEAL_APPS) or the filter label (PEAL_LABEL) admits an issue whose
+# author_association is ASSOC, labels (comma-joined) are LABELS and opener's login LOGIN
+# (lib/issues-lib.awk's admitted()).
 _peal_ship_admitted() {
-  awk -v assoc="$1" -v labels="$2" -v label="${PEAL_LABEL-}" -f "$PEAL_ROOT/lib/issues-lib.awk" \
-    -f <(printf '%s\n' 'BEGIN { exit !admitted(assoc, labels, label) }')
+  awk -v assoc="$1" -v labels="$2" -v login="$3" -v label="${PEAL_LABEL-}" -v apps="${PEAL_APPS-}" \
+    -f "$PEAL_ROOT/lib/issues-lib.awk" \
+    -f <(printf '%s\n' 'BEGIN { exit !admitted(assoc, labels, label, login, apps) }')
 }
 
-# _peal_ship_edits_admitted ID ASSOC EDITS -> status 0 when EDITS (the re-label
-# check's lines, lib/store-issues.sh's _peal_issues_edits_batch) admits issue ID, whose
-# author_association is ASSOC: no edit after the filter label's labelling by someone
-# without write access. No line for ID refuses (fail closed).
+# _peal_ship_edits_admitted ID ASSOC LABELS LOGIN EDITS -> status 0 when EDITS (the
+# re-label check's lines, lib/store-issues.sh's _peal_issues_edits_batch) admits issue
+# ID, whose opener's trust is that of ASSOC, LABELS and LOGIN (issues-lib.awk's writer()):
+# no edit after the filter label's labelling by someone without it. No line for ID
+# refuses (fail closed).
 _peal_ship_edits_admitted() {
   # shellcheck disable=SC2016 # awk's own $ fields, not the shell's
-  awk -F '\t' -v id="$1" -v assoc="$2" -f "$PEAL_ROOT/lib/issues-lib.awk" \
-    -f <(printf '%s\n' '$1 == id { ok = edit_row_admitted($0, assoc) } END { exit !ok }') "$3"
+  awk -F '\t' -v id="$1" -v assoc="$2" -v labels="$3" -v login="$4" -v apps="${PEAL_APPS-}" \
+    -f "$PEAL_ROOT/lib/issues-lib.awk" \
+    -f <(printf '%s\n' '$1 == id { ok = edit_row_admitted($0, writer(assoc, login, labels, apps)) } END { exit !ok }') "$5"
 }
 
 # _peal_ship_issue_items DIR -> DIR/items for the issues the range's subjects name that
@@ -442,7 +451,7 @@ _peal_ship_edits_admitted() {
 # subject in place of its title, never the issue's own text; a pull request's Outcome is
 # read only from one opened by the repository itself or by someone with write access.
 _peal_ship_issue_items() {
-  local dir=$1 id row state reason title labels ispr assoc prs kind first sentence subject trusted samerepo prassoc
+  local dir=$1 id row state reason title labels ispr assoc login prs kind first sentence subject trusted samerepo prassoc prlogin
   [ -n "$PEAL_GH_REPO" ] || { peal_err "no GitHub repository: set storage.issues.repo"; return 2; }
   awk -F '\t' '$4 ~ /^[0-9]+$/ && !seen[$4]++ { print $4 }' "$dir/commits" >"$dir/ids"
   : >"$dir/issues"
@@ -450,14 +459,14 @@ _peal_ship_issue_items() {
   : >"$dir/edits"
   while IFS= read -r id; do
     row=$(peal_gh "repos/$PEAL_GH_REPO/issues/$id" \
-      --jq '[.state, (.state_reason // ""), .title, ([.labels[].name] | join(",")), (if .pull_request then "pr" else "" end), (.author_association // "")] | join("\u001f")' </dev/null 2>/dev/null) \
+      --jq '[.state, (.state_reason // ""), .title, ([.labels[].name] | join(",")), (if .pull_request then "pr" else "" end), (.author_association // ""), (.user.login // "")] | join("\u001f")' </dev/null 2>/dev/null) \
       || continue
     # A separator that is no white space: an empty field stays a field.
-    IFS=$'\x1f' read -r state reason title labels ispr assoc <<<"$row"
+    IFS=$'\x1f' read -r state reason title labels ispr assoc login <<<"$row"
     [ "$reason" != not_planned ] || echo "$id" >>"$dir/dropped"
     if [ "$state" != closed ] || [ "$reason" = not_planned ] || [ -n "$ispr" ]; then continue; fi
     printf '%s\x1f%s\n' "$id" "$row" >>"$dir/issues"
-    [ -z "${PEAL_LABEL-}" ] || ! _peal_ship_admitted "$assoc" "$labels" || echo "$id" >>"$dir/checked"
+    [ -z "${PEAL_LABEL-}" ] || ! _peal_ship_admitted "$assoc" "$labels" "$login" || echo "$id" >>"$dir/checked"
   done <"$dir/ids"
   if [ -s "$dir/checked" ]; then
     # shellcheck source=store-issues.sh
@@ -465,9 +474,9 @@ _peal_ship_issue_items() {
     # shellcheck disable=SC2046 # one issue number per word
     PEAL_REPO=$PEAL_GH_REPO _peal_issues_edits_batch $(cat "$dir/checked") >"$dir/edits" </dev/null || : >"$dir/edits"
   fi
-  while IFS=$'\x1f' read -r id state reason title labels ispr assoc; do
-    if ! _peal_ship_admitted "$assoc" "$labels" \
-        || { [ -n "${PEAL_LABEL-}" ] && ! _peal_ship_edits_admitted "$id" "$assoc" "$dir/edits"; }; then
+  while IFS=$'\x1f' read -r id state reason title labels ispr assoc login; do
+    if ! _peal_ship_admitted "$assoc" "$labels" "$login" \
+        || { [ -n "${PEAL_LABEL-}" ] && ! _peal_ship_edits_admitted "$id" "$assoc" "$labels" "$login" "$dir/edits"; }; then
       subject=$(awk -F '\t' -v id="$id" '$4 == id { print $6; exit }' "$dir/commits")
       title=${subject:-"issue $id"}
     fi
@@ -482,12 +491,13 @@ _peal_ship_issue_items() {
     first=${prs%% *}
     if [ -n "$first" ]; then
       row=$(peal_gh "repos/$PEAL_GH_REPO/pulls/${first#\#}" \
-        --jq '[(.head.repo.full_name == .base.repo.full_name | tostring), (.author_association // "")] | join("\u001f")' </dev/null 2>/dev/null)
-      IFS=$'\x1f' read -r samerepo prassoc <<<"$row"
+        --jq '[(.head.repo.full_name == .base.repo.full_name | tostring), (.author_association // ""), ((.user.login // "") | ascii_downcase)] | join("\u001f")' </dev/null 2>/dev/null)
+      IFS=$'\x1f' read -r samerepo prassoc prlogin <<<"$row"
       trusted=0
       case $prassoc in
         OWNER | MEMBER | COLLABORATOR) trusted=1 ;;
-        *) [ "$samerepo" != true ] || trusted=1 ;;
+        *) [ "$samerepo" != true ] || trusted=1
+          case ",${PEAL_APPS-}," in *",${prlogin%\[bot\]},"*) [[ "$prlogin" != *"[bot]" ]] || trusted=1 ;; esac ;;
       esac
       if [ "$trusted" = 1 ]; then
         sentence=$(peal_gh "repos/$PEAL_GH_REPO/pulls/${first#\#}" --jq '.body // ""' </dev/null 2>/dev/null \

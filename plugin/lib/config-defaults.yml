@@ -38,6 +38,8 @@ storage:
     repo: ""                    # owner/name; empty: the remote's GitHub repository
     label: ""                   # only issues with this label are tasks; empty: the issues
                                 # opened by someone with write access
+    apps: []                    # GitHub Apps whose issues count as a writer's: slugs or bot
+                                # logins ("name[bot]"); not those labelled "origin: outsider"
 release:
   tag-prefix: v                 # release tags are <prefix>MAJOR.MINOR.PATCH
   wait-ci: false                # /peal:release waits for the workflow runs of the tag

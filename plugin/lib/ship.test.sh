@@ -718,6 +718,24 @@ ITEM feature 2 #11 the second subject" "$(peal ship propose 2>/dev/null | grep '
   rm -f "$FAKE_GH/fail"
 }
 
+# issues_apps: storage.issues.apps makes an App's closed issue keep its title in the
+# notes, and an App's pull request Outcome count; without the setting, the commit's subject.
+issues_apps() {
+  ISSUES_CONFIG='    apps: [belfry-server]
+' issues_repo
+  issue 1 "App title" --closed --assoc NONE --user "belfry-server[bot]"
+  issue 2 "Relayed title" --closed --assoc NONE --user "belfry-server[bot]" --label "origin: outsider"
+  commit "feat: the first subject [1] (#10)"
+  commit "feat: the second subject [2] (#11)"
+  check "issues, apps: the App's title kept, the outsider's not" "ITEM feature 1 #10 App title
+ITEM feature 2 #11 the second subject" "$(peal ship propose 2>&1 | grep '^ITEM')"
+  ISSUES_CONFIG="" issues_repo
+  issue 1 "App title" --closed --assoc NONE --user "belfry-server[bot]"
+  commit "feat: the first subject [1] (#10)"
+  check "issues, apps: without the setting, the subject" "ITEM feature 1 #10 the first subject" \
+    "$(peal ship propose 2>&1 | grep '^ITEM')"
+}
+
 for_each_awk files
 for_each_awk bump
 for_each_awk pin
@@ -725,4 +743,5 @@ for_each_awk changelog
 for_each_awk bump_protected
 for_each_awk issues
 for_each_awk issues_relabel
+for_each_awk issues_apps
 finish

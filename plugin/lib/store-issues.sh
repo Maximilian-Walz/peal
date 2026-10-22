@@ -28,10 +28,12 @@
 PEAL_ISSUES_CLAIMED="in progress"
 PEAL_ISSUES_CLOSED=${PEAL_ISSUES_CLOSED:-100}
 # One issue's fields as issues-lib.awk reads them.
-PEAL_ISSUES_ROW='[(.number | tostring), .state, .title, (.milestone.title // ""), ([.labels[].name] | join(",")), (.author_association // ""), .html_url, (.body // "")] | @tsv'
+PEAL_ISSUES_ROW='[(.number | tostring), .state, .title, (.milestone.title // ""), ([.labels[].name] | join(",")), (.author_association // ""), .html_url, (.body // ""), (.user.login // "")] | @tsv'
 
-# _peal_issues_settings -> PEAL_REMOTE, PEAL_MAIN, PEAL_LABEL and PEAL_REPO (owner/name:
-# peal_github_repo) from the settings. A warning when main-writes is set to something but
+# _peal_issues_settings -> PEAL_REMOTE, PEAL_MAIN, PEAL_LABEL, PEAL_APPS (storage.issues.apps
+# as lower-cased slugs, comma-joined, "[bot]" stripped; PEAL_APPS_JSON the same as a JSON
+# array) and PEAL_REPO (owner/name: peal_github_repo) from the settings; status 2 for an
+# App that is no slug. A warning when main-writes is set to something but
 # its default while nothing writes onto main: issues live on GitHub, and only the
 # decisions module and a release's version files and changelog (release.version-files,
 # release.changelog) go onto main.
@@ -39,11 +41,31 @@ _peal_issues_settings() {
   PEAL_REMOTE=$(peal_config_get remote) || return 2
   PEAL_MAIN=$(peal_config_get main) || return 2
   PEAL_LABEL=$(peal_config_get storage.issues.label) || return 2
+  _peal_issues_apps || return 2
   PEAL_REPO=$(peal_github_repo) || return 2
   if [ "$(peal_config_get main-writes)" != auto ] && [ "$(peal_config_get decisions)" = false ] \
       && [ -z "$(peal_config_get release.version-files)" ] && [ -z "$(peal_config_get release.changelog)" ]; then
     peal_err "warning: main-writes does nothing here: the issues storage writes no task onto $PEAL_MAIN, and neither the decisions module nor release.version-files nor release.changelog is set"
   fi
+}
+
+# _peal_issues_apps -> PEAL_APPS and PEAL_APPS_JSON from storage.issues.apps; each entry a
+# slug or its bot login "slug[bot]", checked before it enters a jq program or an awk
+# variable. Only the committed config names an App.
+_peal_issues_apps() {
+  local list app slug
+  PEAL_APPS="" PEAL_APPS_JSON="[]"
+  list=$(peal_config_get storage.issues.apps) || return 2
+  while IFS= read -r app; do
+    [ -n "$app" ] || continue
+    if ! [[ "$app" =~ ^[A-Za-z0-9][A-Za-z0-9-]*(\[bot\])?$ ]]; then
+      peal_err "storage.issues.apps: '$app' is no GitHub App slug (name or name[bot])"
+      return 2
+    fi
+    slug=$(printf '%s' "${app%\[bot\]}" | tr '[:upper:]' '[:lower:]')
+    PEAL_APPS="${PEAL_APPS:+$PEAL_APPS,}$slug"
+    PEAL_APPS_JSON=$(jq -c --arg s "$slug" '. + [$s]' <<<"$PEAL_APPS_JSON")
+  done <<<"$list"
 }
 
 # _peal_issues_issue N -> issue N as an issues-lib.awk row; status 2 if it cannot be read.
@@ -63,12 +85,15 @@ _peal_issues_listed() {
 }
 
 # _peal_issues_prs -> issues-prs.awk's lines for the open pull requests that may close an
-# issue: from a branch of the repository itself, or by someone with write access.
+# issue: from a branch of the repository itself, by someone with write access, or by a
+# trusted App (PEAL_APPS: the validated slugs, embedded as a JSON array, as gh api --jq
+# takes no --arg).
 _peal_issues_prs() {
-  peal_gh --paginate "repos/$PEAL_REPO/pulls?state=open&per_page=100" --jq '.[]
-    | select(.head.repo.full_name == .base.repo.full_name or .author_association == "OWNER"
-        or .author_association == "MEMBER" or .author_association == "COLLABORATOR")
-    | [(.number | tostring), .html_url, (.draft | tostring), (.body // "")] | @tsv' \
+  peal_gh --paginate "repos/$PEAL_REPO/pulls?state=open&per_page=100" --jq ".[]
+    | select(.head.repo.full_name == .base.repo.full_name or .author_association == \"OWNER\"
+        or .author_association == \"MEMBER\" or .author_association == \"COLLABORATOR\"
+        or (((.user.login // \"\") | ascii_downcase) as \$l | $PEAL_APPS_JSON | any(. + \"[bot]\" == \$l)))
+    | [(.number | tostring), .html_url, (.draft | tostring), (.body // \"\")] | @tsv" \
     | awk -F '\t' -f "$PEAL_ROOT/lib/issues-lib.awk" -f "$PEAL_ROOT/lib/issues-prs.awk"
   return "${PIPESTATUS[0]}"
 }
@@ -96,7 +121,7 @@ _peal_issues_scan() {
 }
 
 _peal_issues_scan_awk() {
-  awk -F '\t' -v label="$PEAL_LABEL" -v claimed="$PEAL_ISSUES_CLAIMED" -v edits="$1/edits" \
+  awk -F '\t' -v label="$PEAL_LABEL" -v apps="$PEAL_APPS" -v claimed="$PEAL_ISSUES_CLAIMED" -v edits="$1/edits" \
     -f "$PEAL_ROOT/lib/issues-lib.awk" -f "$PEAL_ROOT/lib/issues-scan.awk" "$1/listed" "$1/extra" | LC_ALL=C sort -t "$(printf '\t')" -k1,1n >"$1/scan"
 }
 
@@ -259,6 +284,22 @@ _peal_issues_edits_batch() {
   done
 }
 
+# _peal_issues_trusted ROW -> 1 when the opener of the issue in ROW counts as a writer
+# (issues-lib.awk's writer(): write access, or a trusted App), else 0.
+_peal_issues_trusted() {
+  # shellcheck disable=SC2016 # awk's own $ fields, not the shell's
+  printf '%s\n' "$1" | awk -F '\t' -v apps="$PEAL_APPS" -f "$PEAL_ROOT/lib/issues-lib.awk" \
+    -f <(printf '%s\n' '{ print writer($6, $9, $5, apps) + 0 }')
+}
+
+# _peal_issues_outsider ROW -> status 0 when ROW is an issue of a trusted App that
+# "origin: outsider" takes the App's trust from.
+_peal_issues_outsider() {
+  # shellcheck disable=SC2016 # awk's own $ fields, not the shell's
+  printf '%s\n' "$1" | awk -F '\t' -v apps="$PEAL_APPS" -f "$PEAL_ROOT/lib/issues-lib.awk" \
+    -f <(printf '%s\n' '{ exit !(writer("NONE", $9, "", apps) && !writer("NONE", $9, $5, apps)) }')
+}
+
 # _peal_issues_admitted ROW [N] -> status 0 when ROW (an issue as PEAL_ISSUES_ROW reads
 # it) is admitted: the write-access rule or the filter label, as ever; then, with a
 # label and N (the issue's number) given, no edit later than the label's own labelling
@@ -272,14 +313,14 @@ _peal_issues_admitted() {
   PEAL_ADMIT_EDIT=0
   PEAL_ADMIT_ERR=""
   # shellcheck disable=SC2016 # awk's own $ fields, not the shell's
-  printf '%s\n' "$row" | awk -F '\t' -v label="$PEAL_LABEL" -f "$PEAL_ROOT/lib/issues-lib.awk" \
-    -f <(printf '%s\n' '{ exit !admitted($6, $5, label) }') || return 1
+  printf '%s\n' "$row" | awk -F '\t' -v label="$PEAL_LABEL" -v apps="$PEAL_APPS" -f "$PEAL_ROOT/lib/issues-lib.awk" \
+    -f <(printf '%s\n' '{ exit !admitted($6, $5, label, $9, apps) }') || return 1
   if [ -n "$PEAL_LABEL" ] && [ -n "$id" ]; then
     edits=$(_peal_issues_edits_batch "$id") || { PEAL_ADMIT_ERR="could not read issue $id's edits"; return 2; }
     # No line for the issue: refused, as fail closed.
     # shellcheck disable=SC2016 # awk's own $ fields, not the shell's
-    if ! printf '%s\n' "$edits" | awk -F '\t' -v id="$id" -v assoc="$(_peal_field "$row" 6)" \
-        -f "$PEAL_ROOT/lib/issues-lib.awk" -f <(printf '%s\n' '$1 == id { ok = edit_row_admitted($0, assoc) } END { exit !ok }'); then
+    if ! printf '%s\n' "$edits" | awk -F '\t' -v id="$id" -v trusted="$(_peal_issues_trusted "$row")" \
+        -f "$PEAL_ROOT/lib/issues-lib.awk" -f <(printf '%s\n' '$1 == id { ok = edit_row_admitted($0, trusted + 0) } END { exit !ok }'); then
       PEAL_ADMIT_EDIT=1
       return 1
     fi
@@ -300,6 +341,10 @@ _peal_issues_refuse() {
     return
   fi
   assoc=$(_peal_field "$row" 6)
+  if [ -z "$PEAL_LABEL" ] && _peal_issues_outsider "$row"; then
+    peal_err "refused: issue $id is no task: opened by an App $PEAL_REPO trusts, but labelled 'origin: outsider', which takes the App's trust away; file it anew yourself (peal idea)"
+    return
+  fi
   if [ -z "$PEAL_LABEL" ]; then
     peal_err "refused: issue $id is no task: opened by someone without write access to $PEAL_REPO; set storage.issues.label and label it, or file it anew yourself (peal idea)"
     return

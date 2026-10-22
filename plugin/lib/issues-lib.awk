@@ -2,7 +2,7 @@
 # issues-scan.awk, issues-text.awk and issues-prs.awk. Issues arrive as jq's @tsv rows
 # (lib/store-issues.sh):
 #
-#   number  state  title  milestone  labels  author_association  url  body
+#   number  state  title  milestone  labels  author_association  url  body  login
 #
 # labels joined by commas; every text field with @tsv's escapes (\t \n \r \\).
 #
@@ -60,51 +60,69 @@ function label_kv(l,    i) {
 # that is none of them.
 function prio_rank(p) { return p == "urgent" ? 4 : p == "high" ? 3 : p == "normal" ? 2 : p == "low" ? 1 : 0 }
 
-# admitted(assoc, labels, label) -> 1 when the write-access rule (or the filter label)
-# admits an issue as a task: labels ($5 of an issues-lib.awk row, comma-joined,
-# @tsv-escaped) holds label (trimmed, exact) when one is set; otherwise assoc ($6) is
-# OWNER, MEMBER or COLLABORATOR. The one rule every read path of the issues storage
-# applies (docs/security.md).
-function admitted(assoc, labels, label,    n, ls, j) {
+# writer(assoc, login, labels, apps) -> 1 when the opener of an issue counts as a writer:
+# assoc (author_association) is OWNER, MEMBER or COLLABORATOR, or login is "<slug>[bot]"
+# for a slug in apps (a comma list, lower-cased) and labels (comma-joined, @tsv-escaped)
+# hold no "origin: outsider" (an App relaying text from outside gets no App trust). A
+# user's login cannot contain "[", so the suffix cannot be forged.
+function writer(assoc, login, labels, apps,    n, ls, j, l) {
+  if (assoc == "OWNER" || assoc == "MEMBER" || assoc == "COLLABORATOR") return 1
+  login = tolower(login)
+  if (apps == "" || login !~ /\[bot\]$/) return 0
+  if (index("," apps ",", "," substr(login, 1, length(login) - 5) ",") == 0) return 0
+  n = split(tsv_unescape(labels), ls, ",")
+  for (j = 1; j <= n; j++) {
+    l = trim(ls[j])
+    if (label_kv(l) && LKEY == "origin" && tolower(LVALUE) == "outsider") return 0
+  }
+  return 1
+}
+
+# admitted(assoc, labels, label, login, apps) -> 1 when the write-access rule (or the
+# filter label) admits an issue as a task: labels ($5 of an issues-lib.awk row,
+# comma-joined, @tsv-escaped) holds label (trimmed, exact) when one is set; otherwise
+# writer() holds for assoc ($6), login ($9) and apps. The one rule every read path of the
+# issues storage applies (docs/security.md).
+function admitted(assoc, labels, label, login, apps,    n, ls, j) {
   if (label != "") {
     n = split(tsv_unescape(labels), ls, ",")
     for (j = 1; j <= n; j++) if (trim(ls[j]) == label) return 1
     return 0
   }
-  return assoc == "OWNER" || assoc == "MEMBER" || assoc == "COLLABORATOR"
+  return writer(assoc, login, labels, apps)
 }
 
-# edit_writer(author, assoc, who) -> 1 when who (an editor or renamer's login, "" for a
+# edit_writer(author, trusted, who) -> 1 when who (an editor or renamer's login, "" for a
 # ghost) may be trusted with write access: GitHub lets only a collaborator edit someone
 # else's issue, so a non-author who is inferred a writer without a permission call; the
-# author themself counts only with assoc OWNER, MEMBER or COLLABORATOR.
-function edit_writer(author, assoc, who) {
+# author themself counts only when trusted (writer() of their issue).
+function edit_writer(author, trusted, who) {
   if (who == "") return 0
-  if (who == author) return assoc == "OWNER" || assoc == "MEMBER" || assoc == "COLLABORATOR"
+  if (who == author) return trusted
   return 1
 }
 
-# edit_admitted(labelled_at, author, assoc, edited_at, editor, renamed_at, renamer) -> 1
+# edit_admitted(labelled_at, author, trusted, edited_at, editor, renamed_at, renamer) -> 1
 # when no edit is later than labelled_at (ISO-8601 Z timestamps, comparable as strings):
 # the last body edit (edited_at/editor) and the latest title rename (renamed_at/renamer)
 # each admitted by edit_writer when later than labelled_at, otherwise ignored. A stranger
 # who edits an already-labelled issue afterwards (an author without write access, since a
 # non-author editor is inferred a writer already) is the one case this refuses.
-function edit_admitted(labelled_at, author, assoc, edited_at, editor, renamed_at, renamer,    ok) {
+function edit_admitted(labelled_at, author, trusted, edited_at, editor, renamed_at, renamer,    ok) {
   ok = 1
-  if (edited_at != "" && edited_at > labelled_at) ok = ok && edit_writer(author, assoc, editor)
-  if (renamed_at != "" && renamed_at > labelled_at) ok = ok && edit_writer(author, assoc, renamer)
+  if (edited_at != "" && edited_at > labelled_at) ok = ok && edit_writer(author, trusted, editor)
+  if (renamed_at != "" && renamed_at > labelled_at) ok = ok && edit_writer(author, trusted, renamer)
   return ok
 }
 
-# edit_row_admitted(row, assoc) -> edit_admitted() for row, one line of the re-label
+# edit_row_admitted(row, trusted) -> edit_admitted() for row, one line of the re-label
 # check's edits (store-issues.sh's _peal_issues_edits_batch: number, labelled_at, author,
-# edited_at, editor, renamed_at, renamer, tab-separated), of an issue whose
-# author_association is assoc. The listing (issues-scan.awk), the single-issue reads and
-# ship's release notes join on it.
-function edit_row_admitted(row, assoc,    e) {
+# edited_at, editor, renamed_at, renamer, tab-separated), of an issue whose opener is
+# trusted (writer()). The listing (issues-scan.awk), the single-issue reads and ship's
+# release notes join on it.
+function edit_row_admitted(row, trusted,    e) {
   split(row, e, "\t")
-  return edit_admitted(e[2], e[3], assoc, e[4], e[5], e[6], e[7])
+  return edit_admitted(e[2], e[3], trusted, e[4], e[5], e[6], e[7])
 }
 
 # add_item(list, v) -> the comma list with v appended, once.
