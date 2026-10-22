@@ -1,11 +1,9 @@
 ---
 owner: human
----
-
 plan: skipped
 ---
 
-# 0170 — Hand-check that an auto task goes from claim to implementer without a question
+# 0174 — Hand-check that an auto task goes from claim to implementer without a question
 
 ## Intent
 
@@ -20,6 +18,8 @@ plan: skipped
 > From the m3 milestone review: 0164's escalation left a hand run of an `auto` task (claim → implementer without asking) as the human's check after merge; nothing records it.
 
 ## Notes
+
+Revised 2026-10-22: Re-plan 2026-10-22: the heading number now matches the id (0174), and the two frontmatter blocks are one (owner: human, plan: skipped).
 
 ---
 
