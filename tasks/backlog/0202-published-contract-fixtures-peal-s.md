@@ -27,6 +27,8 @@ No test in either project runs the other: each models the other by hand. Peal's 
 
 ## Notes
 
+2026-10-22: The control plane's side is filed as belfry#709 (published contract fixtures); this task waits for it.
+
 - Boundary review section 1.5 and 4.3. The control plane's side is filed there (B8); this task cannot start before it ships.
 - Security: none.
 
