@@ -44,6 +44,13 @@ whose tasks are GitHub issues, the contract names the `github-issues` backend in
   (with Belfry's `wait_ci` tool, which spends none of your GitHub budget; `peal close
   wait` without it), and the merge is yours, or the task's, if it says `merge: auto` and Belfry's policy for
   the project allows it (its `auto_merge` policy, which Belfry documents).
+- **No GitHub login in the session.** Belfry hides the worker's `gh` login from its
+  sessions. `/peal:close` opens the pull request through Belfry's `pr_create` tool
+  (`peal close finish --pr-by-tool`, then `peal close opened N URL`), opens no early
+  draft, files queued ideas through `task_create`, and reruns a flaky CI failure once with
+  an empty commit. A re-run of finish cannot update an open pull request's body (Belfry
+  has no `pr_update` yet). `peal list` shows `pr:unknown` without a warning, and
+  `peal close verify` answers `BLOCKED:no-gh-login`, where the session trusts `wait_ci`.
 - **Questions reach the inbox.** A question that would stop an interactive session goes
   to Belfry's inbox instead.
 - **Ideas go through Belfry.** Off a task branch, `/peal:idea` files through Belfry's

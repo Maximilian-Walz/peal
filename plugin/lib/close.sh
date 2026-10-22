@@ -11,6 +11,9 @@ PEAL_CLOSE_SENTINEL=peal-close
 PEAL_CLOSE_BODY=peal-pr-body.md
 PEAL_CLOSE_ABORTS=peal-close-abort.log
 PEAL_CLOSE_WITHDRAWN=peal-merge-withdrawn
+PEAL_CLOSE_HANDOFF=peal-close-handoff
+PEAL_CLOSE_TITLE_MAX=256
+PEAL_CLOSE_BODY_MAX=65536
 PEAL_CLOSE_EMPTY="Fine for a task closed with nothing built; otherwise fill in what was agreed or built: the review checks the diff against it."
 
 # _peal_close_gitdir -> this worktree's own git directory, absolute.
@@ -78,10 +81,11 @@ peal_close() {
     begin) peal_close_begin "$@" ;;
     finish) peal_close_finish "$@" ;;
     body) peal_close_body_cmd "$@" ;;
+    opened) peal_close_opened "$@" ;;
     abort) peal_close_abort "$@" ;;
     verify) [ $# -eq 0 ] || { peal_err "close verify takes no arguments"; return 2; }; peal_close_verify ;;
     wait) [ $# -eq 0 ] || { peal_err "close wait takes no arguments"; return 2; }; peal_close_wait ;;
-    *) peal_err "close: begin, finish, body, abort, verify or wait"; return 2 ;;
+    *) peal_err "close: begin, finish, body, opened, abort, verify or wait"; return 2 ;;
   esac
 }
 
@@ -514,10 +518,14 @@ _peal_close_checks() {
 # when its tree is one this branch holds, else refused. What fails
 # after the flush leaves the sentinel: run finish again, it goes on from where it stopped.
 peal_close_finish() {
-  local top gitdir rel decisions dirty escalations out status branch ahead remote_ref repo pr url title body draft node
+  local top gitdir rel decisions dirty escalations out status branch ahead remote_ref repo pr url title body draft node bytool="" a
+  local args=()
+  for a in "$@"; do
+    if [ "$a" = --pr-by-tool ]; then bytool=1; else args+=("$a"); fi
+  done
   top=$(peal_project_root) || return 2
   cd "$top" || return 2
-  _peal_close_args finish "$@" || return 2
+  _peal_close_args finish ${args[@]+"${args[@]}"} || return 2
   _peal_close_task finish || return 2
   gitdir=$(_peal_close_gitdir) || return 2
   peal_branch_base close || return 2
@@ -600,10 +608,19 @@ peal_close_finish() {
     set -- git push -q "$PEAL_REMOTE" "$branch"
   fi
   repo=$(peal_github_repo) || return 2
-  if ! out=$(peal_gh "repos/$repo/pulls?state=open&head=${repo%%/*}:$(peal_urlencode "$branch")" \
-      --jq '.[0] | select(. != null) | [(.number | tostring), .html_url, (.draft | tostring), .node_id] | @tsv'); then
-    peal_err "close finish: the open pull request of $branch could not be looked up (above); the close is committed here. Run finish again once it can."
-    return 1
+  out=""
+  if [ -z "$bytool" ]; then
+    out=$(peal_gh "repos/$repo/pulls?state=open&head=${repo%%/*}:$(peal_urlencode "$branch")" \
+      --jq '.[0] | select(. != null) | [(.number | tostring), .html_url, (.draft | tostring), .node_id] | @tsv')
+    status=$?
+    if [ $status = 4 ]; then
+      # No gh login (a Belfry session): the session opens the pull request through its
+      # pr_create tool; the rest of finish is the same.
+      bytool=1 out=""
+    elif [ $status != 0 ]; then
+      peal_err "close finish: the open pull request of $branch could not be looked up (above); the close is committed here. Run finish again once it can."
+      return 1
+    fi
   fi
   if [ -n "$out" ]; then
     IFS=$'\t' read -r pr url draft node <<<"$out"
@@ -625,6 +642,10 @@ peal_close_finish() {
   body=$gitdir/$PEAL_CLOSE_BODY
   peal_close_body "$PEAL_ID" >"$body" || return 2
   title="$PEAL_TITLE [$PEAL_ID]"
+  if [ -n "$bytool" ]; then
+    _peal_close_handoff "$gitdir" "$title" "$body"
+    return
+  fi
   if [ -n "$out" ]; then
     if ! peal_json s:title "$title" f:body "$body" \
         | peal_gh --method PATCH "repos/$repo/pulls/$pr" --input - --jq '.number' >/dev/null; then
@@ -645,9 +666,56 @@ peal_close_finish() {
   echo "Next: wait for its checks (/peal:close, step 6)."
 }
 
+# _peal_close_handoff GITDIR TITLE BODYFILE -> the pull request handed to the session's
+# pr_create tool: "OPEN-PR title=..., body=FILE, draft=false" printed, a hand-off marker
+# written, the sentinel kept; status 5. A title or body over pr_create's limits is refused
+# (status 2), nothing truncated.
+_peal_close_handoff() {
+  local gitdir=$1 title=$2 body=$3 n
+  n=$(printf '%s' "$title" | wc -m | tr -d ' ')
+  if [ "$n" -gt "$PEAL_CLOSE_TITLE_MAX" ]; then
+    peal_err "close finish: the pull request title is $n characters; pr_create takes at most $PEAL_CLOSE_TITLE_MAX. Shorten the task's title; nothing is opened."
+    return 2
+  fi
+  n=$(wc -m <"$body" | tr -d ' ')
+  if [ "$n" -gt "$PEAL_CLOSE_BODY_MAX" ]; then
+    peal_err "close finish: the pull request body is $n characters; pr_create takes at most $PEAL_CLOSE_BODY_MAX. Shorten the summary, sections or notes; nothing is truncated or opened."
+    return 2
+  fi
+  printf '%s\n' "$title" >"$gitdir/$PEAL_CLOSE_HANDOFF" || return 2
+  printf 'OPEN-PR title=%s\n' "$title"
+  printf 'body=%s\n' "$body"
+  echo "draft=false"
+  echo "The close is committed and pushed. Open the pull request with pr_create (that title, the body file's text, draft false), then: peal close opened N URL"
+  return 5
+}
+
+# peal_close_opened N URL [--unchanged] -> the pull request opened by the session's
+# pr_create tool, handed back: finish's last step done (the hand-off and the sentinel
+# cleared), "closed NNNN: pull request #N URL" printed. --unchanged: pr_create answered that
+# the pull request was already open and left it as it was. Refused without a hand-off.
+peal_close_opened() {
+  local gitdir pr url unchanged=""
+  if [ $# -lt 2 ] || [ $# -gt 3 ]; then peal_err "close opened: N URL [--unchanged]"; return 2; fi
+  pr=${1#\#} url=$2
+  [ "${3-}" != --unchanged ] || unchanged=1
+  [ $# -lt 3 ] || [ -n "$unchanged" ] || { peal_err "close opened: N URL [--unchanged]"; return 2; }
+  case $pr in '' | *[!0-9]*) peal_err "close opened: N is the pull request's number, not '$1'"; return 2 ;; esac
+  _peal_close_task opened || return 2
+  gitdir=$(_peal_close_gitdir) || return 2
+  if [ ! -f "$gitdir/$PEAL_CLOSE_HANDOFF" ]; then
+    peal_err "close opened: no pull request was handed over; peal close finish (it prints OPEN-PR when pr_create is to open it) first"
+    return 2
+  fi
+  rm -f "$gitdir/$PEAL_CLOSE_SENTINEL" "$gitdir/$PEAL_CLOSE_WITHDRAWN" "$gitdir/$PEAL_CLOSE_HANDOFF"
+  echo "closed $PEAL_ID: pull request #$pr $url"
+  [ -z "$unchanged" ] || echo "Note: the pull request was already open and pr_create left its title and body as they were; the body here was not applied (Belfry has no pr_update yet: a human step)."
+  echo "Next: wait for its checks (/peal:close, step 6)."
+}
+
 # _peal_close_by_hand BRANCH TITLE BODY -> how to open the pull request without Peal.
 _peal_close_by_hand() {
-  peal_err "close finish: the pull request did not open or update (above). The close is committed and pushed; run finish again, or open it by hand:"
+  peal_err "close finish: the pull request did not open or update (above). The close is committed and pushed; run finish again, open it with pr_create where the session has that tool (finish --pr-by-tool), or by hand:"
   printf '  gh pr create --base %s --head %s --title %q --body-file %s\n' "$PEAL_MAIN" "$1" "$2" "$3" >&2
 }
 
@@ -671,6 +739,7 @@ peal_close_abort() {
   printf '%s\ttask=%s\tbegun=%s\tsession=%s\treason=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$id" \
     "$(sed -n 3p "$sentinel")" "${CLAUDE_CODE_SESSION_ID-}" "$reason" >>"$gitdir/$PEAL_CLOSE_ABORTS" \
     || peal_err "warning: could not log the abort in $gitdir/$PEAL_CLOSE_ABORTS"
+  rm -f "$gitdir/$PEAL_CLOSE_HANDOFF"
   rm -f "$sentinel" || { peal_err "close abort: could not remove $sentinel; the close is still on"; return 2; }
   echo "aborted the close of task $id: $reason"
   echo "The Stop hook holds nothing now. Begin again (peal close begin) when the task is done."
@@ -769,7 +838,8 @@ peal_close_stop() {
 #   WAIT:mergeability-unknown  3  GitHub has not computed it yet
 #   BLOCKED:<why>            1  not-a-repo, no-settings, detached-head, on-main,
 #                               close-unfinished (finish has not run through), uncommitted,
-#                               not-pushed, unpushed, no-gh, gh-failed (naming the host when
+#                               not-pushed, unpushed, no-gh, no-gh-login (gh is not logged in:
+#                               a Belfry session; trust wait_ci), gh-failed (naming the host when
 #                               the sandbox denies it), no-pr,
 #                               draft (the pull request is a draft), conflicts, checks-failing: stay and fix it here
 # The branch checked out here is the one checked; anything that cannot be verified is

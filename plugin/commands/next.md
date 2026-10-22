@@ -115,7 +115,8 @@ step 4 uses to decline: on the main branch, or a detached HEAD, `git switch -c
 peal/next-<item>` (a name already taken: `-2`, and so on), commit the shown change there
 as `git commit -m "chore(peal): <item>"`, then ask with `AskUserQuestion`: push and open a
 pull request (`git push -u <remote> <branch>` and `gh pr create --title "chore(peal):
-<item>"`, report its URL), or leave the branch local for the human to merge themselves. On
+<item>"`, or with `mcp__belfry__pr_create` in the session, call it with the same title
+and `draft: false`; report its URL), or leave the branch local for the human to merge themselves. On
 another branch (a task's own), commit it there instead; it is the human's branch, already
 going somewhere. `chore(peal)` is the subject the commit gate lets through for exactly
 what `peal init` writes (`.peal/`, among other paths), which is all any of these touch.
@@ -136,6 +137,7 @@ is a change, so it is committed, the same way `/peal:setup` commits its own (set
   for exactly what `peal init` writes). Ask with `AskUserQuestion`: push and open a pull
   request (`git push -u <remote> <branch>` and
   `gh pr create --title "chore(peal): decline <item>" --body "not suggested again for 90 days"`,
+  or with `mcp__belfry__pr_create` in the session, call it with the same title and body;
   report its URL), or leave the branch local for the human to merge themselves.
 - On another branch (a task's own): run the decline and commit there; it is the human's
   branch, already going somewhere.

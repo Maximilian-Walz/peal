@@ -358,6 +358,15 @@ itself from the command markdown are covered the same way in a Claude Code sessi
 SessionStart hook writes the export to `CLAUDE_ENV_FILE`, so every Bash command of the
 session inherits it. `gh` run outside Claude Code is the user's own.
 
+Under Belfry the session holds no token at all: its sandbox hides the worker's `gh` login.
+That keeps the boundary and tightens it. Peal's `gh` calls there fail with gh's exit 4,
+which `peal_gh` reports as "no login" (`BLOCKED:no-gh-login` from `close verify`;
+`peal list` reads it as an unknown pull request state), never as a reason to look for a
+token elsewhere. The pull request is opened by Belfry's `pr_create` tool, which acts as
+Belfry's own identity, not the session's; `close finish --pr-by-tool` only hands it the
+title and body (at most 256 and 65536 characters, refused rather than truncated) and the
+session reports the number back with `peal close opened`.
+
 - Guard: `plugin/lib/github.sh` (`peal_gh`), the main path, and the telemetry export in
   `plugin/bin/peal`; the board's lookup of open
   pull requests (`_peal_files_prs` in `plugin/lib/store-files.sh`) calls `gh` directly.

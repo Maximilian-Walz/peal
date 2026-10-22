@@ -499,7 +499,7 @@ Declares the close: a sentinel in the git directory arms the Stop hook.
 ### `peal close finish`
 
 `peal close finish --summary TEXT [--decisions TEXT] [--human-steps TEXT] [--notes TEXT]
-[--security TEXT] [--section TITLE TEXT]... [--review-file FILE]`. `--decisions`,
+[--security TEXT] [--section TITLE TEXT]... [--review-file FILE] [--pr-by-tool]`. `--decisions`,
 `--human-steps` and `--notes` are optional, given once, never empty; `--human-steps` that
 is only none, n/a or `-` is refused (leave it out, or use `--notes`). `--security` is one
 line, given once: the boundary the change touches and how, or `none`; a leading
@@ -527,6 +527,20 @@ file. `FILE` is the reviewer's report.
   opens the pull request or updates the open one.
 - Whatever fails after the flush keeps the close in progress; run it again.
 - Ends with `closed NNNN: pull request #N URL`.
+- `--pr-by-tool`, taken by finish itself when its lookup of the open pull request finds
+  gh without a login (a Belfry session), stops after the push: it writes the body to a file
+  in the worktree's git directory and prints `OPEN-PR title=<title>`, `body=<file>` and
+  `draft=false`, keeps the close in progress and exits with status 5. The session opens the
+  pull request through Belfry's `pr_create` tool with those, then runs `peal close opened`.
+  A title over 256 or a body over 65536 characters (`pr_create`'s limits) is refused,
+  nothing truncated.
+
+### `peal close opened`
+
+`peal close opened N URL [--unchanged]` hands back the pull request `pr_create` opened:
+checks a hand-off is pending (refused otherwise), clears the close, prints
+`closed NNNN: pull request #N URL`. `--unchanged` says `pr_create` found the pull request
+already open and left it as it was; the command notes that its body was not updated.
 
 ### `peal close body`
 
@@ -551,7 +565,8 @@ Prints one verdict about the branch checked out.
 - `WAIT:<why>` (3): checks pending or not registered yet, mergeability unknown;
   `WAIT:checks-failing-pending`, a check has failed while others still run.
 - `BLOCKED:<why>` (1): the close unfinished, uncommitted or unpushed work, no pull
-  request, a draft pull request, conflicts, failing checks (only once nothing is pending), no `gh`, anything it cannot verify.
+  request, a draft pull request, conflicts, failing checks (only once nothing is pending), no `gh`,
+  `no-gh-login` (gh is not logged in, as in a Belfry session: trust `wait_ci`), anything it cannot verify.
 
 ### `peal close wait`
 

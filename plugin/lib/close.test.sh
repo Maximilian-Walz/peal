@@ -347,6 +347,57 @@ Built a.txt.
   check "finish again: the new body" "Still nothing." "$(jq -r '.[0].body' "$FAKE_GH/pulls.json" | grep Still)"
 }
 
+# pr_tool_cases -> a session with no gh login (Belfry's): finish hands the pull request to
+# the session's pr_create tool (OPEN-PR, status 5), close opened takes the number back,
+# verify says BLOCKED:no-gh-login; with gh logged in finish still opens it itself.
+pr_tool_cases() {
+  local out status title gitdir
+  # The issues storage's own gh calls are 0203's.
+  [ $kind = files ] || return 0
+  new_repo
+  ready 1 first-task
+  build
+  begin >/dev/null
+  outcome "Built a.txt."
+  gitdir=$(git -C "$wt" rev-parse --absolute-git-dir)
+  check_refused "opened: no hand-off yet" "no pull request was handed over" at "$wt" "$PEAL" close opened 7 https://example.test/pull/7
+  touch "$FAKE_GH/no-auth"
+  : >"$FAKE_GH/log"
+  out=$(close_finish 2>&1)
+  status=$?
+  title="Title of $(id 1) [$(id 1)]"
+  check "pr tool: finish hands over (status 5)" "5" "$status"
+  check "pr tool: the title" "OPEN-PR title=$title" "$(printf '%s\n' "$out" | grep '^OPEN-PR')"
+  check "pr tool: draft false" "draft=false" "$(printf '%s\n' "$out" | grep '^draft=')"
+  check "pr tool: the body file is the body" "$(at "$wt" "$PEAL" close body --summary "- built a.txt")" \
+    "$(cat "$(printf '%s\n' "$out" | sed -n 's/^body=//p')")"
+  check "pr tool: the sentinel is kept" "armed" "$(sentinel)"
+  check "pr tool: pushed" "0" "$(git -C "$wt" rev-list --count "refs/remotes/origin/$(git -C "$wt" symbolic-ref --short HEAD)..HEAD")"
+  check "pr tool: no pull request made" "0|0" "$(prs)|$(grep -c 'POST repos/.*/pulls$' "$FAKE_GH/log")"
+  check "pr tool: verify, unfinished" "BLOCKED:close-unfinished 1" "$(verdict)"
+  out=$(close_finish --pr-by-tool 2>&1)
+  status=$?
+  check "pr tool: --pr-by-tool, again, the same hand-off" "5|1" "$status|$(printf '%s\n' "$out" | grep -cF "OPEN-PR title=$title")"
+  out=$(at "$wt" "$PEAL" close opened 7 https://example.test/pull/7 2>&1)
+  check "pr tool: opened" "0|closed $(id 1): pull request #7 https://example.test/pull/7" "$?|$(printf '%s\n' "$out" | grep '^closed')"
+  check "pr tool: the sentinel cleared" "clear|0" "$(sentinel)|$([ -e "$gitdir/peal-close-handoff" ] && echo 1 || echo 0)"
+  check_refused "opened: nothing pending again" "no close in progress" at "$wt" "$PEAL" close opened 7 https://example.test/pull/7
+  check "pr tool: verify without a login" "BLOCKED:no-gh-login 1" "$(verdict)"
+  rm "$FAKE_GH/no-auth"
+
+  # Over pr_create's limits: refused, nothing truncated.
+  rearm_sentinel
+  out=$(at "$wt" "$PEAL" close finish --summary-file <(head -c 70000 /dev/zero | tr '\0' x) --pr-by-tool 2>&1)
+  check "pr tool: a body over 65536 characters is refused" "2|1" "$?|$(printf '%s\n' "$out" | grep -c 'at most 65536')"
+
+  # gh logged in, no tool: the pull request opens as before.
+  rearm_sentinel
+  : >"$FAKE_GH/log"
+  out=$(close_finish 2>&1)
+  check "gh path: finish opens it" "0|1|1" "$?|$(prs)|$(grep -c 'POST repos/.*/pulls$' "$FAKE_GH/log")"
+  check "gh path: the title" "$title|false" "$(jq -r '.[0] | "\(.title)|\(.draft)"' "$FAKE_GH/pulls.json")"
+}
+
 # rearm_sentinel -> the sentinel wt's git directory holds written directly (peal close
 # begin's own shape), as a session resuming an unfinished close would find it: for task
 # files, begin itself refuses once the file is under done/, so nothing but this writes
@@ -1074,6 +1125,7 @@ cases() {
   notes_cases
   security_cases
   draft_cases
+  pr_tool_cases
   char_device_cases
   merge_cases
   rerun_cases

@@ -246,12 +246,16 @@ issue-N on branch issue/N, labelled "in progress", as Belfry claims one):
   close begin                   declare the close (the Stop hook holds the session to
                                 it); notes, where the Outcome goes, the diff, Done when
   close finish --summary TEXT [--decisions TEXT] [--human-steps TEXT] [--notes TEXT]
-               [--security TEXT] [--section TITLE TEXT]... [--review-file FILE]
+               [--security TEXT] [--section TITLE TEXT]... [--review-file FILE] [--pr-by-tool]
                                 the close checks, the queued ideas filed, the task moved
                                 to done, committed, pushed, the pull request opened; the
                                 -file forms (--summary-file FILE, --decisions-file FILE,
                                 --human-steps-file FILE, --notes-file FILE, --section-file TITLE FILE) read the text from a file; FILE, the reviewer's
-                                report, whose merge-auto: withdraw removes merge: auto
+                                report, whose merge-auto: withdraw removes merge: auto;
+                                --pr-by-tool (also taken when gh has no login) stops after
+                                the push with OPEN-PR title/body file/draft=false (status
+                                5): the session opens it with pr_create
+  close opened N URL [--unchanged]  the pull request opened by pr_create, handed back
   close body --summary TEXT [--decisions TEXT] [--human-steps TEXT] [--notes TEXT]
              [--security TEXT] [--section TITLE TEXT]... [--review-file FILE]
                                 the pull request's body finish would open it with
