@@ -1010,10 +1010,65 @@ autosave_rewritten_cases() {
   check "autosave: ahead, nothing moved" "armed|0|$old" "$(sentinel)|$(prs)|$(git -C "$wt" rev-parse HEAD)"
 }
 
+# main_checks_cases -> checks.close comes from the main branch's tip: the branch's own list
+# never runs, a difference is noted, the commands run in the branch's tree, a main config
+# that does not load refuses, none on main means no check.
+main_checks_cases() {
+  local stopflag ran out status
+  stopflag=$(scratch_dir)/stop
+  ran=$(scratch_dir)/ran
+  new_repo "stages: [tasks, guardrails]" "pr:" "  sections: [\"For the player: what a player notices\"]" "checks:" "  close: [\"test ! -e $stopflag\"]"
+  ready 1 first-task
+  build
+  begin >/dev/null
+  outcome "Built a.txt."
+  touch "$stopflag"
+  # The branch's own commit empties the list; main's check still refuses.
+  sed -i 's|^  close:.*|  close: []|' "$wt/.peal/config.yml"
+  git -C "$wt" add -A
+  git -C "$wt" commit -q -m "chore: no close checks [$(id 1)]"
+  out=$(close_finish --section "For the player" "Nothing." 2>&1)
+  status=$?
+  check "main checks: the branch's empty list does not stand" "2" "$status"
+  check "main checks: main's check refuses" "1" "$(printf '%s\n' "$out" | grep -c "the close check 'test ! -e")"
+  check "main checks: the note names both" "close: note: checks.close differs: this branch has [], origin/main has [test ! -e $stopflag]; running origin/main's" \
+    "$(printf '%s\n' "$out" | grep 'note:')"
+  check "main checks: nothing moved or filed" "armed|0" "$(sentinel)|$(prs)"
+  # A check only the branch adds does not run.
+  sed -i "s|^  close:.*|  close: [\"touch $ran\", \"test ! -e $stopflag\"]|" "$wt/.peal/config.yml"
+  git -C "$wt" add -A
+  git -C "$wt" commit -q -m "chore: another close check [$(id 1)]"
+  close_finish --section "For the player" "Nothing." >/dev/null 2>&1
+  check "main checks: a check only the branch adds does not run" "absent" "$([ -e "$ran" ] && echo ran || echo absent)"
+  # Main's check runs in the branch's tree: a.txt exists only there.
+  rm "$stopflag"
+  other_clone sh -c "sed -i 's|^  close:.*|  close: [\"test ! -e a.txt\"]|' .peal/config.yml && git add -A && git commit -q -m 'chore: close check'"
+  refetch
+  check_refused "main checks: main's check sees the branch's file" "the close check 'test ! -e a.txt' failed" close_finish --section "For the player" "Nothing."
+  # A main config that does not load refuses, naming the ref.
+  other_clone sh -c "printf 'bogus: 1\n' >.peal/config.yml && git add -A && git commit -q -m 'chore: bad config'"
+  refetch
+  check_refused "main checks: an invalid config on main" "origin/main:.peal/config.yml" close_finish --section "For the player" "Nothing."
+  check "main checks: that changed nothing" "armed|0" "$(sentinel)|$(prs)"
+  # No config on main: no close check.
+  other_clone sh -c "git rm -q .peal/config.yml && git commit -q -m 'chore: no config'"
+  refetch
+  out=$(close_finish --section "For the player" "Nothing." 2>&1)
+  status=$?
+  check "main checks: no config on main, finish goes on" "0" "$status"
+  check "main checks: no config on main, no check runs" "0" "$(printf '%s\n' "$out" | grep -c '^close: running')"
+}
+
+# refetch -> wt's remote-tracking refs brought up to date.
+refetch() {
+  git -C "$wt" fetch -q origin
+}
+
 cases() {
   begin_cases
   begin_unreachable_cases
   finish_cases
+  main_checks_cases
   push_skip_cases
   no_upstream_cases
   notes_cases

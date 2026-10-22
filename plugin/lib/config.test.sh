@@ -102,6 +102,34 @@ cases() {
   refused "list of maps" 'pr:\n  sections:\n    - title: x' 3 "lists of maps"
   refused "duplicate" 'main: a\nmain: b' 2 "duplicate key main"
 
+  # peal_config_load_ref: a ref's file, never the work tree's.
+  local ref_project
+  ref_project=$(scratch_dir)
+  # shellcheck disable=SC1091 # sourced from PEAL_ROOT
+  ref_cfg() { (cd "$ref_project" && . "$PEAL_ROOT/lib/common.sh" && . "$PEAL_ROOT/lib/config.sh" && peal_config_load_ref "$1" && peal_config_get "$2"); }
+  git -C "$ref_project" init -q
+  git -C "$ref_project" config user.email t@t
+  git -C "$ref_project" config user.name t
+  git -C "$ref_project" commit -q --allow-empty -m none
+  git -C "$ref_project" branch nofile
+  mkdir "$ref_project/.peal"
+  printf 'main: trunk\nchecks:\n  close: [make test, make lint]\n' >"$ref_project/.peal/config.yml"
+  git -C "$ref_project" add -A
+  git -C "$ref_project" commit -q -m file
+  git -C "$ref_project" branch withfile
+  printf 'main: [a]\n' >"$ref_project/.peal/config.yml"
+  git -C "$ref_project" add -A
+  git -C "$ref_project" commit -q -m bad
+  git -C "$ref_project" branch badfile
+  printf 'main: worktree\nchecks:\n  close: [only here]\n' >"$ref_project/.peal/config.yml"
+  check "load_ref: a ref's file" "trunk" "$(ref_cfg withfile main)"
+  check "load_ref: a ref's list" "$(printf 'make test\nmake lint')" "$(ref_cfg withfile checks.close)"
+  check "load_ref: no file there, the defaults" "main" "$(ref_cfg nofile main)"
+  check "load_ref: no file there, no checks" "" "$(ref_cfg nofile checks.close)"
+  check "load_ref: the work tree's file is ignored" "trunk" "$(ref_cfg withfile main)"
+  check_refused "load_ref: an invalid file names the ref" "peal: badfile:.peal/config.yml:1: *main takes a single value" ref_cfg badfile main
+  check_refused "load_ref: an unknown ref" "nowhere:.peal/config.yml" ref_cfg nowhere main
+
   local outside
   outside=$(scratch_dir)
   # shellcheck disable=SC2016 # expanded by the inner shell

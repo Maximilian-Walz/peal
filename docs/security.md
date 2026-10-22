@@ -61,6 +61,16 @@ repository, and `peal init --remove` takes the hooks, the recorded root and ever
 
 Limits this boundary does not cover, accepted for now:
 
+- **`checks.close` comes from main; the main ref's name does not.** `peal close finish`
+  reads `checks.close` from the main branch's tip (`peal_config_load_ref`, `git show
+  REF:.peal/config.yml`), never from the work tree, so a branch cannot choose the commands
+  its own close runs; the commands still run on the branch's tree, as the project's own
+  build and tests must. A branch whose list differs gets one note naming both; a main
+  config that does not load refuses before anything changes, and no config on main means no
+  close check. Tests: `plugin/lib/close.test.sh` (`main_checks_cases`) and
+  `plugin/lib/config.test.sh` (`peal_config_load_ref`). The remaining limit: the ref is
+  named by the work tree's `remote:` and `main:`, which a branch can change to point at a
+  ref it controls (the gate-settings-from-main task, 0091).
 - **`checks.commit` runs the checked-out tree.** The commands the `commit-msg` gate runs
   are the project's own build and tests, and they run what the branch holds; that is
   their job. Which commands run still comes from the work tree's `.peal/config.yml`, so
@@ -378,5 +388,5 @@ This threat model is m1's first task; the rest of m1 closes what it can only nam
 0039 runs every command against hostile values in CI; 0040 showed the git hooks and the
 launcher execute nothing a repository ships, and that `peal init --remove` leaves
 nothing behind, with the limits listed under the first boundary above; 0041 pinned the CI
-supply chain and checked each job's permissions. Reading the gates' settings from the
-main branch instead of the work tree is a task of its own, split from 0040.
+supply chain and checked each job's permissions. 0089 reads `checks.close` from the main branch's tip; reading
+the gates' settings from it as well (and the main ref's name, 0091) is a task of its own.

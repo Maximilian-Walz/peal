@@ -462,8 +462,8 @@ own hook of the same name, so Peal never displaces a hook a project already reli
 gate that cannot find Peal refuses rather than waves through. The hooks never run what the
 repository ships: the stub reads no file of the work tree, calls no network, and verifies
 every root before it runs it, `$PEAL_ROOT` included (an in-repository one is skipped with
-a message; see [Distribution](#distribution)). Every refusal names its reason. The limits
-that remain (`checks.commit`, in-tree project hooks, gate settings read from the work
+a message; see [Distribution](#distribution)). Every refusal names its reason. `checks.close` is read from the main branch's tip, so a branch cannot choose the commands its own close runs. The limits
+that remain (`checks.commit`, in-tree project hooks, gate settings and the main ref's name read from the work
 tree) are in [docs/security.md](security.md).
 
 `core.hooksPath` belongs to each clone, not to the repository: a committed `guardrails`

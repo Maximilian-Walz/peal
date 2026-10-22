@@ -504,7 +504,7 @@ file. `FILE` is the reviewer's report.
   git hooks (where `guardrails` is set up), a remote tip of the branch (fetched first;
   a failed fetch warns and the known ref is used) that is ahead of it, or that holds
   commits this branch rewrote with no commit here of the same tree (the refusal names
-  `git merge <remote>/<branch>`), and a failing `checks.close` command.
+  `git merge <remote>/<branch>`), and a failing `checks.close` command (read from the main branch's tip, run on the branch's tree; one note when the work tree's list differs; a main config that does not load, naming the ref, refuses).
 - Then: files the queued ideas in one push; merges a remote tip whose tree equals the
   tree of a commit in the branch (a pushed autosave rewritten locally) with
   `git merge -s ours`, as `Merge <ref>: the pushed autosave, already here [ID]`; on `merge-auto: withdraw` removes
