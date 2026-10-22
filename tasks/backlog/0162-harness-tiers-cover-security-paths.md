@@ -3,6 +3,7 @@ milestone: m4
 plan: skipped
 size: S
 depends: []
+priority: high
 ---
 
 # 0162 — A harness checking every guard and harness path docs/security.md names is in a merge tier

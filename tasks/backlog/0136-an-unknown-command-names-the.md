@@ -36,6 +36,8 @@ On an unknown command, the CLI should say which Peal ran it: its root and its ve
 
 ## Notes
 
+2026-10-22: Usability review F4: the short --help and the 'did you mean' belong in the same change as this message; see the small usability fixes task of Ready for newcomers.
+
 2026-10-21: 2026-10-21, from a release session's friction: `/peal:release 0.5.0` ran `peal ship bump` with an installed plugin at v0.2.0 while main was at v0.4.0+. The old CLI refused main's own `release.version-files` entry (the quoted-marker form from 0117/0127) and stopped with status 2, and nothing told the session its plugin was stale. The workaround, with the human's approval, was `PEAL_ROOT=$PWD/plugin plugin/bin/peal` on a checkout equal to origin/main. So staleness also shows up as config syntax the running CLI does not know, not only as an unknown command. The planner should weigh a warning at session start or in `peal ship` whenever the installed version is older than main's `plugin.json`, or when a config value fails to parse. This fits next to 0120, where the config loader refuses invalid values.
 
 - The human's own "Done when" (in Raw) is the starting point for the planner: the running root and version printed with the usage; a harness case with an older installed root showing the refresh hint.
