@@ -1,7 +1,7 @@
 ---
 milestone: m4
-plan: skipped
-size: S
+plan: auto
+size: M
 depends: []
 priority: high
 ---
@@ -19,3 +19,11 @@ Found in 0149. `.belfry.yml`'s `never_auto_merge` and `review_before_merge` path
 ## Raw
 
 > Found in 0149: file an idea for a harness checking the tiers against security.md. (The human's answer at planning.)
+
+## Notes
+
+Revised 2026-10-22: Widened by the security review (finding 5)
+
+- Widened by the security review (finding 5): the scope is every file the guard code sources or executes, not only the paths `docs/security.md` names. Today `plugin/lib/common.sh`, `config.sh`, the config and yaml awks, `json-get.awk`, `shell-words.awk`, `close.sh`, `commit.sh`, `init.sh`, `ideas.sh`, the task-check, task-scan and task-state awks, `tasks.sh`, `decisions.sh`, `doctor.sh`, `next.sh`, `migrate.sh`, `milestones.sh`, `review.sh`, the issues awks and `templates/task.md` sit in neither `never_auto_merge` nor `review_before_merge`, so a pull request marked `merge: auto` that touches them merges on green CI alone and reaches every install at the next plugin update.
+- Invert the default: `plugin/**`, `tools/**`, `.peal/**` and `.claude/**` need `review_before_merge` at least, with the current never list on top; only `tasks/**`, `docs/**` (minus `docs/security.md`), `CHANGELOG.md` and `README.md` merge on checks.
+- Raised to priority high and size M (was S, plan skipped); plan auto.
