@@ -376,6 +376,12 @@ _peal_files_create_taken() {
 # split and PART1..n for each other. MODE: plain, split (ORIGIN the task split) or batch
 # (ORIGIN the task whose close files them). Refused before anything is pushed: a text
 # task-check.awk refuses, two identical texts, an ORIGIN that is no task.
+# peal_store_idea_fields -> refused: task files take the whole text.
+peal_store_idea_fields() {
+  peal_err "idea-fields: only the issues storage has fields to split; send the whole text"
+  return 2
+}
+
 peal_store_create() {
   local mode=$1 origin=$2 count i status=0 context summary
   shift 2

@@ -190,6 +190,8 @@ number to come, several texts are separated by lines -----NEXT TASK-----):
                                 (lib/backlog.sh); ends with "filed: <id>" as its last
                                 line
   idea SLUG [--now]             queue an idea on a task branch, else (or --now) file it
+  idea-fields                   (issues storage) the issue an idea text on stdin makes: title,
+                                milestone, labels and body, as `create` would open it
   ideas [--flush | --export | --drop N|--all]
                                 the queued ideas; --export prints them in full as
                                 Markdown, --drop takes one off the queue (by its
@@ -507,6 +509,7 @@ main() {
     read) [ $# -eq 1 ] || { usage >&2; exit 2; }; with_id "$1" peal_store_read "$1" ;;
     create) with_store cmd_create "$@" ;;
     next) with_store cmd_next "$@" ;;
+    idea-fields) [ $# -eq 0 ] || { usage >&2; exit 2; }; with_store peal_store_idea_fields ;;
     idea) need 1 "$@"; with_store peal_idea "$@" ;;
     ideas) with_store peal_ideas "$@" ;;
     revise) reason_args revise "$@"; with_id "$PEAL_ID" peal_revise "$PEAL_ID" "$PEAL_REASON" "$PEAL_DRY" ;;

@@ -620,6 +620,19 @@ the human said so
 ## Outcome
 
 <!-- fill in at close -->" "$(gh_get '.[] | select(.number == 3) | .body')"
+  # idea-fields: the same title, milestone, labels and body create wrote for issue 3.
+  out=$(peal idea-fields < <(TITLE="A new thing" text "milestone: m1" "size: S" "plan: skipped" \
+    "needs: [gpu]" "depends: [1, human]" "kind: bug" "priority: high") 2>&1)
+  check "idea-fields: the issue an idea makes" "0:title: A new thing
+milestone: m1
+label: plan: skipped
+label: size: S
+label: kind: bug
+label: priority: high
+label: needs: gpu
+body:
+$(gh_get '.[] | select(.number == 3) | .body')" "$?:$out"
+  check_refused "idea-fields: no heading" "not headed" peal idea-fields < <(printf 'no heading\n')
   check "read: the text back" "$(TITLE="A new thing" ID=3 text "milestone: m1" "plan: skipped" "size: S" \
     "depends: [1, human]" "needs: [gpu]" "kind: bug")" "$(peal read 3 2>&1)"
   check_refused "create: unknown milestone" "milestone m9 does not exist" peal create two-words < <(text "milestone: m9")

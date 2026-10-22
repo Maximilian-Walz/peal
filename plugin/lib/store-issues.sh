@@ -450,6 +450,31 @@ _peal_issues_from_text() {
   return 0
 }
 
+# peal_store_idea_fields -> the issue an idea's task text on stdin (headed "# NNNN —
+# Title") makes, as _peal_issues_from_text makes it for `peal create`, for a control plane
+# that opens the issue itself: "title: T", "milestone: M" (when there is one), a "label:
+# L" line for each label, then "body:" and the body (the Part of, Depends on and After
+# deploy of lines, then the text without frontmatter and heading) to the end.
+peal_store_idea_fields() {
+  local tmp status=0 line
+  _peal_issues_settings || return 2
+  PEAL_FIELDS=$(_peal_issues_fields)
+  tmp=$(mktemp -d) || return 2
+  cat >"$tmp/text"
+  if _peal_issues_from_text "$tmp/text" NNNN "$tmp"; then
+    printf 'title: %s\n' "$(cat "$tmp/title")"
+    [ ! -s "$tmp/milestone" ] || printf 'milestone: %s\n' "$(cat "$tmp/milestone")"
+    while IFS= read -r line; do printf 'label: %s\n' "$line"; done <"$tmp/labels"
+    echo "body:"
+    cat "$tmp/body"
+  else
+    peal_err "idea-fields: the text is not headed \"# NNNN — Title\""
+    status=2
+  fi
+  rm -rf "$tmp"
+  return $status
+}
+
 # _peal_issues_milestone_number TITLE -> the number of the milestone titled TITLE, from
 # PEAL_MS_ROWS; status 1 if there is none.
 _peal_issues_milestone_number() {
