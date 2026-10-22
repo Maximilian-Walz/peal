@@ -19,8 +19,8 @@ out of 0040 and its split piece because it is not a git hook.
 `peal close finish` reads `checks.close` from the main branch's tip instead of the work
 tree; the commands still run on the branch's tree. A new helper `peal_config_load_ref`
 (the name and behaviour 0091 planned) reads a ref's `.peal/config.yml`. Every other
-setting close reads stays with the work tree. `worktree-setup` from main is split off
-into its own task (depends on this one).
+setting close reads stays with the work tree. `worktree-setup` from main is split into
+0170 (depends on this one).
 
 ## Done when
 
@@ -43,6 +43,8 @@ into its own task (depends on this one).
 > `checks.close` in `peal close finish` is a separate idea.
 
 ## Notes
+
+Revised 2026-10-22: split: 0170 holds the rest
 
 - Open: depends in practice on the helper the gate-settings-from-main task adds
   (`peal_config_load_ref`); not recorded as `depends` since that task had no number until
