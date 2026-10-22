@@ -90,7 +90,7 @@ actions:
       4. Report each finding with its file and line, what an attacker could do and the fix; then what you checked and found sound. A problem in code the pull request does not change is not its business: file it as an idea with the belfry idea tool, its first line `Security: ` and the finding.
       5. End with one line: `verdict: pass` when nothing you found should hold the merge back, or `verdict: fail` and the finding that should. A pass lets the pull request merge without the human reading it first: pass only what you would merge yourself.
 policy:
-  max_concurrent: 2
+  max_code_jobs: 2
   permission_mode: auto
   merge: human
   merge_method: squash
