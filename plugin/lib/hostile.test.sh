@@ -533,6 +533,8 @@ awk_channels() {
   fi
   cover idea
   each_input "idea queued, hostile text" "$wt" "$(hostile_text)" idea queued-hostile-idea
+  cover idea-fields
+  each_input "idea-fields, hostile text (task files refuse it)" "$wt" "$(hostile_text)" idea-fields
   cover ideas
   try "ideas, hostile queue" "$wt" ideas
   try "ideas --flush, hostile queue" "$wt" ideas --flush
@@ -611,6 +613,7 @@ issues_channels() {
   try "issues: init --survey" "$WORK" init --survey
   try "issues: ship notes" "$WORK" ship notes 0.1.0
   MARKER=""
+  each_input "issues: idea-fields, hostile text" "$WORK" "$(hostile_text)" idea-fields
 
   check "issues: no command reads comments" "0" "$(grep -c '^GET.*comments' "$fakegh/log" 2>/dev/null)"
 
