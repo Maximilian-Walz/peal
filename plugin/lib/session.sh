@@ -175,6 +175,14 @@ peal_turns_reset() {
   rm -f "$gitdir/peal-nudged"
 }
 
+# peal_launcher_matches -> status 0 when the committed .peal/peal (in the working
+# directory) is byte-identical to this Peal's templates/launcher, 1 when it differs, 2
+# when there is no .peal/peal.
+peal_launcher_matches() {
+  [ -f .peal/peal ] || return 2
+  cmp -s .peal/peal "$PEAL_ROOT/templates/launcher"
+}
+
 # peal_session_start -> the SessionStart hook in a Peal project: a fresh clone whose
 # config records the `guardrails` stage gets its git gates (peal_hooks_ensure), named in
 # the orientation; the heartbeat; on a new session (source startup or clear) the turn
@@ -205,6 +213,10 @@ peal_session_start() {
   task=$(PEAL_TASK_REFRESH=$refresh peal_session_task)
   echo "Peal:"
   [ -z "$hooks" ] || printf '%s\n' "$hooks"
+  peal_launcher_matches
+  if [ $? -eq 1 ]; then
+    printf 'Launcher: .peal/peal differs from the installed Peal'\''s launcher (v%s). A branch may have changed it, or it is older than the plugin; tell the human. Refreshing it is .peal/peal init --stage tasks and a commit of its own.\n' "$(peal_version)"
+  fi
   printf '%s\n' "$milestones" | awk -F '\t' '
     !found && $3 == "current" { printf "Current milestone: %s, %s (%s)\n", $1, $2, $6; found = 1 }
     END { if (!found) print "Current milestone: none" }'

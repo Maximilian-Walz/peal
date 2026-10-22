@@ -141,7 +141,9 @@ Records where Peal is installed; installs the git gates when the config records
 `guardrails` and they are missing (`peal_hooks_ensure`); on a new session (`startup`,
 `clear`) restarts the turn budget, fetches, and reaps the claims `peal release` would let
 go of, and the worktrees a release left in place once idle (`reaped leftover PATH`);
-prints the orientation. Also appends `export GH_TELEMETRY="${GH_TELEMETRY:-0}"` once to
+prints the orientation, with a `Launcher:` line (every source) when the committed
+`.peal/peal` differs from the running Peal's `templates/launcher`, whether a branch
+changed it or it is older than the plugin. Also appends `export GH_TELEMETRY="${GH_TELEMETRY:-0}"` once to
 Claude Code's `CLAUDE_ENV_FILE` (when set), so the session's own `gh` calls run with
 telemetry off; it never fails the hook.
 
