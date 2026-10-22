@@ -1,11 +1,11 @@
 # Issues -> one task record per issue, the fields task-state.awk reads, with two more.
 #
-#   awk -F '\t' -v label=<filter label> -v claimed=<claim label> -v edits=<EDITS> \
+#   awk -F '\t' -v label=<filter label> -v claimed=<claim label> -v apps=<APPS> -v edits=<EDITS> \
 #     -f issues-lib.awk -f issues-scan.awk LISTED EXTRA
 #
 # LISTED and EXTRA hold issues as issues-lib.awk describes them. LISTED are the tasks:
-# without a filter label only those opened by someone with write access count (anyone
-# may open an issue on a public repository); with one, only those carrying it whose
+# without a filter label only those opened by someone with write access or by a trusted
+# App (apps, issues-lib.awk's writer()) count (anyone may open an issue on a public repository); with one, only those carrying it whose
 # line in EDITS (the re-label check's, issues-lib.awk's edit_row_admitted()) admits
 # them: no edit after the labelling by someone without write access. A labelled issue
 # with no line in EDITS is left out (fail closed). EXTRA are issues only named by a
@@ -33,8 +33,8 @@ $0 == "" || ($1 in seen) { next }
 
 {
   id = $1
-  if (!extra && !admitted($6, $5, label)) next
-  if (!extra && label != "" && !((id in edit_row) && edit_row_admitted(edit_row[id], $6))) next
+  if (!extra && !admitted($6, $5, label, $9, apps)) next
+  if (!extra && label != "" && !((id in edit_row) && edit_row_admitted(edit_row[id], writer($6, $9, $5, apps)))) next
   seen[id] = 1
   title = tsv_unescape($3)
   gsub(/[\t\r\n]/, " ", title)

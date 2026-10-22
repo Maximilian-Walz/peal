@@ -549,7 +549,7 @@ who is admitted and the claims on issues are in [Storage](reference/storage.md).
 Why labels rather than a frontmatter block in the body: they show and filter on GitHub,
 and Belfry reads `needs:` labels already. Why an admission rule: anyone may open an issue
 on a public repository, so what reaches a session must have been vouched for by someone
-with write access. `admitted()` (`plugin/lib/issues-lib.awk`) is that one rule, and every
+with write access (or an App the committed config trusts). `admitted()` (`plugin/lib/issues-lib.awk`) is that one rule, and every
 read path applies it, not only the listing (`docs/security.md`, "Only admitted issues
 reach a session"; `plugin/lib/hostile.test.sh` holds the issues storage's channels to it
 too). Why the claim label is no lock: for a project run by one Belfry, or by hand, a

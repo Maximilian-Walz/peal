@@ -44,6 +44,7 @@ under `storage`.
 | `storage.kind` | `files` | where tasks live: `files` or `issues` ([Storage](storage.md)) |
 | `storage.issues.repo` | `""` | `owner/name`; empty: the remote's GitHub repository |
 | `storage.issues.label` | `""` | only issues with this label are tasks; empty: the issues opened by someone with write access |
+| `storage.issues.apps` | `[]` | GitHub Apps whose issues count as a writer's: slugs or bot logins (`belfry-server` or `"belfry-server[bot]"`; quote the second in a flow list); a slug matches only the login `<slug>[bot]`, case-insensitively; not an issue labelled `origin: outsider`; read from the work tree, as `storage.issues.label` ([Security](../security.md)) |
 | `release.tag-prefix` | `v` | release tags are `<prefix>MAJOR.MINOR.PATCH` |
 | `release.wait-ci` | `false` | `/peal:release` waits for the workflow runs of the tag |
 | `release.report` | `[]` | texts whose lines in those runs' logs the release reports, e.g. `"digest: sha256:"` |

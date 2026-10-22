@@ -11,6 +11,7 @@ differ; the storage under them does. The interface, and why it is shaped so, is 
 | `storage.kind` | `files` (the default) or `issues` |
 | `storage.issues.repo` | `owner/name`; empty: the remote's GitHub repository |
 | `storage.issues.label` | only issues with this label are tasks; empty: the issues opened by someone with write access |
+| `storage.issues.apps` | GitHub Apps (slugs, or bot logins `name[bot]`) whose issues count as a writer's; default none |
 
 The issues storage needs `gh`, logged in. `peal init --stage tasks --storage issues
 [--label L]` sets it up ([CLI](cli.md#peal-init)).
@@ -59,9 +60,14 @@ One rule, applied on every read path (`read`, `claim`, `work`, `defer`, the list
 - With a filter label, only issues carrying it are tasks. An issue edited later than its
   own labelling by someone without write access is refused too, so a stranger cannot slip
   a task's text in after a maintainer's label.
-- Without one, only issues opened by someone with write access are tasks.
-- Only pull requests from the repository itself, or by someone with write access, mark an
-  issue awaiting merge.
+- Without one, only issues opened by someone with write access, or by an App named in
+  `storage.issues.apps`, are tasks. An App counts by its bot login `<slug>[bot]` only
+  (case-insensitive; a user's login cannot hold `[`), as the opener and as the editor or
+  renamer in the re-label check (and in `peal ship`'s release notes). An App's issue
+  labelled `origin: outsider` gets no App trust: refused without a filter label, and with
+  one, refused if edited after its labelling; the write-access rule stays for everyone.
+- Only pull requests from the repository itself, by someone with write access or by such
+  an App mark an issue awaiting merge.
 
 A refused issue is refused without quoting any of its text. See
 [Security](../security.md).

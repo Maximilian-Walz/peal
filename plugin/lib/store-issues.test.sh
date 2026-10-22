@@ -227,6 +227,104 @@ admission() {
     "no task 1" peal claim 1
 }
 
+# storage.issues.apps: an issue opened by an App the committed config trusts counts as a
+# writer's, on every read path and in the re-label check, unless labelled
+# "origin: outsider"; only the exact bot login "<slug>[bot]" matches.
+app_admission() {
+  local refused="refused: issue 1 is no task: opened by someone without write access to acme/widgets; set storage.issues.label and label it, or file it anew yourself (peal idea)"
+  local edited="refused: issue 1 is no task: edited after it was labelled 'tasks' by someone without write access to acme/widgets; read the edit, then take the label 'tasks' off and add it again to make it a task"
+  local outsider="refused: issue 1 is no task: opened by an App acme/widgets trusts, but labelled 'origin: outsider', which takes the App's trust away; file it anew yourself (peal idea)"
+  local work wt out
+
+  # No label: the App's issue is a task with the setting, refused without it.
+  ISSUES_CONFIG='    apps: [belfry-server]
+' issues_repo
+  issue 1 "App's issue" --assoc NONE --user "belfry-server[bot]" --edited-at 2026-03-01T00:00:00Z belfry-server
+  check "read: an App's issue is admitted" "# 1 — App's issue" "$(peal read 1 2>&1 | grep '^# ')"
+  check "list: an App's issue is a task" "1 free app-s-issue -" "$(list 2>&1)"
+  wt=$(peal claim 1 --print-path 2>/dev/null | tail -n 1)
+  check "claim: an App's issue is claimed" "1" "$(git -C "$wt" branch --show-current | sed 's|issue/||')"
+  out=$(at "$wt" "$PEAL" defer --reason "no longer mine" --dry-run < <(cat "$(git -C "$wt" rev-parse --absolute-git-dir)/peal-task.md") 2>&1)
+  check "defer: an App's issue is not refused" "0" "$(grep -c 'refused:' <<<"$out")"
+
+  issues_repo
+  issue 1 "App's issue" --assoc NONE --user "belfry-server[bot]" --edited-at 2026-03-01T00:00:00Z belfry-server
+  check_refused "read: without the setting, refused as ever" "$refused" peal read 1
+  check_refused "claim: without the setting" "$refused" peal claim 1
+  check "list: without the setting, no task" "" "$(list 2>&1)"
+
+  # Forgeries: a plain login, another App, a login only containing the slug.
+  ISSUES_CONFIG='    apps: [belfry-server]
+' issues_repo
+  issue 1 "Plain login" --assoc NONE --user belfry-server
+  check_refused "read: the slug without [bot] is a user, refused" "$refused" peal read 1
+  issue 2 "Other App" --assoc NONE --user "other-app[bot]"
+  check_refused "read: another App" "${refused/issue 1/issue 2}" peal read 2
+  issue 3 "Prefixed" --assoc NONE --user "x-belfry-server[bot]"
+  check_refused "read: a longer slug" "${refused/issue 1/issue 3}" peal read 3
+  issue 4 "Upper case" --assoc NONE --user "Belfry-Server[bot]"
+  check "read: logins compare case-insensitively" "# 4 — Upper case" "$(peal read 4 2>&1 | grep '^# ')"
+
+  # origin: outsider takes the App's trust away (write access stays).
+  issue 7 "Relayed" --assoc NONE --user "belfry-server[bot]" --label "origin: outsider"
+  check_refused "read: origin: outsider, refused distinctly" "${outsider/issue 1/issue 7}" peal read 7
+  issue 5 "Relayed, upper case" --assoc NONE --user "belfry-server[bot]" --label "Origin: Outsider"
+  check_refused "read: Origin: Outsider too" "${outsider/issue 1/issue 5}" peal read 5
+  issue 6 "Owner relayed" --assoc OWNER --label "origin: outsider"
+  check "read: write access stays" "# 6 — Owner relayed" "$(peal read 6 2>&1 | grep '^# ')"
+  check "list: only the owner's" "6 free owner-relayed -" "$(list 2>&1 | grep '^6 ')"
+
+  # A label: the App's edits after the labelling count with the setting only.
+  ISSUES_CONFIG='    label: tasks
+    apps: ["belfry-server[bot]"]
+' issues_repo
+  issue 1 "Edited by the App" --label tasks --assoc NONE --user "belfry-server[bot]" \
+    --labelled-at 2026-02-01T00:00:00Z --edited-at 2026-03-01T00:00:00Z belfry-server \
+    --renamed-at 2026-03-02T00:00:00Z belfry-server
+  check "read: label mode, the App's own later edit and rename" "# 1 — Edited by the App" "$(peal read 1 2>&1 | grep '^# ')"
+  check "list: label mode, listed" "1 free edited-by-the-app -" "$(list 2>&1)"
+  issue 2 "Outsider edited" --label tasks --assoc NONE --user "belfry-server[bot]" --label "origin: outsider" \
+    --labelled-at 2026-02-01T00:00:00Z --edited-at 2026-03-01T00:00:00Z belfry-server
+  check_refused "read: label mode, origin: outsider and edited later" "${edited/issue 1/issue 2}" peal read 2
+  issue 3 "Outsider, not edited" --label tasks --assoc NONE --user "belfry-server[bot]" --label "origin: outsider" \
+    --labelled-at 2026-02-01T00:00:00Z
+  check "read: label mode, origin: outsider and no later edit stays admitted" "# 3 — Outsider, not edited" "$(peal read 3 2>&1 | grep '^# ')"
+  issue 4 "App, unlabelled" --assoc NONE --user "belfry-server[bot]"
+  check_refused "read: label mode, an App's issue without the label" \
+    "refused: issue 4 is no task: opened by someone without write access to acme/widgets and not labelled 'tasks'; labelling it 'tasks' or filing it anew yourself (peal idea) makes it a task" \
+    peal read 4
+  ISSUES_CONFIG='    label: tasks
+' issues_repo
+  issue 1 "Edited by the App" --label tasks --assoc NONE --user "belfry-server[bot]" \
+    --labelled-at 2026-02-01T00:00:00Z --edited-at 2026-03-01T00:00:00Z belfry-server
+  check_refused "read: label mode, no setting" "$edited" peal read 1
+  check "list: label mode, no setting, left out" "" "$(list 2>&1)"
+
+  # Pull requests: an App's fork pull request marks an issue awaiting merge with the setting only.
+  ISSUES_CONFIG='    apps:
+      - belfry-server
+' issues_repo
+  issue 1 "Claimed by an App's PR"
+  pr 2 "Fixes #1" --fork NONE --user "belfry-server[bot]"
+  check "list: the App's pull request" "1 awaiting-merge claimed-by-an-app-s pr:#2 https://github.com/acme/widgets/pull/2" "$(list 2>&1)"
+  issues_repo
+  issue 1 "Claimed by an App's PR"
+  pr 2 "Fixes #1" --fork NONE --user "belfry-server[bot]"
+  check "list: without the setting, free" "1 free claimed-by-an-app-s -" "$(list 2>&1)"
+
+  # The setting: a bad entry fails naming it; the unquoted flow form.
+  ISSUES_CONFIG='    apps: [bad slug!]
+' issues_repo
+  issue 1 "Any"
+  check_refused "config: a bad App fails naming the setting" \
+    "storage.issues.apps: 'bad slug!' is no GitHub App slug" peal read 1
+  ISSUES_CONFIG='    apps: [belfry-server[bot]]
+' issues_repo
+  issue 1 "App's issue" --assoc NONE --user "belfry-server[bot]"
+  check_refused "config: the unquoted [x[bot]] is not a flow list the parser takes (quote it, or use the slug)" \
+    ".peal/config.yml:5: unexpected text after ]" peal read 1
+}
+
 # edit_admitted(): the re-label check on top of admitted() (0076): a labelled issue (or
 # one opened by someone with write access) edited afterwards by someone without write
 # access is refused the same way, on every single-issue path, read directly, the rest
@@ -982,6 +1080,7 @@ cases() {
   writes
   claims
   admission
+  app_admission
   edit_admission
   session
   commit_msg
