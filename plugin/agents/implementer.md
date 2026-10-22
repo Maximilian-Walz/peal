@@ -26,6 +26,10 @@ Rules:
   else staged stays staged for a later commit. Each commit runs the project's checks; a
   refused commit is a failing check to fix, never one to go around. Leave the tree clean
   before you hand back.
+- **Never rewrite a pushed commit.** A commit already on the remote, the
+  `wip: session-end autosave` the SessionEnd hook pushes included, is never reset,
+  amended, rebased or squashed; build on it with new commits. Never rebase a pushed
+  branch: a rewritten tip is refused at the push.
 - **Never close.** Do not run `/peal:close`, do not write `## Outcome`, do not move the
   task file, do not push to the main branch, do not open a pull request. Do not write
   decision entries or their index either: a decision the work calls for goes under

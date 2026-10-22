@@ -497,7 +497,9 @@ _peal_close_checks() {
 # (an empty commit when the branch holds nothing else: a pull request needs one), the
 # open pull request of the branch marked ready for review when it is a draft (before the
 # push, so the close commit's CI runs on a ready pull request), the branch pushed, the
-# pull request opened or its title and body updated, the sentinel cleared. What fails
+# pull request opened or its title and body updated, the sentinel cleared. A remote tip
+# the branch lacks is reconciled first (_peal_close_remote_check): merged with `-s ours`
+# when its tree is one this branch holds, else refused. What fails
 # after the flush leaves the sentinel: run finish again, it goes on from where it stopped.
 peal_close_finish() {
   local top gitdir rel decisions dirty escalations out status branch ahead remote_ref repo pr url title body draft node
@@ -536,6 +538,7 @@ peal_close_finish() {
       return 2
     fi
   fi
+  _peal_close_remote_check "$(git symbolic-ref -q --short HEAD)" || return 2
   _peal_close_checks || return 2
 
   out=$(peal_ideas --flush)
@@ -548,6 +551,13 @@ peal_close_finish() {
 
   if [ "$PEAL_MERGE" = auto ] && [ "$PEAL_MERGE_VERDICT" = withdraw ]; then
     _peal_close_withdraw_merge || return 1
+  fi
+  if [ -n "$PEAL_REMOTE_MERGE" ]; then
+    git merge -q -s ours --no-edit -m "Merge $PEAL_REMOTE_MERGE: the pushed autosave, already here [$PEAL_ID]" "$PEAL_REMOTE_MERGE" >/dev/null || {
+      peal_err "close finish: merging $PEAL_REMOTE_MERGE failed (above); run finish again once it is fixed"
+      return 1
+    }
+    echo "merged $PEAL_REMOTE_MERGE (-s ours): its tree is already here"
   fi
   # A decision made in the task lands as a commit of its own, right before the task's move.
   peal_decisions_commit "$PEAL_ID" || return 1
@@ -653,6 +663,36 @@ peal_close_abort() {
   echo "aborted the close of task $id: $reason"
   echo "The Stop hook holds nothing now. Begin again (peal close begin) when the task is done."
   [ -z "$(peal_ideas 2>/dev/null)" ] || echo "The ideas queued on this branch stay queued, for the close that comes."
+}
+
+# _peal_close_remote_check BRANCH -> PEAL_REMOTE_MERGE, the remote ref of BRANCH to merge
+# with `-s ours` (empty when there is none to merge), after fetching BRANCH (a failure warns,
+# the known ref is used). A remote tip that is not an ancestor of HEAD is: a tip HEAD is
+# behind, refused (git merge); a tip whose tree equals the tree of a commit in
+# PEAL_BASE..HEAD (a pushed autosave rewritten locally), merged; any other, refused. Status
+# 2 on a refusal, before anything changes. Needs PEAL_REMOTE and PEAL_BASE.
+_peal_close_remote_check() {
+  local branch=$1 ref name tip c
+  PEAL_REMOTE_MERGE=""
+  peal_git_try git fetch -q "$PEAL_REMOTE" "$branch" \
+    || { ! peal_remote_ref "$branch" "$PEAL_REMOTE" >/dev/null \
+         || peal_err "warning: could not fetch $PEAL_REMOTE/$branch${PEAL_GIT_ERR:+ ($PEAL_GIT_ERR)}; comparing with what is known here"; }
+  ref=$(peal_remote_ref "$branch" "$PEAL_REMOTE") || return 0
+  git merge-base --is-ancestor "$ref" HEAD && return 0
+  name=$(git rev-parse --abbrev-ref "$ref" 2>/dev/null) || name=$ref
+  if git merge-base --is-ancestor HEAD "$ref"; then
+    peal_err "close finish: $name is ahead of this branch (commits pushed from elsewhere); nothing is changed. Run: git merge $name, then finish again."
+    return 2
+  fi
+  tip=$(git rev-parse "$ref^{tree}") || return 2
+  while read -r c; do
+    if [ "$(git rev-parse "$c^{tree}")" = "$tip" ]; then
+      PEAL_REMOTE_MERGE=$name
+      return 0
+    fi
+  done < <(git rev-list "$PEAL_BASE..HEAD")
+  peal_err "close finish: $name holds commits this branch rewrote or lacks, and no commit here has its tree; nothing is changed. Look at git log HEAD..$name, run: git merge $name (git merge -s ours $name only once every change of theirs is here), then finish again."
+  return 2
 }
 
 # peal_close_stop -> the Stop hook: silent unless a close is in progress here; then status
