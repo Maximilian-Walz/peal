@@ -336,8 +336,8 @@ board() {
     "$(PATH="$bin:$PATH" at "$work" "$PEAL" list 0003 2>&1)"
   printf '#!/bin/sh\nexit 4\n' >"$bin/gh"
   out=$(PATH="$bin:$PATH" at "$work" "$PEAL" board 2>&1)
-  check "board: gh with no login: answers, pr unknown, silent" "0|1|0" \
-    "$?|$(grep -c '"id":"0003".*"pr":"unknown"\|"id":"0003"' <<<"$out")|$(grep -c 'warning' <<<"$out")"
+  check "board: gh with no login: answers, no pr for 0003, silent" "0|1|0|0" \
+    "$?|$(grep -c '"id":"0003"' <<<"$out")|$(grep '"id":"0003"' <<<"$out" | grep -c '"pr":')|$(grep -c 'warning' <<<"$out")"
   printf '#!/bin/sh\necho called >&2\nexit 1\n' >"$bin/gh"
   check "list: gh only for a task awaiting merge" "0001 blocked odd-title needs:human" \
     "$(PATH="$bin:$PATH" at "$work" "$PEAL" list --state blocked 2>&1 | grep -v '^0003')"

@@ -696,7 +696,7 @@ _peal_close_handoff() {
 # the pull request was already open and left it as it was. Refused without a hand-off.
 peal_close_opened() {
   local gitdir pr url unchanged=""
-  [ $# -ge 2 ] && [ $# -le 3 ] || { peal_err "close opened: N URL [--unchanged]"; return 2; }
+  if [ $# -lt 2 ] || [ $# -gt 3 ]; then peal_err "close opened: N URL [--unchanged]"; return 2; fi
   pr=${1#\#} url=$2
   [ "${3-}" != --unchanged ] || unchanged=1
   [ $# -lt 3 ] || [ -n "$unchanged" ] || { peal_err "close opened: N URL [--unchanged]"; return 2; }
