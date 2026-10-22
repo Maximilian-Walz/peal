@@ -336,10 +336,10 @@ case "$method $rest" in
       left=$(cat "$FAKE_GH/checks-pending")
       if [ "${left:-0}" -gt 0 ]; then
         echo $((left - 1)) >"$FAKE_GH/checks-pending"
-        run='{"status": "in_progress", "conclusion": null}'
-        [ ! -e "$FAKE_GH/checks-fail" ] || run="{\"status\": \"completed\", \"conclusion\": \"failure\"}, $run"
+        run='{"name": "build", "status": "in_progress", "conclusion": null}'
+        [ ! -e "$FAKE_GH/checks-fail" ] || run="{\"name\": \"build\", \"status\": \"completed\", \"conclusion\": \"failure\"}, $run"
       elif [ -e "$FAKE_GH/checks-fail" ]; then
-        run='{"status": "completed", "conclusion": "failure"}'
+        run='{"name": "build", "status": "completed", "conclusion": "failure"}'
       else
         run='{"status": "completed", "conclusion": "success"}'
       fi

@@ -358,16 +358,29 @@ _peal_mw_merge_self() {
 }
 
 # _peal_mw_wait_merged REPO BRANCH -> PEAL_MW_PR, auto-merge on, waited for until merged,
-# within the same budget. Status 0 merged, 1 closed unmerged, 3 still open.
+# within the same budget. Its checks are watched too: one that failed (nothing pending)
+# ends the wait, since auto-merge will not merge it. Status 0 merged, 1 closed unmerged
+# or its checks failing (left open, the failing checks named), 3 still open.
 _peal_mw_wait_merged() {
-  local repo=$1 branch=$2 start=$SECONDS state
+  local repo=$1 branch=$2 start=$SECONDS state merged sha checks names
   _peal_mw_budget || return 2
   while :; do
-    state=$(peal_gh "repos/$repo/pulls/$PEAL_MW_PR" --jq '[.state, (.merged | tostring)] | join(" ")' 2>/dev/null)
-    case $state in
-      *" true") _peal_mw_merged "$repo" "$branch"; return 0 ;;
+    state=$(peal_gh "repos/$repo/pulls/$PEAL_MW_PR" --jq '[.state, (.merged | tostring), .head.sha] | @tsv' 2>/dev/null)
+    IFS="$(printf '\t')" read -r state merged sha <<<"$state"
+    case "$state $merged" in
+      "closed true"|"open true") _peal_mw_merged "$repo" "$branch"; return 0 ;;
       "closed "*) PEAL_MW_STATE=""; peal_err "#$PEAL_MW_PR was closed unmerged: $PEAL_MW_URL"; return 1 ;;
     esac
+    if [ -n "$sha" ]; then
+      checks=$(peal_pr_checks "$repo" "$sha" 2>/dev/null)
+      if [ "$checks" = BLOCKED:checks-failing ]; then
+        names=$(peal_gh "repos/$repo/commits/$sha/check-runs?per_page=100" \
+          --jq '.check_runs[] | select(.status == "completed" and .conclusion != "success" and .conclusion != "neutral" and .conclusion != "skipped") | (.name // "a check")' 2>/dev/null | paste -s -d ',' - | sed 's/,/, /g')
+        PEAL_MW_STATE=open
+        peal_err "#$PEAL_MW_PR's checks fail${names:+ ($names)}: it stays open, unmerged, $PEAL_MW_URL"
+        return 1
+      fi
+    fi
     if [ $((SECONDS - start + PEAL_MW_INTERVAL)) -gt "$PEAL_MW_BUDGET" ]; then
       PEAL_MW_STATE=open
       peal_err "#$PEAL_MW_PR is not merged after ${PEAL_MW_BUDGET}s: it stays open, auto-merge on, $PEAL_MW_URL"

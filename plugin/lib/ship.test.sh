@@ -626,6 +626,28 @@ appVersion: '"'0.2.0'"'' "$(at_version v0.2.0)"
     "$(gh_get '[.[] | select(.state == "open")] | length' pulls)"
 }
 
+# Auto-merge on: the bump waits for the checks and the merge however long they take (no
+# budget given), and returns 3 naming the failing check when they fail.
+bump_auto_merge() {
+  local work out
+  work=$(repo)
+  versioned "$work" "  changelog: CHANGELOG.md" "main-writes: pr"
+  protected "$work"
+  echo 3 >"$FAKE_GH/checks-pending"
+  cat >"$FAKE_GH/on-check-runs" <<HOOK
+cd "$work" && echo '{"merge_method": "squash"}' | gh api --method PUT repos/acme/widgets/pulls/1/merge --input -
+HOOK
+  out=$(PEAL_MAIN_WRITE_INTERVAL=0 peal ship bump 0.2.0 2>&1)
+  check "auto-merge: waited for the merge" "0:bumped plugin.json pkg/Cargo.toml chart.yaml CHANGELOG.md to 0.2.0: pull request #1 https://github.com/acme/widgets/pull/1, merged" "$?:$(tail -n 1 <<<"$out")"
+
+  echo 2 >"$FAKE_GH/checks-pending"
+  touch "$FAKE_GH/checks-fail"
+  out=$(PEAL_MAIN_WRITE_INTERVAL=0 peal ship bump 0.3.0 2>&1)
+  check "auto-merge: checks failed, status 3" "3" "$?"
+  check "auto-merge: the failing check named" "1" "$(grep -c "#2's checks fail (build)" <<<"$out")"
+  check "auto-merge: left open for a fix" "not merged, its checks failed: pull request #2 https://github.com/acme/widgets/pull/2, open, not merged; fix them on that pull request; it merges once they pass, then peal ship bump v0.3.0 finishes" "$(tail -n 1 <<<"$out")"
+}
+
 issues() {
   local work out
   issues_repo
@@ -723,6 +745,7 @@ for_each_awk bump
 for_each_awk pin
 for_each_awk changelog
 for_each_awk bump_protected
+for_each_awk bump_auto_merge
 for_each_awk issues
 for_each_awk issues_relabel
 finish
