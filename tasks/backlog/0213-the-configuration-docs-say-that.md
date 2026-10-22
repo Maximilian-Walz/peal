@@ -1,6 +1,7 @@
 ---
 plan: required
 priority: low
+milestone: m8
 ---
 
 # 0213 — The configuration docs say that fields reached through a YAML merge key are refused

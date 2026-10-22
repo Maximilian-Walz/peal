@@ -2,6 +2,7 @@
 plan: required
 depends: [0150]
 touches: [plugin/agents/reviewer.md]
+milestone: m4
 ---
 
 # 0158 — The reviewer proposes the boundary for the Security line

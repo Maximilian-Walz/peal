@@ -1,6 +1,7 @@
 ---
 plan: required
 touches: [plugin/lib/work.sh]
+milestone: m8
 ---
 
 # 0134 — `peal record` accepts a Raw section added to a task filed without one

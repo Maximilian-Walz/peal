@@ -1,5 +1,6 @@
 ---
 plan: required
+milestone: m4
 ---
 
 # 0120 — The config loader refuses invalid values, not only peal doctor
@@ -22,6 +23,8 @@ checks so the loader refuses an invalid value with the same message doctor gives
 > task of its own. (0036's Outcome, filed by the m2 review, 0046)
 
 ## Notes
+
+2026-10-22: Re-plan 2026-10-22: moved into Main decides next to 0184, which links it; the security review rates it above its old place (a branch's config reaches gh api paths and git ref names).
 
 2026-10-22: Security review finding 10: the loader should validate storage.issues.repo (^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$) and main, remote and branch-prefix (git check-ref-format --branch), since a branch's config reaches gh api paths and git ref names; more severe than its place suggests. The low-findings task of the Main decides milestone links this one.
 

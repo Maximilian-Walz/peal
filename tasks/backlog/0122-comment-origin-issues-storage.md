@@ -1,5 +1,7 @@
 ---
 plan: required
+milestone: m6
+depends: [0180]
 ---
 
 # 0122 — `peal comment --origin outsider` on the issues storage

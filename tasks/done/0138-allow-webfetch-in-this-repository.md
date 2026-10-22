@@ -45,4 +45,4 @@ First weigh it against the threat model in `docs/security.md`: the repository ma
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Retired 2026-10-22 without being claimed: Superseded: 0135 (the planner gets the issues and pull requests its task cites through gh) removes the planner's WebFetch use, and whatever remains is a one-line human edit of .claude/settings.json that a sandboxed session cannot make; not a task.

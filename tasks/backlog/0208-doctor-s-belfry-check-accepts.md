@@ -1,6 +1,7 @@
 ---
 plan: required
 origin: outsider
+milestone: m8
 ---
 
 # 0208 — Doctor's belfry check accepts a .belfry.yml with block scalars

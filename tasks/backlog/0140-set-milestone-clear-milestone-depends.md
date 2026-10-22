@@ -1,6 +1,7 @@
 ---
 plan: required
 touches: [plugin/lib/store-files.sh, plugin/lib/store-issues.sh]
+milestone: m8
 ---
 
 # 0140 — set-milestone: refuse clearing the milestone of a task whose depends holds `milestone`

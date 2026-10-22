@@ -32,6 +32,8 @@ priority: high
 
 ## Notes
 
+2026-10-22: Re-plan 2026-10-22: the route this plan picks is a control-plane change either way (its belfry#729: a new apply kind sent only by the control plane after the human's answer, or its own record of the plan answer with the board's merge ignored). Whichever it is, the record names who answered; the control plane keeps that already.
+
 - Security review finding 1 (HIGH, verified by reading and by the existing test). Related: 0161 (a task-files pull request writing `merge: auto` on another task) and the revise-shape task of this milestone; this task closes the board's side, those the writes' side.
 - Needs a decision with the control plane: Belfry's contract says Peal writes `merge: auto` when the human agrees the plan and trusts the board's field; a change of route is a contract change on its side too (file it there if the plan picks the control-plane record).
 - Security: touches the auto-merge tiers boundary and "the merge is the human's" (`docs/security.md`); update it in the same pull request.

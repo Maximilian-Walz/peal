@@ -1,6 +1,7 @@
 ---
 plan: required
 touches: [plugin/commands/setup.md]
+milestone: m6
 ---
 
 # 0175 — /peal:setup's candidate issues include those of trusted Apps

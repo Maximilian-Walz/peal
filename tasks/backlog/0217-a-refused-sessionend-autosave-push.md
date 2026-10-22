@@ -1,5 +1,6 @@
 ---
 plan: required
+milestone: m7
 ---
 
 # 0217 — A refused SessionEnd autosave push is reported, not only logged

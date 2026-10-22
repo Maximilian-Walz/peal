@@ -3,6 +3,7 @@ plan: required
 size: M
 depends: []
 touches: [plugin/lib/import.sh, plugin/bin/peal, plugin/commands/setup.md, docs/guides/setting-up.md, docs/adopting.md]
+milestone: m8
 ---
 
 # 0200 — peal import: existing backlogs (TODO.md, GitHub issues, CSV) into task files

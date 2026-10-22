@@ -40,4 +40,4 @@ Since 0127, the reader that finds a nested YAML field in a release version file 
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Retired 2026-10-22 without being claimed: duplicate of 0213
