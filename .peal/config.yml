@@ -7,7 +7,9 @@ stages: [tasks, guardrails, milestones, belfry]
 # Peal's own settings. The harnesses take minutes, so CI runs them, not every commit;
 # a close runs the lint, which is quick.
 plan:
-  required-paths: [plugin/, tools/]
+  # The process's boundary, as .belfry.yml's never_auto_merge names it: a task changing
+  # these gets plan: required (the human agrees the whole plan); any other gets auto.
+  required-paths: [plugin/hooks/, plugin/templates/, plugin/lib/githooks.sh, plugin/lib/git-guard.sh, plugin/lib/session.sh, plugin/lib/main-write.sh, plugin/lib/ship.sh, plugin/commands/release.md, plugin/.claude-plugin/, .claude-plugin/, .peal/, tools/ci-changes.sh, tools/test-all.sh, tools/pins.sh, docs/security.md, SECURITY.md]
 pr:
   security: docs/security.md
 context: [docs/design.md, docs/security.md, docs/reference/cli.md, docs/reference/configuration.md, docs/reference/tasks.md, README.md]
