@@ -146,9 +146,12 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Every awk the harnesses can find is one they run under; Peal must work with
-      # whichever a machine has.
+      # whichever a machine has. They all come from Ubuntu's archive: the runner image's
+      # Microsoft source is dropped first, as its 403s fail apt-get update.
       - name: Install the awks
-        run: sudo apt-get update -q && sudo apt-get install -yq mawk gawk original-awk busybox
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list /etc/apt/sources.list.d/microsoft-prod.sources
+          sudo apt-get update -q && sudo apt-get install -yq mawk gawk original-awk busybox
       - name: Install Claude Code
         run: npm install -g @anthropic-ai/claude-code
       - name: Run a hostile shard
