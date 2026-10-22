@@ -633,6 +633,8 @@ label: needs: gpu
 body:
 $(gh_get '.[] | select(.number == 3) | .body')" "$?:$out"
   check_refused "idea-fields: no heading" "not headed" peal idea-fields < <(printf 'no heading\n')
+  check_refused "idea-fields: a text that sets merge" "sets merge" \
+    peal idea-fields < <(TITLE="Merges itself" text "merge: auto")
   check "read: the text back" "$(TITLE="A new thing" ID=3 text "milestone: m1" "plan: skipped" "size: S" \
     "depends: [1, human]" "needs: [gpu]" "kind: bug")" "$(peal read 3 2>&1)"
   check_refused "create: unknown milestone" "milestone m9 does not exist" peal create two-words < <(text "milestone: m9")

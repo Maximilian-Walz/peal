@@ -76,6 +76,11 @@ For the next session:
 - Whether the control plane's `task_create` accepts `labels` and `milestone` was not
   checked from here. The control plane is outside this repository.
 
+The pull request's security review found that `peal idea-fields` turned `merge: auto`
+into a label without the check `peal create --owner` applies, so an idea filed through
+the control plane could make a task that merges itself. It now refuses a text that sets
+`merge`, the same way, and `store-issues.test.sh` checks the refusal.
+
 ### Reviewer findings not acted on
 
 None. The one finding was fixed in its own commit: the files-storage stub had separated

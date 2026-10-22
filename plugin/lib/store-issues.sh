@@ -461,7 +461,12 @@ peal_store_idea_fields() {
   PEAL_FIELDS=$(_peal_issues_fields)
   tmp=$(mktemp -d) || return 2
   cat >"$tmp/text"
-  if _peal_issues_from_text "$tmp/text" NNNN "$tmp"; then
+  # The control plane files what this prints, as peal create --owner does: a text that
+  # sets merge is refused the same way, so no idea makes a task that merges itself.
+  if [ -n "$(peal_fm_get "$tmp/text" merge 2>/dev/null)" ]; then
+    peal_err "idea-fields: the text sets merge; only a human, editing the task itself, sets merge: auto"
+    status=2
+  elif _peal_issues_from_text "$tmp/text" NNNN "$tmp"; then
     printf 'title: %s\n' "$(cat "$tmp/title")"
     [ ! -s "$tmp/milestone" ] || printf 'milestone: %s\n' "$(cat "$tmp/milestone")"
     while IFS= read -r line; do printf 'label: %s\n' "$line"; done <"$tmp/labels"

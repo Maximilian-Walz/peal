@@ -285,7 +285,8 @@ stdin and prints the issue `peal create` would open from it: `title: T`, `milest
 when there is one, a `label: L` line per label (`priority`, `needs`, `plan`, `size`, the
 project's fields), then `body:` and the body (the `Part of`, `Depends on` and `After
 deploy of` lines, then the text without frontmatter and heading). For a control plane
-that opens the issue itself.
+that opens the issue itself; a text that sets `merge` is refused, as `peal create
+--owner` refuses it.
 
 ## `peal ideas`
 
