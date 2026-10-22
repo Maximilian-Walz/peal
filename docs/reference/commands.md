@@ -36,7 +36,10 @@ its `## Done when` holds, or once it is decided against.
   `review.skip-paths`.
 - Each finding is fixed, filed as an idea, escalated under `### Escalations`, or
   rebutted under `### Reviewer findings not acted on`.
-- Writes the Outcome, runs `peal close finish`, then waits for the checks: with Belfry's
+- Writes the Outcome, runs `peal close finish` (with Belfry's `pr_create` tool in the
+  session, `--pr-by-tool`: the session opens the pull request through the tool and hands
+  it back with `peal close opened`; no early draft, queued ideas filed through
+  `task_create` first), then waits for the checks: with Belfry's
   `wait_ci` tool when the session has it, otherwise `peal close wait` while the verdict is
   `WAIT`. Either wait is capped; a wait that cannot settle ends with a report.
 - Ends when the pull request is open and its checks are green, with one or two sentences

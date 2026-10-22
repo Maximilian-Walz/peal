@@ -44,19 +44,22 @@ peal_urlencode() {
 }
 
 # peal_gh ARGS... -> `gh api ARGS` (within a minute, where timeout exists); status 2 and
-# gh's message when it fails.
+# gh's message when it fails; status 4 and the line "peal: gh has no login (...)" when gh
+# is not logged in (its own exit 4: a Belfry session's sandbox hides the worker's login),
+# which peal_gh_failed reports as BLOCKED:no-gh-login.
 peal_gh() {
-  local err status=0
+  local err status=0 rc=0
   if ! command -v gh >/dev/null 2>&1; then
     peal_err "this needs gh (https://cli.github.com), logged in"
     return 2
   fi
   err=$(mktemp) || return 2
   if command -v timeout >/dev/null 2>&1; then
-    timeout 60 gh api "$@" 2>"$err" || status=2
+    timeout 60 gh api "$@" 2>"$err" || rc=$?
   else
-    gh api "$@" 2>"$err" || status=2
+    gh api "$@" 2>"$err" || rc=$?
   fi
+  if [ $rc = 4 ]; then status=4; elif [ $rc != 0 ]; then status=2; fi
   if [ $status != 0 ]; then
     while [ $# -gt 0 ]; do
       case $1 in
@@ -66,18 +69,28 @@ peal_gh() {
       esac
       shift
     done
-    peal_err "gh api ${1-} failed: $(tr '\n' ' ' <"$err" | sed 's/ $//')"
-    [ -z "${PEAL_GH_ERRFILE-}" ] || cp "$err" "$PEAL_GH_ERRFILE" 2>/dev/null
+    if [ $status = 4 ]; then
+      peal_err "gh has no login ($(tr '\n' ' ' <"$err" | sed 's/ $//'))"
+      [ -z "${PEAL_GH_ERRFILE-}" ] || { printf 'peal: gh has no login\n'; cat "$err"; } >"$PEAL_GH_ERRFILE" 2>/dev/null
+    else
+      peal_err "gh api ${1-} failed: $(tr '\n' ' ' <"$err" | sed 's/ $//')"
+      [ -z "${PEAL_GH_ERRFILE-}" ] || cp "$err" "$PEAL_GH_ERRFILE" 2>/dev/null
+    fi
   fi
   rm -f "$err"
   return $status
 }
 
-# peal_gh_failed -> the verdict line for a gh call that failed: BLOCKED:gh-failed, and
+# peal_gh_failed -> the verdict line for a gh call that failed: BLOCKED:no-gh-login when
+# gh has no login, else BLOCKED:gh-failed, and
 # when the message of the last failure (PEAL_GH_ERRFILE) is the sandbox proxy's denial of
 # a host (gh: `Get "https://HOST/...": Forbidden`), the host's name too.
 peal_gh_failed() {
   local host=""
+  if [ -s "${PEAL_GH_ERRFILE-}" ] && head -n 1 "$PEAL_GH_ERRFILE" | grep -q '^peal: gh has no login$'; then
+    echo "BLOCKED:no-gh-login"
+    return 0
+  fi
   if [ -s "${PEAL_GH_ERRFILE-}" ]; then
     host=$(sed -n 's|.*"https\{0,1\}://\([^/":]*\)[^"]*": Forbidden.*|\1|p' "$PEAL_GH_ERRFILE" | head -n 1)
   fi

@@ -168,6 +168,15 @@ check "close: step 6 handles conflict: true" "1" "$(has6 '`conflict: true`')"
 check "close: step 6 reruns a flaky failure only after the run has finished" "1" "$(has6 'rerun only once the whole run has finished')"
 check "close: step 6 reruns the failed jobs once" "1" "$(has6 'gh run rerun <run-id> --failed` once')"
 
+# close under Belfry (0176): pr_create, --pr-by-tool and peal close opened; next.md too.
+closemd=$(tr '\n' ' ' <"$commands/close.md" | tr -s ' ')
+nextmd=$(tr '\n' ' ' <"$commands/next.md" | tr -s ' ')
+check "close: names pr_create, --pr-by-tool and close opened" "1|1|1" \
+  "$(grep -c -F 'mcp__belfry__pr_create' <<<"$closemd")|$(grep -c -F -- '--pr-by-tool' <<<"$closemd")|$(grep -c -F 'peal close opened' <<<"$closemd")"
+check "close: names task_create and BLOCKED no-gh-login" "1|1" \
+  "$(grep -c -F 'mcp__belfry__task_create' <<<"$closemd")|$(grep -c -F 'no-gh-login' <<<"$closemd")"
+check "next: names pr_create" "1" "$(grep -c -F 'mcp__belfry__pr_create' <<<"$nextmd")"
+
 # plan: auto (0164): the planner sorts its questions, /peal:work asks only the human's,
 # merge: auto only on the human's word, a skipped plan's model, escalation, the reviewer.
 flat() { tr '\n' ' ' <"$1" | tr -s ' '; }

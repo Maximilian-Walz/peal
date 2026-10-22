@@ -218,9 +218,9 @@ _peal_files_claims() {
 # its open pull request from gh, "pr:#N <url>" and " draft" for a draft; a pull request
 # from a fork (a branch named like a task's, opened from elsewhere) supplies none. Best
 # effort: without gh, or when it fails or takes over 10 seconds, the claims stay as they
-# are, with a warning.
+# are, with a warning (none when gh has no login).
 _peal_files_prs() {
-  local claims prs
+  local claims prs status
   claims=$(cat)
   if ! command -v gh >/dev/null 2>&1; then
     peal_err "warning: gh not found; pull requests of tasks awaiting merge are unknown"
@@ -228,7 +228,13 @@ _peal_files_prs() {
     set -- gh pr list --state open --limit 200 --json number,headRefName,isDraft,url,isCrossRepository \
       --jq '.[] | [.headRefName, (.number|tostring), (.isDraft|tostring), .url, (.isCrossRepository|tostring)] | @tsv'
     if command -v timeout >/dev/null 2>&1; then set -- timeout 10 "$@"; fi
-    if ! prs=$("$@" 2>/dev/null); then
+    prs=$("$@" 2>/dev/null)
+    status=$?
+    # Exit 4 is gh's "not logged in" (a Belfry session's sandbox hides the login): the
+    # states stay unknown, quietly; any other failure warns.
+    if [ $status = 4 ]; then
+      prs=""
+    elif [ $status != 0 ]; then
       peal_err "warning: gh pr list failed; pull requests of tasks awaiting merge are unknown"
       prs=""
     fi
