@@ -94,7 +94,8 @@ Limits this boundary does not cover, accepted for now:
   `.peal/peal` is not byte-identical to the running Peal's `templates/launcher`; silent
   when it matches or is missing), and `peal doctor version` fails on it; Belfry's
   contract path is not covered. The git hooks never run the launcher; they find Peal
-  themselves. Guard: `peal_launcher_matches` (`plugin/lib/session.sh`). Harness:
+  themselves. CI (`tools/lint.sh`) fails when the two in-tree copies differ; it does
+  not guard against a branch replacing both. Guard: `peal_launcher_matches` (`plugin/lib/session.sh`). Harness:
   `plugin/lib/session.test.sh`.
 - **A repository that holds the plugin cache.** A Peal under a worktree of the
   repository is refused even when it is Claude Code's cache (a repository at `$HOME`,
