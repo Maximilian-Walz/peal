@@ -120,10 +120,11 @@ _peal_doctor_stage_config() {
 _peal_doctor_stage_version() {
   _peal_doctor_launcher_exists=0
   _peal_doctor_launcher_ok=0
-  if [ -f .peal/peal ]; then
-    _peal_doctor_launcher_exists=1
-    cmp -s .peal/peal "$PEAL_ROOT/templates/launcher" && _peal_doctor_launcher_ok=1
-  fi
+  peal_launcher_matches
+  case $? in
+    0) _peal_doctor_launcher_exists=1 _peal_doctor_launcher_ok=1 ;;
+    1) _peal_doctor_launcher_exists=1 ;;
+  esac
   _peal_doctor_wants version || return 0
   if [ "$_peal_doctor_launcher_exists" = 0 ]; then
     if [ "$_peal_doctor_config_ok" = 1 ] && printf '%s\n' "$(peal_config_get stages 2>/dev/null)" | grep -qx tasks; then

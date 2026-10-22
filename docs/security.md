@@ -98,8 +98,15 @@ Limits this boundary does not cover, accepted for now:
   the cache wins. Versions are compared by number only; a version of another shape is
   incomparable and never wins on version.
 - **The committed launcher.** `.peal/peal` is a file of the repository: a branch can
-  replace it, and whoever runs `.peal/peal` by hand runs the branch's copy. The git hooks
-  never run it; they find Peal themselves.
+  replace it, and whoever runs `.peal/peal` by hand, or Belfry's contract, runs the
+  branch's copy; nothing inside the launcher can guard against its own replacement. That
+  stays a limit. The SessionStart hook reports it to a session (a `Launcher:` line when
+  `.peal/peal` is not byte-identical to the running Peal's `templates/launcher`; silent
+  when it matches or is missing), and `peal doctor version` fails on it; Belfry's
+  contract path is not covered. The git hooks never run the launcher; they find Peal
+  themselves. CI (`tools/lint.sh`) fails when the two in-tree copies differ; it does
+  not guard against a branch replacing both. Guard: `peal_launcher_matches` (`plugin/lib/session.sh`). Harness:
+  `plugin/lib/session.test.sh`.
 - **A repository that holds the plugin cache.** A Peal under a worktree of the
   repository is refused even when it is Claude Code's cache (a repository at `$HOME`,
   say): the hooks then refuse until Peal is found elsewhere.

@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.6.0 (2026-10-22)
+
+v0.6.0: 11 features since v0.5.0.
+
+### Features
+
+- A tasks-only project cannot commit or close until hooks are installed by hand: Built: `peal commit`, `peal close begin` and `peal close finish` refuse without Peal's git hooks only where `guardrails` is in the project's `stages`. ([0131](https://github.com/Maximilian-Walz/peal/blob/v0.6.0/tasks/done/0131-tasks-stage-hooks-gap.md), #290)
+- `peal create` says why nothing was filed; the macOS hostile-stdin check is flaky: `peal create` no longer ends with a bare "nothing was filed". ([0137](https://github.com/Maximilian-Walz/peal/blob/v0.6.0/tasks/done/0137-peal-create-says-why-nothing.md), #287)
+- Sessions read only the parts of the design they need: `CLAUDE.md` no longer tells every session to read `docs/design.md` first. ([0163](https://github.com/Maximilian-Walz/peal/blob/v0.6.0/tasks/done/0163-read-only-the-design-needed.md), #292)
+- Turn on pr.security for this repository: `.peal/config.yml` now sets `pr.security: docs/security.md`. ([0157](https://github.com/Maximilian-Walz/peal/blob/v0.6.0/tasks/done/0157-turn-on-pr-security.md), #296)
+- Release and the reaper do not warn about a remote branch already gone: Built as planned. ([0121](https://github.com/Maximilian-Walz/peal/blob/v0.6.0/tasks/done/0121-release-skips-gone-remote-branch.md), #295)
+- `apply`'s `depends` gives this clone's live claim back: `peal apply` now takes a `depends` proposal on the task this worktree claims, the case Belfry's `task_defer` sends once `apply:` is set. ([0160](https://github.com/Maximilian-Walz/peal/blob/v0.6.0/tasks/done/0160-apply-depends-gives-claim-back.md), #293)
+- The planner decides what is technical and asks the human only theirs: Built as planned. ([0164](https://github.com/Maximilian-Walz/peal/blob/v0.6.0/tasks/done/0164-planner-decides-what-is-technical.md), #297)
+- Close's push and read-only commands print no raw git config-lock errors in a sandbox: Built: no push Peal makes from a task branch records an upstream any more. ([0167](https://github.com/Maximilian-Walz/peal/blob/v0.6.0/tasks/done/0167-close-s-push-and-read.md), #302)
+- Takeover does not fail on a remote branch already gone: `peal_store_takeover` (`plugin/lib/store-files.sh`) now treats a failed delete push of a deferred claim's remote branch as `peal_release_remote` does since 0121: it asks `git ls-remote --exit-code`, and status 2 (the branch is already gone on the remote) lets the takeover go on silently, the existing `update-ref -d` pruning the stale tracking ref. ([0166](https://github.com/Maximilian-Walz/peal/blob/v0.6.0/tasks/done/0166-takeover-stale-remote-ref.md), #304)
+- Peal's config lists the template under release.commit-files: Peal's own `.peal/config.yml` now lists the Get Peal line of `plugin/templates/decisions.yml` under `release.commit-files`, in the same `PATH: "TEXT"` form as the matching `release.version-files` entry, and the commented defaults block describes `commit-files: []`. ([0130](https://github.com/Maximilian-Walz/peal/blob/v0.6.0/tasks/done/0130-peal-config-pins-template-sha.md), #305)
+- A pushed session-end autosave is never rewritten, so close finish's push is not refused: Built both halves, as agreed with the human. ([0168](https://github.com/Maximilian-Walz/peal/blob/v0.6.0/tasks/done/0168-a-pushed-session-end-autosave.md), #303)
+
 ## v0.5.0 (2026-10-21)
 
 v0.5.0: 6 features since v0.4.0.

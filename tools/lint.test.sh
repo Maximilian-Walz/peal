@@ -6,6 +6,8 @@
 # - `--list` shows exactly the repository's readable scripts: tracked or untracked and not
 #   ignored, never an ignored file, a symlink, a deleted tracked file or an unreadable one;
 # - it says nothing on stderr about files it cannot open;
+# - the full run fails, naming the fix, when .peal/peal differs from plugin/templates/launcher
+#   or is missing, and says nothing about it when they match;
 # - outside a git repository it exits 2 (the search is broken).
 set -uo pipefail
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -43,6 +45,31 @@ check "--list names exactly the readable scripts" "$expected" "$(sort "$dir/out"
 
 cd "$dir/plain" || exit 2
 check_refused "outside a git repository" "no shell scripts found" bash tools/lint.sh --list
+
+# The launcher step, in its own scratch repository (the other steps' output is ignored).
+mkdir -p "$dir/l/tools" "$dir/l/.peal" "$dir/l/plugin/templates"
+cp "$REPO/tools/lint.sh" "$dir/l/tools/lint.sh"
+printf '#!/usr/bin/env bash\necho launcher\n' >"$dir/l/plugin/templates/launcher"
+cp "$dir/l/plugin/templates/launcher" "$dir/l/.peal/peal"
+# Stubs that succeed, so the exit status is the launcher step's alone.
+mkdir -p "$dir/l/plugin/bin" "$dir/l/stub"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$dir/l/tools/pins.sh"
+cp "$dir/l/tools/pins.sh" "$dir/l/plugin/bin/peal"
+cp "$dir/l/tools/pins.sh" "$dir/l/stub/shellcheck"
+chmod +x "$dir/l/tools/pins.sh" "$dir/l/plugin/bin/peal" "$dir/l/stub/shellcheck"
+cd "$dir/l" || exit 2
+git init -q .
+out=$(PATH="$dir/l/stub:$PATH" bash tools/lint.sh 2>&1); status=$?
+check "launcher: identical exits 0" "0" "$status"
+check "launcher: identical is silent" "0" "$(printf '%s\n' "$out" | grep -c 'differs from plugin/templates/launcher')"
+printf 'x' >>.peal/peal
+out=$(PATH="$dir/l/stub:$PATH" bash tools/lint.sh 2>&1); status=$?
+check "launcher: differing is named" "1" "$(printf '%s\n' "$out" | grep -c 'peal init --stage tasks')"
+check "launcher: differing exits non-zero" "1" "$([ "$status" -ne 0 ] && echo 1 || echo 0)"
+rm .peal/peal
+out=$(PATH="$dir/l/stub:$PATH" bash tools/lint.sh 2>&1); status=$?
+check "launcher: missing is named" "1" "$(printf '%s\n' "$out" | grep -c 'peal init --stage tasks')"
+check "launcher: missing exits non-zero" "1" "$([ "$status" -ne 0 ] && echo 1 || echo 0)"
 
 chmod 600 "$dir/repo/locked" 2>/dev/null
 finish
