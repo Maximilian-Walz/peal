@@ -97,4 +97,34 @@ plugin/templates/launcher:1-23, tools/lint.sh:36-37.
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+SessionStart now reports a committed launcher that differs from the running Peal's.
+`peal_launcher_matches` (`plugin/lib/session.sh`) returns 0 when `.peal/peal` is
+byte-identical to `$PEAL_ROOT/templates/launcher`, 1 when it differs, 2 when it is
+missing. `peal_session_start` prints a `Launcher:` line on stdout, right after the hooks
+line, on every source, when it differs. The line names both causes (a branch changed it,
+or it is older than the plugin), tells the session to tell the human, and names the
+refresh as a commit of its own. It is silent when the launcher matches or is missing
+(doctor FAILs a missing one). `peal doctor version` now uses the same helper, with
+unchanged behaviour. The new `launcher` case in `plugin/lib/session.test.sh` covers
+identical, differing (exit 0), `resume` and missing. `docs/security.md`,
+`docs/reference/cli.md` and `docs/design.md` (Distribution) say so.
+
+Decided with the human at planning:
+- SessionStart only. A `peal check` refusal was rejected: it would fail the close of a
+  task that refreshes the template and `.peal/peal` together, and every close after a
+  plugin upgrade until main is refreshed. In CI it would compare against the branch's
+  own template, which is 0111's check.
+- No `commit-msg` refusal of `.peal/peal` changes either. It runs on the branch being
+  judged, needs a commit-type convention Peal does not have, and misses clones without
+  the hooks.
+
+Left as is, and accepted:
+- Peal's own repository warns in every session between merging a template change and
+  releasing it.
+- Belfry's contract runs `.peal/peal` outside any session, so it gets no warning.
+  `docs/security.md` keeps that as a stated limit, together with running the launcher
+  by hand.
+- 0111 (CI comparison against `plugin/templates/launcher`) stays its own task.
+
+Review: no findings. session.test.sh 177 passed, doctor.test.sh 168 passed,
+`tools/docs.test.sh` and `tools/lint.sh` passed.
