@@ -51,3 +51,43 @@ request's CI finishes the release once it merges.
 The v0.6.0 tag (8a94fe2), its GitHub release and the pin pull request #311 were made
 by hand with `peal ship tag`, `publish` and `pin`. The runner problem that failed #308's
 CI (a Microsoft apt source answering 403) was fixed in that pull request.
+
+---
+
+## Outcome
+
+Built: `peal ship bump` and `peal ship pin` now wait for their pull request's checks and
+for the merge its auto-merge makes. The default budget is 7200 s (`PEAL_SHIP_MERGE_BUDGET`
+in `plugin/lib/ship.sh`). `PEAL_MAIN_WRITE_BUDGET` still overrides it, and other main
+writes keep their 540 s. The check watching lives in `_peal_mw_wait_merged`
+(`plugin/lib/main-write.sh`). When a check has failed and none is still pending, it
+returns 1 and names the failing checks. bump and pin turn that into status 3, leaving the
+pull request open with auto-merge on. Only `ship.sh` sets `PEAL_MAIN_WRITE_WAIT=merged`,
+so no other caller is affected. Status 3 now means one of two things: the checks failed
+(named), or the budget ran out. The path with no auto-merge (`_peal_mw_merge_self`)
+already handled failure and only picks up the longer budget.
+
+`plugin/commands/release.md` steps 1 and 3 now say to run bump and pin in the background,
+because a tool call is capped at 10 minutes. On a failed check, the session fixes it on
+that pull request (waiting with `wait_ci` under Belfry), reruns the step (`already at`
+counts as success) and goes on to tag and publish. A session resumed on that pull request
+does the same and no longer ends with "run it again".
+
+Decided: the script waits itself instead of calling `wait_ci`, because a script cannot
+call an MCP tool. Under Belfry, `wait_ci` is what the session uses while it fixes the pull
+request. This departs from the Scope's wording but keeps its intent.
+
+Tests: the new `bump_auto_merge` in `plugin/lib/ship.test.sh` covers a fake pull request
+that merges after green checks (returns 0) and one whose check fails (returns 3 and names
+`build`). `plugin/lib/fake-gh` check runs now carry a name. ship.test.sh passed 567/0.
+The other suites rest on the commit's project checks. `docs/reference/cli.md` documents
+the new wait and status 3.
+
+Next session: the frontmatter `touches` lists only `release.md` and `ship.sh`, but the
+diff also touches `main-write.sh`, `fake-gh`, `ship.test.sh` and `cli.md`, all in service
+of the Scope.
+
+### Reviewer findings not acted on
+
+- The gap between the Scope's "`wait_ci` under Belfry" and the script polling GitHub itself
+  was explained only in the implementer's notes: it is recorded above under Decided.
