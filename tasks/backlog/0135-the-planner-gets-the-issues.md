@@ -35,6 +35,8 @@ Have `/peal:work` (or `peal brief planner`) fetch the issues and pull requests a
 
 ## Notes
 
+2026-10-22: Performance review finding 4: a hung WebFetch in a planner run took 19.5 minutes, and the planner also reads whole context documents; see the section-scoped context task of the Cheaper tasks milestone. Under Belfry the gh fallback will be the usual path once the worker's login is hidden (the Safe under Belfry task on close).
+
 - Open: `/peal:work` or `peal brief planner`? The CLI is testable and reusable by other roles (reviewer, implementer); the command is where the network call already happens in a session.
 - Open: comments too, or bodies only? Issue comments carry decisions as often as bodies do, and each needs the same write-access marking.
 - Open: how a task's `#N` is told apart from a task id, a Markdown heading or a number in prose, and which repository a bare `#N` means on a project whose tasks live in files.

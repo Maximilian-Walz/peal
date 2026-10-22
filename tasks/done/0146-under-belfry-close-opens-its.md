@@ -26,4 +26,4 @@ Belfry is to open its sessions' pull requests as its GitHub App, through a `pr_c
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Retired 2026-10-22 without being claimed: duplicate of 0176

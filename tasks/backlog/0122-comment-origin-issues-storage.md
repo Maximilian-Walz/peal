@@ -22,6 +22,8 @@ the issues storage the way 0094 does for `create`, or carry the mark.
 
 ## Notes
 
+2026-10-22: Security review findings 7 and 8: the same family as an outsider's labelled issue whose body holds a Plan reading as agreed; see the revise-shape task of Safe under Belfry, which may absorb this.
+
 - Nobody has checked yet: confirm the drop first (`plugin/lib/store-issues.test.sh`).
 - 0094 chose to refuse on `create` because `docs/reference/tasks.md` and `docs/design.md`
   record `origin` as files only. Being consistent with that suggests refusing here too.

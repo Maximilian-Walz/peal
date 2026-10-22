@@ -1,8 +1,9 @@
 ---
-milestone: m4
+milestone: m6
 plan: required
 size: S
 depends: []
+priority: high
 ---
 
 # 0161 — Gate a task-files-only pull request from setting `merge: auto` on another task

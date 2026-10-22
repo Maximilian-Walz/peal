@@ -37,4 +37,4 @@ same way CI now does its shards.
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Retired 2026-10-22 without being claimed: duplicate of 0190
