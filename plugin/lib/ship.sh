@@ -459,10 +459,12 @@ _peal_ship_issue_items() {
   : >"$dir/edits"
   while IFS= read -r id; do
     row=$(peal_gh "repos/$PEAL_GH_REPO/issues/$id" \
-      --jq '[.state, (.state_reason // ""), .title, ([.labels[].name] | join(",")), (if .pull_request then "pr" else "" end), (.author_association // ""), (.user.login // "")] | join("\u001f")' </dev/null 2>/dev/null) \
+      --jq '[.state, (.state_reason // ""), ([.labels[].name] | join(",")), (if .pull_request then "pr" else "" end), (.author_association // ""), (.user.login // ""), (.title | gsub("[[:cntrl:]]"; " "))] | join("\u001f")' </dev/null 2>/dev/null) \
       || continue
-    # A separator that is no white space: an empty field stays a field.
-    IFS=$'\x1f' read -r state reason title labels ispr assoc login <<<"$row"
+    # A separator that is no white space: an empty field stays a field. The title, the
+    # one field a stranger writes, comes last and loses its control characters, so it can
+    # neither shift the fields that decide trust nor start a row of its own.
+    IFS=$'\x1f' read -r state reason labels ispr assoc login title <<<"$row"
     [ "$reason" != not_planned ] || echo "$id" >>"$dir/dropped"
     if [ "$state" != closed ] || [ "$reason" = not_planned ] || [ -n "$ispr" ]; then continue; fi
     printf '%s\x1f%s\n' "$id" "$row" >>"$dir/issues"
@@ -474,7 +476,7 @@ _peal_ship_issue_items() {
     # shellcheck disable=SC2046 # one issue number per word
     PEAL_REPO=$PEAL_GH_REPO _peal_issues_edits_batch $(cat "$dir/checked") >"$dir/edits" </dev/null || : >"$dir/edits"
   fi
-  while IFS=$'\x1f' read -r id state reason title labels ispr assoc login; do
+  while IFS=$'\x1f' read -r id state reason labels ispr assoc login title; do
     if ! _peal_ship_admitted "$assoc" "$labels" "$login" \
         || { [ -n "${PEAL_LABEL-}" ] && ! _peal_ship_edits_admitted "$id" "$assoc" "$labels" "$login" "$dir/edits"; }; then
       subject=$(awk -F '\t' -v id="$id" '$4 == id { print $6; exit }' "$dir/commits")

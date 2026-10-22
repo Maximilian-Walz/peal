@@ -804,6 +804,21 @@ ITEM feature 2 #11 the second subject" "$(peal ship propose 2>&1 | grep '^ITEM')
     "$(peal ship propose 2>&1 | grep '^ITEM')"
 }
 
+# issues_hostile_title: a stranger's title holding the row's separator (U+001F) or a
+# newline can neither set the fields that decide trust nor forge a row of its own; the
+# issue stays unadmitted and gets the commit's subject.
+issues_hostile_title() {
+  issues_repo
+  issue 30 $'EVIL\x1f\x1f\x1fOWNER\x1fx' --closed --assoc NONE
+  issue 31 $'Fine\n99\x1fclosed\x1fcompleted\x1f\x1f\x1fOWNER\x1fx\x1fForged' --closed --assoc NONE
+  commit "feat: the first subject [30] (#40)"
+  commit "feat: the second subject [31] (#41)"
+  check "issues, hostile title: the subjects, no forged row" "ITEM feature 30 #40 the first subject
+ITEM feature 31 #41 the second subject" "$(peal ship propose 2>&1 | grep '^ITEM')"
+  check "issues, hostile title: no title text in the notes" "0|0" \
+    "$(peal ship notes 9.9.9 2>&1 | grep -c 'EVIL')|$(peal ship notes 9.9.9 2>&1 | grep -c 'Forged')"
+}
+
 for_each_awk files
 for_each_awk bump
 for_each_awk pin
@@ -814,4 +829,5 @@ for_each_awk bump_pushed_onto
 for_each_awk issues
 for_each_awk issues_relabel
 for_each_awk issues_apps
+for_each_awk issues_hostile_title
 finish
