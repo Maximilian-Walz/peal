@@ -132,3 +132,47 @@ Ranges relied on: `plugin/lib/store-issues.sh:1-101`, `plugin/lib/store-issues.s
 `docs/security.md:298-340`, `docs/reference/configuration.md:44-46`,
 `docs/reference/storage.md:7-16`, `docs/reference/storage.md:41-67`,
 `docs/design.md:546-556`, `plugin/commands/setup.md:67-68`.
+
+---
+
+## Outcome
+
+Built: a committed setting `storage.issues.apps` (App slugs, or bot logins `slug[bot]`,
+quoted) makes issues opened, edited or renamed by those Apps count as a writer's. That
+covers every read path (listing, read, claim, work, defer), the re-label check,
+`peal ship`'s release notes, and the pull-request filter for awaiting-merge. Without the
+setting, behaviour is unchanged.
+
+The rule lives in a new `writer()` in `plugin/lib/issues-lib.awk`:
+- OWNER, MEMBER and COLLABORATOR count, as before.
+- So does the REST login `<slug>[bot]` for a listed slug, compared case-insensitively,
+  unless the issue carries `origin: outsider`.
+
+`edit_writer`, `edit_admitted` and `edit_row_admitted` now take the author's trust as a
+flag in place of the raw association. The issue row gained a ninth column, the login.
+Entries in the setting are validated (`^[A-Za-z0-9][A-Za-z0-9-]*(\[bot\])?$`); a bad one
+exits with status 2, naming the setting. Only validated slugs are embedded in the
+pull-request jq, because `gh api --jq` takes no `--arg`.
+
+Decided with the human at planning (the task's Notes):
+- Trust follows the bot login only. A plain user login equal to the slug is never
+  trusted. A user login cannot contain `[`, so the suffix cannot be forged.
+- `origin: outsider` cancels only the App trust; the write-access rule is untouched.
+- In label mode, a labelled App issue with no later edit stays admitted.
+- An App issue refused for `origin: outsider` gets its own refusal reason.
+- The setting is read from the work tree, as `storage.issues.label` is. That limit is
+  written in `docs/security.md`; moving both to main is 0091's job.
+
+Found and left:
+- The unquoted flow list `[belfry-server[bot]]` is not parsed (`unexpected text after
+  ]`). A test pins that, and the docs say to quote the entry or use the slug.
+- `/peal:setup`'s candidate-issue listing still ignores Apps. It is queued as the idea
+  `setup-lists-trusted-apps`.
+- The App-login match now exists in three places: awk `writer()`, the
+  `_peal_issues_prs` jq, and a `case` in `ship.sh`. The code it extends was already split
+  this way.
+
+For the next session:
+- The full `hostile.test.sh` run takes about 10 minutes.
+- Main's 0171 (`ship.sh`) merged in cleanly. After the merge, `ship.test.sh` has
+  600 passed and `store-issues.test.sh` 735 passed.
