@@ -89,3 +89,30 @@ Ranges relied on:
 - docs/security.md:90-98
 - docs/design.md:368-370
 - CONTRIBUTING.md:47-52
+
+---
+
+## Outcome
+
+Built: `tools/lint.sh` has a `lint: launcher` step between `tools/pins.sh` and `peal
+check`. It runs `cmp -s .peal/peal plugin/templates/launcher` and fails, naming the
+refresh (`PEAL_ROOT=$PWD/plugin plugin/bin/peal init --stage tasks`), when they differ or
+`.peal/peal` is missing. CI's `shellcheck` job already runs `tools/lint.sh`, so
+`ci.yml` is unchanged; lint is also in `checks.close`, so a task that changes
+`plugin/templates/launcher` must refresh `.peal/peal` in the same PR (the human's call).
+`CONTRIBUTING.md` and `docs/security.md` each name the check; security.md says it
+catches drift between the two in-tree copies and does not guard against a branch that
+replaces both.
+
+Decided while planning (the human): `tools/lint.sh` rather than a `ci.yml` step or a
+launcher-only `peal doctor` mode (fewer moving parts, runs locally and at close);
+a missing `.peal/peal` fails; the CI job keeps its name; no change to `docs/design.md`;
+the git hook stub is not compared.
+
+Review: one finding, fixed. The harness's exit-status checks passed even without the
+launcher step failing, because the scratch repository lacked `tools/pins.sh` and
+`plugin/bin/peal`; the scratch repository now stubs the other steps so the exit status
+is the launcher step's own.
+
+Verified by hand: one byte appended to `.peal/peal` in the real tree makes
+`tools/lint.sh` exit 1 with the message; reverted.
