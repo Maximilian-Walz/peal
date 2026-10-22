@@ -626,6 +626,74 @@ appVersion: '"'0.2.0'"'' "$(at_version v0.2.0)"
     "$(gh_get '[.[] | select(.state == "open")] | length' pulls)"
 }
 
+# Auto-merge on: the bump waits for the checks and the merge however long they take (no
+# budget given), and returns 3 naming the failing check when they fail.
+bump_auto_merge() {
+  local work out
+  work=$(repo)
+  versioned "$work" "  changelog: CHANGELOG.md" "main-writes: pr"
+  protected "$work"
+  echo 3 >"$FAKE_GH/checks-pending"
+  cat >"$FAKE_GH/on-check-runs" <<HOOK
+cd "$work" && echo '{"merge_method": "squash"}' | gh api --method PUT repos/acme/widgets/pulls/1/merge --input -
+HOOK
+  out=$(PEAL_MAIN_WRITE_INTERVAL=0 peal ship bump 0.2.0 2>&1)
+  check "auto-merge: waited for the merge" "0:bumped plugin.json pkg/Cargo.toml chart.yaml CHANGELOG.md to 0.2.0: pull request #1 https://github.com/acme/widgets/pull/1, merged" "$?:$(tail -n 1 <<<"$out")"
+
+  echo 2 >"$FAKE_GH/checks-pending"
+  touch "$FAKE_GH/checks-fail"
+  out=$(PEAL_MAIN_WRITE_INTERVAL=0 peal ship bump 0.3.0 2>&1)
+  check "auto-merge: checks failed, status 3" "3" "$?"
+  check "auto-merge: the failing check named" "1" "$(grep -c "#2's checks fail (build)" <<<"$out")"
+  check "auto-merge: left open for a fix" "not merged, its checks failed or its head moved: pull request #2 https://github.com/acme/widgets/pull/2, open, not merged; never push onto it; fix the cause in a pull request of its own, then peal ship bump v0.3.0 again builds the write afresh" "$(tail -n 1 <<<"$out")"
+
+  # The pull request's head moves off the commit Peal built (a push onto its branch):
+  # the wait stops, auto-merge is turned off, the pull request stays open.
+  echo 3 >"$FAKE_GH/checks-pending"
+  rm -f "$FAKE_GH/checks-fail"
+  cat >"$FAKE_GH/on-check-runs" <<HOOK
+jq 'map(if .number == 3 then .head.sha = "0123456789abcdef0123456789abcdef01234567" else . end)' "$FAKE_GH/pulls.json" >"$FAKE_GH/pulls.tmp" && mv "$FAKE_GH/pulls.tmp" "$FAKE_GH/pulls.json"
+HOOK
+  out=$(PEAL_MAIN_WRITE_INTERVAL=0 peal ship bump 0.4.0 2>&1)
+  check "auto-merge: head moved, status 3" "3" "$?"
+  check "auto-merge: head moved, said so" "1" "$(grep -c "#3's head moved off the commit Peal built" <<<"$out")"
+  check "auto-merge: head moved, open with auto-merge off" "open|null" \
+    "$(gh_get '.[] | select(.number == 3) | .state' pulls)|$(gh_get '.[] | select(.number == 3) | .auto_merge' pulls)"
+
+  # A commit status failing alone is named by its context.
+  rm -f "$FAKE_GH/checks-pending"
+  cat >"$FAKE_GH/on-check-runs" <<HOOK
+jq -c --argjson p "\$(jq -c '.[] | select(.number == 4)' "$FAKE_GH/pulls.json")" '. + [{sha: \$p.head.sha, state: "failure", context: "ci/lint"}]' "$FAKE_GH/statuses.json" >"$FAKE_GH/statuses.tmp" && mv "$FAKE_GH/statuses.tmp" "$FAKE_GH/statuses.json"
+HOOK
+  out=$(PEAL_MAIN_WRITE_INTERVAL=0 peal ship bump 0.5.0 2>&1)
+  check "auto-merge: a failing status, status 3" "3" "$?"
+  check "auto-merge: a failing status named" "1" "$(grep -c "#4's checks fail (ci/lint)" <<<"$out")"
+}
+
+# A rerun while the earlier pull request's branch was pushed onto: it is closed, not
+# reused, and the write is built again on the current main.
+bump_pushed_onto() {
+  local work out
+  work=$(repo)
+  versioned "$work" "  changelog: CHANGELOG.md" "main-writes: pr"
+  protected "$work"
+  touch "$FAKE_GH/no-auto-merge"
+  echo 100 >"$FAKE_GH/checks-pending"
+  out=$(PEAL_MAIN_WRITE_INTERVAL=1 PEAL_MAIN_WRITE_BUDGET=0 peal ship bump 0.2.0 2>&1)
+  check "pushed onto: first pull request left open" "3" "$?"
+  local remote=$FAKE_GH/remote branch commit
+  branch=$(gh_get '.[] | select(.number == 1) | .head.ref' pulls)
+  commit=$(git -C "$remote" commit-tree -p "$branch" -m "fix: sneaky" "$branch^{tree}")
+  git -C "$remote" update-ref "refs/heads/$branch" "$commit"
+  gh_save pulls "map(if .number == 1 then .head.sha = \"$commit\" else . end)"
+  echo 0 >"$FAKE_GH/checks-pending"
+  out=$(PEAL_MAIN_WRITE_INTERVAL=0 peal ship bump 0.2.0 2>&1)
+  check "pushed onto: rebuilt and merged" "0|0" "$?|$(grep -c 'is open already' <<<"$out")"
+  check "pushed onto: the old pull request closed, a new one merged" "closed|2" \
+    "$(gh_get '.[] | select(.number == 1) | .state' pulls)|$(gh_get '[.[].number] | max' pulls)"
+  check "pushed onto: the pushed commit never reached main" "0" "$(git -C "$remote" log main --format=%s | grep -c sneaky)"
+}
+
 issues() {
   local work out
   issues_repo
@@ -723,6 +791,8 @@ for_each_awk bump
 for_each_awk pin
 for_each_awk changelog
 for_each_awk bump_protected
+for_each_awk bump_auto_merge
+for_each_awk bump_pushed_onto
 for_each_awk issues
 for_each_awk issues_relabel
 finish
