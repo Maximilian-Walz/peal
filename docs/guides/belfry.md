@@ -56,6 +56,131 @@ whose tasks are GitHub issues, the contract names the `github-issues` backend in
 - **Ideas go through Belfry.** Off a task branch, `/peal:idea` files through Belfry's
   own `task_create` tool, never the shell; on a task branch it queues as usual.
 
+## What a session can and cannot rely on
+
+A session can rely on git: its own branch, its pushes, the task files, and a write onto a
+main branch that takes direct pushes. It can rely on Belfry's tools for what needs GitHub:
+`pr_create`, `wait_ci`, `ci_log`, `task_create`, `tasks` and `task`. It cannot rely on
+anything that needs `gh`'s login, which Belfry hides. Peal asks `gh auth token` first, so
+a write that needs the login refuses before it changes anything, with `needs gh's login,
+and gh has none here` and what to do instead, rather than failing halfway. In a GitHub
+workflow, gh has the run's token, so the same writes go through there.
+
+Every shell function of Peal that calls `gh` is listed below, by the command it serves,
+with what it does under Belfry: a **Belfry path** (one of its tools stands in), **quiet**
+(it does without, saying nothing or `unknown`), **refused** (it stops up front with the
+reason), or **unavailable** (it fails on `gh has no login`, with what to do instead).
+`plugin/lib/gh-callers.test.sh` keeps the list complete: a new caller fails it until it
+has a row here.
+
+<!-- gh-callers -->
+
+### Every command
+
+| Function | File | Calls | Under Belfry |
+|---|---|---|---|
+| `peal_gh` | `github.sh` | `gh api` | The one way to GitHub's API. Without a login it fails with status 4 and `gh has no login`; a verdict says `BLOCKED:no-gh-login`. |
+| `peal_gh_login` | `github.sh` | `gh auth token` | Offline. There is no token, so the writes marked refused below stop up front. |
+| `peal_pr_checks` | `github.sh` | `gh api` check runs and statuses | Unavailable: `BLOCKED:no-gh-login`. A session waits with `wait_ci` instead. |
+
+### `/peal:close`
+
+| Function | File | Calls | Under Belfry |
+|---|---|---|---|
+| `peal_close_finish` | `close.sh` | `gh api` pulls, GraphQL | Belfry path: `--pr-by-tool`, and `pr_create` opens the pull request. A re-run cannot update an open pull request's body. |
+| `_peal_close_verify` | `close.sh` | `gh api` pulls, checks | Belfry path: `peal close verify` answers `BLOCKED:no-gh-login`, and the session trusts `wait_ci`. |
+
+### `peal list`, `peal offer`, `peal board` and the reads of the issues storage
+
+| Function | File | Calls | Under Belfry |
+|---|---|---|---|
+| `_peal_files_prs` | `store-files.sh` | `gh pr list` | Quiet: a task awaiting merge shows `pr:unknown`, with no warning. |
+| `_peal_issues_listed` | `store-issues.sh` | `gh api` issues | Unavailable: read the tasks with Belfry's `tasks` and `task` tools. |
+| `_peal_issues_prs` | `store-issues.sh` | `gh api` pulls | Unavailable, as above. |
+| `_peal_issues_issue` | `store-issues.sh` | `gh api` one issue | Unavailable, as above. |
+| `_peal_issues_edits_batch` | `store-issues.sh` | `gh api graphql` | Unavailable, as above. |
+| `_peal_issues_milestone_rows` | `store-issues.sh` | `gh api` milestones | Unavailable, as above. |
+| `peal_store_milestone_text` | `store-issues.sh` | `gh api` a milestone | Unavailable, as above. |
+
+### The writes of the issues storage
+
+`peal create`, `revise`, `set-milestone`, `comment`, `retire`, `defer`, `claim`, `release`,
+`record` and `milestone-state` refuse up front: Belfry writes an issues project's tasks
+through its own GitHub client. Where the command reads the task first (`claim`,
+`release`, `record`), that read fails on `gh has no login` before the refusal.
+
+| Function | File | Calls | Under Belfry |
+|---|---|---|---|
+| `_peal_issues_post` | `store-issues.sh` | `gh api` issues | Refused. |
+| `_peal_issues_comment` | `store-issues.sh` | `gh api` comments | Refused. |
+| `_peal_issues_labels` | `store-issues.sh` | `gh api` labels | Refused. |
+| `_peal_issues_current_labels` | `store-issues.sh` | `gh api` one issue | Refused, as part of `record`. |
+| `_peal_issues_label_claim` | `store-issues.sh` | `gh api` labels | Refused. Belfry labels its own claim. |
+| `_peal_issues_unlabel` | `store-issues.sh` | `gh api` labels | Refused. |
+| `_peal_issues_retire` | `store-issues.sh` | `gh api` issues | Refused. |
+| `peal_store_set_milestone` | `store-issues.sh` | `gh api` issues | Refused. |
+| `peal_store_milestone_state` | `store-issues.sh` | `gh api` milestones | Refused. |
+
+### Writes onto a main branch that refuses direct pushes
+
+The task-file storage's writes (`peal create`, `revise`, `set-milestone`, `retire`,
+`defer`, `milestone-state`), the decisions index, `peal apply`, and `peal ship bump` and
+`pin` go onto main. A plain push works in a session. A main that refuses direct pushes
+needs a pull request from a `peal/main-write-*` branch, and `pr_create` opens one only
+from the job's own branch. So that route refuses before it pushes any branch: run the
+write where gh is logged in, or leave it to Belfry's own commands, which run on its host
+(`peal apply`). `peal revise` on such a main is unavailable in a session.
+
+| Function | File | Calls | Under Belfry |
+|---|---|---|---|
+| `peal_push_main` | `main-write.sh` | `gh api` pulls | Refused on the pull request route (`main-writes: pr`, or `auto` once the push is refused); the push route is unchanged. |
+| `_peal_mw_pr` | `main-write.sh` | `gh api` pulls | Never reached: `peal_push_main` refuses first. |
+| `_peal_mw_pr_manage` | `main-write.sh` | `gh api` pulls, GraphQL | Never reached. |
+| `_peal_mw_find_reuse` | `main-write.sh` | `gh api` pulls | Never reached. |
+| `_peal_mw_rivals` | `main-write.sh` | `gh api` pulls | Never reached. |
+| `_peal_mw_drop` | `main-write.sh` | `gh api` pulls | Never reached. |
+| `_peal_mw_merged` | `main-write.sh` | `gh api` refs | Never reached. |
+| `_peal_mw_merge_self` | `main-write.sh` | `gh api` pulls | Never reached. |
+| `_peal_mw_wait_merged` | `main-write.sh` | `gh api` pulls | Never reached. |
+| `_peal_mw_automerge_off` | `main-write.sh` | `gh api graphql` | Never reached. |
+
+### `peal ship` and `/peal:release`
+
+Under Belfry, a release runs as the GitHub workflow Belfry's release action dispatches,
+where gh has the run's token; no session releases (task 0232).
+
+| Function | File | Calls | Under Belfry |
+|---|---|---|---|
+| `peal_ship_publish` | `ship.sh` | `gh release` | Refused before any `gh release` call. A remote not on GitHub still answers that the tag is the release. |
+| `_peal_ship_gh` | `ship.sh` | `gh release` | Never reached: `peal_ship_publish` refuses first. |
+| `_peal_ship_issue_items` | `ship.sh` | `gh api` issues, pulls | Refused: the notes of an issues project. |
+| `_peal_ship_runs` | `ship.sh` | `gh api` workflow runs | Unavailable: `peal ship wait` fails on `gh has no login`. Use `wait_ci` and `ci_log`, or the workflow. |
+| `_peal_ship_report` | `ship.sh` | `gh api` job logs | Unavailable, as above. |
+
+### `peal doctor`
+
+| Function | File | Calls | Under Belfry |
+|---|---|---|---|
+| `_peal_doctor_stage_gh` | `doctor.sh` | `gh auth status` | Says `gh is not logged in`: expected under Belfry, nothing to fix. |
+
+### `peal init` and `/peal:setup`
+
+| Function | File | Calls | Under Belfry |
+|---|---|---|---|
+| `_peal_init_survey_gh` | `init.sh` | `gh api` | Quiet: the survey's GitHub counts say `unknown`. |
+
+### Commands that call gh themselves
+
+- `/peal:close`: its draft pull request, its look at the checks and its rerun of a failed
+  run have a Belfry path: no draft, `pr_create`, `wait_ci`, and an empty commit for the
+  one rerun.
+- `/peal:next`: a declined suggestion's pull request is unavailable; the decline waits
+  for a session where gh is logged in.
+- `/peal:setup`: the issue sample and the setup's pull request are unavailable; set up
+  from a session where gh is logged in.
+
+<!-- /gh-callers -->
+
 ## Actions
 
 The file ends with two commented-out actions. Uncomment `milestone-review`, and Belfry
