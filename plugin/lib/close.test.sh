@@ -47,9 +47,14 @@ id() {
 }
 
 # task N SLUG [MERGE] -> task N put on the storage, with a Scope and a Done when; MERGE
-# auto gives it merge: auto.
+# auto gives it merge: auto, agreed only the Notes line /peal:work writes when the human
+# agrees merge: auto at planning.
 task() {
   local body=$'Why.\n\n## Scope\n\n`a.txt`\n\n## Done when\n\n- a.txt says built\n\n## Raw\n\nthe human said so\n\n## Notes\n'
+  if [ "${3-}" = agreed ]; then
+    body+=$'\nmerge: auto agreed by the human (2026-10-23)\n'
+    set -- "$1" "$2"
+  fi
   if [ $kind = files ]; then
     mkdir -p "$work/tasks/backlog"
     printf -- '---\n%s---\n\n# %s — Title of %s\n\n%s\n---\n\n## Outcome\n\n<!-- fill in at close -->\n' \
@@ -558,6 +563,26 @@ merge_cases() {
     check "merge: kept in the task's file" "merge: auto" "$(git -C "$wt" show HEAD:tasks/done/0001-first-task.md | grep '^merge:')"
   else
     check "merge: the label kept" "merge: auto" "$(labels 1 | tr ',' '\n' | grep merge)"
+  fi
+
+  # Only the Notes line of the human's agreement: the verdict is asked for all the same;
+  # withdraw has no field to take away and says so in the pull request.
+  new_repo
+  ready 1 first-task agreed
+  build
+  out=$(begin)
+  check "merge agreed: begin notes it" "1" "$(printf '%s\n' "$out" | grep -c "^NOTE: task .*'s Notes say the human agreed merge: auto")"
+  outcome "Built a.txt."
+  check_refused "merge agreed: no review given" "has the human's merge: auto agreement in its Notes, so the reviewer's report decides" close_finish
+  printf 'The diff rewrote the parser.\nmerge-auto: withdraw\n' >"$review"
+  local before
+  before=$(git -C "$wt" rev-parse HEAD)
+  out=$(close_finish --review-file "$review" 2>&1)
+  check "merge agreed: withdraw, finished" "0|1" "$?|$(printf '%s\n' "$out" | grep -c '^withdrew the human.s merge: auto agreement for task')"
+  check "merge agreed: the pull request says so" "1" "$(jq -r '.[0].body' "$FAKE_GH/pulls.json" | grep -c '^\*\*merge: auto withdrawn')"
+  if [ $kind = files ]; then
+    check "merge agreed: no record commit" "0" \
+      "$(git -C "$wt" log --format=%s "$before..HEAD" | grep -c 'merge withdrawal')"
   fi
 
   # Without merge: auto, a withdraw means nothing, and no report is needed.

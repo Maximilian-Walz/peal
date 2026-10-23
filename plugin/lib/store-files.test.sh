@@ -330,6 +330,7 @@ ideas() {
 second-idea	Second \\ thought" "$(peal ideas)"
 
   check_refused "idea: refused when queued" "bad-idea: unknown field team" peal idea bad-idea < <(text "team: me")
+  check_refused "idea: a text setting merge, refused when queued" "bad-idea: the text sets merge" peal idea bad-idea < <(text "merge: auto")
   check_refused "idea: a separator line" "would split the queue" peal idea bad-idea < <(text; echo -----NEXT TASK-----)
   check_refused "idea: a queue marker" "would split the queue" peal idea bad-idea < <(text; echo '-----IDEA x-----')
   check "idea: refusals leave the queue" "2" "$(peal ideas | wc -l | tr -d ' ')"

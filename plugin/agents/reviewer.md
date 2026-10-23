@@ -55,14 +55,15 @@ Check, in order of severity:
 Before calling a follow-up idea named in the diff or the task missing, check the ideas
 queued on this branch (`peal ideas`) as well as the backlog: they are filed at close.
 
-When the task's frontmatter holds `merge: auto`, the human agreed that its pull request
-merges itself once its checks are green, on the strength of the plan. Weigh the diff
+When the task's frontmatter holds `merge: auto`, or its `## Notes` hold the line
+`merge: auto agreed by the human`, the human agreed that its pull request merges itself
+once its checks are green, on the strength of the plan. Weigh the diff
 against that: is it still small and low-risk (inside its scope, no public interface,
 data format, security boundary, dependency or recorded decision changed), or did it turn
 out larger or riskier than the plan that earned it? End the report with exactly one line,
 `merge-auto: keep` or `merge-auto: withdraw`, and for withdraw one sentence why right
 before it. When in doubt, withdraw: a human then looks at the pull request. Without
-`merge: auto` in the frontmatter, no such line.
+either, no such line.
 
 Report every finding, each with a severity (blocks the merge, should be fixed, or minor)
 and ranked most severe first, so the reader can cut by severity; "no findings" is a

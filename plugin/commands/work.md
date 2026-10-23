@@ -102,8 +102,8 @@ with a reason). What comes next depends on `PLAN`:
   overrule.
 - `auto`, with no human question: ask nothing and stop for nothing. Record the plan as
   agreed by the planner (below, the decisions under `## Notes` headed "Decisions of the
-  planner") and build at once. Never set `merge: auto` here: the plan was not seen by a
-  human, and the planner's merge recommendation is dropped.
+  planner") and build at once. Never write the `merge: auto` agreement here: the plan
+  was not seen by a human, and the planner's merge recommendation is dropped.
 
 When the human changes the plan, revise it (start a fresh planner with their changes when
 the approach itself moves) and ask again. Settle the plan with them; never settle it on
@@ -125,10 +125,16 @@ elsewhere than in files, a copy of the task), never touching `## Raw`:
   implementer's `MODEL` line, nothing otherwise;
 - the touches: `peal frontmatter set-list <file> touches <path>...`, the plan's
   `Touches:` list as agreed;
-- the merge: `peal frontmatter set <file> merge auto` only when the human agreed the
-  planner's `merge: auto`, nothing otherwise. Never set it on your own judgement, and
-  never for a plan the human did not see: it lets the pull request merge with no human
-  looking at it.
+- the merge: when the human agreed the planner's `merge: auto`, the line
+  `merge: auto agreed by the human (<date>)` under `## Notes`, nothing otherwise. Never
+  write the `merge` field: `merge: auto` is the human's consent to a merge with no human
+  looking at it, so no session writes it (`peal record` and `peal frontmatter set`
+  refuse it) and the board grants it only from the main branch's copy or the issue's
+  label. Under a control plane, the control plane keeps its own record of the human's
+  answer and acts on that; without one, the human writes `merge: auto` on the main
+  branch themselves. The Notes line grants nothing: it is a trace for the reader, and it
+  makes the close ask the reviewer whether the diff still earns it. Never write it on
+  your own judgement, and never for a plan the human did not see.
 
 Then `peal record <id> plan < <file>` puts it on the claim (a commit on the task's
 branch, or the task where it is kept); a refusal names what to fix. Run `peal work <id>`

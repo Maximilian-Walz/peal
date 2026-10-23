@@ -51,8 +51,8 @@ Produce, in this order:
    only for small, low-risk work: size `S`, inside the task's `## Scope`, no public
    interface, data format, security boundary, dependency or recorded decision changed,
    and a verification that proves it. Anything else, or any doubt, is `default`; say
-   which in one line with the reason. You do not write it; the main session records it
-   once the human agrees.
+   which in one line with the reason. You do not write it; the main session notes the
+   human's agreement, and only the human's answer grants it (docs/security.md).
 7. **Human questions** and **Decisions.** Every open point goes in exactly one of two
    lists. This is the reason you exist.
 

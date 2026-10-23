@@ -55,7 +55,8 @@ Run `peal config review.skip-paths`. Unless every path of the diff (`git diff --
 its prompt the brief followed by "Review task <id>." Otherwise skip the review and say in
 the Outcome that the diff lies only in the skip paths.
 
-When the task holds `merge: auto` (`begin` notes it), save the reviewer's report whole
+When the task holds `merge: auto`, or its Notes hold the human's agreement to it
+(`merge: auto agreed by the human`; `begin` notes either), save the reviewer's report whole
 to a file outside the work tree: its last line, `merge-auto: keep` or `merge-auto:
 withdraw`, decides whether the pull request may still merge itself, and finish reads it
 (`--review-file`). A review skipped for the skip paths keeps it: the file then says
@@ -139,13 +140,14 @@ peal close finish --summary "<bullets>" [--decisions "<text>"] [--human-steps "<
 `--notes-file FILE` and `--section-file TITLE FILE` read a text from a file outside the
 work tree, for long ones.) It refuses, before anything changes, a missing summary or
 section, a missing `--security` where the project requires one, an empty Outcome or one with a placeholder left, a task holding `merge: auto`
-without the reviewer's `merge-auto` line, more than three escalations,
+(or its agreement in the Notes) without the reviewer's `merge-auto` line, more than three escalations,
 an uncommitted path other than the Outcome's and the decision entries', a decision entry
 out of order (`peal decision check` says the same), and a failing close check of the
 project (`checks.close`): fix what it names and run it again. Then it files the queued
-ideas in one push; on `merge-auto: withdraw` it removes `merge: auto` from the task (a
-commit on its branch, or the issue's label) and says so at the top of the pull request's
-body; it commits the task's move to done, pushes and opens the pull request, or updates
+ideas in one push; on `merge-auto: withdraw` it removes `merge: auto` from the task when
+it holds the field (a commit on its branch, or the issue's label) and, either way, says so
+at the top of the pull request's body, the line the control plane reads to leave the
+merge to the human; it commits the task's move to done, pushes and opens the pull request, or updates
 the one open for this branch; its body is the summary, the decisions, human steps and notes,
 the task's lines, the sections, the Outcome, the ideas filed, the Security line and the branch's commits (`peal close body` with the same arguments prints it
 first, if you want to see it). A failure after the ideas are filed leaves the close in
