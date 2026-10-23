@@ -34,9 +34,10 @@
 #   gh release edit TAG -R REPO [--title T] --notes-file FILE
 #
 # A release call is logged as "RELEASE <verb> <tag>".
-# `gh auth status` (lib/doctor.sh's gh check): succeeds unless $FAKE_GH/no-auth exists, in
-# which case it fails as gh does when logged out. While $FAKE_GH/no-auth exists every
-# `gh api` call too exits 4 with gh's message, logging nothing (no request is made).
+# `gh auth status` (lib/doctor.sh's gh check) and `gh auth token` (peal_gh_login): succeed
+# unless $FAKE_GH/no-auth exists, in which case they fail as gh does when logged out. While
+# $FAKE_GH/no-auth exists every `gh api` and `gh release` call too exits 4 with gh's
+# message, logging nothing (no request is made).
 # Every call appends the GH_TELEMETRY it ran with ('unset' when absent) to $FAKE_GH/env.
 # Only the endpoints Peal calls; anything else fails loudly, so a new call cannot pass
 # the harness unseen.
@@ -63,7 +64,22 @@ if [ "${1-}" = auth ] && [ "${2-}" = status ]; then
   exit 0
 fi
 
+if [ "${1-}" = auth ] && [ "${2-}" = token ]; then
+  if [ -e "$FAKE_GH/no-auth" ]; then
+    echo "no oauth token found for github.com" >&2
+    exit 1
+  fi
+  echo "gho_fake"
+  exit 0
+fi
+
+no_auth() {
+  printf 'gh: To get started with GitHub CLI, please run:  gh auth login\nAlternatively, populate the GH_TOKEN environment variable with a GitHub API authentication token.\n' >&2
+  exit 4
+}
+
 if [ "${1-}" = release ]; then
+  [ ! -e "$FAKE_GH/no-auth" ] || no_auth
   verb=${2-} tag=${3-} repo="" title="" notes="" jq_expr=""
   shift 3 || die "gh release $verb: no tag"
   while [ $# -gt 0 ]; do
@@ -111,10 +127,7 @@ fi
 
 [ "${1-}" = api ] || die "only gh api and gh release are faked, not: gh $*"
 shift
-if [ -e "$FAKE_GH/no-auth" ]; then
-  printf 'gh: To get started with GitHub CLI, please run:  gh auth login\nAlternatively, populate the GH_TOKEN environment variable with a GitHub API authentication token.\n' >&2
-  exit 4
-fi
+[ ! -e "$FAKE_GH/no-auth" ] || no_auth
 
 method=GET jq_expr="" input="" path="" fields=()
 while [ $# -gt 0 ]; do

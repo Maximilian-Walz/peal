@@ -30,6 +30,16 @@ PEAL_ISSUES_CLOSED=${PEAL_ISSUES_CLOSED:-100}
 # One issue's fields as issues-lib.awk reads them.
 PEAL_ISSUES_ROW='[(.number | tostring), .state, .title, (.milestone.title // ""), ([.labels[].name] | join(",")), (.author_association // ""), .html_url, (.body // ""), (.user.login // "")] | @tsv'
 
+# _peal_issues_need_login VERB -> status 0 when gh has a login; else status 2 and the
+# reason, before any git or GitHub change: each write entry point asks it first, so a
+# write refuses up front rather than failing halfway. The reads keep peal_gh's own "gh
+# has no login" failure.
+_peal_issues_need_login() {
+  peal_gh_need_login "$1 on the issues storage (a GitHub write)" \
+    "under Belfry read the tasks with its tasks and task tools and leave their writes to Belfry, which writes issues through its own GitHub client; else run it where gh is logged in" \
+    || return 2
+}
+
 # _peal_issues_settings -> PEAL_REMOTE, PEAL_MAIN, PEAL_LABEL, PEAL_APPS (storage.issues.apps
 # as lower-cased slugs, comma-joined, "[bot]" stripped; PEAL_APPS_JSON the same as a JSON
 # array) and PEAL_REPO (owner/name: peal_github_repo) from the settings; status 2 for an
@@ -546,6 +556,7 @@ peal_store_create() {
     *) peal_err "create: unknown mode $mode"; return 2 ;;
   esac
   [ $# -ge 1 ] || { peal_err "create: no slug"; return 2; }
+  _peal_issues_need_login create || return 2
   _peal_issues_settings || return 2
   PEAL_FIELDS=$(_peal_issues_fields)
   count=$#
@@ -718,6 +729,7 @@ _peal_issues_apply() {
 peal_store_edit() {
   local id=$1 reason=$2 dry=${3-} tmp status=0 row note
   [ -n "$reason" ] || { peal_err "revise: give a reason"; return 2; }
+  _peal_issues_need_login revise || return 2
   _peal_issues_unclaimed "$id" revise || return 2
   tmp=$(mktemp -d) || return 2
   if ! row=$(_peal_issues_issue "$id"); then
@@ -795,6 +807,7 @@ _peal_issues_no_work() {
 peal_store_defer() {
   local id=$1 reason=$2 text=$3 dry=${4-} tmp row status=0 note
   [ -n "$reason" ] || { peal_err "defer: give a reason"; return 2; }
+  _peal_issues_need_login defer || return 2
   _peal_issues_settings || return 2
   if [ "$(peal_store_branch_task)" != "$id" ]; then
     peal_err "defer: not on issue $id's branch (issue/$id), but on $(git symbolic-ref -q --short HEAD || echo a detached HEAD)"
@@ -831,6 +844,7 @@ peal_store_defer() {
 
 peal_store_set_milestone() {
   local id=$1 m=${2-} state ms=null current
+  _peal_issues_need_login set-milestone || return 2
   _peal_issues_unclaimed "$id" set-milestone || return 2
   current=$(_peal_field "$PEAL_RECORD" 6)
   if [ "$current" = "$m" ]; then
@@ -864,6 +878,7 @@ peal_store_comment() {
     peal_err "comment: '$id' is no issue number"
     return 2
   fi
+  _peal_issues_need_login comment || return 2
   _peal_issues_settings || return 2
   _peal_issues_comment "$id" "$2" || return 1
   echo "task $id: noted"
@@ -874,6 +889,7 @@ peal_store_comment() {
 _peal_issues_retire() {
   local id=$1 reason=$2 dependents
   [ -n "$reason" ] || { peal_err "retire: give a reason"; return 2; }
+  _peal_issues_need_login retire || return 2
   _peal_issues_unclaimed "$id" retire || return 2
   dependents=$(printf '%s\n' "$PEAL_RECORDS" | awk -F '\t' -v id="$id" '
     $2 != "done" && $1 != id && (index("," $7 ",", "," id ",") || $8 == id) {
@@ -950,6 +966,7 @@ _peal_issues_label_claim() {
 # since it was labelled) no longer admits refuses the same way read does.
 peal_store_claim() {
   local id=$1 dir branch wt err how=claimed gitdir row
+  _peal_issues_need_login claim || return 2
   _peal_issues_settings || return 2
   row=$(_peal_issues_issue "$id") || return 2
   _peal_issues_check_admitted "$id" "$row" || return 2
@@ -997,6 +1014,7 @@ peal_store_claim() {
 # label taken off an open issue.
 peal_store_release() {
   local id=$1 branch=issue/$1 name=issue-$1 wt tip
+  _peal_issues_need_login release || return 2
   _peal_issues_settings || return 2
   if ! git rev-parse -q --verify "refs/heads/$branch" >/dev/null; then
     peal_err "release: no local branch of task $id"
@@ -1039,6 +1057,7 @@ _peal_issues_unlabel() {
 # by the claim. Nothing to do and status 0 otherwise.
 peal_store_takeover() {
   local id=$1 wt
+  _peal_issues_need_login claim || return 2
   _peal_issues_settings || return 2
   wt=$(peal_store_claim_worktrees | awk -F '\t' -v id="$id" '$1 == id { print $3; exit }')
   [ -n "$wt" ] && peal_deferred "$wt" || return 0
@@ -1080,6 +1099,7 @@ peal_store_local_branch() {
 # claim keeps fetched again.
 peal_store_record() {
   local id=$1 what=$2 text=$3 tmp status=0
+  _peal_issues_need_login record || return 2
   _peal_issues_settings || return 2
   PEAL_FIELDS=$(_peal_issues_fields)
   PEAL_MS_ROWS=$(_peal_issues_milestone_rows) || return 2
@@ -1119,6 +1139,7 @@ peal_store_milestone_text() {
 # due dates, as ever (lib/issues-milestones.awk).
 peal_store_milestone_state() {
   local id=$1 state=$2 reason=$3 review=$4 num old tmp gh_state=open status=0
+  _peal_issues_need_login "the milestone's state" || return 2
   _peal_issues_settings || return 2
   _peal_issues_ms_number "$id" || return 2
   num=$PEAL_MS_NUM

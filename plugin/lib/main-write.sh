@@ -33,6 +33,13 @@ _peal_mw_route() {
   esac
 }
 
+# _peal_mw_need_login -> status 0 when gh has a login for the pull request route; else
+# status 1 and the reason, before any branch is pushed (peal_gh_need_login).
+_peal_mw_need_login() {
+  peal_gh_need_login "this write onto $PEAL_MAIN (through a pull request, since $PEAL_MAIN refuses direct pushes or main-writes says pr)" \
+    "run it where gh is logged in, or leave it to Belfry's own commands, which run on its host; nothing was written"
+}
+
 # _peal_mw_refused_by_rule ERRFILE -> status 0 when git's push output in ERRFILE shows the
 # remote itself refusing the main branch ("[remote rejected] ... -> main (...)"): a rule
 # or protection on the server. A local gate's refusal and a lost race say otherwise.
@@ -113,7 +120,8 @@ _peal_mw_taken_drop() {
 # status of its own (2, or 3 and 4 for its callers), passed through. COMMAND names the
 # peal command writing, for a pull request's body. A push that fails for another reason
 # is not retried: status 1; under main-writes auto a refusal by the remote switches to a
-# pull request (_peal_mw_pr).
+# pull request (_peal_mw_pr). The pull request route needs gh's login: without one it
+# refuses with the reason before any branch is pushed, status 1 (_peal_mw_need_login).
 # PEAL_MW_TAKEN, when set, names a function REF... telling whether what the build wrote
 # is taken at one of the REFs meanwhile (a filing's numbers): the pull request route then
 # fetches the rival pull requests before the first build, checks again once the pull
@@ -129,6 +137,7 @@ peal_push_main() {
   local build=$1 command=${2-} reuse=${3-} attempt=1 max=${PEAL_PUSH_ATTEMPTS:-5} route base sha new err status replaces="" repo branch node
   PEAL_MW_PR="" PEAL_MW_URL="" PEAL_MW_STATE="" PEAL_MW_RIVALS=""
   route=$(_peal_mw_route) || return 2
+  [ "$route" != pr ] || _peal_mw_need_login || return 1
   err=$(mktemp) || { peal_err "could not make a temporary file"; return 2; }
   [ "$route" != pr ] || _peal_mw_fetch_branches
   if [ "$route" = pr ] && [ -n "$reuse" ] && repo=$(peal_github_repo) && _peal_mw_find_reuse "$repo" "$reuse"; then
@@ -204,6 +213,7 @@ peal_push_main() {
     if [ "$new" = "$base" ]; then
       if [ "$route" = auto ] && _peal_mw_refused_by_rule "$err"; then
         peal_err "$PEAL_REMOTE refuses direct pushes to $PEAL_MAIN; through a pull request instead (main-writes: auto)"
+        _peal_mw_need_login || { rm -f "$err"; return 1; }
         route="pr"
         _peal_mw_fetch_branches
         continue
