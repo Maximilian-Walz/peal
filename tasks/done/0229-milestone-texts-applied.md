@@ -170,3 +170,25 @@ Ranges: tasks/doing/0229-milestone-texts-applied.md:1-136,
 docs/milestones/m6.md:1-14, docs/milestones/m7.md:1-14, docs/milestones/m9.md:1-14,
 docs/milestones/m4.md:1-20, docs/milestones/m8.md:1-14, docs/reference/tasks.md:118-161,
 plugin/commands/milestone-review.md:41-48, CHANGELOG.md:3-14.
+
+---
+
+## Outcome
+
+The goals and acceptance criteria from the re-plan of 2026-10-22 are now in the five
+milestone files, so each milestone's review has real criteria to walk. Changing
+milestone files is this task's purpose, which is why `close begin` printed its milestone
+note. m6 and m7 got their full goals from the Notes JSON. m9's goal already matched the
+JSON. m4 and m8 keep their goals, since the JSON gives them none. The criteria lists
+replace the placeholders, and on m4 the old three: m6 has 9, m7 7, m9 7, m4 7, m8 7.
+The plan's count of 6 for m8 was a miscount, because the JSON has 7 entries. Only bodies
+changed; frontmatter, state and order did not, and no task moved.
+
+One change to the JSON's text: m6's goal says "Its release unblocks Belfry #42" without
+"(v0.7.0)". v0.7.0 shipped on 2026-10-23 while m6 is still current, and the human chose
+to drop the version. Every task number the criteria cite still exists, and each sits in
+the milestone that cites it.
+
+Review skipped: the diff lies only in the skip paths (`docs/`, `tasks/`). `peal check`
+passes. Extending `peal apply` to write milestone text is the separate task the Raw
+names; this task does not cover it.
