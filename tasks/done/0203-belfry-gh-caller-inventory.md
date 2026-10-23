@@ -81,3 +81,40 @@ Split from 0176
 Touches: plugin/lib/github.sh, plugin/lib/fake-gh, plugin/lib/main-write*.sh, plugin/lib/ship*.sh, plugin/lib/store-issues*.sh, plugin/lib/gh-callers.test.sh, plugin/commands/release.md, plugin/commands/commands.test.sh, docs/guides/belfry.md, docs/reference/cli.md, docs/security.md, docs/design.md.
 
 Ranges relied on: `tasks/done/0176-under-belfry-close-opens-its.md:14-23,47-57,62-84`; `tasks/backlog/0227-the-issues-storage-records-a.md:14-33`; `tasks/backlog/0232-peal-release-as-a-workflow.md:12-40`; `plugin/lib/github.sh:46-102`; `plugin/lib/main-write.sh:18-34,109-263,302-331`; `plugin/lib/ship.sh:446-511,897-981`; `plugin/lib/store-issues.sh:1-50,895-1024`; `plugin/lib/store-files.sh:218-241`; `plugin/lib/fake-gh:37-64,112-117`; `plugin/lib/doctor.sh:200-230`; `plugin/lib/close.sh:520-723,847-900`; `plugin/commands/release.md:54-100`; `plugin/commands/commands.test.sh:1-32`; `docs/guides/belfry.md:38-65`; `docs/design.md:51-57,106-125`; `docs/security.md:351-374,395-408`; `docs/reference/cli.md:9-10,721-731`.
+
+---
+
+## Outcome
+
+Built as planned, on opus.
+
+- `plugin/lib/github.sh` gains `peal_gh_login`, an offline `gh auth token` probe. It was checked on gh 2.45: it fails with an empty `GH_CONFIG_DIR` and succeeds with `GH_TOKEN`, so it also passes in a release workflow. It also gains `peal_gh_need_login WHAT INSTEAD`, which prints the one shared refusal line. `fake-gh` fakes `auth token`, and its `release` verbs honour `no-auth`.
+- Without a login, these refuse before any change:
+  - main-write's pull request route, under `pr` and at the `auto` switch (status 1, no `peal/main-write-*` branch pushed, `peal.mainWrites` unset);
+  - `peal ship publish` and an issues project's ship notes (status 2);
+  - every write of the issues storage (status 2, pointing to Belfry's `tasks`/`task` tools).
+- With a login, all of these behave as before.
+- `plugin/commands/release.md` stops on the refusal and says the release belongs in the workflow Belfry dispatches (0232), or where gh is logged in.
+- `docs/guides/belfry.md` has a new section, "What a session can and cannot rely on". It holds the inventory: one row per function in `plugin/lib/*.sh` that calls gh (38 rows today), between the `gh-callers` marker comments, plus the command files that call gh themselves. `plugin/lib/gh-callers.test.sh` keeps that list complete. It fails on a missing, stale or dropped row and on an unlisted command file, and it does not count strings, `peal_gh_failed` or `command -v gh`.
+- The CLI reference, `docs/security.md` and `docs/design.md` describe the refusals.
+
+Decided with the human: releases under Belfry run as a GitHub workflow, not in a session, so the Belfry template in `init.sh` is unchanged. The issues storage refuses only its writes. Doctor stays as it is. Revise is documented as unavailable on a protected main.
+
+Found and left, each filed as an idea:
+- a host-side revise for projects whose main refuses direct pushes;
+- the Belfry template offering a workflow release action and a starter `release.yml`, after 0232.
+
+For the next session:
+- Through the CLI, `claim`, `release` and `record` on an issues project fail first on the task read (`peal_gh`'s "gh has no login", status 2), still before any change. The storage-level refusal is tested on the store functions directly.
+- shellcheck was not available locally, so CI is its first run; check the file-level SC2016 disable in `gh-callers.test.sh`.
+- 0227 moves the issues storage's `record` from refused to `task_record`, and updates its inventory row.
+
+The review found nothing blocking. Four minor findings were fixed on the branch:
+- the inventory's test now also counts `gh` after `if`, `while`, `until`, `!`, `env` and `NAME=value`;
+- the probe says gh is needed when gh is missing;
+- `commands.test.sh` no longer counts ship's refusals exactly;
+- two doc nits.
+
+### Reviewer findings not acted on
+
+- In `peal_store_create` and `peal_store_comment` the login check comes after the argument checks. Kept: a misuse still answers first, and nothing changes before the check.
