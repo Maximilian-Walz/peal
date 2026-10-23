@@ -1,10 +1,10 @@
 ---
 milestone: m6
-plan: auto
+plan: required
 size: S
 depends: []
 priority: high
-touches: [docs/milestones/]
+touches: [docs/milestones/m4.md, docs/milestones/m6.md, docs/milestones/m7.md, docs/milestones/m8.md, docs/milestones/m9.md]
 ---
 
 # 0229 — The milestones m6, m7, m9, m4 and m8 carry their goals and acceptance criteria
@@ -134,3 +134,39 @@ The prepared texts, from the re-plan (JSON, one entry per milestone; `descriptio
  }
 ]
 ```
+
+The human's answers (2026-10-23): m6's goal drops the version number, "Its release
+unblocks Belfry #42; …" (v0.7.0 already shipped while m6 is current); the plan as shown
+is agreed (default model, size S, default merge). The planner raised the plan to
+required since it changes a milestone goal's wording.
+
+Planner's decisions, agreed with the plan:
+- Goal scope: replace the goal only where the JSON gives one (m6, m7); m9's is already
+  identical, m4 and m8 keep theirs.
+- m4 criteria: the JSON's seven replace the old three entirely.
+- Wrapping: bullets wrapped at about 88 columns with two-space continuation, as in m4;
+  the goal one paragraph.
+- Verbatim overlap: m8's 0197 bullet and m4's 0136 criterion both kept verbatim.
+- Duplicate entries: the doubled m7 and m8 entries are one edit each; order-only
+  entries (m8 order 8, m5 order 9) already match, nothing to do.
+
+## Plan
+
+Edit the bodies of `docs/milestones/m6.md`, `m7.md`, `m9.md`, `m4.md`, `m8.md` from the
+Notes JSON, verbatim; frontmatter and the title heading untouched.
+
+- `## Goal`: m6 gets the JSON description with "Its release (v0.7.0) unblocks" changed
+  to "Its release unblocks"; m7 gets the JSON description; m9, m4, m8 unchanged.
+- `## Acceptance criteria`: replaced by the JSON's list, one bullet per entry (m6 9,
+  m7 7, m9 7, m4 7, m8 6), wrapped like m4's existing bullets.
+- Expected: `close begin` notes the branch touches milestone files; that is the task.
+
+Verification: `peal check` passes; `git diff --stat origin/main..HEAD` shows only the
+five files (plus the task file) and no `state:`/`order:` line changes; the bullet counts
+above; every `(NNNN` task number of the JSON appears in its file; the Outcome names the
+v0.7.0 adjustment.
+
+Ranges: tasks/doing/0229-milestone-texts-applied.md:1-136,
+docs/milestones/m6.md:1-14, docs/milestones/m7.md:1-14, docs/milestones/m9.md:1-14,
+docs/milestones/m4.md:1-20, docs/milestones/m8.md:1-14, docs/reference/tasks.md:118-161,
+plugin/commands/milestone-review.md:41-48, CHANGELOG.md:3-14.
