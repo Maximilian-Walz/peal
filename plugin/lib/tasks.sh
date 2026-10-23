@@ -368,7 +368,7 @@ peal_merge_added() {
   local new
   new=$(peal_fm_get "$2" merge 2>/dev/null)
   [ -n "$new" ] && [ "$new" != "$(peal_fm_get "$1" merge 2>/dev/null)" ] || return 0
-  peal_err "$3: the text adds merge; only the human sets merge: auto, on the main branch or the issue's label (docs/security.md)"
+  peal_err "$3: the text sets merge; only the human sets merge: auto (docs/security.md)"
   return 2
 }
 

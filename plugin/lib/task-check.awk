@@ -81,7 +81,7 @@ END {
   # merge, written by the human on the main branch (docs/security.md); a revise is checked
   # for adding it by peal_merge_added, which sees the text before.
   if (("merge" in kind) && mode != "revise")
-    problem("the text sets merge; only the human sets merge: auto, on the main branch or the issue's label (docs/security.md)")
+    problem("the text sets merge; only the human sets merge: auto (docs/security.md)")
   else if (("merge" in kind) && single("merge") && value["merge"] !~ /^(auto)?$/)
     problem("merge " value["merge"] " is not auto (the only value: leave the line out for the project's default)")
   if (("priority" in kind) && single("priority") && value["priority"] !~ /^(urgent|high|normal|low)?$/)

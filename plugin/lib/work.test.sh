@@ -181,9 +181,9 @@ record() {
     at "$wt" "$PEAL" record "$(id 1)" plan < <(with_plan "Build it." <<<"$text" | with_field touches "[/etc/hosts]")
 
   # merge: auto is the human's consent (docs/security.md): no session text adds it.
-  check_refused "record: a text adding merge" "record: the text adds merge" \
+  check_refused "record: a text adding merge" "record: the text sets merge" \
     at "$wt" "$PEAL" record "$(id 1)" plan < <(with_plan "Build it." <<<"$text" | with_field merge auto)
-  check_refused "revise on the claim: a text adding merge" "revise: the text adds merge" \
+  check_refused "revise on the claim: a text adding merge" "revise: the text sets merge" \
     at "$wt" "$PEAL" revise "$(id 1)" --reason x < <(with_field merge auto <<<"$text")
   check "record: no merge recorded by a refusal" "" "$(at "$wt" "$PEAL" read "$(id 1)" | grep '^merge:')"
   printf '%s\n' "$text" >"$wt/.merge"
