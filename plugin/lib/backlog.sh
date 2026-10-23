@@ -185,7 +185,10 @@ peal_create_filed() {
   fi
   # A text with no heading is filed under TITLE (peal_text_ensure_heading); one that
   # brings its own heading keeps it.
-  peal_text_ensure_heading "$title" <"$tmp" >"$tmp.h" && mv "$tmp.h" "$tmp" || { rm -f "$tmp" "$tmp.h"; return 2; }
+  if ! { peal_text_ensure_heading "$title" <"$tmp" >"$tmp.h" && mv "$tmp.h" "$tmp"; }; then
+    rm -f "$tmp" "$tmp.h"
+    return 2
+  fi
   if [ "$origin" = outsider ] && sec=$(peal_text_human_section <"$tmp"); then
     peal_err "create: an outsider's text holds a filled '## $sec'; only the human's agreement writes one"
     rm -f "$tmp"

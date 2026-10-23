@@ -85,4 +85,14 @@ The control plane's filing contract calls `tasks.commands.create` with a body th
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Built. Both of Belfry's filing paths, `peal create --owner --title` (files and issues storage) and `peal apply`'s `file` proposals, now write `# NNNN — <title>` when the text's first non-blank line after the frontmatter is not an H1. The shared helper `peal_text_ensure_heading` (`plugin/lib/task-text.sh`) does this; it uses `peal_text_one_line`, which turns ASCII control characters and U+0085/U+2028/U+2029 into spaces, collapses runs and trims, so an untrusted title can only ever be one heading line. A text that brings its own heading passes byte for byte and wins over the title (the human's answer); a malformed or wrong-number heading is still refused. The human's own `peal create SLUG` still refuses a missing heading. The title is also made one line before the slug on both paths: a title with a newline used to crash apply's slug count.
+
+The owner half needed no code: `--owner ai` already adds no field and `--owner human` writes `owner: human`. There is no Peal-side dry run; once Peal writes the heading, Belfry's check and Peal's filing accept the same bodies.
+
+Docs: `docs/reference/cli.md` (create, apply's `file` row) and `docs/security.md` (the title now also becomes the heading, one line, only when the text has none).
+
+Verification: store-files.test.sh 681, apply.test.sh 543, backlog.test.sh 318, hostile.test.sh 2694 (before the main merge) passed, 0 failed. store-issues.test.sh gained a heading-less create case but could not run here (no jq); CI runs it.
+
+Review: findings fixed in one commit (the hostile title case never used a hostile value; missing apply hostile and outsider-plan cases; the issues case; Unicode line breaks; byte-for-byte pass-through; "first non-blank line" in cli.md). Merging main resolved a conflict in `peal_create_filed`: main moved the `merge` refusal into task-check.awk, and the heading call stays where it was.
+
+Left: a very long `--title` makes a slug past the file-name limit (hostile titles are cut to 100 bytes for it); sent to the idea box.
