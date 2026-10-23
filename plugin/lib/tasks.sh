@@ -360,11 +360,24 @@ peal_overview() {
   awk -F '\t' -f "$PEAL_ROOT/lib/overview.awk" <(printf '%s\n' "$milestones") <(printf '%s\n' "$records")
 }
 
+# peal_merge_added OLD NEW VERB -> status 2, and why, when the task text NEW sets merge to
+# a value the text OLD does not hold: merge: auto is the human's consent to a merge, which
+# no session writes; the human writes it on the main branch (or the issue's label). Taking
+# it away (the reviewer's withdraw, a revise) is always allowed.
+peal_merge_added() {
+  local new
+  new=$(peal_fm_get "$2" merge 2>/dev/null)
+  [ -n "$new" ] && [ "$new" != "$(peal_fm_get "$1" merge 2>/dev/null)" ] || return 0
+  peal_err "$3: the text adds merge; only the human sets merge: auto, on the main branch or the issue's label (docs/security.md)"
+  return 2
+}
+
 # peal_edit_check VERB OLD NEW LABEL -> the checks every rewrite of a task's text makes,
 # OLD the text before and NEW the one after (files): the Raw section unchanged, and not
 # added or dropped (the human's own words, never rewritten); the Outcome heading neither
 # added nor dropped, and empty on both sides (a filled one means work happened); part-of
-# unchanged (only a split writes it). Status 2 with every problem reported.
+# unchanged (only a split writes it); merge not added (peal_merge_added). Status 2 with
+# every problem reported.
 peal_edit_check() {
   local verb=$1 old=$2 new=$3 label=$4 status=0
   if [ "$(peal_text_has_section Raw <"$old"; echo $?)" != "$(peal_text_has_section Raw <"$new"; echo $?)" ] \
@@ -387,5 +400,6 @@ peal_edit_check() {
     peal_err "$verb: part-of changed: only a split writes it"
     status=2
   fi
+  peal_merge_added "$old" "$new" "$verb" || status=2
   return $status
 }

@@ -136,6 +136,8 @@ usage: peal <command> [args]
   frontmatter get FILE KEY      print a value, or a list's items one per line
   frontmatter set FILE KEY VALUE
   frontmatter set-list FILE KEY [ITEM...]
+                                set and set-list refuse the key merge: only the human
+                                sets merge: auto (docs/security.md)
   frontmatter unset FILE KEY
   milestones [--json]           one line per milestone: id state order due title, or
                                 the board's {"milestone":{...}} lines; the milestone
@@ -337,6 +339,15 @@ need() {
   fi
 }
 
+# frontmatter_not_merge KEY: refuse a write of merge: merge: auto is the human's consent to
+# a merge, written by the human on the main branch (docs/security.md); unset still works.
+frontmatter_not_merge() {
+  if [ "$1" = merge ]; then
+    peal_err "frontmatter: merge is not set here; only the human sets merge: auto, on the main branch or the issue's label (docs/security.md)"
+    exit 2
+  fi
+}
+
 cmd_frontmatter() {
   need 2 "$@"
   local sub=$1
@@ -345,8 +356,8 @@ cmd_frontmatter() {
     check) need 1 "$@"; peal_fm_check "$1" ;;
     keys) need 1 "$@"; peal_fm_keys "$1" ;;
     get) need 2 "$@"; peal_fm_get "$1" "$2" ;;
-    set) need 3 "$@"; peal_fm_set "$1" "$2" "$3" ;;
-    set-list) need 2 "$@"; peal_fm_set_list "$@" ;;
+    set) need 3 "$@"; frontmatter_not_merge "$2"; peal_fm_set "$1" "$2" "$3" ;;
+    set-list) need 2 "$@"; frontmatter_not_merge "$2"; peal_fm_set_list "$@" ;;
     unset) need 2 "$@"; peal_fm_unset "$1" "$2" ;;
     *) usage >&2; exit 2 ;;
   esac

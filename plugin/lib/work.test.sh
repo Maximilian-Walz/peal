@@ -154,6 +154,7 @@ record() {
   task 2 other-task
   task 3 auto-planned plan=auto
   [ $kind != files ] || task 4 outsider-planned plan=skipped origin=outsider
+  task 5 human-merges merge=auto
   wt=$(claim 1)
   # After the fixtures' own commits on main, which the gates would refuse.
   at "$work" "$PEAL" hooks install >/dev/null
@@ -178,6 +179,30 @@ record() {
 
   check_refused "record: touches, an absolute path" "touches: /etc/hosts is absolute" \
     at "$wt" "$PEAL" record "$(id 1)" plan < <(with_plan "Build it." <<<"$text" | with_field touches "[/etc/hosts]")
+
+  # merge: auto is the human's consent (docs/security.md): no session text adds it.
+  check_refused "record: a text adding merge" "record: the text adds merge" \
+    at "$wt" "$PEAL" record "$(id 1)" plan < <(with_plan "Build it." <<<"$text" | with_field merge auto)
+  check_refused "revise on the claim: a text adding merge" "revise: the text adds merge" \
+    at "$wt" "$PEAL" revise "$(id 1)" --reason x < <(with_field merge auto <<<"$text")
+  check "record: no merge recorded by a refusal" "" "$(at "$wt" "$PEAL" read "$(id 1)" | grep '^merge:')"
+  printf '%s\n' "$text" >"$wt/.merge"
+  check_refused "frontmatter set: merge" "only the human sets merge: auto" \
+    at "$wt" "$PEAL" frontmatter set "$wt/.merge" merge auto
+  check_refused "frontmatter set-list: merge" "only the human sets merge: auto" \
+    at "$wt" "$PEAL" frontmatter set-list "$wt/.merge" merge auto
+  check "frontmatter: nothing set by a refusal" "" "$(grep '^merge:' "$wt/.merge")"
+  with_field merge auto <<<"$text" >"$wt/.merge"
+  at "$wt" "$PEAL" frontmatter unset "$wt/.merge" merge
+  check "frontmatter unset: merge still goes" "" "$(grep '^merge:' "$wt/.merge")"
+  rm -f "$wt/.merge"
+  # The human's merge: auto, taken away on the claim: recorded, and the board follows.
+  local wt5
+  wt5=$(claim 5)
+  out=$(at "$wt5" "$PEAL" read "$(id 5)" | sed '/^merge:/d' | at "$wt5" "$PEAL" record "$(id 5)" notes 2>&1)
+  check "record: a text dropping merge" "0" "$?"
+  check "record: the board's merge gone" "" \
+    "$(at "$wt5" "$PEAL" board --no-pr 2>/dev/null | grep "^{\"id\":\"$(id 5)\"" | grep -o '"merge":"[a-z]*"')"
 
   # As /peal:work records an agreed plan: the text edited, then the frontmatter set.
   with_plan "Build it with a loop." <<<"$text" >"$wt/.agreed"
