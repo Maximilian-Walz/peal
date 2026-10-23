@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
-# Harness for tools/pins.sh, and for the pin of Peal in the decisions workflow template:
+# Harness for tools/pins.sh, and for the pin of Peal in the workflow templates:
 #
 #   bash tools/pins.test.sh
 #
 # - the guard refuses each unpinned form and accepts a pinned file, under every awk here;
 # - it exits 2 when it finds no files;
 # - it names lines 37 and 42 of the template as it was before task 0069;
-# - the template's Peal tag equals `v` + plugin.json's version (a release bumps both);
-#   when that tag exists locally, its commit is the pinned SHA.
+# - each template that fetches Peal (plugin/templates/*.yml) pins the tag `v` +
+#   plugin.json's version (a release bumps both), and is listed in release.version-files
+#   and release.commit-files; when that tag exists locally, its commit is the pinned SHA.
 set -uo pipefail
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # shellcheck source=../plugin/lib/test-lib.sh
@@ -75,27 +76,37 @@ else
   echo "pins.test: commit $before not in this clone; the old template case is skipped"
 fi
 
-# the template's Peal pin follows plugin.json's version
-template=$REPO/plugin/templates/decisions.yml
+# Each template's Peal pin follows plugin.json's version: every plugin/templates/*.yml
+# with a fetch of Peal.
 version=$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$REPO/plugin/.claude-plugin/plugin.json")
 pinned_tag() { sed -n 's/.* fetch .*https:\/\/.* [0-9a-f]\{40\} # \(v[0-9.]*\)$/\1/p' "$1"; }
 pinned_sha() { sed -n 's/.* fetch .*https:\/\/.* \([0-9a-f]\{40\}\) # v[0-9.]*$/\1/p' "$1"; }
-# tag_matches FILE -> a message when the tag differs from plugin.json's version.
+# tag_matches FILE NAME -> a message when the tag differs from plugin.json's version.
 tag_matches() {
   local tag
   tag=$(pinned_tag "$1")
   [ "$tag" = "v$version" ] ||
-    echo "the template pins Peal $tag but plugin.json is v$version: set the tag comment in plugin/templates/decisions.yml (peal ship bump) and the fetch line's SHA (peal ship pin v$version)"
+    echo "the template pins Peal $tag but plugin.json is v$version: set the tag comment in $2 (peal ship bump) and the fetch line's SHA (peal ship pin v$version)"
 }
-check "the template's Peal tag is plugin.json's version" "" "$(tag_matches "$template")"
+tag_sha=$(git -C "$REPO" rev-parse -q --verify "v$version^{commit}" 2>/dev/null) ||
+  echo "pins.test: tag v$version is not in this clone; the SHA checks are skipped"
+templates=0
+for template in "$REPO"/plugin/templates/*.yml; do
+  grep -q 'fetch .*https://github.com/Maximilian-Walz/peal' "$template" || continue
+  templates=$((templates + 1))
+  name=plugin/templates/${template##*/}
+  check "$name: the Peal tag is plugin.json's version" "" "$(tag_matches "$template" "$name")"
+  [ -z "$tag_sha" ] || check "$name: the pinned SHA is v$version's commit" "$tag_sha" "$(pinned_sha "$template")"
+  # Each template is set by the release: listed in release.version-files and commit-files.
+  check "$name: in release.version-files and commit-files" 2 \
+    "$(grep -c "^ *- \"$name: \\\\\"fetch -q --depth 1 https://github.com/Maximilian-Walz/peal" "$REPO/.peal/config.yml")"
+done
+check "the templates that fetch Peal: decisions.yml and merge-gate.yml at least" yes \
+  "$([ "$templates" -ge 2 ] && echo yes || echo "no: $templates")"
+template=$REPO/plugin/templates/decisions.yml
 sed "s/# v$version\$/# v99.0.0/" "$template" >"$dir/bumped.yml"
 check "a different tag is reported" \
   "the template pins Peal v99.0.0 but plugin.json is v$version: set the tag comment in plugin/templates/decisions.yml (peal ship bump) and the fetch line's SHA (peal ship pin v$version)" \
-  "$(tag_matches "$dir/bumped.yml")"
-if tag_sha=$(git -C "$REPO" rev-parse -q --verify "v$version^{commit}" 2>/dev/null); then
-  check "the pinned SHA is v$version's commit" "$tag_sha" "$(pinned_sha "$template")"
-else
-  echo "pins.test: tag v$version is not in this clone; the SHA check is skipped"
-fi
+  "$(tag_matches "$dir/bumped.yml" plugin/templates/decisions.yml)"
 
 finish

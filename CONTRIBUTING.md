@@ -42,7 +42,8 @@ with one plugin, `peal`, in `plugin/`:
 - `plugin/templates/`: `launcher`, the `.peal/peal` a project commits; `githook`, the
   git hook `peal hooks install` writes; `task.md`, the task template; and
   `decisions.yml`, the workflow that regenerates a project's decisions index after a
-  merge.
+  merge; and `merge-gate.yml`, the workflow that fails a pull request in which a task
+  file gains a `merge` key.
 
 ## Harnesses, lint and CI
 

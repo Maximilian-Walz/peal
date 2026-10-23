@@ -33,6 +33,23 @@ jobs:
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: tools/ci-changes.sh "$BASE" HEAD >>"$GITHUB_OUTPUT"
+      # Peal's merge gate (plugin/templates/merge-gate.yml in other projects): no task
+      # file gains a merge key in a pull request. A failure here fails "changes", and with
+      # it the required "harnesses (ubuntu-latest)". It runs BASE's Peal, never the pull
+      # request's; only while BASE has no merge gate yet, HEAD's (docs/security.md).
+      - name: peal merge-gate
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if git cat-file -e "$BASE:plugin/lib/merge-gate.sh" 2>/dev/null; then
+            git worktree add -q --detach "$RUNNER_TEMP/base" "$BASE"
+            peal=$RUNNER_TEMP/base/plugin/bin/peal
+          else
+            echo "merge-gate: BASE has no merge gate yet; running this pull request's" >&2
+            peal=plugin/bin/peal
+          fi
+          "$peal" merge-gate "$BASE" HEAD
 
   # Only what differs from Linux: bash 3.2, BSD tools, and a real file system. Not a
   # matrix: a skipped job reports under its own name, which must be the required

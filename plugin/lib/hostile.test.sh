@@ -397,6 +397,10 @@ awk_channels() {
   try "milestones, hostile fields" "$WORK" milestones
   try "milestones --json, hostile fields" "$WORK" milestones --json
   try "check, hostile names in the work tree" "$WORK" check
+  # Every task file of the hostile repository is new against an empty commit (no ref).
+  local empty
+  empty=$(git -C "$WORK" commit-tree -m empty "$(git -C "$WORK" hash-object -t tree /dev/null)")
+  try "merge-gate, hostile names and text" "$WORK" merge-gate "$empty" HEAD
   # What the refusals leave working, and what they say: checks outside try(), so shard 1's
   # alone.
   if [ "$SHARD_K" = 1 ]; then
@@ -681,6 +685,9 @@ arg_cases() {
   cover -h; each "help, extra argument" "$WORK" help @
   cover config; each "config KEY" "$WORK" config @
   each "check ARG" "$WORK" check @
+  cover merge-gate
+  each "merge-gate BASE" "$WORK" merge-gate @ HEAD
+  each "merge-gate HEAD" "$WORK" merge-gate HEAD @
   each "milestones ARG" "$WORK" milestones @
   each "list ARG" "$WORK" list --no-pr @
   each "list --state S" "$WORK" list --no-pr --state @
