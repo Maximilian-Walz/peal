@@ -376,19 +376,19 @@ session reports the number back with `peal close opened`.
 ### CI that runs on a stranger's pull request cannot write or reach secrets
 
 The workflow's top-level `permissions: contents: read` leaves every job read-only by
-default; a fork's pull request runs only the harnesses and `shellcheck`, nothing that
-needs a secret or a write.
+default; a fork's pull request runs only the harnesses, the merge gate and `shellcheck`,
+nothing that needs a secret or a write.
 
 Every action runs at a pinned commit SHA, which Dependabot keeps current, and OpenSSF
-Scorecard checks the workflows weekly. The decisions workflow template
-(`plugin/templates/decisions.yml`) ships its action and its Peal pinned by SHA too:
-Dependabot keeps the action current across `/` and `/plugin/templates`, the Peal pin
+Scorecard checks the workflows weekly. The workflow templates
+(`plugin/templates/decisions.yml`, `plugin/templates/merge-gate.yml`) ship their action
+and their Peal pinned by SHA too: Dependabot keeps the action current across `/` and `/plugin/templates`, the Peal pin
 follows each release (its tag set by the release, its SHA by `peal ship pin` after the tag, checked by `tools/pins.test.sh`), and `tools/pins.sh` refuses an
-unpinned reference in the template or in Peal's workflows.
+unpinned reference in the templates or in Peal's workflows.
 
 - Guard: `.github/workflows/ci.yml` (`permissions:`, the pinned `uses:`),
   `.github/dependabot.yml`, `.github/workflows/scorecard.yml`,
-  `plugin/templates/decisions.yml`, `tools/pins.sh`.
+  `plugin/templates/decisions.yml`, `plugin/templates/merge-gate.yml`, `tools/pins.sh`.
 - Harness: `tools/pins.test.sh`; Scorecard's weekly run reports an unpinned action or a
   broad permission.
 
@@ -404,8 +404,49 @@ claim and work libraries, the prompts under `plugin/commands/` and `plugin/agent
 pull request's head, after an hour's grace for the human's Hold. What could loosen the
 gates or the release chain (hooks, launcher and githook, `githooks.sh`, `git-guard.sh`,
 `session.sh`, `main-write.sh`, `ship.sh`, `plugin/commands/release.md`, the plugin and
-marketplace manifests, `.peal/`, CI helpers, this file and `SECURITY.md`) always waits
-for the human, as do `.belfry.yml`, `.github/**` and `.claude/settings.json`.
+marketplace manifests, `.peal/`, CI helpers, the merge gate, this file and
+`SECURITY.md`) always waits for the human, as do `.belfry.yml`, `.github/**` and
+`.claude/settings.json`.
+
+The tiers would combine into a way around the human: a task-files pull request merges by
+itself on its paths, and could write `merge: auto` into another task, whose own pull
+request the `agreed tasks` rule would then merge. `peal merge-gate BASE HEAD` closes that
+route: a pull request fails when a task file under `backlog/` or `doing/` that it adds or
+changes holds a `merge` key (any value, read raw, not as the board normalises it) that
+BASE did not already give a task of the same id outside `done/`, or when such a file's
+frontmatter does not parse (the board would read it differently from the gate). It reads
+git objects only, BASE's settings for BASE and HEAD's for HEAD, so a pull request that
+moves the tasks folder is judged by where its own settings put the tasks; any doubt (a
+missing or all-zero BASE, settings that do not load, git failing) fails it. A close's
+move into `done/` passes: the task's own pull request carries the `merge` the human
+agreed. In Peal's CI the gate is a step of the `changes` job, so it fails the required
+`harnesses (ubuntu-latest)` that every auto-merge rule waits for; it runs BASE's Peal
+(a worktree of BASE), never the pull request's. An adopting project copies
+`plugin/templates/merge-gate.yml`, which fetches Peal pinned by SHA, makes its
+`peal merge-gate` job required and lists it in its auto-merge rules' checks
+([the Belfry guide](guides/belfry.md)); changing that workflow or the pin needs a
+`.github/**` change, which never merges by itself.
+
+- Guard: `plugin/lib/merge-gate.sh`, `plugin/lib/merge-gate.awk`, the `peal merge-gate`
+  step of `.github/workflows/ci.yml`, `plugin/templates/merge-gate.yml`.
+- Harness: `plugin/lib/merge-gate.test.sh`, `plugin/lib/hostile.test.sh`,
+  `tools/pins.test.sh` (the template's pin).
+
+Its limits:
+
+- **The direct push.** `peal revise` and `peal comment` push onto main without a pull
+  request; a push of their shape that adds `merge` is not seen by this gate. That route
+  is task 0180's.
+- **The bootstrap.** While BASE has no `plugin/lib/merge-gate.sh` (the pull request that
+  adds the gate), Peal's CI runs the pull request's own gate. That pull request changes
+  `.github/**` and the gate's files, so a human merges it; every later one runs BASE's.
+- **`pull_request`, not `pull_request_target`.** The gate runs with a read-only token and
+  no secret, so a fork's pull request reaches nothing, and the code it runs is BASE's (or
+  the template's pinned Peal), never the head's. The workflow file itself is the pull
+  request's own under `pull_request`, so one that edits the step away touches
+  `.github/**`, which a human merges. The price: a fork's run can be held for a
+  maintainer's approval, and until it runs the required check is missing, which holds
+  the merge rather than letting it through.
 
 ## What this milestone leaves open
 
