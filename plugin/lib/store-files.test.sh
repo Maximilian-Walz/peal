@@ -413,7 +413,7 @@ revise() {
   check_refused "revise: out of a parked milestone" "milestone m3 is parked; only a milestone review moves a task out" \
     peal revise 0003 --reason x < <(ID=0003 text "milestone: m1")
   check_refused "revise: part-of changed" "part-of changed" peal revise 0002 --reason x < <(ID=0002 text "part-of: 0003")
-  check_refused "revise: merge added" "revise: the text sets merge" peal revise 0001 --reason x < <(sed '1a merge: auto' <<<"$cur")
+  check_refused "revise: merge added" "revise: the text sets merge" peal revise 0001 --reason x < <(awk 'NR == 1 { print; print "merge: auto"; next } 1' <<<"$cur")
   check_refused "revise: Outcome filled before" "Outcome is filled in: work happened" peal revise 0004 --reason x < <(ID=0004 TITLE=y text)
   check_refused "revise: done" "task 0005 is done" peal revise 0005 --reason x < <(ID=0005 TITLE=y text)
   check_refused "revise: no task" "no task 0042" peal revise 0042 --reason x < <(ID=0042 text)
