@@ -91,4 +91,32 @@ docs/reference/storage.md:56-73, docs/reference/configuration.md:47
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+`/peal:setup`'s issue sample (tasks stage, step 3 item 1 of `plugin/commands/setup.md`) now
+applies the issues storage's writer rule: an issue counts when its opener has write access,
+or is the bot login `<slug>[bot]` (case-insensitive) of an App named in an
+`storage.issues.apps` already set, unless it is labelled `origin: outsider`. Setup reads
+`peal config storage.issues.apps`, keeps the entries passing `_peal_issues_apps`'s slug
+check (naming any that fail, and leaving them out), and puts them into a one-line `gh api
+--jq` command. That command stays in jq inside the prompt, so setup needs no jq of its own.
+Item 4 and `docs/security.md` ("Only admitted issues reach a session") say the same.
+`issues_candidates` in `plugin/lib/setup.test.sh` runs the exact command from `setup.md`
+against fake-gh with six fixtures (owner, stranger, trusted App, the App with `origin:
+outsider`, untrusted bot, mixed-case trusted App). The text check in `commands.test.sh`
+now expects the new form.
+
+Decided with the human: setup honours only a setting that is already there and does not ask
+which Apps to trust. Offering, once, to trust the Apps behind bot issues is a follow-up idea, now
+in Belfry's idea box ("/peal:setup offers once to trust the Apps behind bot issues").
+
+For the next session: the rule now exists twice, in `writer()` (`plugin/lib/issues-lib.awk`)
+and in setup's jq. A comment at `writer()` points at the copy and at its test. Fake-gh runs
+real jq, but `gh` uses gojq. The command uses only constructs both support. The reviewer
+reported running it against the real `gh`; this session could not confirm that, because it
+has no gh login.
+
+### Reviewer findings not acted on
+
+- Bad `apps` entries: setup names them and leaves them out, while the storage refuses with
+  status 2. The human agreed to this, and it matters only for a setting edited by hand.
+- jq's `\s` also matches newline, form feed and vertical tab, where awk's `trim()` strips
+  space, tab and CR only. Labels do not contain those characters, so it has no effect.
