@@ -67,7 +67,8 @@ Frontmatter, triaged now:
   that is merged but may not be deployed yet: the pull request numbers it names, as
   `N`, `#N` or `owner/repo#N`. Otherwise leave it out.
 - `size`: left out; the planner sizes a task when it is claimed.
-- `merge`: never. Only the human's agreement to a plan writes `merge: auto`.
+- `merge`: never. Only the human sets `merge: auto`, and `peal idea` and `peal create`
+  refuse a text that sets it.
 
 Write `NNNN` wherever the task's number belongs, the heading first; the storage puts in
 the number it gets. Never invent a number.

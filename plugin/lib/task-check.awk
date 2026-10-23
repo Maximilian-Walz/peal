@@ -77,7 +77,12 @@ END {
     problem("owner " value["owner"] " is not ai or human")
   if (("origin" in kind) && single("origin") && value["origin"] !~ /^(outsider)?$/)
     problem("origin " value["origin"] " is not outsider (the only value: leave the line out for writer)")
-  if (("merge" in kind) && single("merge") && value["merge"] !~ /^(auto)?$/)
+  # A filing (plain, batch, split) never sets merge: merge: auto is the human's consent to a
+  # merge, written by the human on the main branch (docs/security.md); a revise is checked
+  # for adding it by peal_merge_added, which sees the text before.
+  if (("merge" in kind) && mode != "revise")
+    problem("the text sets merge; only the human sets merge: auto (docs/security.md)")
+  else if (("merge" in kind) && single("merge") && value["merge"] !~ /^(auto)?$/)
     problem("merge " value["merge"] " is not auto (the only value: leave the line out for the project's default)")
   if (("priority" in kind) && single("priority") && value["priority"] !~ /^(urgent|high|normal|low)?$/)
     problem("priority " value["priority"] " is not urgent, high, normal or low")

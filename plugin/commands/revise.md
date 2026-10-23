@@ -13,8 +13,8 @@ the storage, with no pull request: the human's confirmation below is the only re
 gets. Its priority changes the same way: `priority: urgent`, `high` or `low` in the
 frontmatter, or the line dropped for `normal`. It may add `after_deploy: [N]` when the task turns
 out to wait on a control-plane change that is merged but may not be deployed yet. A `merge: auto` the task no longer earns
-(its ground grew riskier) is dropped the same way; revise never adds one, since only the
-human's agreement to a plan writes it. A task whose whole premise died is retired (`/peal:retire`), not revised; a
+(its ground grew riskier) is dropped the same way; revise never adds one (`peal revise` refuses it), since only the
+human sets it. A task whose whole premise died is retired (`/peal:retire`), not revised; a
 claimed one is changed in its own session. It never touches this worktree.
 
 If the id or the change is missing, ask the human for it with `AskUserQuestion`.

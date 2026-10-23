@@ -197,6 +197,47 @@ end the frontmatter or open a section of the task file.
 - Guard: `plugin/bin/peal` (`comment`), `plugin/lib/store-files.sh`
   (`_peal_files_rewrite_comment`).
 
+### `merge: auto` is the human's
+
+`merge: auto` lets a control plane merge a pull request once its checks are green, with no
+human looking at it: it stands for the human's consent to that merge, so it is a record no
+session can write. A session steered by unmarked content, or a model's mistake in an
+unattended job, could otherwise set the field on its own claim and have its pull request
+merged. So no text a session writes adds `merge`: `peal record`, `peal revise` (on the
+main branch and on a claim) and issue edits refuse a text whose `merge` is set and
+differs from the text before (`peal_merge_added`; taking it away, the reviewer's withdraw
+or a revise, is always allowed), and no `peal apply` kind but `file` carries frontmatter; every filing (`peal create`, `peal
+idea`, the ideas a close files, a split's pieces, `peal create --owner`, `peal
+idea-fields`, `apply`'s `file`) refuses a text that sets `merge` at all; `peal frontmatter
+set` and `set-list` refuse the key, `unset` keeps working; `peal comment` reaches only the
+Notes. The board takes `merge` only from the main branch's copy of a task file, or the
+issue's label: a claim branch's copy can only empty it, never grant it.
+
+Where the agreement lives: under a control plane, in the control plane's own record of the
+human's answer to the plan; without one, in `merge: auto` the human writes themselves:
+the issue's label, at any time, or, for a task file, the field on the main branch (their
+own pull request) before the task is claimed. A claim copy can only withdraw `merge`, so
+in the files storage a field the human writes on the main branch after the claim never
+reaches the board. `/peal:work` writes
+`merge: auto agreed by the human (<date>)` under the task's Notes when the human agrees it:
+a trace that grants nothing, which only makes the close ask the reviewer whether the diff
+still earns it. A forged line adds a review question and nothing else. The close's
+`merge-auto: withdraw` removes the field where the task holds it and, either way, puts
+"merge: auto withdrawn" at the top of the pull request's body, for the control plane to
+leave the merge to the human.
+
+Known gap: a session with a `gh` login that may label issues can add the `merge: auto`
+label itself; the issues storage relies on the control plane withholding that login (`gh`
+holds the token, below).
+
+- Guard: `plugin/lib/tasks.sh` (`peal_merge_added`, `peal_edit_check`),
+  `plugin/lib/work.sh` (`peal_record`), `plugin/lib/task-check.awk` (filings),
+  `plugin/bin/peal` (`frontmatter`), `plugin/lib/store-files.sh` (`_peal_files_overlay`,
+  `_peal_files_build_rewrite`), `plugin/lib/close.sh` (`_peal_close_merge_asked`).
+- Harness: `plugin/lib/store-files.test.sh` (`claim_copies`, revise, comment, create,
+  idea), `plugin/lib/work.test.sh` (`record`), `plugin/lib/store-issues.test.sh`
+  (`merge`), `plugin/lib/close.test.sh` (`merge_cases`).
+
 ### A batch of proposals on stdin is data, read without a shell or jq
 
 Belfry runs `tasks.commands.apply` (`.peal/peal apply`) itself, outside any session's
@@ -401,8 +442,10 @@ SHA by `peal ship pin` after the tag, checked by `tools/pins.test.sh`), and
 Merging ships: the marketplace installs `./plugin` from the default branch. Under
 Belfry's contract (`.belfry.yml`), these pull requests merge without the human, each
 only with `shellcheck` and both `harnesses` jobs green: task files and milestone texts,
-documentation outside `docs/security.md`, and tasks the human marked `merge: auto` when
-agreeing the plan. Guard code (the `review_before_merge` paths: the CLI, the storage,
+documentation outside `docs/security.md`. Tasks whose `merge: auto` the human agreed
+with the plan are meant to join them once Belfry acts on its own record of the answer
+(never a field a session wrote, see "`merge: auto` is the human's"); until then such
+pull requests wait for the human. Guard code (the `review_before_merge` paths: the CLI, the storage,
 claim and work libraries, the prompts under `plugin/commands/` and `plugin/agents/`,
 `CLAUDE.md`) merges by itself only once a fresh `security-pr` review passed on the
 pull request's head, after an hour's grace for the human's Hold. What could loosen the
