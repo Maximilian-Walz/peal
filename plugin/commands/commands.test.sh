@@ -86,6 +86,7 @@ check "planner: recommends merge: auto for small, low-risk work" "1" \
   "$(awk '/^6\. \*\*Merge\.\*\*/ { f = 1 } /^7\. / { f = 0 } f && /small, low-risk/ { n++ } END { print n + 0 }' "$agents/planner.md")"
 check "work: asks the human to agree the merge" "1" "$(grep -c -F 'touches and merge' "$commands/work.md")"
 # The agreement is the human's (0177): a Notes line that grants nothing, never the field.
+# shellcheck disable=SC2016 # the literal backticks
 check "work: notes the human's merge: auto agreement" "1" \
   "$(grep -c -F '`merge: auto agreed by the human (<date>)` under `## Notes`' "$commands/work.md")"
 check "work: never writes the merge field" "0" "$(grep -c -E 'frontmatter set(-list)? <file> merge' "$commands/work.md")"
