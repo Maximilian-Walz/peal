@@ -40,8 +40,8 @@ check "next: declining commits with the subject the gate lets through" "2|1" \
   "$(grep -c -F 'chore(peal): decline <item>' "$commands/next.md")|$(grep -c -F '"chore(peal)" ]' "$PEAL_ROOT/lib/githooks.sh")"
 check "setup: points at /peal:next, never names a next stage" "1|0" \
   "$([ "$(grep -c -F '/peal:next' "$commands/setup.md")" -ge 2 ] && echo 1)|$(grep -c 'setup <n[e]xt>' "$commands/setup.md")"
-check "setup: the issue sample is filtered to write access" "0|1|2" \
-  "$(grep -c -F 'gh issue list' "$commands/setup.md")|$(grep -c -F "gh api 'repos/<github>/issues" "$commands/setup.md")|$(grep -c -F 'author_association' "$commands/setup.md")"
+check "setup: the issue sample is filtered to writers and trusted Apps" "0|1|1|1|1" \
+  "$(grep -c -F 'gh issue list' "$commands/setup.md")|$(grep -c -F "gh api 'repos/<github>/issues" "$commands/setup.md")|$(grep -c -F 'author_association' "$commands/setup.md")|$(grep -c -F '[bot]")' "$commands/setup.md")|$(grep -c -F 'origin\\s*:' "$commands/setup.md")"
 # shellcheck disable=SC2016 # the literal placeholder
 check "setup: commits with the subject the gate lets through" "2|1" \
   "$(grep -c -F 'chore(peal): set up the <stage> stage' "$commands/setup.md")|$(grep -c -F '"chore(peal)" ]' "$PEAL_ROOT/lib/githooks.sh")"

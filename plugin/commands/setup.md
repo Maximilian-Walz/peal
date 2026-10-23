@@ -62,12 +62,19 @@ of the commit.
 
 1. **Read the repository**: the README, the TODO lists, a sample of the TODO marks
    (`git grep -n -w -E 'TODO|FIXME' | head -n 30`), the CI files, and on GitHub (`<github>`
-   from the survey, `owner/name`) up to twenty open issues opened by someone with write
-   access: `gh api 'repos/<github>/issues?state=open&per_page=100' --jq '[.[] |
-   select(.pull_request == null and (.author_association == "OWNER" or
-   .author_association == "MEMBER" or .author_association == "COLLABORATOR"))] | .[0:20]
-   | .[] | {number, title}'` (a stranger's issue is no safer to read here than anywhere
-   else) and the last commits that close one. This is for recommending the storage and
+   from the survey, `owner/name`) up to twenty open issues opened by a writer, the
+   issues storage's rule (`admitted()`, `docs/security.md`): write access, or an App named
+   in a `storage.issues.apps` setting already present, unless the issue is labelled
+   `origin: outsider` (that takes only the App's trust away). First run `peal config
+   storage.issues.apps`: keep each entry matching `^[A-Za-z0-9][A-Za-z0-9-]*(\[bot\])?$`,
+   lower-cased, `[bot]` dropped; name an entry that fails to the human and leave it out.
+   Put the kept slugs into the command as a JSON array in place of `<apps>` (`[]` when
+   there are none; nothing asks which Apps to trust here):
+
+       gh api 'repos/<github>/issues?state=open&per_page=100' --jq '<apps> as $apps | [.[] | select(.pull_request == null) | select((.author_association | IN("OWNER", "MEMBER", "COLLABORATOR")) or (((.user.login // "") | ascii_downcase) as $l | ($l | endswith("[bot]")) and ($l[:-5] | IN($apps[])) and ([.labels[].name | test("^\\s*origin\\s*:\\s*outsider\\s*$"; "i")] | any | not)))] | .[0:20] | .[] | {number, title}'
+
+   (a stranger's issue is no safer to read here than anywhere else) and the last commits
+   that close one. This is for recommending the storage and
    for the first tasks (step 5); do not summarise it back to the human.
 2. **Recommend the storage.** `recommend` is the survey's rule: `issues` when the
    project is on GitHub and already works from issues (open issues, or commits closing
@@ -86,7 +93,8 @@ of the commit.
    existing task process is a migration of its own, not this setup — point at Peal's
    `docs/migrating.md`.
 4. **Write it:** `peal init --stage tasks --storage <files|issues>`. No `--label`: the
-   issues opened by someone with write access are the tasks, the safe default on a
+   issues opened by someone with write access, or by an App named in
+   `storage.issues.apps`, are the tasks, the safe default on a
    public repository. Status 1 means `.claude/settings.json` does not parse: the rest is
    written, and the lines it printed go into the report for the human to add by hand.
    Any other failure: report it and stop.

@@ -148,10 +148,32 @@ issues() {
   check "issues: the github-issues backend" "  backend: github-issues" "$(sed -n 3p "$work/.belfry.yml")"
 }
 
+# The candidate sample of /peal:setup (its gh api line, lifted from the prompt) against the
+# fake gh: writers, and the Apps named in storage.issues.apps unless origin: outsider.
+issues_candidates() {
+  local work line apps got want
+  project
+  fake_github "$work"
+  issue 1 "Owner's"
+  issue 2 "Stranger's" --assoc NONE --user stranger
+  issue 3 "Trusted App's" --assoc NONE --user "belfry-server[bot]"
+  issue 4 "Outsider via App" --assoc NONE --user "belfry-server[bot]" --label "origin: outsider"
+  issue 5 "Untrusted bot" --assoc NONE --user "other-app[bot]"
+  issue 6 "Cased App" --assoc NONE --user "Belfry-Server[bot]"
+  line=$(grep -F "gh api 'repos/<github>/issues" "$PEAL_ROOT/commands/setup.md" | sed 's/^ *//')
+  line=${line//<github>/acme/widgets}
+  for apps in '[]' '["belfry-server"]'; do
+    got=$(cd "$work" && eval "${line//<apps>/$apps}" 2>&1 | jq -r '.number' | sort -n | paste -sd, -)
+    case $apps in '[]') want=1 ;; *) want=1,3,6 ;; esac
+    check "issues_candidates: apps $apps" "$want" "$got"
+  done
+}
+
 cases() {
   files
   if command -v jq >/dev/null; then
     issues
+    issues_candidates
   elif [ -n "${PEAL_REQUIRE_JQ-}" ]; then
     check "jq, which the fake gh needs" "jq" ""
   fi
