@@ -167,10 +167,11 @@ outsider's issue or comment produced on stdin. `{owner}`, `{title}` and `{origin
 the only pieces the contract fills into the command line, and all three are checked
 before anything is written: `owner` must be `ai` or `human`, `origin` must be `outsider`
 or `writer`, or the call is refused, and `title` only ever feeds a slug (`peal_slugify`'s
-normalisation, at least two words) — none reaches a shell, a filename outside the
+normalisation, at least two words) and, when the text has no heading, the one-line
+`# NNNN — title` written into it (control characters to spaces) — none reaches a shell, a filename outside the
 storage's own naming, or `eval`. The text itself never becomes a shell word either: it is
 read from stdin into a file and, apart from `NNNN` becoming the id it is given, `owner`
-set or dropped for the `--owner` flag, and `origin` set to `outsider` or dropped for the
+set or dropped for the `--owner` flag, the title heading added when the text has none, and `origin` set to `outsider` or dropped for the
 `--origin` flag, lands in the task file exactly as given, checked the same way any other
 filing is (`peal_task_check`) plus two rules narrower than a human's own `peal create`: a
 text that sets `merge` is refused (an untrusted filer cannot make its own task merge
@@ -216,7 +217,7 @@ and the milestone `milestone` is the one split. Ids are checked against their
 shape (`NNNN`, or `@` and a proposal id of the batch), milestones against
 `[A-Za-z0-9._-]+` (or `@` and an earlier `milestone_create`'s or `split_milestone`'s id), and the closed sets
 (kind, priority, owner, origin on every kind, a milestone's state verb) by value; a task's title
-only feeds a slug. A `file` text gets the checks of `peal create --owner`'s (`merge` and
+only feeds a slug and, when the text has no heading, its one-line heading. A `file` text gets the checks of `peal create --owner`'s (`merge` and
 the delimiter refused, `peal_task_check`), an `add` text those of `peal comment` (no
 `---` or `## ` line), a `retire` reason is one line. A milestone's title and a parking's
 reason are one line with no tab, written through the frontmatter writer (quoted) or as

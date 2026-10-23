@@ -115,7 +115,10 @@ peal_revise() {
 # writer, a slug of one word, no text on stdin, a text that sets merge (only a human,
 # editing the task itself, earns merge: auto) or holds the task delimiter (one task at a
 # time here), or an outsider's text with a filled "## Plan" or "## Outcome"
-# (peal_text_human_section). PEAL_MAIN_WRITE_BUDGET is capped to about 90s unless the caller set it, so
+# (peal_text_human_section). A text whose first line after the frontmatter is not an H1
+# gets "# NNNN — TITLE" there (the title made one line); a text with its own heading keeps
+# it, whatever its title, and a malformed or wrong-number one is refused as before.
+# PEAL_MAIN_WRITE_BUDGET is capped to about 90s unless the caller set it, so
 # a caller waiting on this synchronously does not hang; an open pull request at that cap
 # still counts as filed, status 0 like a merged one (the storage's own status 3 would
 # read as "not filed, retry" to a caller and file it twice). Prints the storage's own
@@ -150,6 +153,7 @@ peal_create_filed() {
     *) peal_err "create: origin must be outsider or writer, not '$origin'"; return 2 ;;
   esac
   [ -n "$title" ] || { peal_err "create: --title is required"; return 2; }
+  title=$(peal_text_one_line "$title")
   # The issues storage has no label for origin: refuse rather than drop the mark.
   if [ "$origin" = outsider ]; then
     peal_config_load || return 2
@@ -184,6 +188,9 @@ peal_create_filed() {
     rm -f "$tmp"
     return 2
   fi
+  # A text with no heading is filed under TITLE (peal_text_ensure_heading); one that
+  # brings its own heading keeps it.
+  peal_text_ensure_heading "$title" <"$tmp" >"$tmp.h" && mv "$tmp.h" "$tmp" || { rm -f "$tmp" "$tmp.h"; return 2; }
   if [ "$origin" = outsider ] && sec=$(peal_text_human_section <"$tmp"); then
     peal_err "create: an outsider's text holds a filled '## $sec'; only the human's agreement writes one"
     rm -f "$tmp"

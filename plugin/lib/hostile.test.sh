@@ -428,6 +428,10 @@ awk_channels() {
   each_input "create --batch, hostile text" "$WORK" "$(hostile_text)" create --batch 0001 found-hostile-text
   each_input "create --owner --title, hostile text" "$WORK" "$(hostile_text)" \
     create --owner ai --title "Belfry hostile stdin text"
+  # 0204: a hostile text with no heading, and a hostile title over one.
+  each_input "create --owner --title, hostile heading-less text" "$WORK" $'---\n---\n\n## Raw\n\n@\n' \
+    create --owner ai --title "Belfry hostile headingless text"
+  with_input $'---\n---\n\n## Raw\n\nsaid\n' each "create --owner --title @, heading-less text" "$WORK" create --owner ai --title "@ two words"
 
   # peal_create_filed's own promise: the text lands in the file exactly as given, only
   # NNNN replaced by the id it is given (dollar's the only hostile value here that both
