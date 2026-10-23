@@ -357,6 +357,9 @@ task (0091). `read`, `claim`, `work` and `defer` refuse an issue the rule does n
 and quote none of its text; `list`, the board, the depends expansion and `ship`'s release
 notes apply the same rule, an unadmitted issue a commit subject names getting the
 commit's own subject in the notes, never the issue's title.
+`/peal:setup`'s sample of candidate issues applies the same writer rule (write access, or an App
+named in a `storage.issues.apps` setting already present, unless `origin: outsider`); its
+test is the `issues_candidates` case in `plugin/lib/setup.test.sh`.
 
 Labelling (or write access) alone is not the end of it: with a filter label configured,
 an edit later than the issue's own labelling of the filter label is admitted only when it

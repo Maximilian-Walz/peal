@@ -65,6 +65,8 @@ function prio_rank(p) { return p == "urgent" ? 4 : p == "high" ? 3 : p == "norma
 # for a slug in apps (a comma list, lower-cased) and labels (comma-joined, @tsv-escaped)
 # hold no "origin: outsider" (an App relaying text from outside gets no App trust). A
 # user's login cannot contain "[", so the suffix cannot be forged.
+# /peal:setup's issue sample (plugin/commands/setup.md) repeats this rule in jq: change
+# both, its test is issues_candidates in plugin/lib/setup.test.sh.
 function writer(assoc, login, labels, apps,    n, ls, j, l) {
   if (assoc == "OWNER" || assoc == "MEMBER" || assoc == "COLLABORATOR") return 1
   login = tolower(login)
