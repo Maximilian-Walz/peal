@@ -69,6 +69,8 @@ export GH_TELEMETRY="${GH_TELEMETRY:-0}"
 . "$PEAL_ROOT/lib/next.sh"
 # shellcheck source=../lib/migrate.sh
 . "$PEAL_ROOT/lib/migrate.sh"
+# shellcheck source=../lib/merge-gate.sh
+. "$PEAL_ROOT/lib/merge-gate.sh"
 
 usage() {
   cat <<'EOF'
@@ -118,6 +120,14 @@ usage: peal <command> [args]
                                 whose slug is not kebab-case, a depends cycle
                                 among the tasks not done, and with the decisions
                                 module on, what peal decision check reports
+  merge-gate BASE HEAD          a pull request's check (templates/merge-gate.yml): refused,
+                                status 1 and each file named, when a task file under
+                                backlog/ or doing/ that HEAD adds or changes has
+                                frontmatter that does not parse, or a merge key BASE did
+                                not give a task of the same id outside done/ with the
+                                same value; reads git objects only, each side's own
+                                settings; status 2 for a BASE or HEAD that is empty, all
+                                zeros or no commit, and settings that do not load
   doctor [CHECK...]             what is broken in this project's Peal, one sentence and
                                 one fix per problem (lib/doctor.sh): config (the
                                 effective settings and their values), version (.peal/peal
@@ -488,6 +498,7 @@ main() {
     --version | version) peal_version ;;
     -h | --help | help) usage ;;
     check) cmd_check "$@" ;;
+    merge-gate) peal_merge_gate "$@" ;;
     doctor) peal_doctor "$@" ;;
     config) cmd_config "$@" ;;
     frontmatter) cmd_frontmatter "$@" ;;

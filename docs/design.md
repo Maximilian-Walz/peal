@@ -459,7 +459,11 @@ and leaves a clash there to CI too.
 **In CI.** `templates/decisions.yml` publishes with a `PEAL_TOKEN` secret when the project
 sets one, else the workflow's `GITHUB_TOKEN`. A pull request opened with `GITHUB_TOKEN`
 starts no workflow, so on a main that requires checks it waits for a human; `PEAL_TOKEN`
-lets its checks run and auto-merge take it.
+lets its checks run and auto-merge take it. `templates/merge-gate.yml` runs `peal
+merge-gate` on every pull request, a check the project makes required: a task file that
+gains a `merge` key fails it, so the auto-merge of task files cannot carry the consent
+only the human gives when agreeing a plan (`docs/security.md`, "Auto-merge tiers").
+Peal's own CI runs the gate in its `changes` job, from the base's checkout.
 
 ## Git gates
 

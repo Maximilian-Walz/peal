@@ -17,7 +17,7 @@ Two routes let hostile text become an agreed plan or an unmarked task. First, th
 
 - The `modify`, `apply` and `add` shapes parse the old and new blobs with the awk the storage uses and refuse when `merge` appears, `origin` disappears or changes, or `## Plan` or `## Outcome` goes from empty to filled, unless the subject is a `vouch` or a `record` the storage itself made.
 - Issues storage: an issue whose `author_association` is not owner, member or collaborator counts as `origin: outsider` in `_peal_issues_text` so `peal work` forces `PLAN required`, or its `## Plan` and `## Outcome` are stripped from the body unless the task is a writer's.
-- Absorbs the PR route of 0161 where the same check applies, or links it (see Notes); and 0122 (`peal comment --origin` on the issues storage) is the same family: do it here or leave it linked.
+- Links 0161, which gates the pull request route (`peal merge-gate`, `plugin/lib/merge-gate.sh`: a task file gaining a `merge` key fails the pull request); this task keeps the direct-push route, and may reuse `merge-gate.awk` to read the raw `merge` of a blob. 0122 (`peal comment --origin` on the issues storage) is the same family: do it here or leave it linked.
 
 ## Done when
 

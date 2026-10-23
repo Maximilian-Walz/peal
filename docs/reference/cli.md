@@ -77,6 +77,30 @@ Reports what is not valid: the milestone files, a task under `done/` without an 
 (`peal: task id NNNN is used by A and B`), a depends cycle among the tasks not done, and
 with the decisions module on, `peal decision check`.
 
+## `peal merge-gate`
+
+`peal merge-gate BASE HEAD`: the check a pull request runs (the workflow template
+`plugin/templates/merge-gate.yml`) so that `merge: auto`, which the human writes when
+agreeing a plan, cannot arrive through a pull request that merges by itself on its paths
+([Security](../security.md#auto-merge-tiers)). It reads git objects only, never the work
+tree, with BASE's settings for BASE and HEAD's for HEAD.
+
+A task file under `backlog/` or `doing/` at HEAD whose path and blob BASE's task files do
+not already hold is checked:
+
+- its frontmatter does not parse: refused;
+- it has a `merge` key, whatever its value (`auto`, `"auto"`, `yes`, empty): refused,
+  unless BASE has a task of the same id under `backlog/` or `doing/` whose `merge` reads
+  the same. A task moved from `backlog/` to `doing/`, renamed or edited keeps its `merge`;
+  one moved back from `done/` does not.
+
+A file closed into `done/`, a `merge` removed, and an unchanged file pass. Under HEAD's
+`storage.kind: issues` it prints `merge-gate: issues storage, nothing to check`.
+
+Status 0 when nothing is refused; 1 with a `merge-gate: refused: PATH: why` line for each
+file refused; 2 for a BASE or HEAD that is empty, all zeros, starts with `-` or names no
+commit, for settings of either side that do not load, and when git fails.
+
 ## `peal doctor`
 
 `peal doctor [CHECK...]` runs the named checks, or all: `config`, `version`, `hooks`,
