@@ -36,8 +36,8 @@ check "a milestone's end: the commands exist" "drift milestone-review" \
 check "releases: the command exists" "release" "$([ -f "$commands/release.md" ] && echo release)"
 check "release: stops on the login refusal, naming the workflow" "1|1" \
   "$(grep -c -F "needs gh's login, and gh has none here" "$commands/release.md")|$(grep -c -F 'release workflow Belfry dispatches' "$commands/release.md")"
-check "release: the refusal is the one ship prints" "2|1" \
-  "$(grep -c -F "peal_gh_need_login" "$PEAL_ROOT/lib/ship.sh")|$(grep -c -F "peal_err \"\$1 needs gh's login, and gh has none here" "$PEAL_ROOT/lib/github.sh")"
+check "release: the refusal is the one ship prints" "1|1" \
+  "$(grep -q -F "peal_gh_need_login" "$PEAL_ROOT/lib/ship.sh" && echo 1)|$(grep -c -F "peal_err \"\$1 needs gh's login, and gh has none here" "$PEAL_ROOT/lib/github.sh")"
 check "setup: the command exists" "setup" "$([ -f "$commands/setup.md" ] && echo setup)"
 check "next: the command exists" "next" "$([ -f "$commands/next.md" ] && echo next)"
 check "next: declining commits with the subject the gate lets through" "2|1" \
