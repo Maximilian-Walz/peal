@@ -214,8 +214,11 @@ Notes. The board takes `merge` only from the main branch's copy of a task file, 
 issue's label: a claim branch's copy can only empty it, never grant it.
 
 Where the agreement lives: under a control plane, in the control plane's own record of the
-human's answer to the plan; without one, in `merge: auto` the human writes on the main
-branch themselves (their own pull request, or the issue's label). `/peal:work` writes
+human's answer to the plan; without one, in `merge: auto` the human writes themselves:
+the issue's label, at any time, or, for a task file, the field on the main branch (their
+own pull request) before the task is claimed. A claim copy can only withdraw `merge`, so
+in the files storage a field the human writes on the main branch after the claim never
+reaches the board. `/peal:work` writes
 `merge: auto agreed by the human (<date>)` under the task's Notes when the human agrees it:
 a trace that grants nothing, which only makes the close ask the reviewer whether the diff
 still earns it. A forged line adds a review question and nothing else. The close's
@@ -435,9 +438,10 @@ unpinned reference in the template or in Peal's workflows.
 Merging ships: the marketplace installs `./plugin` from the default branch. Under
 Belfry's contract (`.belfry.yml`), these pull requests merge without the human, each
 only with `shellcheck` and both `harnesses` jobs green: task files and milestone texts,
-documentation outside `docs/security.md`, and tasks whose `merge: auto` the human
-agreed with the plan, as Belfry records the answer (never a field a session wrote, see
-"`merge: auto` is the human's"). Guard code (the `review_before_merge` paths: the CLI, the storage,
+documentation outside `docs/security.md`. Tasks whose `merge: auto` the human agreed
+with the plan are meant to join them once Belfry acts on its own record of the answer
+(never a field a session wrote, see "`merge: auto` is the human's"); until then such
+pull requests wait for the human. Guard code (the `review_before_merge` paths: the CLI, the storage,
 claim and work libraries, the prompts under `plugin/commands/` and `plugin/agents/`,
 `CLAUDE.md`) merges by itself only once a fresh `security-pr` review passed on the
 pull request's head, after an hour's grace for the human's Hold. What could loosen the

@@ -131,8 +131,10 @@ elsewhere than in files, a copy of the task), never touching `## Raw`:
   looking at it, so no session writes it (`peal record` and `peal frontmatter set`
   refuse it) and the board grants it only from the main branch's copy or the issue's
   label. Under a control plane, the control plane keeps its own record of the human's
-  answer and acts on that; without one, the human writes `merge: auto` on the main
-  branch themselves. The Notes line grants nothing: it is a trace for the reader, and it
+  answer and acts on that; without one, the human sets `merge: auto` themselves: the
+  issue's label at any time, or, for a task file, the field on the main branch before
+  the claim (a claim copy can only withdraw it, so a field written on the main branch
+  after the claim never reaches the board). The Notes line grants nothing: it is a trace for the reader, and it
   makes the close ask the reviewer whether the diff still earns it. Never write it on
   your own judgement, and never for a plan the human did not see.
 
