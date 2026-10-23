@@ -114,6 +114,15 @@ peal_text_human_section() {
   return 1
 }
 
+# peal_text_merge_agreed -> status 0 if "## Notes" holds the line /peal:work writes when
+# the human agrees merge: auto at planning ("merge: auto agreed by the human (<date>)").
+# A trace that grants nothing: the agreement itself is the control plane's record of the
+# answer, or merge: auto written by the human on the main branch (docs/security.md); the
+# line only makes close ask the reviewer for its merge-auto verdict.
+peal_text_merge_agreed() {
+  peal_text_section Notes | grep -q 'merge: auto agreed by the human'
+}
+
 # peal_text_outcome_placeholder -> status 0 if "## Outcome" still holds an HTML comment,
 # the template's placeholder or a note left in it, outside any indented (quoted) block: an
 # idea copied out of the queue by hand and indented into the Outcome carries its own

@@ -198,6 +198,47 @@ end the frontmatter or open a section of the task file.
 - Guard: `plugin/bin/peal` (`comment`), `plugin/lib/store-files.sh`
   (`_peal_files_rewrite_comment`).
 
+### `merge: auto` is the human's
+
+`merge: auto` lets a control plane merge a pull request once its checks are green, with no
+human looking at it: it stands for the human's consent to that merge, so it is a record no
+session can write. A session steered by unmarked content, or a model's mistake in an
+unattended job, could otherwise set the field on its own claim and have its pull request
+merged. So no text a session writes adds `merge`: `peal record`, `peal revise` (on the
+main branch and on a claim) and issue edits refuse a text whose `merge` is set and
+differs from the text before (`peal_merge_added`; taking it away, the reviewer's withdraw
+or a revise, is always allowed), and no `peal apply` kind but `file` carries frontmatter; every filing (`peal create`, `peal
+idea`, the ideas a close files, a split's pieces, `peal create --owner`, `peal
+idea-fields`, `apply`'s `file`) refuses a text that sets `merge` at all; `peal frontmatter
+set` and `set-list` refuse the key, `unset` keeps working; `peal comment` reaches only the
+Notes. The board takes `merge` only from the main branch's copy of a task file, or the
+issue's label: a claim branch's copy can only empty it, never grant it.
+
+Where the agreement lives: under a control plane, in the control plane's own record of the
+human's answer to the plan; without one, in `merge: auto` the human writes themselves:
+the issue's label, at any time, or, for a task file, the field on the main branch (their
+own pull request) before the task is claimed. A claim copy can only withdraw `merge`, so
+in the files storage a field the human writes on the main branch after the claim never
+reaches the board. `/peal:work` writes
+`merge: auto agreed by the human (<date>)` under the task's Notes when the human agrees it:
+a trace that grants nothing, which only makes the close ask the reviewer whether the diff
+still earns it. A forged line adds a review question and nothing else. The close's
+`merge-auto: withdraw` removes the field where the task holds it and, either way, puts
+"merge: auto withdrawn" at the top of the pull request's body, for the control plane to
+leave the merge to the human.
+
+Known gap: a session with a `gh` login that may label issues can add the `merge: auto`
+label itself; the issues storage relies on the control plane withholding that login (`gh`
+holds the token, below).
+
+- Guard: `plugin/lib/tasks.sh` (`peal_merge_added`, `peal_edit_check`),
+  `plugin/lib/work.sh` (`peal_record`), `plugin/lib/task-check.awk` (filings),
+  `plugin/bin/peal` (`frontmatter`), `plugin/lib/store-files.sh` (`_peal_files_overlay`,
+  `_peal_files_build_rewrite`), `plugin/lib/close.sh` (`_peal_close_merge_asked`).
+- Harness: `plugin/lib/store-files.test.sh` (`claim_copies`, revise, comment, create,
+  idea), `plugin/lib/work.test.sh` (`record`), `plugin/lib/store-issues.test.sh`
+  (`merge`), `plugin/lib/close.test.sh` (`merge_cases`).
+
 ### A batch of proposals on stdin is data, read without a shell or jq
 
 Belfry runs `tasks.commands.apply` (`.peal/peal apply`) itself, outside any session's
@@ -377,19 +418,20 @@ session reports the number back with `peal close opened`.
 ### CI that runs on a stranger's pull request cannot write or reach secrets
 
 The workflow's top-level `permissions: contents: read` leaves every job read-only by
-default; a fork's pull request runs only the harnesses and `shellcheck`, nothing that
-needs a secret or a write.
+default; a fork's pull request runs only the harnesses, the merge gate and `shellcheck`,
+nothing that needs a secret or a write.
 
 Every action runs at a pinned commit SHA, which Dependabot keeps current, and OpenSSF
-Scorecard checks the workflows weekly. The decisions workflow template
-(`plugin/templates/decisions.yml`) ships its action and its Peal pinned by SHA too:
-Dependabot keeps the action current across `/` and `/plugin/templates`, the Peal pin
-follows each release (its tag set by the release, its SHA by `peal ship pin` after the tag, checked by `tools/pins.test.sh`), and `tools/pins.sh` refuses an
-unpinned reference in the template or in Peal's workflows.
+Scorecard checks the workflows weekly. The workflow templates
+(`plugin/templates/decisions.yml`, `plugin/templates/merge-gate.yml`) ship their action
+and their Peal pinned by SHA too: Dependabot keeps the action current across `/` and
+`/plugin/templates`, the Peal pin follows each release (its tag set by the release, its
+SHA by `peal ship pin` after the tag, checked by `tools/pins.test.sh`), and
+`tools/pins.sh` refuses an unpinned reference in the templates or in Peal's workflows.
 
 - Guard: `.github/workflows/ci.yml` (`permissions:`, the pinned `uses:`),
   `.github/dependabot.yml`, `.github/workflows/scorecard.yml`,
-  `plugin/templates/decisions.yml`, `tools/pins.sh`.
+  `plugin/templates/decisions.yml`, `plugin/templates/merge-gate.yml`, `tools/pins.sh`.
 - Harness: `tools/pins.test.sh`; Scorecard's weekly run reports an unpinned action or a
   broad permission.
 
@@ -398,15 +440,64 @@ unpinned reference in the template or in Peal's workflows.
 Merging ships: the marketplace installs `./plugin` from the default branch. Under
 Belfry's contract (`.belfry.yml`), these pull requests merge without the human, each
 only with `shellcheck` and both `harnesses` jobs green: task files and milestone texts,
-documentation outside `docs/security.md`, and tasks the human marked `merge: auto` when
-agreeing the plan. Guard code (the `review_before_merge` paths: the CLI, the storage,
+documentation outside `docs/security.md`. Tasks whose `merge: auto` the human agreed
+with the plan are meant to join them once Belfry acts on its own record of the answer
+(never a field a session wrote, see "`merge: auto` is the human's"); until then such
+pull requests wait for the human. Guard code (the `review_before_merge` paths: the CLI, the storage,
 claim and work libraries, the prompts under `plugin/commands/` and `plugin/agents/`,
 `CLAUDE.md`) merges by itself only once a fresh `security-pr` review passed on the
 pull request's head, after an hour's grace for the human's Hold. What could loosen the
 gates or the release chain (hooks, launcher and githook, `githooks.sh`, `git-guard.sh`,
 `session.sh`, `main-write.sh`, `ship.sh`, `plugin/commands/release.md`, the plugin and
-marketplace manifests, `.peal/`, CI helpers, this file and `SECURITY.md`) always waits
-for the human, as do `.belfry.yml`, `.github/**` and `.claude/settings.json`.
+marketplace manifests, `.peal/`, CI helpers, the merge gate, this file and
+`SECURITY.md`) always waits for the human, as do `.belfry.yml`, `.github/**` and
+`.claude/settings.json`.
+
+The tiers would combine into a way around the human: a task-files pull request merges by
+itself on its paths, and could write `merge: auto` into another task, whose own pull
+request the `agreed tasks` rule would then merge. `peal merge-gate BASE HEAD` closes that
+route: a pull request fails when a task file under `backlog/` or `doing/` that it adds or
+changes holds a `merge` key (any value, read raw, not as the board normalises it) that
+BASE did not already give a task of the same id outside `done/`, or when such a file's
+frontmatter does not parse (the board would read it differently from the gate). It reads
+git objects only, BASE's settings for BASE and HEAD's for HEAD, so a pull request that
+moves the tasks folder is judged by where its own settings put the tasks; any doubt (a
+missing or all-zero BASE, settings that do not load, git failing) fails it. A close's
+move into `done/` passes: the task's own pull request carries the `merge` the human
+agreed. In Peal's CI the gate is a step of the `changes` job, so it fails the required
+`harnesses (ubuntu-latest)` that every auto-merge rule waits for; it runs BASE's Peal
+(a worktree of BASE), never the pull request's. An adopting project copies
+`plugin/templates/merge-gate.yml`, which fetches Peal pinned by SHA, makes its
+`peal merge-gate` job required and lists it in its auto-merge rules' checks
+([the Belfry guide](guides/belfry.md)); changing that workflow or the pin needs a
+`.github/**` change, which never merges by itself.
+
+- Guard: `plugin/lib/merge-gate.sh`, `plugin/lib/merge-gate.awk`, the `peal merge-gate`
+  step of `.github/workflows/ci.yml`, `plugin/templates/merge-gate.yml`.
+- Harness: `plugin/lib/merge-gate.test.sh`, `plugin/lib/hostile.test.sh`,
+  `tools/pins.test.sh` (the template's pin).
+
+Its limits:
+
+- **The direct push.** `peal revise` and `peal comment` push onto main without a pull
+  request; a push of their shape that adds `merge` is not seen by this gate. That route
+  is task 0180's.
+- **The bootstrap.** While BASE has no `plugin/lib/merge-gate.sh` (the pull request that
+  adds the gate), Peal's CI runs the pull request's own gate. That pull request changes
+  `.github/**` and the gate's files, so a human merges it; every later one runs BASE's.
+- **`pull_request`, not `pull_request_target`.** The gate runs with a read-only token and
+  no secret, so a fork's pull request reaches nothing, and the code it runs is BASE's (or
+  the template's pinned Peal), never the head's. The workflow file itself is the pull
+  request's own under `pull_request`, so one that edits the step away touches
+  `.github/**`, which a human merges. The price: a fork's run can be held for a
+  maintainer's approval, and until it runs the required check is missing, which holds
+  the merge rather than letting it through.
+- **A changed plan under an agreed `merge`.** The gate refuses a `merge` key that arrives;
+  it lets a pull request edit the rest of a task that already holds `merge: auto` on
+  main. A task-files pull request, which merges by itself, can therefore rewrite the
+  `## Plan` or `## Scope` the human agreed `merge: auto` for, and the task's own pull
+  request then merges by itself under the agreed plan's name. Open; an idea filed by
+  0161 proposes a gate for it.
 
 ## What this milestone leaves open
 

@@ -69,6 +69,8 @@ export GH_TELEMETRY="${GH_TELEMETRY:-0}"
 . "$PEAL_ROOT/lib/next.sh"
 # shellcheck source=../lib/migrate.sh
 . "$PEAL_ROOT/lib/migrate.sh"
+# shellcheck source=../lib/merge-gate.sh
+. "$PEAL_ROOT/lib/merge-gate.sh"
 
 usage() {
   cat <<'EOF'
@@ -118,6 +120,14 @@ usage: peal <command> [args]
                                 whose slug is not kebab-case, a depends cycle
                                 among the tasks not done, and with the decisions
                                 module on, what peal decision check reports
+  merge-gate BASE HEAD          a pull request's check (templates/merge-gate.yml): refused,
+                                status 1 and each file named, when a task file under
+                                backlog/ or doing/ that HEAD adds or changes has
+                                frontmatter that does not parse, or a merge key BASE did
+                                not give a task of the same id outside done/ with the
+                                same value; reads git objects only, each side's own
+                                settings; status 2 for a BASE or HEAD that is empty, all
+                                zeros or no commit, and settings that do not load
   doctor [CHECK...]             what is broken in this project's Peal, one sentence and
                                 one fix per problem (lib/doctor.sh): config (the
                                 effective settings and their values), version (.peal/peal
@@ -136,6 +146,8 @@ usage: peal <command> [args]
   frontmatter get FILE KEY      print a value, or a list's items one per line
   frontmatter set FILE KEY VALUE
   frontmatter set-list FILE KEY [ITEM...]
+                                set and set-list refuse the key merge: only the human
+                                sets merge: auto (docs/security.md)
   frontmatter unset FILE KEY
   milestones [--json]           one line per milestone: id state order due title, or
                                 the board's {"milestone":{...}} lines; the milestone
@@ -337,6 +349,15 @@ need() {
   fi
 }
 
+# frontmatter_not_merge KEY: refuse a write of merge: merge: auto is the human's consent to
+# a merge, written by the human on the main branch (docs/security.md); unset still works.
+frontmatter_not_merge() {
+  if [ "$1" = merge ]; then
+    peal_err "frontmatter: refuses the key merge; only the human sets merge: auto (docs/security.md)"
+    exit 2
+  fi
+}
+
 cmd_frontmatter() {
   need 2 "$@"
   local sub=$1
@@ -345,8 +366,8 @@ cmd_frontmatter() {
     check) need 1 "$@"; peal_fm_check "$1" ;;
     keys) need 1 "$@"; peal_fm_keys "$1" ;;
     get) need 2 "$@"; peal_fm_get "$1" "$2" ;;
-    set) need 3 "$@"; peal_fm_set "$1" "$2" "$3" ;;
-    set-list) need 2 "$@"; peal_fm_set_list "$@" ;;
+    set) need 3 "$@"; frontmatter_not_merge "$2"; peal_fm_set "$1" "$2" "$3" ;;
+    set-list) need 2 "$@"; frontmatter_not_merge "$2"; peal_fm_set_list "$@" ;;
     unset) need 2 "$@"; peal_fm_unset "$1" "$2" ;;
     *) usage >&2; exit 2 ;;
   esac
@@ -488,6 +509,7 @@ main() {
     --version | version) peal_version ;;
     -h | --help | help) usage ;;
     check) cmd_check "$@" ;;
+    merge-gate) peal_merge_gate "$@" ;;
     doctor) peal_doctor "$@" ;;
     config) cmd_config "$@" ;;
     frontmatter) cmd_frontmatter "$@" ;;

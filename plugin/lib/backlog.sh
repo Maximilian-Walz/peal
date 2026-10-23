@@ -112,10 +112,10 @@ peal_revise() {
 # --origin outsider is refused there. Refused (status 2), nothing written: an
 # option other than --owner, --title or --origin, either --owner or --title missing or
 # given twice, --origin given twice, OWNER not ai or human, ORIGIN not outsider or
-# writer, a slug of one word, no text on stdin, a text that sets merge (only a human,
-# editing the task itself, earns merge: auto) or holds the task delimiter (one task at a
+# writer, a slug of one word, no text on stdin, a text that sets merge (task-check.awk:
+# only the human sets merge: auto, docs/security.md) or holds the task delimiter (one task at a
 # time here), or an outsider's text with a filled "## Plan" or "## Outcome"
-# (peal_text_human_section). A text whose first line after the frontmatter is not an H1
+# (peal_text_human_section). A text whose first non-blank line after the frontmatter is not an H1
 # gets "# NNNN — TITLE" there (the title made one line); a text with its own heading keeps
 # it, whatever its title, and a malformed or wrong-number one is refused as before.
 # PEAL_MAIN_WRITE_BUDGET is capped to about 90s unless the caller set it, so
@@ -180,11 +180,6 @@ peal_create_filed() {
   fi
   if grep -qF -- "$PEAL_TASK_DELIMITER" "$tmp"; then
     peal_err "create: the text holds '$PEAL_TASK_DELIMITER'; one task at a time here"
-    rm -f "$tmp"
-    return 2
-  fi
-  if [ -n "$(peal_fm_get "$tmp" merge 2>/dev/null)" ]; then
-    peal_err "create: the text sets merge; only a human, editing the task itself, sets merge: auto"
     rm -f "$tmp"
     return 2
   fi

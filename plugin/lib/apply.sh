@@ -631,7 +631,7 @@ _pa_item() {
     sed "s/NNNN/$id/g" "$f.h" >"$f"
     rm -f "$f.h"
     if [ -n "$(peal_fm_get "$f" merge 2>/dev/null)" ]; then
-      peal_err "the text sets merge; only a human, editing the task itself, sets merge: auto"
+      peal_err "the text sets merge; only the human sets merge: auto (docs/security.md)"
       return 2
     fi
     _pa_frontmatter "$i" "$f" || return 2

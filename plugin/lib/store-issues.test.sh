@@ -1054,19 +1054,24 @@ after_deploy() {
 merge() {
   local out
   issues_repo
-  issue 1 "Auto" --label "merge: auto"
+  issue 1 "Auto" --label "merge: auto" --body $'Why.\n\n## Raw\n\nthe human said so\n\n## Notes\n'
   issue 2 "Odd" --label "merge: always"
   check "merge: board" '{"id":"1","state":"free","slug":"auto","title":"Auto","merge":"auto"}
 {"id":"2","state":"free","slug":"odd","title":"Odd"}' "$(peal board 2>&1 | grep -v '^{"milestone"' | normal)"
   check "merge: read" "merge: auto" "$(peal read 1 | grep '^merge')"
   check "merge: read, another word is none" "" "$(peal read 2 | grep '^merge')"
-  out=$(peal create auto-thing < <(TITLE="Auto thing" text "merge: auto") 2>&1)
-  check "merge: create" "0:filed 3" "$?:${out%% https*}"
-  check "merge: the label" "merge: auto" "$(labels 3)"
-  peal read 3 | sed '/^merge:/d' | peal revise 3 --reason "riskier than it looked" >/dev/null 2>&1
-  check "merge: revise drops the label" "" "$(labels 3)"
-  check_refused "merge: a word Peal does not know" "merge always is not auto" \
+  # Only the human sets merge: auto (docs/security.md): no filing or revise adds it.
+  check_refused "merge: create refused" "the text sets merge" \
+    peal create auto-thing < <(TITLE="Auto thing" text "merge: auto")
+  check_refused "merge: create refuses any word" "the text sets merge" \
     peal create odd-thing < <(text "merge: always")
+  out=$(peal create auto-thing < <(TITLE="Auto thing" text) 2>&1)
+  check "merge: create without" "0:filed 3" "$?:${out%% https*}"
+  check_refused "merge: revise adding the label" "revise: the text sets merge" \
+    peal revise 3 --reason "agreed" < <(ID=3 TITLE="Auto thing" text "merge: auto")
+  check "merge: nothing added" "" "$(labels 3)"
+  peal read 1 | sed '/^merge:/d' | peal revise 1 --reason "riskier than it looked" >/dev/null 2>&1
+  check "merge: revise drops the label" "" "$(labels 1)"
 }
 
 # branch_date_utc: a parked issue's "last <date>" detail is the UTC date of its branch's

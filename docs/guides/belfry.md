@@ -42,8 +42,11 @@ whose tasks are GitHub issues, the contract names the `github-issues` backend in
   a job that runs again continues where the last stopped.
 - **Finished means a pull request open and green.** `/peal:close` waits for the checks
   (with Belfry's `wait_ci` tool, which spends none of your GitHub budget; `peal close
-  wait` without it), and the merge is yours, or the task's, if it says `merge: auto` and Belfry's policy for
-  the project allows it (its `auto_merge` policy, which Belfry documents).
+  wait` without it), and the merge is yours, or the task's, if you agreed `merge: auto` with its plan and
+  Belfry's policy for the project allows it (its `auto_merge` policy, which Belfry
+  documents), once Belfry acts on its own record of your answer (belfry#729); until then
+  the merge of a plan-agreed task is yours. Peal's board never grants `merge` from a
+  claim branch's copy, and no session writes the field (`docs/security.md`).
 - **No GitHub login in the session.** Belfry hides the worker's `gh` login from its
   sessions. `/peal:close` opens the pull request through Belfry's `pr_create` tool
   (`peal close finish --pr-by-tool`, then `peal close opened N URL`), opens no early
@@ -62,3 +65,25 @@ The file ends with two commented-out actions. Uncomment `milestone-review`, and 
 offers the review when a milestone's tasks are done; uncomment `release`, and the
 Releases tab's button runs [`/peal:release`](releases.md). `peal board` prints what
 Belfry draws its lanes from ([CLI](../reference/cli.md#peal-board)).
+
+## Auto-merge and `merge: auto`
+
+Belfry's `auto_merge` policy can merge two kinds of pull request without you that
+together open a way around you: one that touches only task files, and the pull request of
+a task marked `merge: auto`. A task-files pull request could write `merge: auto` into
+another task, which you mean to write only when agreeing its plan. Before you allow both,
+add Peal's merge gate:
+
+1. Copy `plugin/templates/merge-gate.yml` from Peal to `.github/workflows/merge-gate.yml`.
+   It runs [`peal merge-gate`](../reference/cli.md#peal-merge-gate) on every pull request,
+   with Peal pinned by SHA, and fails one in which a task file under `backlog/` or
+   `doing/` gains a `merge` key. The command ships in the first release after v0.7.0;
+   the template pinned to v0.7.0 fails every pull request, so copy it from that release on.
+2. Make its job, `peal merge-gate`, a required check of the main branch.
+3. List `peal merge-gate` in the `checks` of every `auto_merge` rule.
+4. Keep `.github/**` merged by you (Belfry already never auto-merges it): the gate is
+   only as strong as the workflow that runs it.
+
+The direct pushes of `peal revise` and `peal comment` reach main without a pull request,
+so the gate does not see them; [the security model](../security.md#auto-merge-tiers)
+names that limit.
