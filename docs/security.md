@@ -382,9 +382,10 @@ nothing that needs a secret or a write.
 Every action runs at a pinned commit SHA, which Dependabot keeps current, and OpenSSF
 Scorecard checks the workflows weekly. The workflow templates
 (`plugin/templates/decisions.yml`, `plugin/templates/merge-gate.yml`) ship their action
-and their Peal pinned by SHA too: Dependabot keeps the action current across `/` and `/plugin/templates`, the Peal pin
-follows each release (its tag set by the release, its SHA by `peal ship pin` after the tag, checked by `tools/pins.test.sh`), and `tools/pins.sh` refuses an
-unpinned reference in the templates or in Peal's workflows.
+and their Peal pinned by SHA too: Dependabot keeps the action current across `/` and
+`/plugin/templates`, the Peal pin follows each release (its tag set by the release, its
+SHA by `peal ship pin` after the tag, checked by `tools/pins.test.sh`), and
+`tools/pins.sh` refuses an unpinned reference in the templates or in Peal's workflows.
 
 - Guard: `.github/workflows/ci.yml` (`permissions:`, the pinned `uses:`),
   `.github/dependabot.yml`, `.github/workflows/scorecard.yml`,
@@ -447,6 +448,12 @@ Its limits:
   `.github/**`, which a human merges. The price: a fork's run can be held for a
   maintainer's approval, and until it runs the required check is missing, which holds
   the merge rather than letting it through.
+- **A changed plan under an agreed `merge`.** The gate refuses a `merge` key that arrives;
+  it lets a pull request edit the rest of a task that already holds `merge: auto` on
+  main. A task-files pull request, which merges by itself, can therefore rewrite the
+  `## Plan` or `## Scope` the human agreed `merge: auto` for, and the task's own pull
+  request then merges by itself under the agreed plan's name. Open; an idea filed by
+  0161 proposes a gate for it.
 
 ## What this milestone leaves open
 
