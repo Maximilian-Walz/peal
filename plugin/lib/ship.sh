@@ -453,6 +453,9 @@ _peal_ship_edits_admitted() {
 _peal_ship_issue_items() {
   local dir=$1 id row state reason title labels ispr assoc login prs kind first sentence subject trusted samerepo prassoc prlogin
   [ -n "$PEAL_GH_REPO" ] || { peal_err "no GitHub repository: set storage.issues.repo"; return 2; }
+  peal_gh_need_login "the release notes of an issues project (its closed issues)" \
+    "under Belfry a release runs as the release workflow Belfry dispatches, where gh has the run's token; else run it where gh is logged in" \
+    || return 2
   awk -F '\t' '$4 ~ /^[0-9]+$/ && !seen[$4]++ { print $4 }' "$dir/commits" >"$dir/ids"
   : >"$dir/issues"
   : >"$dir/checked"
@@ -915,6 +918,8 @@ _peal_ship_gh() {
 
 # peal_ship_publish VERSION -> the GitHub release of VERSION's tag, its notes
 # peal_ship_notes's, created or brought up to date; nothing on a remote not on GitHub.
+# Without gh's login (or a token, as in a release workflow) it refuses with the reason
+# before any gh release call, status 2.
 peal_ship_publish() {
   local dir tag url status=0
   [ $# -eq 1 ] || { peal_err "ship publish: VERSION"; return 2; }
@@ -929,6 +934,9 @@ peal_ship_publish() {
     echo "no GitHub release: $PEAL_REMOTE is not on GitHub; the tag $tag is the release"
     return 0
   fi
+  peal_gh_need_login "the GitHub release of $tag" \
+    "under Belfry a release runs as the release workflow Belfry dispatches, where gh has the run's token; else publish where gh is logged in" \
+    || return 2
   dir=$(mktemp -d) || return 2
   _peal_ship_range "$tag"
   PEAL_SHIP_TAG=$tag

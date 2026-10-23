@@ -99,6 +99,13 @@ PROPOSE v0.1.0 first" "$(peal ship propose 2>&1)"
   gh_save releases '[]'
   check_refused "publish: gh fails" "gh release create failed" peal ship publish 0.1.0
   rm "$FAKE_GH/fail"
+  # Without gh's login: refused with the reason, before any gh release call.
+  touch "$FAKE_GH/no-auth"
+  : >"$FAKE_GH/log"
+  check_refused "publish: no login" "the GitHub release of v0.1.0 needs gh's login, and gh has none here (a Belfry session hides it); under Belfry a release runs as the release workflow Belfry dispatches" \
+    peal ship publish 0.1.0
+  check "publish: no login, no gh release call" "0" "$(grep -c RELEASE "$FAKE_GH/log")"
+  rm "$FAKE_GH/no-auth"
 
   # Fixes only: a patch. Retired tasks (by retire, or within an apply), release-note: none, chores and a task done
   # before the last release are left out; a fix commit of no task goes in.
@@ -187,8 +194,10 @@ READY" "$?:$out"
 - Title of 0001: Done. (0001, #1)" "$(peal ship notes 0.1.0 2>&1)"
   peal ship tag release-0.1.0 >/dev/null 2>&1
   check "tag: the prefix" "release-0.1.0" "$(git -C "$work" ls-remote --tags --refs origin | sed 's|.*refs/tags/||')"
+  touch "$FAKE_GH/no-auth"
   out=$(peal ship publish 0.1.0 2>&1)
   check "publish: not on GitHub" "0:no GitHub release: origin is not on GitHub; the tag release-0.1.0 is the release" "$?:$out"
+  rm "$FAKE_GH/no-auth"
   OUTCOME="Done." land 0002 second-thing "Second thing [0002] (#2)"
   check "propose: the prefix" "PROPOSE release-0.2.0 minor" "$(peal ship propose 2>&1 | tail -n 1)"
 
@@ -735,6 +744,9 @@ PROPOSE v0.1.0 first" "$(peal ship propose 2>&1)"
   peal ship tag 0.1.0 >/dev/null 2>&1
   out=$(peal ship publish 0.1.0 2>&1)
   check "issues: published" "0:released v0.1.0: https://github.com/acme/widgets/releases/tag/v0.1.0" "$?:$out"
+  touch "$FAKE_GH/no-auth"
+  check_refused "issues: notes without gh's login" "the release notes of an issues project (its closed issues) needs gh's login" peal ship notes 0.1.0
+  rm "$FAKE_GH/no-auth"
   commit "fix: the loader [2] (#16)"
   check "issues: propose a patch" "ITEM fix 2 #16 Crash on start
 PROPOSE v0.1.1 patch" "$(peal ship propose 2>&1 | tail -n 2)"
