@@ -204,9 +204,9 @@ human looking at it: it stands for the human's consent to that merge, so it is a
 session can write. A session steered by unmarked content, or a model's mistake in an
 unattended job, could otherwise set the field on its own claim and have its pull request
 merged. So no text a session writes adds `merge`: `peal record`, `peal revise` (on the
-main branch and on a claim), issue edits and `peal apply`'s edits refuse a text whose
-`merge` is set and differs from the text before (`peal_merge_added`; taking it away, the
-reviewer's withdraw or a revise, is always allowed); every filing (`peal create`, `peal
+main branch and on a claim) and issue edits refuse a text whose `merge` is set and
+differs from the text before (`peal_merge_added`; taking it away, the reviewer's withdraw
+or a revise, is always allowed), and no `peal apply` kind but `file` carries frontmatter; every filing (`peal create`, `peal
 idea`, the ideas a close files, a split's pieces, `peal create --owner`, `peal
 idea-fields`, `apply`'s `file`) refuses a text that sets `merge` at all; `peal frontmatter
 set` and `set-list` refuse the key, `unset` keeps working; `peal comment` reaches only the
