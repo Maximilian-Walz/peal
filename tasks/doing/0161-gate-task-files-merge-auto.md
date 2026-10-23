@@ -14,6 +14,13 @@ touches: [plugin/lib/merge-gate*, plugin/bin/peal, plugin/lib/hostile.test.sh, p
 
 Found in 0149. The `task files` auto-merge tier lets a pull request that touches only `tasks/**` merge by itself, and the `agreed tasks` rule merges any task marked `merge: auto`. A task-files pull request can therefore write `merge: auto` into another task's frontmatter, which the human only means to write when agreeing a plan. Accepted for now; find a gate (a check, a Belfry rule or a harness) so that `merge: auto` cannot arrive through a pull request that auto-merges on its paths.
 
+## Scope
+
+- `peal merge-gate BASE HEAD`: refuses a pull request in which a `backlog/` or `doing/` task file gains a `merge` key that BASE does not already give that task; fails closed on doubt.
+- A workflow template (`plugin/templates/merge-gate.yml`) for adopting projects, copied by hand, and the gate as a step of Peal's own CI.
+- Docs: the CLI reference, `docs/security.md`, the Belfry guide, the design's CI paragraph.
+- The pull request route only; the direct push route is 0180's.
+
 ## Done when
 
 - A pull request that adds or changes `merge: auto` in a task file does not merge without the human, or the gap is documented with its reason in docs/security.md.
