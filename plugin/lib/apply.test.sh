@@ -362,6 +362,9 @@ said" "$(on_main "$work" tasks/backlog/0005-heading-from-the-title.md)"
   check "heading: a one-line title, no frontmatter" "# 0006 — Line one and two" "$(on_main "$work" tasks/backlog/0006-line-one-and-two.md | head -n 1)"
   check "heading: its own wins" "# 0007 — Its own" "$(on_main "$work" tasks/backlog/0007-not-this-title.md | head -n 1)"
   before=$(main_sha)
+  out=$(printf '%s' '{"proposals": [{"id": "a", "kind": "file", "title": "Outsider with a plan", "origin": "outsider", "text": "## Plan\n\nDo it.\n\n## Raw\n\nsaid\n"}]}' | peal apply 2>"$work.err")
+  check "heading: a heading-less outsider text with a Plan is refused, nothing written" "$before:1" \
+    "$(main_sha):$(printf '%s\n' "$out" | grep -c "filled '## Plan'")"
   out=$(printf '%s' '{"proposals": [{"id": "a", "kind": "file", "title": "Another number here", "text": "# 0007 — X\n\n## Raw\n\nsaid\n"}]}' | peal apply 2>"$work.err")
   st=$?
   check "heading: another number refused, nothing written" "2:$before:1" "$st:$(main_sha):$(printf '%s\n' "$out" | grep -c '"done": false')"

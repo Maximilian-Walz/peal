@@ -23,7 +23,7 @@ peal_text_title() {
 # peal_text_one_line TITLE -> TITLE as one line: control characters to spaces, runs of
 # spaces to one, ends trimmed.
 peal_text_one_line() {
-  printf '%s' "$1" | tr '[:cntrl:]' ' ' | tr -s ' ' | sed -e 's/^ //' -e 's/ $//'
+  printf '%s' "$1" | tr '[:cntrl:]' ' ' | sed -e 's/\xc2\x85/ /g' -e 's/\xe2\x80\xa8/ /g' -e 's/\xe2\x80\xa9/ /g' | tr -s ' ' | sed -e 's/^ //' -e 's/ $//'
 }
 
 # peal_text_ensure_heading TITLE -> the text on stdin with a heading: when the first
@@ -33,7 +33,18 @@ peal_text_one_line() {
 # passes as it is, whatever its title or number (peal_task_check judges those). TITLE
 # is made one line: control characters to spaces, runs of spaces to one, ends trimmed.
 peal_text_ensure_heading() {
-  PEAL_HTITLE=$(peal_text_one_line "$1") awk '
+  local text
+  text=$(cat; printf x) || return 2
+  text=${text%x}
+  if printf '%s' "$text" | awk '
+    NR == 1 && $0 == "---" { fm = 1; next }
+    fm { if ($0 == "---") fm = 0; next }
+    $0 !~ /^[ \t\r]*$/ { exit !($0 ~ /^# /) }
+    END { exit 1 }'; then
+    printf '%s' "$text"
+    return
+  fi
+  printf '%s' "$text" | PEAL_HTITLE=$(peal_text_one_line "$1") awk '
     { l[NR] = $0 }
     END {
       s = 1

@@ -271,8 +271,8 @@ final once it merges`. A cycle through a task the text adds or changes exits 1 w
   (`ai` or `human`) is written into `owner`, winning over the text's own; `outsider` is
   written into `origin`, `writer` or none writes no field; the issues storage has no label for `origin`, so
   `--origin outsider` is refused there, as is an outsider's text with a filled `## Plan`
-  or `## Outcome` (`docs/security.md`). A text whose first line after the frontmatter is
-  not a `# ` heading (Belfry's body comes without one) is filed under `# <id> — TITLE`,
+  or `## Outcome` (`docs/security.md`). A text whose first non-blank line after the frontmatter
+  is not a `# ` heading (Belfry's body comes without one) is filed under `# <id> — TITLE`,
   written there from `--title`, made one line (control characters to spaces, runs of
   spaces collapsed, ends trimmed); a text with its own heading keeps it, whatever its
   title, and a heading with another number or no title is refused as before. Ends with
