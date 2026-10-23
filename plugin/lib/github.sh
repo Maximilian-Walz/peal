@@ -101,6 +101,23 @@ peal_gh_failed() {
   fi
 }
 
+# peal_gh_login -> status 0 when gh has a token (its login, or GH_TOKEN as in a GitHub
+# workflow), 1 when it has none or is missing. `gh auth token` answers offline.
+peal_gh_login() {
+  command -v gh >/dev/null 2>&1 || return 1
+  gh auth token >/dev/null 2>&1
+}
+
+# peal_gh_need_login WHAT INSTEAD -> status 0 when gh has a token; else status 1 and the
+# line "peal: WHAT needs gh's login, and gh has none here (a Belfry session hides it);
+# INSTEAD". A write that needs a login asks it first, so it refuses before it changes
+# anything rather than failing halfway (docs/guides/belfry.md).
+peal_gh_need_login() {
+  peal_gh_login && return 0
+  peal_err "$1 needs gh's login, and gh has none here (a Belfry session hides it); $2"
+  return 1
+}
+
 # peal_json [KIND:KEY VALUE]... -> a request's JSON object (lib/json-request.awk).
 peal_json() {
   awk -f "$PEAL_ROOT/lib/json.awk" -f "$PEAL_ROOT/lib/json-request.awk" "$@"

@@ -360,7 +360,40 @@ peal: tasks/backlog/0001-existing-task.md changed on origin/main meanwhile; read
   check "conflict: the branch gone" "" "$(remote for-each-ref refs/heads/peal/)"
 }
 
+# no_login -> without gh's login the pull request route refuses with the reason before it
+# pushes a branch, under pr and under auto once the push is refused; the push route works.
+no_login() {
+  local out st main
+  protected
+  touch "$FAKE_GH/no-auth"
+  main=$(remote rev-parse main)
+  out=$(text | peal create refused-task 2>&1)
+  st=$?
+  check "no login: auto refuses" "1" "$st"
+  check "no login: auto says why" "1" "$(grep -c "needs gh's login, and gh has none here (a Belfry session hides it); run it where gh is logged in" <<<"$out")"
+  check "no login: no branch" "" "$(remote for-each-ref refs/heads/peal/)"
+  check "no login: nothing remembered" "" "$(git -C "$work" config peal.mainWrites)"
+  check "no login: main as it was" "$main" "$(remote rev-parse main)"
+  check "no login: no GitHub call" "" "$(cat "$FAKE_GH/log" 2>/dev/null)"
+
+  protected "main-writes: pr"
+  touch "$FAKE_GH/no-auth"
+  out=$(text | peal create refused-task 2>&1)
+  st=$?
+  check "no login: pr refuses" "1:1" "$st:$(grep -c "needs gh's login" <<<"$out")"
+  check "no login: pr, no branch" "" "$(remote for-each-ref refs/heads/peal/)"
+  check "no login: pr, no GitHub call" "" "$(cat "$FAKE_GH/log" 2>/dev/null)"
+
+  protected "main-writes: push"
+  touch "$FAKE_GH/no-auth"
+  out=$(text | ALLOW_MAIN=1 peal create pushed-task 2>&1)
+  st=$?
+  check "no login: push goes through" "0" "$st"
+  check "no login: pushed" "tasks/backlog/0002-pushed-task.md" "$(remote ls-tree -r --name-only main tasks/backlog/ | grep pushed)"
+}
+
 cases() {
+  no_login
   through_pr
   push_only
   merge_self
