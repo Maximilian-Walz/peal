@@ -119,7 +119,11 @@ Where the pieces meet, and why:
   stops after the push, `peal close opened` takes the number back), with no early draft,
   the one CI rerun an empty commit, and queued ideas filed through `task_create` first.
   Without a login and without the tool, `peal close verify` answers
-  `BLOCKED:no-gh-login`, and `peal list` shows `pr:unknown`, quietly.
+  `BLOCKED:no-gh-login`, and `peal list` shows `pr:unknown`, quietly. The writes no
+  Belfry tool stands in for (a main-write through a pull request, `peal ship publish`,
+  the issues storage's writes) refuse up front with the reason instead of failing
+  halfway; [Running under Belfry](guides/belfry.md#what-a-session-can-and-cannot-rely-on)
+  lists every `gh` call and what it does there.
 - `peal milestone-state` is the change Belfry makes itself on GitHub for its
   `github-issues` backend. The review, an action Belfry offers when a milestone is closed,
   ends with one question, "Close <milestone>?", and makes that change on yes.
