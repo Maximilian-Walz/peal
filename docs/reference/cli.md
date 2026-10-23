@@ -138,11 +138,12 @@ Reads and writes frontmatter, Peal's YAML subset (scalars, lists in flow or bloc
 
 ### `peal frontmatter set`
 
-`peal frontmatter set FILE KEY VALUE`.
+`peal frontmatter set FILE KEY VALUE`. Refuses the key `merge`: only the human sets
+`merge: auto` (`docs/security.md`).
 
 ### `peal frontmatter set-list`
 
-`peal frontmatter set-list FILE KEY [ITEM...]`.
+`peal frontmatter set-list FILE KEY [ITEM...]`. Refuses the key `merge`, as `set` does.
 
 ### `peal frontmatter unset`
 
@@ -284,7 +285,9 @@ separated by lines `-----NEXT TASK-----`. Numbered by push-as-lock: a push that 
 race retries with the next number. Prints `filed NNNN ...` lines, and where main is written
 through a pull request `pull request #N <url>, merging once its checks pass; the number is
 final once it merges`. A cycle through a task the text adds or changes exits 1 with
-`refused: depends cycle 0042 → 0043 → 0042`.
+`refused: depends cycle 0042 → 0043 → 0042`. Every form refuses a text that sets `merge`:
+only the human sets `merge: auto` (`docs/security.md`); `peal idea` refuses it when it
+queues.
 
 - `peal create SLUG`: files a task.
 - `peal create --part-of ID SLUG...`: files the pieces of a split of `ID`; `part-of:
@@ -500,7 +503,9 @@ diff's.
 ## `peal record`
 
 `peal record ID plan|notes` records the text on stdin on this worktree's claim: the plan
-the human agreed, or their answers.
+the human agreed, or their answers. Refuses a text that adds `merge` (or changes its value):
+only the human sets `merge: auto`; one that drops it is recorded. `peal revise` refuses the
+same, on a claim and on the main branch.
 
 ## `peal close`
 
@@ -514,7 +519,8 @@ Declares the close: a sentinel in the git directory arms the Stop hook.
   `doing/`, and on a branch that adds a backlog file.
 - Notes, never refusing: how far the branch is behind main, the paths a merge of main
   would conflict in, milestone files the branch changes, the ideas queued, an empty
-  `## Scope` or `## Done when`.
+  `## Scope` or `## Done when`, a task holding `merge: auto` or the human's agreement to
+  it in its Notes (`merge: auto agreed by the human`).
 - Names where the Outcome goes (the task file; for an issue a file in the git directory),
   the project's `pr.sections`, with `pr.security` set the request for the Security line
   (`--security TEXT`: the boundary of that document the diff touches and how, or `none`),
@@ -535,8 +541,8 @@ file. `FILE` is the reviewer's report.
 
 - Refuses, before anything changes: a missing summary or section, a missing `--security`
   where `pr.security` is set, an empty Outcome or one
-  with a placeholder, more than three escalations, a task holding `merge: auto` without
-  the report and its `merge-auto:` line, an uncommitted path besides the Outcome, missing
+  with a placeholder, more than three escalations, a task holding `merge: auto` (or its
+  agreement in the Notes) without the report and its `merge-auto:` line, an uncommitted path besides the Outcome, missing
   git hooks (where `guardrails` is set up), a remote tip of the branch (fetched first;
   a failed fetch warns and the known ref is used) that is ahead of it, or that holds
   commits this branch rewrote with no commit here of the same tree (the refusal names
@@ -546,7 +552,7 @@ file. `FILE` is the reviewer's report.
 - Then: files the queued ideas in one push; merges a remote tip whose tree equals the
   tree of a commit in the branch (a pushed autosave rewritten locally) with
   `git merge -s ours`, as `Merge <ref>: the pushed autosave, already here [ID]`; on `merge-auto: withdraw` removes
-  `merge: auto`; commits the move to `done/` as `docs(tasks): close ID [ID]` (empty when
+  `merge: auto` where the task holds it, and says so atop the pull request's body; commits the move to `done/` as `docs(tasks): close ID [ID]` (empty when
   nothing else changed); marks an open draft pull request ready for review; pushes;
   opens the pull request or updates the open one.
 - Whatever fails after the flush keeps the close in progress; run it again.

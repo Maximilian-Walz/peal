@@ -3,8 +3,10 @@
 # <tasks>/<dir>/NNNN-slug.md, dir one of backlog, doing, done, and who holds it follows
 # from refs. Everything is read from the remote's main branch and the refs, never from
 # the calling worktree, so any worktree on any branch gets the same answer.
-# A claimed task's size, plan, touches and merge come from its claim branch's copy, when
-# it has a non-empty value (peal record commits them there before the task merges).
+# A claimed task's size, plan and touches come from its claim branch's copy, when it has
+# a non-empty value (peal record commits them there before the task merges). Its merge is
+# main's: a claim copy can only take it away (the reviewer's withdraw), never grant it, for
+# merge: auto is the human's consent (docs/security.md).
 #
 # Writes to the main branch never touch a worktree: the commit is built on a temporary
 # index from the fetched main and pushed (lib/main-write.sh), or opened as a pull request
@@ -257,9 +259,11 @@ _peal_files_prs() {
     { print }' <<<"$claims" || printf '%s\n' "$claims"
 }
 
-# _peal_files_overlay COPIES TASKS -> the records in TASKS (main's), their size, plan, touches
-# and merge replaced by the non-empty values of the claim copies under COPIES. Of the copies'
-# warnings only a frontmatter that does not parse is shown; such a copy reads as main's.
+# _peal_files_overlay COPIES TASKS -> the records in TASKS (main's), their size, plan and
+# touches replaced by the non-empty values of the claim copies under COPIES, and their merge
+# emptied where the copy's is empty: a session's copy takes merge: auto away, never adds it.
+# Of the copies' warnings only a frontmatter that does not parse is shown; such a copy reads
+# as main's.
 _peal_files_overlay() {
   local tmp status=0
   tmp=$(mktemp -d) || return 2
@@ -268,8 +272,9 @@ _peal_files_overlay() {
   awk -F '\t' -v OFS='\t' -v copies="$tmp/copies" '
     FILENAME == copies { for (i = 9; i <= 17; i++) c[$1, i] = $i; has[$1] = 1; next }
     $1 in has {
-      split("9 10 16 17", cols, " ")
-      for (k = 1; k <= 4; k++) { i = cols[k]; if (c[$1, i] != "") $i = c[$1, i] }
+      split("9 10 16", cols, " ")
+      for (k = 1; k <= 3; k++) { i = cols[k]; if (c[$1, i] != "") $i = c[$1, i] }
+      if (c[$1, 17] == "") $17 = ""
     }
     { print }' "$tmp/copies" "$2" || status=$?
   rm -rf "$tmp"
@@ -865,7 +870,7 @@ peal_store_finish() {
 
 # _peal_files_build_rewrite BASE -> PEAL_PATH rewritten by PEAL_REWRITE (a function from
 # the old text in $1 to the new in $2) from BASE's copy: a small edit goes on whatever
-# main holds now.
+# main holds now. A rewrite that adds merge is refused (peal_merge_added), a backstop.
 _peal_files_build_rewrite() {
   if ! git cat-file -e "$1:$PEAL_PATH" 2>/dev/null; then
     peal_err "$PEAL_PATH is gone from $PEAL_REMOTE/$PEAL_MAIN meanwhile"
@@ -873,6 +878,7 @@ _peal_files_build_rewrite() {
   fi
   git show "$1:$PEAL_PATH" >"$PEAL_EDIT_FILE.old"
   "$PEAL_REWRITE" "$PEAL_EDIT_FILE.old" "$PEAL_EDIT_FILE" || { [ $? != 1 ] || return 1; return 2; }
+  peal_merge_added "$PEAL_EDIT_FILE.old" "$PEAL_EDIT_FILE" "$PEAL_PATH" || return 2
   if cmp -s "$PEAL_EDIT_FILE.old" "$PEAL_EDIT_FILE"; then
     peal_err "$PEAL_PATH already reads so: nothing to change"
     return 2

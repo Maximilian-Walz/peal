@@ -144,8 +144,9 @@ peal_brief() {
 # worktree holds (peal_store_record): what the human agreed, WHAT plan (the text's Plan
 # section filled) or notes (their answers). Refused: a task this worktree does not hold,
 # a text the same as the task's, a changed Raw section, milestone, depends or part-of
-# (the backlog commands' business), an Outcome filled in or its heading added or dropped,
-# and whatever task-check.awk refuses in a revise.
+# (the backlog commands' business), merge added (only the human sets merge: auto:
+# peal_merge_added), an Outcome filled in or its heading added or dropped, and whatever
+# task-check.awk refuses in a revise.
 peal_record() {
   local id=${1-} what=${2-} task tmp status=0 key
   if [ $# -ne 2 ] || [[ ! "$id" =~ ^[0-9]+$ ]] || { [ "$what" != plan ] && [ "$what" != notes ]; }; then
@@ -181,6 +182,7 @@ peal_record() {
       status=2
     fi
   done
+  peal_merge_added "$tmp/old" "$tmp/new" record || status=2
   if [ "$what" = plan ] && ! peal_text_section_filled Plan <"$tmp/new"; then
     peal_err "record: no Plan section with the agreed plan in it"
     status=2

@@ -20,7 +20,8 @@ for what a script can decide and keeps the judgement for itself. The reasons are
   implementer's model by the planner's rule. An implementer that stops on the default
   model is followed once by one on the stronger model (`models.planner`).
 - The agreed plan goes into the task's `## Plan`, with the size, a non-default `model`,
-  the planner's `touches` and, only on the human's word, `merge: auto`.
+  the planner's `touches` and, only on the human's word, the Notes line `merge: auto
+  agreed by the human (<date>)` (never the field: only the human sets it).
   `peal record ID plan` puts the text on the claim.
 - The implementer builds; its `QUESTION`s go to the human and the answers back through
   `SendMessage`. The main session never writes the task's code.

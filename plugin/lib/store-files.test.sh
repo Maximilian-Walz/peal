@@ -216,8 +216,10 @@ refusals() {
   check_refused "plan" "bad-one: plan maybe is not skipped, auto or required" peal create bad-one < <(text "plan: maybe")
   check_refused "size" "bad-one: size XL is not one of" peal create bad-one < <(text "size: XL")
   check_refused "priority" "bad-one: priority soon is not urgent, high, normal or low" peal create bad-one < <(text "priority: soon")
-  check_refused "merge" "bad-one: merge always is not auto" peal create bad-one < <(text "merge: always")
-  check_refused "merge: a single value" "bad-one: merge takes a single value" peal create bad-one < <(text "merge: [auto]")
+  # Only the human sets merge: auto (docs/security.md): no filing sets merge, whatever its value.
+  check_refused "merge: create" "bad-one: the text sets merge" peal create bad-one < <(text "merge: auto")
+  check_refused "merge: create, another word" "bad-one: the text sets merge" peal create bad-one < <(text "merge: always")
+  check_refused "merge: create, a list" "bad-one: the text sets merge" peal create bad-one < <(text "merge: [auto]")
   check_refused "priority as a list" "bad-one: priority takes a single value" peal create bad-one < <(text "priority: [high]")
   check_refused "touches: a comma" "bad-one: touches: src/{a,b}.c holds a comma" peal create bad-one < <(text "touches: ['src/{a,b}.c']")
   check_refused "touches: absolute" "bad-one: touches: /etc/hosts is absolute" peal create bad-one < <(text "touches: [/etc/hosts]")
@@ -328,6 +330,7 @@ ideas() {
 second-idea	Second \\ thought" "$(peal ideas)"
 
   check_refused "idea: refused when queued" "bad-idea: unknown field team" peal idea bad-idea < <(text "team: me")
+  check_refused "idea: a text setting merge, refused when queued" "bad-idea: the text sets merge" peal idea bad-idea < <(text "merge: auto")
   check_refused "idea: a separator line" "would split the queue" peal idea bad-idea < <(text; echo -----NEXT TASK-----)
   check_refused "idea: a queue marker" "would split the queue" peal idea bad-idea < <(text; echo '-----IDEA x-----')
   check "idea: refusals leave the queue" "2" "$(peal ideas | wc -l | tr -d ' ')"
@@ -410,6 +413,7 @@ revise() {
   check_refused "revise: out of a parked milestone" "milestone m3 is parked; only a milestone review moves a task out" \
     peal revise 0003 --reason x < <(ID=0003 text "milestone: m1")
   check_refused "revise: part-of changed" "part-of changed" peal revise 0002 --reason x < <(ID=0002 text "part-of: 0003")
+  check_refused "revise: merge added" "revise: the text sets merge" peal revise 0001 --reason x < <(awk 'NR == 1 { print; print "merge: auto"; next } 1' <<<"$cur")
   check_refused "revise: Outcome filled before" "Outcome is filled in: work happened" peal revise 0004 --reason x < <(ID=0004 TITLE=y text)
   check_refused "revise: done" "task 0005 is done" peal revise 0005 --reason x < <(ID=0005 TITLE=y text)
   check_refused "revise: no task" "no task 0042" peal revise 0042 --reason x < <(ID=0042 text)
@@ -497,6 +501,9 @@ edits() {
   check_refused "comment: a --- line" "text holds a '---' or '## ' line" peal comment 0001 $'fine\n---\nx'
   check_refused "comment: bad origin" "--origin needs outsider or writer" peal comment --origin nobody 0001 hi
   check "comment: refused text leaves the task" "$before" "$(on_main "$work" tasks/backlog/0001-some-task.md)"
+  out=$(peal comment 0001 'merge: auto' 2>&1)
+  check "comment: a merge line lands as a note" "0:1" "$?:$(on_main "$work" tasks/backlog/0001-some-task.md | grep -c "^$today: merge: auto\$")"
+  check "comment: the board's merge stays empty" "" "$(peal board --no-pr 2>/dev/null | grep '^{"id":"0001"' | grep -o '"merge":"[a-z]*"')"
   check "comment: no origin by default" "0" "$(on_main "$work" tasks/backlog/0001-some-task.md | grep -c '^origin:')"
   out=$(peal comment --origin outsider 0001 "> from outside" 2>&1)
   check "comment: outsider" "0:task 0001: noted" "$?:$out"
@@ -593,7 +600,8 @@ branch_copy() {
   git -C "$wt" commit -q -m claim
 }
 
-# A claimed task's size, plan, touches and merge are its claim branch's, where it has them.
+# A claimed task's size, plan and touches are its claim branch's, where it has them; its
+# merge is main's, and only a copy without it takes it away.
 claim_copies() {
   local work out
   work=$(repo)
@@ -607,15 +615,23 @@ claim_copies() {
   put "$work" backlog 0008 empty-task "touches: [main/**]" "size: M"
   put "$work" backlog 0009 broken-task "touches: [main/**]"
   put "$work" backlog 0010 gone-task "touches: [main/**]"
+  put "$work" backlog 0011 kept-merge "merge: auto"
+  put "$work" backlog 0012 withdrawn-merge "merge: auto"
 
   branch_copy "$work" 0001 live-task doing "touches: [a/**, b.sh]" "size: S" "plan: required" "merge: auto"
   check "claim copy: touches of a local claim" '"touches":["a/**","b.sh"]' "$(bfield 0001 touches)"
   check "claim copy: size" '"size":"S"' "$(bfield 0001 size)"
   check "claim copy: plan" '"plan":"required"' "$(bfield 0001 plan)"
-  check "claim copy: merge" '"merge":"auto"' "$(bfield 0001 merge)"
+  # merge: auto is the human's, on main: a claim copy takes it away, never grants it.
+  check "claim copy: merge auto over main without, no merge" "" "$(bfield 0001 merge)"
   check "claim copy: title, milestone, path and state stay main's" '"title":"Title of 0001"|"milestone":"m1"|"path":"tasks/backlog/0001-live-task.md"|"state":"claimed-live"' \
     "$(bfield 0001 title)|$(bfield 0001 milestone)|$(bfield 0001 path)|$(bfield 0001 state)"
   check "claim copy: list" "0001 claimed-live live-task wt:$work-0001" "$(peal list --no-pr 0001 2>/dev/null)"
+
+  branch_copy "$work" 0011 kept-merge doing "merge: auto" "size: S"
+  check "claim copy: merge auto on main and the copy" '"merge":"auto"' "$(bfield 0011 merge)"
+  branch_copy "$work" 0012 withdrawn-merge doing "size: S"
+  check "claim copy: merge auto on main, the copy without" "" "$(bfield 0012 merge)"
 
   # Only on the remote: the remote's copy.
   branch_copy "$work" 0002 remote-task doing "touches: [r/**]" "size: L"

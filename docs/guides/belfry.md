@@ -42,8 +42,11 @@ whose tasks are GitHub issues, the contract names the `github-issues` backend in
   a job that runs again continues where the last stopped.
 - **Finished means a pull request open and green.** `/peal:close` waits for the checks
   (with Belfry's `wait_ci` tool, which spends none of your GitHub budget; `peal close
-  wait` without it), and the merge is yours, or the task's, if it says `merge: auto` and Belfry's policy for
-  the project allows it (its `auto_merge` policy, which Belfry documents).
+  wait` without it), and the merge is yours, or the task's, if you agreed `merge: auto` with its plan and
+  Belfry's policy for the project allows it (its `auto_merge` policy, which Belfry
+  documents), once Belfry acts on its own record of your answer (belfry#729); until then
+  the merge of a plan-agreed task is yours. Peal's board never grants `merge` from a
+  claim branch's copy, and no session writes the field (`docs/security.md`).
 - **No GitHub login in the session.** Belfry hides the worker's `gh` login from its
   sessions. `/peal:close` opens the pull request through Belfry's `pr_create` tool
   (`peal close finish --pr-by-tool`, then `peal close opened N URL`), opens no early

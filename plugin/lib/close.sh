@@ -166,6 +166,8 @@ peal_close_begin() {
   fi
   if [ "$(peal_fm_get "$file" merge 2>/dev/null)" = auto ]; then
     echo "NOTE: task $id holds merge: auto. The reviewer's report ends in merge-auto: keep or withdraw; pass it to finish as --review-file FILE, and withdraw removes the field."
+  elif peal_text_merge_agreed <"$file"; then
+    echo "NOTE: task $id's Notes say the human agreed merge: auto at planning. The reviewer's report ends in merge-auto: keep or withdraw; pass it to finish as --review-file FILE, and withdraw says in the pull request that it waits for a human."
   fi
   echo
   echo "Outcome: write it in $text, under ## Outcome."
@@ -314,7 +316,9 @@ _peal_close_args() {
 }
 
 # _peal_close_context ID -> PEAL_TEXT (the text holding the Outcome), PEAL_TITLE,
-# PEAL_PART_OF and PEAL_MERGE (its merge field) of task ID, for finish and the PR body.
+# PEAL_PART_OF, PEAL_MERGE (its merge field) and PEAL_MERGE_AGREED (1 when its Notes hold
+# the line /peal:work writes when the human agrees merge: auto, peal_text_merge_agreed) of
+# task ID, for finish and the PR body.
 _peal_close_context() {
   local id=$1 tmp
   PEAL_TEXT=$(peal_store_close_text "$id") || { peal_err "close: no text of task $id here"; return 2; }
@@ -326,28 +330,46 @@ _peal_close_context() {
   PEAL_TITLE=$(peal_text_title "$id" <"$tmp") || PEAL_TITLE="task $id"
   PEAL_PART_OF=$(peal_fm_get "$tmp" part-of 2>/dev/null)
   PEAL_MERGE=$(peal_fm_get "$tmp" merge 2>/dev/null)
+  PEAL_MERGE_AGREED=""
+  if peal_text_merge_agreed <"$tmp"; then PEAL_MERGE_AGREED=1; fi
   rm -f "$tmp"
 }
 
-# _peal_close_merge_check VERB -> status 0 unless the task holds merge: auto and no
-# reviewer's report with its merge-auto line was given; then why on stderr, status 2.
+# _peal_close_merge_asked -> status 0 if the task asks for the reviewer's merge-auto
+# verdict: it holds merge: auto, or its Notes say the human agreed it at planning (the
+# control plane keeps the agreement itself; a forged line only adds a review question).
+_peal_close_merge_asked() {
+  [ "$PEAL_MERGE" = auto ] || [ -n "${PEAL_MERGE_AGREED-}" ]
+}
+
+# _peal_close_merge_check VERB -> status 0 unless the task asks for the reviewer's
+# merge-auto verdict (_peal_close_merge_asked) and no reviewer's report with its
+# merge-auto line was given; then why on stderr, status 2.
 _peal_close_merge_check() {
-  [ "$PEAL_MERGE" = auto ] || return 0
+  local holds="holds merge: auto"
+  _peal_close_merge_asked || return 0
+  [ "$PEAL_MERGE" = auto ] || holds="has the human's merge: auto agreement in its Notes"
   if [ -z "$PEAL_REVIEW" ]; then
-    peal_err "close $1: task $PEAL_ID holds merge: auto, so the reviewer's report decides whether it stays: --review-file FILE, the report ending in merge-auto: keep or withdraw (for a review skipped, a file saying merge-auto: keep)"
+    peal_err "close $1: task $PEAL_ID $holds, so the reviewer's report decides whether it stays: --review-file FILE, the report ending in merge-auto: keep or withdraw (for a review skipped, a file saying merge-auto: keep)"
     return 2
   fi
   if [ -z "$PEAL_MERGE_VERDICT" ]; then
-    peal_err "close $1: task $PEAL_ID holds merge: auto, and the reviewer's report has no line merge-auto: keep or merge-auto: withdraw; ask the reviewer for it"
+    peal_err "close $1: task $PEAL_ID $holds, and the reviewer's report has no line merge-auto: keep or merge-auto: withdraw; ask the reviewer for it"
     return 2
   fi
 }
 
 # _peal_close_withdraw_merge -> merge: auto removed from the task where the storage keeps
 # its frontmatter (peal_store_record: a commit on a task file's branch, the issue's label),
-# and the withdrawal marked in the worktree's git directory for the PR body.
+# when it holds the field, and the withdrawal marked in the worktree's git directory for
+# the PR body (all there is to do for an agreement only in the Notes).
 _peal_close_withdraw_merge() {
   local task file tmp status=0
+  if [ "$PEAL_MERGE" != auto ]; then
+    : >"$(_peal_close_gitdir)/$PEAL_CLOSE_WITHDRAWN"
+    echo "withdrew the human's merge: auto agreement for task $PEAL_ID: the review found the diff larger or riskier than its plan; the pull request says so"
+    return 0
+  fi
   task=$(PEAL_TASK_REFRESH=1 peal_session_task) || return 2
   file=$(_peal_field "$task" 2)
   tmp=$(mktemp) || return 2
@@ -371,7 +393,8 @@ _peal_close_withdraw_merge() {
 # project's PR sections (PEAL_SECTION_*), in pr.sections' order; the Outcome; the ideas
 # filed from this worktree; the Security line (PEAL_SECURITY, when given); the branch's
 # commits. A merge: auto the review withdrew is said
-# first. Needs PEAL_TEXT, PEAL_PART_OF, PEAL_MERGE, PEAL_MERGE_VERDICT and PEAL_BASE.
+# first. Needs PEAL_TEXT, PEAL_PART_OF, PEAL_MERGE, PEAL_MERGE_AGREED, PEAL_MERGE_VERDICT
+# and PEAL_BASE.
 peal_close_body() {
   local id=$1 escalations kind title i filed
   escalations=$(_peal_close_escalations "$PEAL_TEXT")
@@ -379,7 +402,7 @@ peal_close_body() {
   if [ "$escalations" -gt 0 ]; then
     printf '**Needs your judgement:** %s escalation(s), under the Outcome'\''s Escalations.\n\n' "$escalations"
   fi
-  if [ -e "$(_peal_close_gitdir)/$PEAL_CLOSE_WITHDRAWN" ] || { [ "$PEAL_MERGE" = auto ] && [ "$PEAL_MERGE_VERDICT" = withdraw ]; }; then
+  if [ -e "$(_peal_close_gitdir)/$PEAL_CLOSE_WITHDRAWN" ] || { _peal_close_merge_asked && [ "$PEAL_MERGE_VERDICT" = withdraw ]; }; then
     printf '**merge: auto withdrawn:** the review found the diff larger or riskier than the plan that earned it, so this pull request waits for a human.\n\n'
   fi
   printf '## Summary\n\n%s\n' "$PEAL_SUMMARY"
@@ -503,12 +526,13 @@ _peal_close_checks() {
 # peal_close_finish ARGS... -> the close begun here finished: refused, before anything
 # changes, for a missing summary or PR section, an Outcome empty or holding a placeholder,
 # more than three escalations, an uncommitted path other than the Outcome's text and the
-# decision entries, a task holding merge: auto without the reviewer's merge-auto line
+# decision entries, a task holding merge: auto (or the human's agreement to it in its
+# Notes) without the reviewer's merge-auto line
 # (--review-file), git hooks not installed (where `guardrails` is set up), decision entries out of order
 # (_peal_dec_check), and a failing checks.close item (the list read from the main branch's tip); then the queued ideas filed in
 # one push (a failure files nothing, or, where the storage files one by one, dequeues
-# exactly those filed), merge: auto removed from the task when the review says
-# withdraw, the uncommitted decision entries committed on their own
+# exactly those filed), merge: auto removed from the task (or the agreement marked
+# withdrawn for the PR body) when the review says withdraw, the uncommitted decision entries committed on their own
 # (peal_decisions_commit), the storage's finish committed as "docs(tasks): close ID [ID]"
 # (an empty commit when the branch holds nothing else: a pull request needs one), the
 # open pull request of the branch marked ready for review when it is a draft (before the
@@ -569,7 +593,7 @@ peal_close_finish() {
     return 2
   fi
 
-  if [ "$PEAL_MERGE" = auto ] && [ "$PEAL_MERGE_VERDICT" = withdraw ]; then
+  if _peal_close_merge_asked && [ "$PEAL_MERGE_VERDICT" = withdraw ]; then
     _peal_close_withdraw_merge || return 1
   fi
   if [ -n "$PEAL_REMOTE_MERGE" ]; then

@@ -20,8 +20,10 @@ depends: []
   needs      capabilities a worker must have, e.g. [display, gpu].
   model      the implementer's model when not the default, once the plan is agreed.
   merge      auto when the human agreed the pull request may merge itself once its
-             checks are green; none is the project's default. Written only when the
-             plan is agreed; the close withdraws it if the review finds the diff riskier.
+             checks are green; none is the project's default. Only the human sets it,
+             on the main branch (no session's text may add it; a control plane keeps
+             its own record of the plan answer instead); the close withdraws it if the
+             review finds the diff riskier.
   owner      ai or human; none is ai. A human task is work only the human can deliver:
              never offered, and /peal:work refuses it.
   origin     outsider; none means the task's own text (written by the project). Set only
