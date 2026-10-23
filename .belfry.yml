@@ -15,6 +15,10 @@ tasks:
     apply: .peal/peal apply
     # What apply carries out; Belfry offers and sends only these.
     apply_kinds: [file, move, priority, depends, retire, milestone_create, milestone_update, milestone_state, split_milestone]
+# The least Peal the default branch expects: a worker with an older one updates it
+# before the session (Belfry's docs/contract.md, Plugins).
+plugins:
+  peal@peal: 0.7.0
 actions:
   milestone-review:
     title: Milestone review

@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.7.0 (2026-10-23)
+
+v0.7.0: 6 features since v0.6.0.
+
+### Features
+
+- CI checks the committed launcher against its template: Built: `tools/lint.sh` has a `lint: launcher` step between `tools/pins.sh` and `peal check`. ([0111](https://github.com/Maximilian-Walz/peal/blob/v0.7.0/tasks/done/0111-ci-launcher-template-check.md), #312)
+- checks.close from the main branch's config: Built as planned. ([0089](https://github.com/Maximilian-Walz/peal/blob/v0.7.0/tasks/done/0089-close-checks-from-main.md), #317)
+- A release goes on once its version pull request merges: Built: `peal ship bump` and `peal ship pin` now wait for their pull request's checks and for the merge its auto-merge makes. ([0171](https://github.com/Maximilian-Walz/peal/blob/v0.7.0/tasks/done/0171-release-goes-on-after-merge.md), #316)
+- The issues storage admits issues opened and edited by a GitHub App the project trusts: Built: a committed setting `storage.issues.apps` (App slugs, or bot logins `slug[bot]`, quoted) makes issues opened, edited or renamed by those Apps count as a writer's. ([0172](https://github.com/Maximilian-Walz/peal/blob/v0.7.0/tasks/done/0172-issues-admit-trusted-apps.md), #319)
+- /peal:idea under a control plane on the issues storage files its fields as labels and a milestone: Built `peal idea-fields` (issues storage only): it reads an idea's composed text on stdin and prints the issue `peal create` would open from it, as `title:`, `milestone:` (when there is one), one `label:` line per label, then `body:` and the body. ([0173](https://github.com/Maximilian-Walz/peal/blob/v0.7.0/tasks/done/0173-idea-fields-as-labels.md), #327)
+- Under Belfry, close opens its pull request through pr_create and Peal's gh reads work without the worker's gh login: Built: under Belfry, `close` opens its pull request through Belfry's `pr_create` tool instead of gh, and Peal's task-file reads stop warning when gh has no login. ([0176](https://github.com/Maximilian-Walz/peal/blob/v0.7.0/tasks/done/0176-under-belfry-close-opens-its.md), #347)
+
 ## v0.6.0 (2026-10-22)
 
 v0.6.0: 11 features since v0.5.0.
