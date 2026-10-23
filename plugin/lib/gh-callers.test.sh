@@ -11,8 +11,9 @@
 # A caller is found by awk, function by function (`name() {` to `}` at column 0):
 # comment lines dropped, quoted strings holding no command substitution dropped, then
 # the word peal_gh or _peal_ship_gh anywhere (peal_gh_failed is another word), or gh in
-# command position (`gh api`, `set -- gh ...`, `timeout 60 gh ...`; not `command -v gh`,
-# not `wants gh`). Then the same on scratch copies, each mistake reported.
+# command position (`gh api`, `set -- gh ...`, `timeout 60 gh ...`, `if`, `while`,
+# `until` or `!` before it, `env` or NAME=value assignments before it; not `command -v
+# gh`, not `wants gh`). Then the same on scratch copies, each mistake reported.
 set -uo pipefail
 # shellcheck source=test-lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/test-lib.sh"
@@ -37,7 +38,7 @@ callers() {
       while (match(line, /"([^"\\$]|\\.|\$[^(])*"/)) line = substr(line, 1, RSTART - 1) " " substr(line, RSTART + RLENGTH)
       while (match(line, q "[^" q "]*" q)) line = substr(line, 1, RSTART - 1) " " substr(line, RSTART + RLENGTH)
       if (line ~ /(^|[^A-Za-z0-9_])(peal_gh|_peal_ship_gh)([^A-Za-z0-9_(]|$)/ \
-          || line ~ /(^|[;&|(]|then|do|else|--|timeout[ \t]+([^ \t]+[ \t]+)?)[ \t]*gh([ \t]|$)/) {
+          || line ~ /(^|[;&|(]|(^|[ \t])(then|do|else|if|while|until|!|--|env|timeout[ \t]+([^ \t]+[ \t]+)?))([ \t]*[A-Za-z_][A-Za-z0-9_]*=[^ \t]*[ \t]+)*[ \t]*gh([ \t]|$)/) {
         key = file ":" (fn == "" ? "-" : fn)
         if (!(key in seen)) { seen[key] = 1; print key }
       }
@@ -102,6 +103,23 @@ cases() {
   check "gh in command position: missing rows" "missing row: doctor.sh:_peal_new_gh
 missing row: doctor.sh:_peal_new_timeout" "$(inventory "$LIB" "$DOC" "$CMDS")"
 
+  # gh after if, while, until, !, env and assignments.
+  copy
+  printf '\n%s\n' '_peal_gh_if() {' '  if gh auth token >/dev/null; then :; fi' '}' \
+    '_peal_gh_while() {' '  while gh api x; do :; done' '}' \
+    '_peal_gh_until() {' '  until gh api x; do :; done' '}' \
+    '_peal_gh_not() {' '  ! gh api x || return 1' '}' \
+    '_peal_gh_env() {' '  env A=1 gh api x' '}' \
+    '_peal_gh_assign() {' '  GH_HOST=x gh api y' '}' \
+    '_peal_gh_assign_quoted() {' '  out=$(GH_HOST="$h" GH_TOKEN=t gh api y)' '}' >>"$LIB/doctor.sh"
+  check "gh after a keyword or assignment: missing rows" "missing row: doctor.sh:_peal_gh_assign
+missing row: doctor.sh:_peal_gh_assign_quoted
+missing row: doctor.sh:_peal_gh_env
+missing row: doctor.sh:_peal_gh_if
+missing row: doctor.sh:_peal_gh_not
+missing row: doctor.sh:_peal_gh_until
+missing row: doctor.sh:_peal_gh_while" "$(inventory "$LIB" "$DOC" "$CMDS")"
+
   # A row whose function no longer calls gh.
   copy
   printf '%s\n' '| `peal_github_repo_of` | `github.sh` | nothing | Stale. |' >"$DOC.row"
@@ -125,6 +143,7 @@ missing row: doctor.sh:_peal_new_timeout" "$(inventory "$LIB" "$DOC" "$CMDS")"
     '  PEAL_GH_ERRFILE=x peal_gh_telemetry_env' \
     '  _peal_doctor_wants gh && echo ok' \
     '  local gh_state=open' \
+    '  x=$(_peal_init_survey_gh issues y)' \
     '}' >>"$LIB/github.sh"
   check "no call: nothing missing" "" "$(inventory "$LIB" "$DOC" "$CMDS")"
 
