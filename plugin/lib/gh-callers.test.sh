@@ -63,16 +63,18 @@ rows() {
 # inventory LIB DOC COMMANDS -> one line per problem: "missing row: file:function",
 # "stale row: file:function", "command not listed: /peal:name"; nothing when complete.
 inventory() {
-  local lib=$1 doc=$2 commands=$3 have want f name
+  local lib=$1 doc=$2 commands=$3 have want f name section
   want=$(callers "$lib")
   have=$(rows "$doc")
+  # Read once, not piped into grep -q: an awk writing into a pipe grep has closed fails
+  # (original-awk says "write error"), and pipefail would count that as not listed.
+  section=$(awk '/^<!-- gh-callers -->$/ { on = 1 } /^<!-- \/gh-callers -->$/ { on = 0 } on' "$doc")
   comm -23 <(printf '%s\n' "$want" | sed '/^$/d') <(printf '%s\n' "$have" | sed '/^$/d') | sed 's/^/missing row: /'
   comm -13 <(printf '%s\n' "$want" | sed '/^$/d') <(printf '%s\n' "$have" | sed '/^$/d') | sed 's/^/stale row: /'
   for f in "$commands"/*.md; do
     grep -q '`gh ' "$f" || continue
     name=/peal:$(basename "$f" .md)
-    awk '/^<!-- gh-callers -->$/ { on = 1 } /^<!-- \/gh-callers -->$/ { on = 0 } on' "$doc" \
-      | grep -q -F -- "\`$name\`" || echo "command not listed: $name"
+    grep -q -F -- "\`$name\`" <<<"$section" || echo "command not listed: $name"
   done
 }
 
