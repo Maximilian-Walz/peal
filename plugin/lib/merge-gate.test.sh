@@ -31,7 +31,7 @@ task() {
 task 0001 one backlog
 task 0002 two backlog "merge: auto"
 task 0003 three doing
-task 0004 four done "merge: auto"
+task 0004 four "done" "merge: auto"
 task 0005 five doing "merge: auto"
 printf -- '---\nmilestone: [m1\n---\n# 0006 — six\n' >"$dir/tasks/backlog/0006-six.md"
 git -C "$dir" add -A && git -C "$dir" commit -qm base
@@ -122,9 +122,9 @@ cases() {
   task 0002 two backlog
   passed "merge removed"
   git -C "$dir" rm -q tasks/doing/0003-three.md
-  task 0003 three done "merge: auto"
+  task 0003 three "done" "merge: auto"
   passed "the close shape: doing without merge, done with it"
-  task 0010 ten done "merge: auto"
+  task 0010 ten "done" "merge: auto"
   passed "a new done file with merge"
   mkdir -p "$dir/.peal"
   printf 'storage:\n  kind: issues\n' >"$dir/.peal/config.yml"

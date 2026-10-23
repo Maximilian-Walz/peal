@@ -38,6 +38,7 @@ _peal_mg_list() {
 # _peal_mg_shown TEXT -> TEXT printable, a backslash too (awk -v would read it as an
 # escape): a tasks setting is the project's own text.
 _peal_mg_shown() {
+  # shellcheck disable=SC1003 # tr reads the escaped backslash itself
   printf '%s' "$1" | LC_ALL=C tr -c '[:print:]' '?' | LC_ALL=C tr '\\' '?'
 }
 
