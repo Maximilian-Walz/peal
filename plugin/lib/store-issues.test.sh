@@ -1081,7 +1081,54 @@ branch_date_utc() {
     "7 parked parked-task 2 commit(s) ahead, last 2026-03-01" "$(list 7 2>&1)"
 }
 
+# no_login: without gh's login every write refuses with the reason before any git or
+# GitHub change (nothing in the fake gh's log, the claim's worktree and branch kept);
+# finish ID done, which makes no GitHub call, still works.
+no_login() {
+  local work wt refused
+  issues_repo
+  issue 1 "Claimed one" --milestone m1
+  issue 2 "Free one"
+  peal claim 1 >/dev/null 2>&1
+  wt=$(dirname "$work")/work-wt/issue-1
+  touch "$FAKE_GH/no-auth"
+  : >"$FAKE_GH/log"
+  refused="on the issues storage (a GitHub write) needs gh's login, and gh has none here (a Belfry session hides it); under Belfry read the tasks with its tasks and task tools"
+  check_refused "no login: create" "create $refused" peal create a-new-thing < <(text)
+  check_refused "no login: comment" "comment $refused" peal comment 2 "a note"
+  check_refused "no login: set-milestone" "set-milestone $refused" peal set-milestone 2 m1
+  check_refused "no login: revise" "revise $refused" peal revise 2 --reason x < <(echo)
+  check_refused "no login: retire" "retire $refused" peal retire 2 --reason x
+  # claim, release and record read the task first through the CLI, which fails on
+  # peal_gh's own "gh has no login"; the storage's entry points refuse the same way.
+  check_refused "no login: claim" "gh has no login" peal claim 2
+  check_refused "no login: release" "gh has no login" peal release 1
+  check_refused "no login: record" "gh has no login" at "$wt" "$PEAL" record 1 notes < <(ID=1 text)
+  # shellcheck disable=SC2016 # expanded by the inner shell
+  check_refused "no login: the storage's claim" "claim $refused" at "$work" bash -c 'PEAL_ROOT=$1; for f in common config claim tasks store github; do . "$1/lib/$f.sh"; done
+    peal_store_load && peal_store_claim 2' _ "$PEAL_ROOT"
+  # shellcheck disable=SC2016 # expanded by the inner shell
+  check_refused "no login: the storage's release" "release $refused" at "$work" bash -c 'PEAL_ROOT=$1; for f in common config claim tasks store github; do . "$1/lib/$f.sh"; done
+    peal_store_load && peal_store_release 1' _ "$PEAL_ROOT"
+  # shellcheck disable=SC2016 # expanded by the inner shell
+  check_refused "no login: the storage's takeover" "claim $refused" at "$work" bash -c 'PEAL_ROOT=$1; for f in common config claim tasks store github; do . "$1/lib/$f.sh"; done
+    peal_store_load && peal_store_takeover 1' _ "$PEAL_ROOT"
+  # shellcheck disable=SC2016 # expanded by the inner shell
+  check_refused "no login: the storage's record" "record $refused" at "$wt" bash -c 'PEAL_ROOT=$1; for f in common config claim tasks store github; do . "$1/lib/$f.sh"; done
+    peal_store_load && peal_store_record 1 notes /dev/null' _ "$PEAL_ROOT"
+  check_refused "no login: milestone-state" "the milestone's state $refused" peal milestone-state m1 parked
+  check_refused "no login: defer" "defer $refused" at "$wt" "$PEAL" defer --reason x < <(ID=1 text)
+  check "no login: no GitHub call" "" "$(cat "$FAKE_GH/log")"
+  check "no login: release keeps the claim" "issue/1|1" \
+    "$(git -C "$wt" symbolic-ref --short HEAD)|$(git -C "$work" worktree list | grep -c issue-1)"
+  check "no login: no branch for 2" "" "$(git -C "$work" branch --list issue/2)"
+  check "no login: finish done" "finished 1: the pull request's body says \"Fixes #1\"; its merge closes the issue" \
+    "$(at "$wt" "$PEAL" finish 1 2>&1)"
+  rm "$FAKE_GH/no-auth"
+}
+
 cases() {
+  no_login
   states
   expansion
   cycles
