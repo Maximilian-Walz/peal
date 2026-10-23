@@ -30,7 +30,9 @@ against the task's `## Done when`. Each finding is fixed, filed as a new idea, e
 to you, or rebutted in writing. The Outcome records what was done and how it was
 checked, the task moves to `done/`, and the pull request opens. The command waits until
 its checks are green, and you merge it. A project that has agreed it can let one task
-merge itself: say so while agreeing the plan, and the plan records `merge: auto`.
+merge itself: say so while agreeing the plan. Under Belfry, Belfry records your answer
+and the task's Notes say `merge: auto agreed by the human`; without a control plane you
+write `merge: auto` on the main branch yourself, since no session may write it.
 
 ## When something fails
 

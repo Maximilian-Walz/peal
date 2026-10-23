@@ -167,7 +167,8 @@ would otherwise have to parse the config for.
 script can (resume, claim, offer), and the session stops for the human when the plan
 needs them. A task's `plan` is `skipped` (no planner), `auto` (the default: the planner
 runs and the session asks only the questions that are the human's, building at once when
-none is left; `merge: auto` is never written for a plan the human did not see) or
+none is left; the human's `merge: auto` agreement is never noted for a plan the human
+did not see, and no session writes the field itself: `docs/security.md`) or
 `required` (the human agrees the whole plan; always so for an outsider's text). The
 session asks, through `AskUserQuestion` so the same step works interactive and headless. The
 plan is recorded on the claim, where a restarted session finds it. The implementer builds
@@ -264,10 +265,12 @@ made by hand is shown, not refused, so it can be found and fixed.
 **`touches`** is carried on the board so that a scheduler like Belfry does not start two
 tasks on the same files side by side. It is a hint: a wrong one costs a missed parallel
 slot, nothing more, so nothing refuses on it.
-In the files storage a claimed task's `touches` (and its `size`, `plan` and `merge`) come
+In the files storage a claimed task's `touches` (and its `size` and `plan`) come
 from the copy on its claim branch, so the planner's `peal record ID plan` shows on the
 board before the task merges; the rest (state, title, milestone, depends) stays main's, and
-a value the branch's copy leaves empty or cannot parse reads as main's. `peal record` does
+a value the branch's copy leaves empty or cannot parse reads as main's. `merge` is main's
+too, and a claim copy without it empties it (the review's withdraw): the copy can take
+`merge: auto` away, never grant it, for it is the human's consent to a merge. `peal record` does
 not push: another clone sees the recorded fields once the branch is pushed.
 
 **`after_deploy`** is carried on the board unchanged, for a scheduler that holds a task back
@@ -342,8 +345,8 @@ in [CLI](reference/cli.md#peal-close).
   refusing, what the human will want to know.
 - **The review** runs unless every path of the diff lies under `review.skip-paths`. Each
   finding is fixed, filed as an idea, escalated or rebutted: none is dropped silently.
-  For a task holding `merge: auto` the report says whether the diff is still the small,
-  low-risk work the plan promised.
+  For a task holding `merge: auto`, or the human's agreement to it in its Notes, the report
+  says whether the diff is still the small, low-risk work the plan promised.
 - **`finish`** checks everything before it changes anything, so a refusal leaves the
   branch as it was. What fails after the ideas are filed keeps the close in progress, and
   running it again goes on where it stopped: the ideas filed are taken off the queue as
