@@ -78,7 +78,7 @@ Built the merge gate, generic as the human chose at planning. `peal merge-gate B
 Departures from the plan, by the implementer: "unchanged" means the same path and blob among BASE's own task files (otherwise a pull request could point `tasks:` at a folder where a non-task file with `merge` already sits; tested); BASE on the issues storage counts as having no task files; only kebab-case task file names are read, as the board reads them.
 
 For the next session:
-- **The template works from the next release.** It is pinned to v0.6.0, which `tools/pins.test.sh` requires, and v0.6.0 has no `merge-gate`; until `peal ship` makes the next release an adopter's copy fails every pull request (closed, not open). The guide says so.
+- **The template works from the next release.** It is pinned to the current release (v0.7.0 once main released it while this pull request was open), which `tools/pins.test.sh` requires, and that release has no `merge-gate`; until `peal ship` makes the next release an adopter's copy fails every pull request (closed, not open). The guide says so.
 - **The bootstrap.** This pull request runs its own (HEAD's) gate, as BASE has none yet; every later pull request runs main's.
 - shellcheck was missing from the build's sandbox; the close ran it (v0.10.0 from its GitHub release) and fixed two warnings in the new scripts.
 - 0177: if its plan writes the human's consent into main's copy of a task through a pull request, this gate blocks that write.

@@ -74,8 +74,8 @@ add Peal's merge gate:
 1. Copy `plugin/templates/merge-gate.yml` from Peal to `.github/workflows/merge-gate.yml`.
    It runs [`peal merge-gate`](../reference/cli.md#peal-merge-gate) on every pull request,
    with Peal pinned by SHA, and fails one in which a task file under `backlog/` or
-   `doing/` gains a `merge` key. The command ships in the first release after v0.6.0;
-   the template pinned to v0.6.0 fails every pull request, so copy it from that release on.
+   `doing/` gains a `merge` key. The command ships in the first release after v0.7.0;
+   the template pinned to v0.7.0 fails every pull request, so copy it from that release on.
 2. Make its job, `peal merge-gate`, a required check of the main branch.
 3. List `peal merge-gate` in the `checks` of every `auto_merge` rule.
 4. Keep `.github/**` merged by you (Belfry already never auto-merges it): the gate is
