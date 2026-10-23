@@ -76,4 +76,36 @@ Rejected: a new `apply` kind writing `merge: auto` on main (main writes on a cla
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+**Built.** Nothing a session writes grants `merge: auto` any more.
+
+- **Board.** It takes `merge` only from main's copy (task files) or the issue's label (issues). A claim copy can only take the field away (`_peal_files_overlay`: main AND copy), which is how the reviewer's withdraw still reaches the board.
+- **Refusals.**
+  - `peal_merge_added` (`plugin/lib/tasks.sh`) refuses a text that adds or changes `merge`. It is called from `peal_edit_check` (revise on main and on a claim, issue edits) and `peal record`, with a backstop in the files rewrite.
+  - `peal frontmatter set`/`set-list` refuse the key; `unset` works.
+  - Every filing (`peal create`, `peal idea`, ideas filed at close, split pieces) refuses `merge` in `task-check.awk`, as the human answered.
+- **Where the agreement lives.** The human's plan-time agreement is recorded by the control plane, as its own record of the answer. `/peal:work` step 5 now writes only a trace line under Notes, `merge: auto agreed by the human (<date>)`. Close treats the field or that line as the trigger for the reviewer's `merge-auto` verdict. A withdraw with no field leaves nothing to unset: the PR body carries the "merge: auto withdrawn" line. A forged Notes line only adds a review question.
+- **Docs.** `docs/security.md` has a new subsection, "`merge: auto` is the human's", that names the tests holding it. `docs/reference/tasks.md`, `docs/design.md`, the guides, cli/commands and the prompts follow.
+
+**Decided.**
+- **Route.** The control plane's record, left to the session by the human. A new `apply` kind on main was rejected for three reasons: main writes on a claimed task are refused on purpose, a squash merge would conflict, and a session can run apply too.
+- **Filing refusal.** It sits in `task-check.awk`, not `backlog.sh` as the plan said, so one place covers both storages and queue time. `task-text.sh` (`peal_text_merge_agreed`) and `plugin/agents/planner.md` changed beyond the agreed touches for the same reason.
+- **`peal comment`.** It refuses nothing new: it can only add a dated note and never reaches the frontmatter. The test shows a `merge: auto` comment lands as a note and the board's `merge` stays empty. That is how Done-when 2 holds for comment.
+
+**Known gaps (for the next session).**
+- **The control plane.** It must stop trusting a session-written `merge` and act on its own record of the plan answer, leaving the merge to the human when the PR body carries "merge: auto withdrawn" (belfry#729). Until then the "agreed tasks" tier has no working grant for a claimed files task, and plan-agreed pull requests wait for the human. The human accepted this at planning.
+- **The issues label.** A session holding a `gh` login that may label issues can add the `merge: auto` label itself. This is documented in `docs/security.md`; under Belfry there is no such login.
+- **Files storage without a control plane.** The human's field on main holds only when it is there before the claim, because the overlay cannot tell a later grant from a withdrawal. The issues label works at any time. The docs say so (reviewer finding).
+- **Tests run locally.** The sandbox lacks jq and shellcheck, so both were fetched from their GitHub releases into the job's temp directory to run the dependent harnesses: close 1527, store-issues 750, work 384, store-files 645, all with 0 failures, and `tools/lint.sh` is clean. That run caught a test bug in the new Notes-only close case (it ran `begin` in a subshell, losing its Outcome path), fixed in adbce41. `doctor.test.sh` was not run to the end.
+
+**Review.** The reviewer found the following; all were fixed on the branch by the implementer:
+- a `store-issues.test.sh` fixture without `## Raw`, which would have failed the revise that drops the label;
+- docs that overstated the human-on-main route for claimed files tasks;
+- the refusal message worded five ways;
+- a garbled test comment.
+
+A second review confirmed those fixes. It found `docs/guides/belfry.md` still claiming that plan-agreed auto-merge works today, and an awkward frontmatter refusal message; both were fixed here.
+
+### Reviewer findings not acted on
+
+- **Files outside touches** (`task-check.awk`, `task-text.sh`, `planner.md`, and wording-only changes in `apply.sh` and `store-issues.sh`): kept, and explained above.
+- **`apply`'s `file` kind refuses `merge` twice** (its inline check and `peal_task_check plain`): kept, because the inline check gives a clearer per-proposal error.
