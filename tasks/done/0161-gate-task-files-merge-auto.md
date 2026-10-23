@@ -68,3 +68,29 @@ Human's answers at planning, 2026-10-23:
 **Cross-task.** 0180 keeps the direct-push route (its "absorbs the PR route of 0161" becomes "links it"). 0177: if its plan writes consent into main's task copy through a pull request, this gate blocks that.
 
 **Ranges.** tasks/backlog/0180-shape-only-revise-and-comment.md:14-35; docs/security.md:257-286, 376-418; docs/design.md:455-458; docs/guides/belfry.md:38-53; docs/guides/setting-up.md:24-36; docs/reference/cli.md:1-10, 64-69, 590-594; docs/reference/tasks.md:53; .github/workflows/ci.yml:18-36, 193-214; .belfry.yml:51-85, 94-150; .peal/config.yml:10-23; plugin/templates/decisions.yml:1-57; tools/pins.test.sh:78-99; tools/ci-changes.sh:14-21; plugin/bin/peal:116-120, 364-374, 480-563; plugin/lib/config.sh:31-46; plugin/lib/store-files.sh:51-71; plugin/lib/task-scan.awk:29-48, 87-90, 111-127; plugin/lib/yaml-lib.awk:1-18, 152-155; plugin/lib/common.sh:132-136; plugin/lib/hostile.test.sh:680-695, 925-946; tools/docs.test.sh:488-493; CONTRIBUTING.md:42-45.
+
+---
+
+## Outcome
+
+Built the merge gate, generic as the human chose at planning. `peal merge-gate BASE HEAD` (`plugin/lib/merge-gate.sh`, `merge-gate.awk` on `yaml-lib.awk`) reads two refs' git objects, each with its own settings, and refuses (status 1, each file named) a pull request in which a `backlog/` or `doing/` task file is added or changed and carries a `merge` key that BASE does not already give the same id outside `done/` with the same raw value; a changed file whose frontmatter does not parse is refused too. `done/` is exempt (a task's own close), the issues storage has nothing to check, and any doubt (empty, zero, unknown or `-`-leading ref, a settings file that does not load, git failing) is status 2. Peal's CI runs it as a step of the `changes` job on `pull_request`, from a checkout of BASE's `plugin/`, so its failure fails the required `harnesses (ubuntu-latest)`: the hard block the human chose. Adopting projects copy `plugin/templates/merge-gate.yml` by hand (as with `decisions.yml`), make its job required and list it in their `auto_merge` checks; `docs/guides/belfry.md` says how. Docs: `docs/reference/cli.md`, `docs/security.md` (the gate, its guard and harness, its limits), `docs/design.md`, `CONTRIBUTING.md`. The new files are in `.belfry.yml` `never_auto_merge` and in `plan.required-paths`; the template is in the release lists, and `tools/pins.test.sh` now checks every template that fetches Peal. 0180's Scope now links this gate for the pull request route instead of absorbing it.
+
+Departures from the plan, by the implementer: "unchanged" means the same path and blob among BASE's own task files (otherwise a pull request could point `tasks:` at a folder where a non-task file with `merge` already sits; tested); BASE on the issues storage counts as having no task files; only kebab-case task file names are read, as the board reads them.
+
+For the next session:
+- **The template works from the next release.** It is pinned to v0.6.0, which `tools/pins.test.sh` requires, and v0.6.0 has no `merge-gate`; until `peal ship` makes the next release an adopter's copy fails every pull request (closed, not open). The guide says so.
+- **The bootstrap.** This pull request runs its own (HEAD's) gate, as BASE has none yet; every later pull request runs main's.
+- shellcheck was missing from the build's sandbox; the close ran it (v0.10.0 from its GitHub release) and fixed two warnings in the new scripts.
+- 0177: if its plan writes the human's consent into main's copy of a task through a pull request, this gate blocks that write.
+- The implementer ran on opus, the agreed model; no escalation.
+- The setup follow-up the human asked for at planning (whether one setup step writes every workflow) is filed as an idea.
+
+Review findings, routed:
+- Plan or Scope rewritten under an existing `merge: auto` (finding 1): documented as an open limit in `docs/security.md` and filed as an idea, with the id-only matching (finding 4) in its Notes.
+- Template unusable until the next release (finding 2): a sentence in `docs/guides/belfry.md`.
+- The over-long lines in `docs/security.md` (finding 5): rewrapped.
+
+### Reviewer findings not acted on
+
+- Repeated sanitising idiom and task-filename regex (finding 3): the new code follows the pattern the codebase already repeats; one shared helper is a refactor of its own across `common.sh`, `apply.sh` and `tasks.sh`, not this task's.
+- Same-id matching is loose (finding 4): ids identify tasks and `peal check` reports a duplicate id; noted in the filed idea rather than widened here.
