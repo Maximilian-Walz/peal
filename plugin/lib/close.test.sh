@@ -46,9 +46,9 @@ id() {
   if [ $kind = files ]; then printf '%04d\n' "$1"; else printf '%s\n' "$1"; fi
 }
 
-# task N SLUG [MERGE] -> task N put on the storage, with a Scope and a Done when; MERGE
-# auto gives it merge: auto, agreed only the Notes line /peal:work writes when the human
-# agrees merge: auto at planning.
+# task N SLUG [MERGE] -> task N put on the storage, with a Scope and a Done when. MERGE
+# auto gives it merge: auto; MERGE agreed gives it no field, only the Notes line
+# /peal:work writes when the human agrees merge: auto at planning.
 task() {
   local body=$'Why.\n\n## Scope\n\n`a.txt`\n\n## Done when\n\n- a.txt says built\n\n## Raw\n\nthe human said so\n\n## Notes\n'
   if [ "${3-}" = agreed ]; then

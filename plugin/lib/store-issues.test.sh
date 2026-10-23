@@ -1046,7 +1046,7 @@ after_deploy() {
 merge() {
   local out
   issues_repo
-  issue 1 "Auto" --label "merge: auto" --body $'Why.\n\n## Notes\n'
+  issue 1 "Auto" --label "merge: auto" --body $'Why.\n\n## Raw\n\nthe human said so\n\n## Notes\n'
   issue 2 "Odd" --label "merge: always"
   check "merge: board" '{"id":"1","state":"free","slug":"auto","title":"Auto","merge":"auto"}
 {"id":"2","state":"free","slug":"odd","title":"Odd"}' "$(peal board 2>&1 | grep -v '^{"milestone"' | normal)"
@@ -1059,7 +1059,7 @@ merge() {
     peal create odd-thing < <(text "merge: always")
   out=$(peal create auto-thing < <(TITLE="Auto thing" text) 2>&1)
   check "merge: create without" "0:filed 3" "$?:${out%% https*}"
-  check_refused "merge: revise adding the label" "revise: the text adds merge" \
+  check_refused "merge: revise adding the label" "revise: the text sets merge" \
     peal revise 3 --reason "agreed" < <(ID=3 TITLE="Auto thing" text "merge: auto")
   check "merge: nothing added" "" "$(labels 3)"
   peal read 1 | sed '/^merge:/d' | peal revise 1 --reason "riskier than it looked" >/dev/null 2>&1
