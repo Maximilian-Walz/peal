@@ -11,7 +11,7 @@ malformed input (`refused: ...`), 3 still waiting.
 
 A write that needs gh's login refuses up front when gh has none (`gh auth token` fails,
 as in a Belfry session), before it changes anything: `peal: WHAT needs gh's login, and gh
-has none here (a Belfry session hides it); WHAT INSTEAD`. These are a write onto a main
+has none here (a Belfry session hides it); INSTEAD`. These are a write onto a main
 branch that refuses direct pushes (`main-writes: pr`, or `auto` once the push is refused;
 status 1, no branch pushed), `peal ship publish` and the notes of an issues project
 (status 2), and every write of the issues storage (status 2). A token in `GH_TOKEN`, as

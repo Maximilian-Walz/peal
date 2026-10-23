@@ -373,9 +373,9 @@ refuses direct pushes pushes no `peal/main-write-*` branch, `peal ship publish` 
 `gh` is listed, with what it does under Belfry, in [Running under
 Belfry](guides/belfry.md#what-a-session-can-and-cannot-rely-on).
 
-- Guard: `plugin/lib/github.sh` (`peal_gh`, `peal_gh_need_login`), the main path, and the telemetry export in
-  `plugin/bin/peal`; the board's lookup of open
-  pull requests (`_peal_files_prs` in `plugin/lib/store-files.sh`) calls `gh` directly.
+- Guard: `plugin/lib/github.sh` (`peal_gh`, `peal_gh_need_login`), the main path, and
+  the telemetry export in `plugin/bin/peal`; the board's lookup of open pull requests
+  (`_peal_files_prs` in `plugin/lib/store-files.sh`) calls `gh` directly.
 - Harness: `plugin/lib/store-issues.test.sh`, `plugin/lib/ship.test.sh`,
   `plugin/lib/main-write.test.sh`, through the fake `gh` (`plugin/lib/fake-gh`) that
   sees every call a harness makes; `plugin/lib/gh-callers.test.sh` keeps the list of
