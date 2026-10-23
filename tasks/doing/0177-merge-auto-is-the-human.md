@@ -2,9 +2,10 @@
 plan: required
 size: M
 depends: []
-touches: [plugin/lib/store-files.sh, plugin/lib/work.sh, plugin/lib/tasks.sh, plugin/lib/task-check.awk, plugin/commands/work.md, docs/security.md]
+touches: [plugin/lib/store-files*.sh, plugin/lib/work*.sh, plugin/lib/tasks.sh, plugin/lib/close*.sh, plugin/lib/store-issues.test.sh, plugin/lib/backlog.sh, plugin/bin/peal, plugin/commands/*.md, plugin/commands/commands.test.sh, plugin/agents/reviewer.md, plugin/templates/task.md, docs/security.md, docs/design.md, docs/reference/*.md, docs/guides/*.md]
 milestone: m6
 priority: high
+model: opus
 ---
 
 # 0177 — merge: auto is the human's consent: it is recorded outside the task's branch and never read back from a claim copy
@@ -37,6 +38,39 @@ priority: high
 - Security review finding 1 (HIGH, verified by reading and by the existing test). Related: 0161 (a task-files pull request writing `merge: auto` on another task) and the revise-shape task of this milestone; this task closes the board's side, those the writes' side.
 - Needs a decision with the control plane: Belfry's contract says Peal writes `merge: auto` when the human agrees the plan and trusts the board's field; a change of route is a contract change on its side too (file it there if the plan picks the control-plane record).
 - Security: touches the auto-merge tiers boundary and "the merge is the human's" (`docs/security.md`); update it in the same pull request.
+
+Human's answers at planning (2026-10-23):
+- Route: left to the session ("whatever is cleanest"); chosen: the control plane's own record of the plan answer. The board grants `merge` only from main's copy or the issue's label, never from a claim copy. Contract change on the control plane's side (belfry#729); until it ships, plan-agreed pull requests wait for the human.
+- `peal create` and the ideas filed at close refuse a text that sets `merge` (yes, after the reason: a session's own filing is the remaining forge path).
+- Close asks the reviewer for its `merge-auto` verdict when the Notes agreement line is present, not only the field: included here.
+- Plan agreed as shown: size M, model opus, merge default, touches widened.
+
+## Plan
+
+**Outcome.** Nothing a session writes grants `merge: auto`. The board takes `merge` only from main's copy (files) or the issue's label (issues); a claim copy can only take it away (the reviewer's withdraw). The human's plan-time yes lives in the control plane's own record of the answer; Peal keeps a Notes trace line that grants nothing. Without a control plane the human writes `merge: auto` on main themselves (own PR, which 0161 gates, or the label).
+
+**Approach.**
+- a. Board overlay (`_peal_files_overlay`, `plugin/lib/store-files.sh:260-277`): column 17 (`merge`) becomes main's AND the copy's: a claim copy with an empty `merge` empties it; a copy's `auto` over an empty main stays empty. Columns 9, 10, 16 unchanged; header comment (lines 6-7) follows.
+- b. One shared check `peal_merge_added OLD NEW VERB` in `plugin/lib/tasks.sh`: status 2 when NEW's `merge` is non-empty and differs from OLD's; removing is always allowed. Called from `peal_edit_check` (revise on main and on the claim, issue edits, apply edits), `peal_record` (`work.sh:178-183`), and `_peal_files_build_rewrite` as a backstop. `peal comment` already cannot reach the frontmatter. Error: "<verb>: the text adds merge; only the human sets merge: auto, on the main branch or the issue's label (docs/security.md)".
+- c. `peal frontmatter set` / `set-list` (`plugin/bin/peal:340-353`) refuse the key `merge`; `unset` keeps working.
+- d. Plain `peal create` and the queued ideas filed at close refuse a text that sets `merge` (`plugin/lib/backlog.sh`, `plugin/commands/idea.md`; adjust `store-issues.test.sh:1055-1057`).
+- e. `plugin/commands/work.md` step 5 stops writing the field; it writes `merge: auto agreed by the human (<date>)` under `## Notes` and says the control plane keeps its own record of the answer.
+- f. Close and reviewer: `close begin`, `_peal_close_merge_check` and the PR body (`close.sh:167-169, 328-344, 382-384`) treat the field or that Notes line as the trigger for the reviewer's `merge-auto` verdict; `withdraw` with no field leaves nothing to unset and puts the "merge: auto withdrawn" body line. A forged Notes line only adds a review question. `close.md` and `reviewer.md` follow.
+- g. Docs: `docs/security.md` new subsection "merge: auto is the human's" (guard and harness) and "Auto-merge tiers" (395-408) reworded; known gap: a session with a `gh` login can label an issue. Also `docs/reference/tasks.md:53`, `docs/design.md:164-173, 264-271`, `docs/guides/working-a-task.md:33`, `docs/guides/belfry.md:43-46`, `plugin/templates/task.md:22`, `docs/reference/cli.md` (record, frontmatter, create), `docs/reference/commands.md:23`. Keep `docs/security.md` changes to the new subsection and the tiers sentence (0161 edits it too).
+
+Rejected: a new `apply` kind writing `merge: auto` on main (main writes on a claimed task are refused on purpose, squash-merge conflict, and a session can run apply too); dropping `merge` from the board (removes the human's own route and the issue label).
+
+**Verification.**
+- `store-files.test.sh claim_copies` (~596-618): the existing "claim copy: merge" check inverted (copy auto over main without: no merge); main auto + copy auto: auto; main auto + copy without: empty.
+- `work.test.sh record` (150-180, both storages): a text adding `merge: auto` refused naming merge, nothing recorded; a text removing it accepted.
+- `store-files.test.sh` revise (~412): unclaimed backlog and claim-path revise refused. `store-issues.test.sh merge` (1046-1061): revise adding the label refused; dropping works; create with merge refused.
+- Comment: `peal comment 0001 'merge: auto'` lands as a note and the board's merge stays empty (next to the `---` refusal, 496-497).
+- `peal frontmatter set F merge auto` and `set-list F merge auto` refused; `unset` works.
+- `commands.test.sh` 83-90: `work.md` writes the Notes agreement line and never `frontmatter set … merge`.
+- `close.test.sh merge_cases` (513-572) unchanged passes; new case: Notes line only → begin notes it, finish needs the verdict, withdraw puts the body line without a record commit.
+- `hostile.test.sh`, the full harness and shellcheck green.
+
+**Ranges.** tasks/backlog/0161-gate-task-files-merge-auto.md:1-28; plugin/lib/store-files.sh:1-8, 260-302, 311-325, 526-535, 545-618, 866-952, 1184-1191; plugin/lib/store-files.test.sh:125-126, 412, 494-497, 586-618; plugin/lib/work.sh:143-194; plugin/lib/work.test.sh:150-180; plugin/lib/tasks.sh:363-391; plugin/lib/backlog.sh:62-101, 103-123, 177-186; plugin/lib/close.sh:160-169, 325-366, 368-384; plugin/lib/close.test.sh:50-60, 513-572; plugin/lib/store-issues.sh:405-415, 460-468, 680-686; plugin/lib/store-issues.test.sh:1027-1061; plugin/lib/apply.sh:625-632; plugin/bin/peal:340-353; plugin/commands/work.md:86-135; plugin/commands/close.md:58-62, 141-146; plugin/agents/reviewer.md:58-65; plugin/commands/commands.test.sh:83-90; plugin/templates/task.md:22; docs/security.md:124-130, 162-198, 219-225, 395-408; docs/design.md:164-173, 264-271, 345; docs/reference/tasks.md:53; docs/reference/commands.md:23; docs/guides/working-a-task.md:33; docs/guides/belfry.md:43-46.
 
 ---
 
