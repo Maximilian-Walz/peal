@@ -13,7 +13,8 @@
 # the word peal_gh or _peal_ship_gh anywhere (peal_gh_failed is another word), or gh in
 # command position (`gh api`, `set -- gh ...`, `timeout 60 gh ...`, `if`, `while`,
 # `until` or `!` before it, `env` or NAME=value assignments before it; not `command -v
-# gh`, not `wants gh`). Then the same on scratch copies, each mistake reported.
+# gh`, not `wants gh`). Then the same on scratch copies, each mistake reported. Last, the
+# login probe without gh at all says gh is needed.
 set -uo pipefail
 # shellcheck source=test-lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/test-lib.sh"
@@ -152,6 +153,13 @@ missing row: doctor.sh:_peal_gh_while" "$(inventory "$LIB" "$DOC" "$CMDS")"
   printf '%s\n' '---' 'description: x' '---' 'Run `gh api repos/x` once.' >"$CMDS/newcmd.md"
   check "a command not listed" "command not listed: /peal:newcmd" "$(inventory "$LIB" "$DOC" "$CMDS")"
 }
+
+# The login probe (lib/github.sh) without gh at all: peal_gh's own "this needs gh", never
+# the Belfry line.
+out=$(bash -c '. "$1/lib/common.sh"; . "$1/lib/github.sh"; PATH=$2
+  peal_gh_need_login "a write" "do it elsewhere"; echo "status $?"' _ "$PEAL_ROOT" "$(scratch_dir)" 2>&1)
+check "no gh: says gh is needed" "peal: this needs gh (https://cli.github.com), logged in
+status 1" "$out"
 
 for_each_awk cases
 finish

@@ -110,10 +110,15 @@ peal_gh_login() {
 
 # peal_gh_need_login WHAT INSTEAD -> status 0 when gh has a token; else status 1 and the
 # line "peal: WHAT needs gh's login, and gh has none here (a Belfry session hides it);
-# INSTEAD". A write that needs a login asks it first, so it refuses before it changes
-# anything rather than failing halfway (docs/guides/belfry.md).
+# INSTEAD", or peal_gh's "this needs gh" when gh is missing. A write that needs a login
+# asks it first, so it refuses before it changes anything rather than failing halfway
+# (docs/guides/belfry.md).
 peal_gh_need_login() {
   peal_gh_login && return 0
+  if ! command -v gh >/dev/null 2>&1; then
+    peal_err "this needs gh (https://cli.github.com), logged in"
+    return 1
+  fi
   peal_err "$1 needs gh's login, and gh has none here (a Belfry session hides it); $2"
   return 1
 }
