@@ -1,10 +1,10 @@
 ---
 milestone: m6
-plan: auto
+plan: required
 size: S
 depends: []
 priority: high
-touches: [docs/milestones/]
+touches: [docs/milestones/m4.md, docs/milestones/m6.md, docs/milestones/m7.md, docs/milestones/m8.md, docs/milestones/m9.md]
 ---
 
 # 0229 — The milestones m6, m7, m9, m4 and m8 carry their goals and acceptance criteria
@@ -134,3 +134,61 @@ The prepared texts, from the re-plan (JSON, one entry per milestone; `descriptio
  }
 ]
 ```
+
+The human's answers (2026-10-23): m6's goal drops the version number, "Its release
+unblocks Belfry #42; …" (v0.7.0 already shipped while m6 is current); the plan as shown
+is agreed (default model, size S, default merge). The planner raised the plan to
+required since it changes a milestone goal's wording.
+
+Planner's decisions, agreed with the plan:
+- Goal scope: replace the goal only where the JSON gives one (m6, m7); m9's is already
+  identical, m4 and m8 keep theirs.
+- m4 criteria: the JSON's seven replace the old three entirely.
+- Wrapping: bullets wrapped at about 88 columns with two-space continuation, as in m4;
+  the goal one paragraph.
+- Verbatim overlap: m8's 0197 bullet and m4's 0136 criterion both kept verbatim.
+- Duplicate entries: the doubled m7 and m8 entries are one edit each; order-only
+  entries (m8 order 8, m5 order 9) already match, nothing to do.
+
+## Plan
+
+Edit the bodies of `docs/milestones/m6.md`, `m7.md`, `m9.md`, `m4.md`, `m8.md` from the
+Notes JSON, verbatim; frontmatter and the title heading untouched.
+
+- `## Goal`: m6 gets the JSON description with "Its release (v0.7.0) unblocks" changed
+  to "Its release unblocks"; m7 gets the JSON description; m9, m4, m8 unchanged.
+- `## Acceptance criteria`: replaced by the JSON's list, one bullet per entry (m6 9,
+  m7 7, m9 7, m4 7, m8 6), wrapped like m4's existing bullets.
+- Expected: `close begin` notes the branch touches milestone files; that is the task.
+
+Verification: `peal check` passes; `git diff --stat origin/main..HEAD` shows only the
+five files (plus the task file) and no `state:`/`order:` line changes; the bullet counts
+above; every `(NNNN` task number of the JSON appears in its file; the Outcome names the
+v0.7.0 adjustment.
+
+Ranges: tasks/doing/0229-milestone-texts-applied.md:1-136,
+docs/milestones/m6.md:1-14, docs/milestones/m7.md:1-14, docs/milestones/m9.md:1-14,
+docs/milestones/m4.md:1-20, docs/milestones/m8.md:1-14, docs/reference/tasks.md:118-161,
+plugin/commands/milestone-review.md:41-48, CHANGELOG.md:3-14.
+
+---
+
+## Outcome
+
+The goals and acceptance criteria from the re-plan of 2026-10-22 are now in the five
+milestone files, so each milestone's review has real criteria to walk. Changing
+milestone files is this task's purpose, which is why `close begin` printed its milestone
+note. m6 and m7 got their full goals from the Notes JSON. m9's goal already matched the
+JSON. m4 and m8 keep their goals, since the JSON gives them none. The criteria lists
+replace the placeholders, and on m4 the old three: m6 has 9, m7 7, m9 7, m4 7, m8 7.
+The plan's count of 6 for m8 was a miscount, because the JSON has 7 entries. Only bodies
+changed; frontmatter, state and order did not, and no task moved.
+
+One change to the JSON's text: m6's goal says "Its release unblocks Belfry #42" without
+"(v0.7.0)". v0.7.0 shipped on 2026-10-23 while m6 is still current, and the human chose
+to drop the version. Every task number the criteria cite still exists, and each sits in
+the milestone that cites it.
+
+Review skipped: the diff lies only in the skip paths (`docs/`, `tasks/`). `peal check`
+passes. Extending `peal apply` to write milestone text is the separate task the Raw
+names; this task does not cover it.
