@@ -570,7 +570,8 @@ merge_cases() {
   new_repo
   ready 1 first-task agreed
   build
-  out=$(begin)
+  begin >"$review.begin"
+  out=$(cat "$review.begin")
   check "merge agreed: begin notes it" "1" "$(printf '%s\n' "$out" | grep -c "^NOTE: task .*'s Notes say the human agreed merge: auto")"
   outcome "Built a.txt."
   check_refused "merge agreed: no review given" "has the human's merge: auto agreement in its Notes, so the reviewer's report decides" close_finish
