@@ -44,7 +44,8 @@ whose tasks are GitHub issues, the contract names the `github-issues` backend in
   (with Belfry's `wait_ci` tool, which spends none of your GitHub budget; `peal close
   wait` without it), and the merge is yours, or the task's, if you agreed `merge: auto` with its plan and
   Belfry's policy for the project allows it (its `auto_merge` policy, which Belfry
-  documents). Your answer is Belfry's own record: Peal's board never grants `merge` from a
+  documents), once Belfry acts on its own record of your answer (belfry#729); until then
+  the merge of a plan-agreed task is yours. Peal's board never grants `merge` from a
   claim branch's copy, and no session writes the field (`docs/security.md`).
 - **No GitHub login in the session.** Belfry hides the worker's `gh` login from its
   sessions. `/peal:close` opens the pull request through Belfry's `pr_create` tool

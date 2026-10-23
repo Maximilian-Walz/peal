@@ -343,7 +343,7 @@ need() {
 # a merge, written by the human on the main branch (docs/security.md); unset still works.
 frontmatter_not_merge() {
   if [ "$1" = merge ]; then
-    peal_err "frontmatter: the key merge; only the human sets merge: auto (docs/security.md)"
+    peal_err "frontmatter: refuses the key merge; only the human sets merge: auto (docs/security.md)"
     exit 2
   fi
 }
