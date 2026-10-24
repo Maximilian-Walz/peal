@@ -432,6 +432,25 @@ awk_channels() {
   each_input "create --batch, hostile text" "$WORK" "$(hostile_text)" create --batch 0001 found-hostile-text
   each_input "create --owner --title, hostile text" "$WORK" "$(hostile_text)" \
     create --owner ai --title "Belfry hostile stdin text"
+  # 0204: a hostile text with no heading, and a hostile title over one.
+  each_input "create --owner --title, hostile heading-less text" "$WORK" $'---\n---\n\n## Raw\n\n@\n' \
+    create --owner ai --title "Belfry hostile headingless text"
+  # The hostile value is the whole title, a few words on each side giving the slug its two.
+  INPUT=$BASE/input
+  printf '%s' $'---\n---\n\n## Raw\n\nsaid\n' >"$INPUT"
+  for ((i = 0; i < ${#H[@]}; i++)); do
+    try "create --title hostile, heading-less text [${H_NAMES[i]}]" "$WORK" create --owner ai --title "title ${H[i]:0:100} words"
+  done
+  INPUT=$NOINPUT
+  local i v
+  # (A title's slug becomes a file name, so the hostile values here are cut to 100 bytes.)
+  for ((i = 0; i < ${#H[@]}; i++)); do
+    v=$(json_escape "${H[i]:0:100}")
+    INPUT=$BASE/input
+    printf '{"proposals": [{"id": "a", "kind": "file", "title": "title %s words", "text": "---\\n---\\n\\n## Raw\\n\\nsaid\\n"}]}' "$v" >"$INPUT"
+    try "apply file, hostile title over heading-less text [${H_NAMES[i]}]" "$WORK" apply
+  done
+  INPUT=$NOINPUT
 
   # peal_create_filed's own promise: the text lands in the file exactly as given, only
   # NNNN replaced by the id it is given (dollar's the only hostile value here that both
@@ -486,7 +505,7 @@ awk_channels() {
   cover apply
   each_input "apply, raw values" "$WORK" '{"proposals": [{"id": "@", "kind": "add", "task": "0002", "text": "@"},
     {"id": "f", "kind": "file", "title": "@", "text": "@", "milestone": "@", "why": "@"}]}' apply
-  local i v t
+  local t
   # Each input built only when this shard runs its try.
   for ((i = 0; i < ${#H[@]}; i++)); do
     v=$(json_escape "${H[i]}")

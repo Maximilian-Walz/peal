@@ -149,6 +149,29 @@ filed: 0009" "$?:$out"
 0007-origin-writer-belfry-task.md
 0008-dashed-title-words-here.md
 0009-batch-0001-more-words.md" "$(ids_on_main)"
+
+  # 0204: a text with no heading is filed under the title it came with.
+  local nohead
+  nohead=$(printf -- '---\nmilestone: m1\n---\n\n## Intent\n\nWhy.\n\n## Raw\n\nx\n')
+  out=$(printf '%s\n' "$nohead" | peal create --owner ai --title "Heading comes from the title" 2>&1)
+  check "belfry create: no heading, written from the title" "0:filed 0010 tasks/backlog/0010-heading-comes-from-the-title.md — milestone: m1, plan: -, size: - — \"Heading comes from the title\"
+filed: 0010" "$?:$out"
+  check "belfry create: no heading, the file" "$(printf -- '---\nmilestone: m1\n---\n\n# 0010 — Heading comes from the title\n\n## Intent\n\nWhy.\n\n## Raw\n\nx')" \
+    "$(on_main "$work" tasks/backlog/0010-heading-comes-from-the-title.md)"
+  out=$(printf '## Intent\n\nWhy.\n\n## Raw\n\nx\n' | peal create --owner ai --title "No frontmatter either way" 2>&1)
+  check "belfry create: no frontmatter, no heading" "0:filed: 0011" "$?:$(printf '%s\n' "$out" | tail -n 1)"
+  check "belfry create: no frontmatter, the heading on top" "# 0011 — No frontmatter either way" \
+    "$(on_main "$work" tasks/backlog/0011-no-frontmatter-either-way.md | head -n 1)"
+  out=$(printf '%s\n' "$nohead" | peal create --owner ai --title "$(printf 'Line one\n\tand  two')" 2>&1)
+  check "belfry create: a title with a newline and a tab, one-line heading" "# 0012 — Line one and two" \
+    "$(on_main "$work" tasks/backlog/0012-line-one-and-two.md | grep '^# ')"
+  out=$(TITLE="Own heading stays" ID=NNNN text "milestone: m1" | peal create --owner ai --title "A different title here" 2>&1)
+  check "belfry create: its own heading wins over --title" "# 0013 — Own heading stays" \
+    "$(on_main "$work" tasks/backlog/0013-a-different-title-here.md | grep '^# ')"
+  check_refused "belfry create: another number still refused" "the first heading must be" \
+    peal create --owner ai --title "Some words once more" < <(ID=0005 text)
+  check_refused "belfry create: heading-less outsider text with a Plan" "filled '## Plan'" \
+    peal create --owner ai --title "Some outsider words here" --origin outsider < <(printf -- '---\n---\n\n## Plan\n\nDo it.\n\n## Raw\n\nx\n')
 }
 
 # create_belfry_pr -> the belfry create form through a pull request (lib/main-write.sh

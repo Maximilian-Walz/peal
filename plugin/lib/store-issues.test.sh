@@ -675,6 +675,14 @@ filed 6 https://github.com/acme/widgets/issues/6 — milestone: -, plan: -, size
   check "belfry create form: filed, the id last" "1" \
     "$(printf '%s\n' "$out" | tail -n 1 | grep -c -E '^filed: [0-9]+$')"
 
+  # 0204: a body with no heading is filed under the title it came with.
+  out=$(peal create --owner ai --title "Heading comes from the title" \
+    < <(printf -- '---\nmilestone: m1\n---\n\n## Intent\n\nWhy.\n\n## Raw\n\nx\n') 2>&1)
+  check "belfry create form: no heading, filed" "1" \
+    "$(printf '%s\n' "$out" | tail -n 1 | grep -c -E '^filed: [0-9]+$')"
+  check "belfry create form: no heading, the issue titled from --title" "Heading comes from the title" \
+    "$(gh_get 'map(select(.title == "Heading comes from the title")) | .[0].title')"
+
   # origin has no label on issues: refused, never dropped silently.
   check_refused "belfry create form: origin outsider refused" "origin is files only" \
     peal create --owner ai --title "Belfry files this one now" --origin outsider \

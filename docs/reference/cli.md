@@ -307,7 +307,12 @@ queues.
   (`ai` or `human`) is written into `owner`, winning over the text's own; `outsider` is
   written into `origin`, `writer` or none writes no field; the issues storage has no label for `origin`, so
   `--origin outsider` is refused there, as is an outsider's text with a filled `## Plan`
-  or `## Outcome` (`docs/security.md`). Ends with `filed: <id>`.
+  or `## Outcome` (`docs/security.md`). A text whose first non-blank line after the frontmatter
+  is not a `# ` heading (Belfry's body comes without one) is filed under `# <id> — TITLE`,
+  written there from `--title`, made one line (control characters to spaces, runs of
+  spaces collapsed, ends trimmed); a text with its own heading keeps it, whatever its
+  title, and a heading with another number or no title is refused as before. Ends with
+  `filed: <id>`.
 
 ## `peal idea`
 
@@ -372,7 +377,7 @@ empty fields out, so an absent optional field is none:
 
 | kind | fields | what it does |
 |---|---|---|
-| `file` | `title`, `text`, `milestone`, `priority`, `owner`, `origin` | files `text` as `peal create` does (`NNNN` for its number); the four fields go into the frontmatter, winning over the text's; `title` gives the slug, its first five words; with `origin: outsider`, a text with a filled `## Plan` or `## Outcome` is refused |
+| `file` | `title`, `text`, `milestone`, `priority`, `owner`, `origin` | files `text` as `peal create` does (`NNNN` for its number); the four fields go into the frontmatter, winning over the text's; `title` gives the slug, its first five words, and the heading `# <id> — title` (one line) when the text has none, else the text's own heading stays; with `origin: outsider`, a text with a filled `## Plan` or `## Outcome` is refused |
 | `add` | `task`, `text`, `origin` | a dated line under the task's `## Notes`, as `peal comment`; `origin: outsider` marks the task |
 | `vouch` | `task`, `origin` | a human's word that an outsider's task counts as a writer's: drops `origin: outsider` and adds the dated line "Vouched for by a writer: <why>" ("Vouched for by a writer." with no `why`; line breaks in `why` become spaces) under `## Notes`, adding that section when the task has none. A task that is a writer's already is answered done ("already a writer's") and nothing is written. `task` cannot be `@<id>`, and `origin: outsider` is refused |
 | `move` | `task`, `milestone` | sets the milestone; absent or `null` removes it (`""` is invalid) |
