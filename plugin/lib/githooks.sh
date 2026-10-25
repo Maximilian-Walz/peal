@@ -235,7 +235,7 @@ _peal_pre_push_direct() {
     'docs(tasks): retire '*) shape=retire ;;
     'docs(tasks): apply '*)
       if [[ ! "$subject" =~ ^docs\(tasks\):\ apply\ [1-9][0-9]*\ proposals?$ ]]; then
-        _peal_gate_refuse pre-push "$short reaches $main directly and is no merge: \"$subject\""
+        _peal_gate_refuse pre-push "$short reaches $main directly and is none of Peal's own writes: \"$subject\""
         return
       fi
       shape=apply ;;
@@ -253,7 +253,7 @@ _peal_pre_push_direct() {
       return
       ;;
     *)
-      _peal_gate_refuse pre-push "$short reaches $main directly and is no merge: \"$subject\""
+      _peal_gate_refuse pre-push "$short reaches $main directly and is none of Peal's own writes: \"$subject\""
       return
       ;;
   esac
