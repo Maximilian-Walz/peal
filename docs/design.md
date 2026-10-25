@@ -179,7 +179,9 @@ plan is recorded on the claim, where a restarted session finds it. The implement
 and its `QUESTION`s go to the human; the main session never writes the task's code.
 
 What Peal shows the human is short, or it goes unread. Every question has a `header` (a
-label of up to 12 characters) and one or two sentences; what the questions share, the
+label of up to 12 characters) and one or two sentences that open with what it is about
+and where the work stands, and each option says its main pro or con, so a question
+answers on its own, even in an inbox out of any context; what the questions share, the
 whole plan for instance, is the session's message right before asking. The planner sorts
 its open points: the human's (what the work is for, what they see or use, money, a
 security boundary, a recorded decision) are asked as a label, a short question and a
