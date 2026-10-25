@@ -164,13 +164,13 @@ Why: because." "$(git -C "$work" log -1 --format=%B)"
   echo e >"$work/e"
   saved=$(scratch_dir)/index
   cp -p "$work/.git/index" "$saved"
-  check_fails "checks.commit refuses" 1 "the commit was refused (above)" peal commit "feat: e [0001]" e
+  check_fails "checks.commit refuses" 1 "false failed; the commit is refused" peal commit "feat: e [0001]" e
   check "checks.commit refuses: nothing committed" "$sha" "$(git -C "$work" rev-parse HEAD)"
   check "checks.commit refuses: index byte for byte" "same" "$(cmp -s "$saved" "$work/.git/index" && echo same || echo differs)"
   check "checks.commit refuses: p as staged" "p1" "$(git -C "$work" show :p)"
   check "checks.commit refuses: e untracked" "?? e" "$(git -C "$work" status --porcelain e)"
   cp -p "$work/.git/index" "$saved" # the status above refreshed the index
-  check_fails "checks.commit refuses, everything" 1 "the index is as it was" peal commit "feat: e [0001]"
+  check_fails "checks.commit refuses, everything" 1 "false failed; the commit is refused" peal commit "feat: e [0001]"
   check "checks.commit refuses, everything: index byte for byte" "same" "$(cmp -s "$saved" "$work/.git/index" && echo same || echo differs)"
   check "checks.commit refuses, everything: e untracked" "?? e" "$(git -C "$work" status --porcelain e)"
   cp -p "$base" "$work/.git/index"
