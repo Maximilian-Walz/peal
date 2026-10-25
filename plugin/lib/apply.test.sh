@@ -340,6 +340,36 @@ invalid() {
   check "invalid: $name" "2:$before:" "$st:$(main_sha):$bad"
 }
 
+# heading -> 0204: a file proposal whose text has no heading is filed under its title,
+# made one line; a text with its own heading keeps it; a wrong number is refused.
+heading() {
+  local before out st
+  setup_tasks
+  out=$(printf '%s' '{"proposals": [
+    {"id": "a", "kind": "file", "title": "Heading from the title", "text": "---\nmilestone: m1\n---\n\n## Raw\n\nsaid\n"},
+    {"id": "b", "kind": "file", "title": "Line one\n\tand  two", "text": "## Raw\n\nsaid\n"},
+    {"id": "c", "kind": "file", "title": "Not this title", "text": "# NNNN — Its own\n\n## Raw\n\nsaid\n"}]}' | peal apply 2>"$work.err")
+  st=$?; check "heading: status" "0:" "$st:$(cat "$work.err")"
+  check "heading: from the title" "---
+milestone: m1
+---
+
+# 0005 — Heading from the title
+
+## Raw
+
+said" "$(on_main "$work" tasks/backlog/0005-heading-from-the-title.md)"
+  check "heading: a one-line title, no frontmatter" "# 0006 — Line one and two" "$(on_main "$work" tasks/backlog/0006-line-one-and-two.md | head -n 1)"
+  check "heading: its own wins" "# 0007 — Its own" "$(on_main "$work" tasks/backlog/0007-not-this-title.md | head -n 1)"
+  before=$(main_sha)
+  out=$(printf '%s' '{"proposals": [{"id": "a", "kind": "file", "title": "Outsider with a plan", "origin": "outsider", "text": "## Plan\n\nDo it.\n\n## Raw\n\nsaid\n"}]}' | peal apply 2>"$work.err")
+  check "heading: a heading-less outsider text with a Plan is refused, nothing written" "$before:1" \
+    "$(main_sha):$(printf '%s\n' "$out" | grep -c "filled '## Plan'")"
+  out=$(printf '%s' '{"proposals": [{"id": "a", "kind": "file", "title": "Another number here", "text": "# 0007 — X\n\n## Raw\n\nsaid\n"}]}' | peal apply 2>"$work.err")
+  st=$?
+  check "heading: another number refused, nothing written" "2:$before:1" "$st:$(main_sha):$(printf '%s\n' "$out" | grep -c '"done": false')"
+}
+
 invalids() {
   local ok='{"id": "ok", "kind": "priority", "task": "0002", "priority": "low"}'
   setup_tasks
@@ -747,6 +777,7 @@ cases() {
   belfry_shapes
   belfry_invalid
   vouch
+  heading
   invalids
   defused
   reader

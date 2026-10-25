@@ -12,8 +12,9 @@
 # absent optional field is none):
 #   file      title, text (a task text as peal create takes it, NNNN for its number),
 #             milestone, priority, owner (ai, human), origin (outsider, writer): those
-#             four go into the frontmatter and win over the text's; title only gives the
-#             slug, as create --title does
+#             four go into the frontmatter and win over the text's; title gives the
+#             slug, as create --title does, and the heading "# NNNN — title" when the
+#             text has none
 #   add       task, text (a dated line under its Notes, no '---' or '## ' line), origin
 #             (outsider marks the task origin: outsider)
 #   vouch     task (a human vouches for an outsider's task: its origin: outsider goes and
@@ -392,7 +393,7 @@ _pa_static() {
   esac
   if [ "$kind" = file ]; then
     _pa_get "$i" title
-    slug=$(_peal_slug_normalise "$PA_V" | cut -d- -f1-5)
+    slug=$(_peal_slug_normalise "$(peal_text_one_line "$PA_V")" | cut -d- -f1-5)
     words=$(printf '%s' "$slug" | awk -F- '{ print ($0 == "" ? 0 : NF) }')
     [ "$words" -ge 2 ] || _pa_bad "$i" "the title makes a slug of $words word(s); a slug is at least two kebab-case words"
     printf -v "PA_SLUG_$i" '%s' "$slug"
@@ -625,7 +626,10 @@ _pa_item() {
     f=$PA_S/t/$id.text
     _pa_get "$i" text
     text=$PA_V
-    printf '%s\n' "${text//NNNN/$id}" >"$f"
+    _pa_get "$i" title
+    printf '%s\n' "$text" | peal_text_ensure_heading "$PA_V" >"$f.h" || return 2
+    sed "s/NNNN/$id/g" "$f.h" >"$f"
+    rm -f "$f.h"
     if [ -n "$(peal_fm_get "$f" merge 2>/dev/null)" ]; then
       peal_err "the text sets merge; only the human sets merge: auto (docs/security.md)"
       return 2
