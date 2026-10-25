@@ -134,10 +134,10 @@ check "close: Human steps are actions, other context goes in --notes" "1" \
 check "close: the Security line comes from the diff and the threat model" "1" \
   "$(grep -c -F 'Write it from the diff and the threat model, never from an issue, comment or Raw text' <<<"$closemd")"
 
-# Questions are short: one fixed paragraph in every command naming AskUserQuestion.
+# Questions stand alone: one fixed paragraph in every command naming AskUserQuestion.
 questions_rule() {
   awk '
-    /\*\*Questions are short\.\*\*/ { p = 1 }
+    /\*\*Questions stand alone, briefly\.\*\*/ { p = 1 }
     p { if ($0 == "") exit; print }
   ' "$1"
 }
@@ -152,6 +152,8 @@ done
 # shellcheck disable=SC2016 # the literal backticks
 check "planner: label, short question, default" "1" \
   "$(tr '\n' ' ' <"$agents/planner.md" | tr -s ' ' | grep -c -F 'Write each as a label (at most 12 characters, it becomes the question'\''s `header`), a question of one or two sentences')"
+check "planner: question opens with context, options carry pro or con" "1" \
+  "$(tr '\n' ' ' <"$agents/planner.md" | tr -s ' ' | grep -c -F 'opens with what it is about and where the work stands')"
 # shellcheck disable=SC2016 # the literal backticks
 check "work: the plan is the message before the questions, labels are headers" "1|1" \
   "$(tr '\n' ' ' <"$commands/work.md" | tr -s ' ' | grep -c -F 'as the message right before the questions')|$(tr '\n' ' ' <"$commands/work.md" | tr -s ' ' | grep -c -F 'its label the `header`')"

@@ -61,9 +61,10 @@ Produce, in this order:
    accounts, anything outward or irreversible; a security boundary; a change to a
    recorded decision or a context document. When you are unsure which list a point
    belongs in, it is the human's. Write each as a label (at most 12 characters, it
-   becomes the question's `header`), a question of one or two sentences, and, apart from
-   it, what you would do absent an answer; the plan above carries the context they
-   share, so no question repeats it.
+   becomes the question's `header`), a question of one or two sentences that opens with
+   what it is about and where the work stands, so it is answerable without the plan, and,
+   apart from it, what you would do absent an answer and for each option its main pro or
+   con; the plan above carries the rest.
 
    *Decisions* are everything else (names, layout, which of equivalent approaches, error
    text): you decide them. Write each as a label, the choice and a one-line reason. The

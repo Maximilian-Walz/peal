@@ -50,7 +50,7 @@ End with exactly this block:
 
 ```
 STATUS: DONE | QUESTION | STOPPED
-QUESTIONS: each question with your proposed default (QUESTION only)
+QUESTIONS: each question with your proposed default (QUESTION only); a question says what it is about and where the work stands, and each option its main pro or con, so it is answerable on its own
 COMMITS: git log --oneline <main branch>..HEAD
 DONE WHEN: each line of the task's Done when, with its evidence
 DEPARTURES: anything done outside or differently from the plan
