@@ -24,7 +24,17 @@ inbox out of any context and are answered "out of nowhere".
 
 ## Scope
 
+- The fixed questions paragraph in every command that asks through `AskUserQuestion`
+  (`plugin/commands/*.md`), and its check in `plugin/commands/commands.test.sh`.
+- The planner's *Human questions* (step 7 of `plugin/agents/planner.md`) and the
+  implementer's `QUESTIONS:` line (`plugin/agents/implementer.md`).
+
 ## Done when
+
+- Every question asked through `AskUserQuestion` opens with what it is about and where
+  the work stands, still in one or two sentences, so it is answerable without the plan.
+- Each option's description carries its main pro or con, not only what it does.
+- `plugin/commands/commands.test.sh` passes and checks the new wording.
 
 ## Raw
 
