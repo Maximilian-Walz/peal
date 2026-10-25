@@ -27,7 +27,7 @@ tasks:
     idea: /peal:idea {idea}
     board: .peal/peal board
     apply: .peal/peal apply
-    # What apply carries out; Belfry offers and sends only these.
+    # The kinds Belfry may send apply; it offers and sends only these.
     apply_kinds: [file, move, priority, depends, retire, milestone_create, milestone_update, milestone_state, split_milestone]
 policy:
   max_code_jobs: 2

@@ -410,7 +410,7 @@ tasks:
     board: .peal/peal board
     revise: /peal:comment {task} {text}
     apply: .peal/peal apply
-    # What apply carries out; Belfry offers and sends only these.
+    # The kinds Belfry may send apply; it offers and sends only these.
     apply_kinds: [file, move, priority, depends, retire, milestone_create, milestone_update, milestone_state, split_milestone]
 EOF
   fi
