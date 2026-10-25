@@ -105,4 +105,28 @@ Rejected: a read-only `.git` (it fails under root and breaks git's own lock file
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+`plugin/lib/commit.test.sh` now covers the two `peal commit` refusal paths from task 0093 that had no test. `plugin/lib/commit.sh` is unchanged, and no wrong behaviour turned up.
+
+- **A `checks.commit` refusal.**
+  - Setup: the config holds `checks.commit: ["false"]`. `p` is staged as `p1` and changed on disk; an untracked `e` exists.
+  - Two runs: one with a named path, one without paths (`git add -A`).
+  - Each run asserts:
+    - the gate's own message, "false failed; the commit is refused";
+    - HEAD is unchanged;
+    - the index is byte for byte what it was (`cmp`);
+    - `p` is still staged as `p1`, and `e` is still untracked.
+- **A failed index restore** (the snapshot branch).
+  - How it fails: a `mktemp` shim, put first on PATH, fails only for the restore's `index.peal.*` argument and passes every other call to the real `mktemp`. The restore calls `mktemp`, `cp` and `mv` by name, never git, so `commit.sh` needed no hook to be testable.
+  - It rides on the new-backlog-file refusal, whose normal exit 2 turns into 1, so the restore failure is shown to decide the status.
+  - The test asserts:
+    - the "kept at PATH" message;
+    - the snapshot at PATH equals the original index;
+    - no `.git/index.peal.*` is left behind;
+    - HEAD is unchanged.
+  - It asserts nothing about the live index afterwards; that behaviour is unspecified.
+  - Mutation check: without the shim, case 2 fails.
+- **Cleanup** restores the index from a baseline copy rather than `git reset`, because later cases expect `g` to still be staged.
+- **Harness:** 222 passed, 0 failed, under mawk, nawk and busybox awk.
+
+The reviewer found that case 1 at first asserted only `peal commit`'s generic refusal text, which any commit-msg refusal would match. It was fixed to assert the gate's own message (5deec59). No ideas were filed.
+
