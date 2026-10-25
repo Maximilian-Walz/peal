@@ -6,7 +6,8 @@
 #
 # Staging (named paths, or everything), the body, the report, and each refusal: the main
 # branch, a detached HEAD, no hooks installed, a new backlog task file, nothing staged, and
-# the commit-msg gate's own.
+# the commit-msg gate's own, including a failing checks.commit item (the index put back
+# byte for byte) and a restore that itself fails (exit 1, the snapshot kept and named).
 set -uo pipefail
 # shellcheck source=test-lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/test-lib.sh"
@@ -16,7 +17,7 @@ set -uo pipefail
 peal() { at "$work" "$PEAL" "$@"; }
 
 cases() {
-  local work out sha body mark
+  local work out sha body mark base saved shim real err snap
   work=$(repo)
 
   git -C "$work" checkout -q -b task/0001-some-task
@@ -150,7 +151,54 @@ Why: because." "$(git -C "$work" log -1 --format=%B)"
   peal commit "feat: h [0001]" h >/dev/null 2>&1
   check "gate: the other path's check did not run" "" "$(cat "$mark" 2>/dev/null)"
   check "gate: h committed, g still staged" "g" "$(git -C "$work" diff --cached --name-only)"
+
+  # A failing checks.commit item refuses the commit: the index is put back byte for byte,
+  # with and without named paths.
+  sha=$(git -C "$work" rev-parse HEAD)
+  base=$(scratch_dir)/base
+  cp -p "$work/.git/index" "$base"
+  printf 'checks:\n  commit:\n    - "false"\n' >"$work/.peal/config.yml"
+  echo p1 >"$work/p"
+  git -C "$work" add p
+  echo p2 >"$work/p"
+  echo e >"$work/e"
+  saved=$(scratch_dir)/index
+  cp -p "$work/.git/index" "$saved"
+  check_fails "checks.commit refuses" 1 "false failed; the commit is refused" peal commit "feat: e [0001]" e
+  check "checks.commit refuses: nothing committed" "$sha" "$(git -C "$work" rev-parse HEAD)"
+  check "checks.commit refuses: index byte for byte" "same" "$(cmp -s "$saved" "$work/.git/index" && echo same || echo differs)"
+  check "checks.commit refuses: p as staged" "p1" "$(git -C "$work" show :p)"
+  check "checks.commit refuses: e untracked" "?? e" "$(git -C "$work" status --porcelain e)"
+  cp -p "$work/.git/index" "$saved" # the status above refreshed the index
+  check_fails "checks.commit refuses, everything" 1 "false failed; the commit is refused" peal commit "feat: e [0001]"
+  check "checks.commit refuses, everything: index byte for byte" "same" "$(cmp -s "$saved" "$work/.git/index" && echo same || echo differs)"
+  check "checks.commit refuses, everything: e untracked" "?? e" "$(git -C "$work" status --porcelain e)"
+  cp -p "$base" "$work/.git/index"
+  rm -f "$work/p" "$work/e"
   printf 'checks:\n  commit: []\n' >"$work/.peal/config.yml"
+
+  # A restore that itself fails: exit 1, the snapshot kept and named. mktemp is shimmed to
+  # fail for the restore's own temporary file (named "<index>.peal.XXXXXX") only.
+  sha=$(git -C "$work" rev-parse HEAD)
+  shim=$(scratch_dir)
+  real=$(command -v mktemp)
+  printf '#!/bin/sh\ncase "$*" in *index.peal.*) exit 1 ;; esac\nexec %s "$@"\n' "$real" >"$shim/mktemp"
+  chmod +x "$shim/mktemp"
+  echo q >"$work/q"
+  git -C "$work" add q
+  printf 'x\n' >"$work/tasks/backlog/0011-x.md"
+  saved=$(scratch_dir)/index
+  cp -p "$work/.git/index" "$saved"
+  err=$(PATH="$shim:$PATH" TMPDIR=$(scratch_dir) peal commit "feat: e [0001]" 2>&1 >/dev/null)
+  check "failed restore: exit 1 and the snapshot named" "1:yes" "$?:$(case $err in *'could not restore the index; the original is kept at '*) echo yes ;; *) echo "no: $err" ;; esac)"
+  snap=${err##*the original is kept at }
+  snap=${snap%%$'\n'*}
+  check "failed restore: the snapshot exists" "yes" "$([ -f "$snap" ] && echo yes || echo no)"
+  check "failed restore: the snapshot is the original index" "same" "$(cmp -s "$saved" "$snap" && echo same || echo differs)"
+  check "failed restore: no temporary left in .git" "" "$(ls "$work"/.git/index.peal.* 2>/dev/null)"
+  check "failed restore: nothing committed" "$sha" "$(git -C "$work" rev-parse HEAD)"
+  cp -p "$base" "$work/.git/index"
+  rm -f "$snap" "$work/q" "$work/tasks/backlog/0011-x.md"
 
   # A named path with no change of its own (already committed, untouched since): refused,
   # HEAD unchanged, the other staged path untouched.
