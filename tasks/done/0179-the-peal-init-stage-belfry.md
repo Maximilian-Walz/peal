@@ -39,4 +39,25 @@ priority: high
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Built:
+- `.peal/peal init --stage belfry` now writes `apply_kinds` with the commands backend. The list is `file, move, priority, depends, retire, milestone_create, milestone_update, milestone_state, split_milestone`, the same as Peal's own contract.
+- With every backend, the template now writes `policy.max_code_jobs: 2` and `policy.never_auto_merge: [.peal/**]`. A comment says that Belfry's own never-list already covers `.belfry.yml`, `.github/**` and `.claude/**`.
+- `docs/guides/belfry.md` shows the same lines.
+- `peal doctor belfry` fails `belfry.apply_kinds` when `tasks.commands.apply` is set without `apply_kinds`. `docs/reference/cli.md` documents the check.
+- Tests: `init.test.sh` checks the template has the three keys, and `doctor.test.sh` checks both the failing and the passing doctor case.
+
+Peal's own `.belfry.yml` already had `apply_kinds` (#321) and `.peal/**` in its never list on main. It is left unchanged.
+
+Decided:
+- `add` and `vouch` stay out of the template's `apply_kinds`, although `PEAL_APPLY_KINDS` accepts them.
+  - `vouch`: Peal cannot tell that a vouch came from a human (`docs/security.md`). Offering it to the control plane must be the adopting project's explicit choice.
+  - `add`: notes go through `revise: /peal:comment`.
+  - The template therefore grants no more than Peal's own contract.
+  - The comment in the template calls the list "the kinds Belfry may send apply", because it is a deliberate subset of what apply can do.
+- The doctor check tests only that `apply_kinds` is present, not what it lists.
+
+Next session: if the control plane ever sends triage `add` verdicts only through `apply`, add `add` to the list. The reviewer could not check the control plane's side from this sandbox.
+
+### Reviewer findings not acted on
+
+- None left. The missing cli.md line and the comment wording were fixed in a commit of their own.
