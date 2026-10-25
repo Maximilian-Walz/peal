@@ -410,6 +410,19 @@ EOF
   out=$(launcher_doctor "$work" "$home" belfry)
   check "belfry: a bad shape" "yes" \
     "$([[ "$out" == *"FAIL belfry.board: .peal/peal board did not print the shape Belfry expects"* ]] && echo yes)"
+
+  cat >"$work/.belfry.yml" <<'EOF'
+tasks:
+  backend: commands
+  commands:
+    apply: .peal/peal apply
+EOF
+  out=$(d "$work" belfry)
+  check "belfry: apply without apply_kinds" "yes" \
+    "$([[ "$out" == *"FAIL belfry.apply_kinds: tasks.commands.apply is set without apply_kinds"* ]] && echo yes)"
+  printf '    apply_kinds: [file, retire]\n' >>"$work/.belfry.yml"
+  out=$(d "$work" belfry)
+  check "belfry: apply with apply_kinds" "" "$([[ "$out" == *apply_kinds* ]] && echo "$out")"
 }
 
 # -------------------------------------------------------------------------- structural --

@@ -104,6 +104,9 @@ skipped the check: belfry check is not available yet" "$out"
     "$(grep '^    revise:' "$work/.belfry.yml")"
   check "belfry: apply reads its batch on stdin, no placeholders" "    apply: .peal/peal apply" \
     "$(grep '^    apply:' "$work/.belfry.yml")"
+  check "belfry: apply_kinds, max_code_jobs and never_auto_merge for .peal/**" "yes" \
+    "$(grep -q '^    apply_kinds: \[.*retire.*\]' "$work/.belfry.yml" && grep -q '^  max_code_jobs: ' "$work/.belfry.yml" \
+      && grep -q '^  never_auto_merge: \[.peal/\*\*\]' "$work/.belfry.yml" && echo yes)"
   check "belfry: the actions are suggestions" "# actions:" "$(grep 'actions:' "$work/.belfry.yml")"
   check "all stages recorded, in order" "tasks
 guardrails

@@ -27,6 +27,12 @@ tasks:
     idea: /peal:idea {idea}
     board: .peal/peal board
     apply: .peal/peal apply
+    # What apply carries out; Belfry offers and sends only these.
+    apply_kinds: [file, move, priority, depends, retire, milestone_create, milestone_update, milestone_state, split_milestone]
+policy:
+  max_code_jobs: 2
+  # Belfry's own never-list already covers .belfry.yml, .github/** and .claude/**.
+  never_auto_merge: [.peal/**]
 ```
 
 Each line names a `peal` subcommand or a `/peal:` command that Belfry runs for you: it
