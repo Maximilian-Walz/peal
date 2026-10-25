@@ -149,13 +149,11 @@ peal_githook() {
 }
 
 # --- pre-push ----------------------------------------------------------------------------
-# Lets through to the main branch only what the storage writes there directly, and merges
-# of branches pushed before. Every commit the push adds to main's first-parent line is one
-# of:
-#   - a merge whose other parents are each on a remote-tracking branch already: a branch
-#     that was pushed first, not content made up as a merge parent;
-#   - a commit the storage made, told by its subject and checked by its diff's shape (the
-#     subject alone is only a string the caller chose):
+# Lets through to the main branch only what the storage writes there directly. Every
+# commit the push adds to main's first-parent line is a commit the storage made, told by
+# its subject and checked by its diff's shape (the subject alone is only a string the
+# caller chose); a merge is never one (a remote-tracking ref is a local file, so "merged
+# a pushed branch" proves nothing):
 #       docs(tasks): file ...                  only added backlog task files
 #       docs(tasks): revise|defer ID ...       exactly one modified backlog task file, ID's
 #       docs(tasks): set milestone of ID ...
@@ -180,8 +178,10 @@ peal_githook() {
 #                                              tag's commit written into its parent's;
 #                                              the tag known locally, its commit before
 #                                              this one (peal ship pin)
-# Rewriting main (not a fast-forward) and deleting it are refused. Git runs no pre-push
-# for a merge made on the server (a pull request's), so this never stands in its way.
+# Rewriting main (not a fast-forward) and deleting it are refused, and so is a merge made
+# on this machine. Git runs no pre-push for a merge made on the server (a pull request's),
+# so this never stands in its way. A guard against honest mistakes: branch protection on
+# main is what stops a deliberate push.
 # Known limit: the main branch and the tasks and milestones directories are this
 # worktree's settings.
 
@@ -210,7 +210,8 @@ _peal_pre_push() {
     for sha in $(git rev-list --first-parent $range); do
       parents=$(git show -s --format=%P "$sha" | wc -w)
       if [ "$parents" -gt 1 ]; then
-        _peal_pre_push_merge "$sha" "$main"
+        _peal_gate_refuse pre-push \
+          "$(git rev-parse --short "$sha") is a merge made here onto $main; a merge reaches $main as a pull request, made on the server."
       else
         _peal_pre_push_direct "$sha" "$main" "$tasks" "$milestones"
       fi
@@ -220,24 +221,6 @@ _peal_pre_push() {
     echo "pre-push: nothing reaches $main but a merged pull request and Peal's own writes (peal create, revise, retire, ...)." >&2
     return 1
   }
-}
-
-# _peal_pre_push_merge SHA MAIN -> refused unless every parent after the first is on a
-# remote-tracking branch.
-_peal_pre_push_merge() {
-  local sha=$1 main=$2 parent ref seen
-  for parent in $(git show -s --format=%P "$sha" | cut -d' ' -f2-); do
-    seen=0
-    for ref in $(git for-each-ref --format='%(refname)' refs/remotes/); do
-      if git merge-base --is-ancestor "$parent" "$ref" 2>/dev/null; then
-        seen=1
-        break
-      fi
-    done
-    [ $seen = 1 ] || _peal_gate_refuse pre-push \
-      "merge $(git rev-parse --short "$sha") brings $(git rev-parse --short "$parent") onto $main, which no pushed branch holds." \
-      "A merge onto $main merges a branch that was pushed first."
-  done
 }
 
 # _peal_pre_push_direct SHA MAIN TASKS MILESTONES -> refused unless SHA is one of the

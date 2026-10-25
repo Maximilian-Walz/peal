@@ -335,7 +335,8 @@ docs(tasks): file 0004 new-task [0004]" "$(git -C "$work" log --format=%s -6 ori
   commit_ungated "docs(tasks): file 0009 good-one [0009]"
   check_fails "refused: a bad commit under a good one" 1 "reaches main directly and is no merge: \"feat: smuggled" push_main
 
-  # Merges: of a branch pushed before, allowed; of one never pushed, refused.
+  # A merge made here is refused, of a pushed branch or not, also with a fabricated
+  # remote-tracking ref.
   fresh
   git -C "$work" checkout -q -b task/0001-first-task
   echo work >"$work/README"
@@ -343,9 +344,18 @@ docs(tasks): file 0004 new-task [0004]" "$(git -C "$work" log --format=%s -6 ori
   commit_ungated "feat: work [0001]"
   git -C "$work" checkout -q main
   git -C "$work" merge -q --no-ff --no-verify -m "Merge task/0001-first-task" task/0001-first-task
-  check_fails "refused: a merge of an unpushed branch" 1 "which no pushed branch holds" push_main
+  check_fails "refused: a merge of an unpushed branch" 1 "is a merge made here" push_main
   git -C "$work" push -q origin task/0001-first-task
-  check "allowed: a merge of a pushed branch" "0" "$(push_main 2>/dev/null; echo $?)"
+  check_fails "refused: a merge of a pushed branch" 1 "is a merge made here" push_main
+  fresh
+  git -C "$work" checkout -q -b task/0003-third-task
+  echo fab >"$work/README"
+  git -C "$work" add -A
+  commit_ungated "feat: fab [0003]"
+  git -C "$work" checkout -q main
+  git -C "$work" merge -q --no-ff --no-verify -m "Merge task/0003-third-task" task/0003-third-task
+  git -C "$work" update-ref refs/remotes/origin/x task/0003-third-task
+  check_fails "refused: a merge of a fabricated remote-tracking ref" 1 "is a merge made here" push_main
 
   # A fast-forward to a branch's commits is no merge.
   fresh
