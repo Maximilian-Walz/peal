@@ -24,7 +24,17 @@ inbox out of any context and are answered "out of nowhere".
 
 ## Scope
 
+- The fixed questions paragraph in every command that asks through `AskUserQuestion`
+  (`plugin/commands/*.md`), and its check in `plugin/commands/commands.test.sh`.
+- The planner's *Human questions* (step 7 of `plugin/agents/planner.md`) and the
+  implementer's `QUESTIONS:` line (`plugin/agents/implementer.md`).
+
 ## Done when
+
+- Every question asked through `AskUserQuestion` opens with what it is about and where
+  the work stands, still in one or two sentences, so it is answerable without the plan.
+- Each option's description carries its main pro or con, not only what it does.
+- `plugin/commands/commands.test.sh` passes and checks the new wording.
 
 ## Raw
 
@@ -62,4 +72,30 @@ inbox out of any context and are answered "out of nowhere".
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Built: every question Peal asks through `AskUserQuestion` now stands alone. The fixed
+paragraph every asking command carries (renamed from "Questions are short." to
+"Questions stand alone, briefly.", in all ten of `plugin/commands/*.md` that name
+`AskUserQuestion`) says a question opens, still in one or two sentences, with what it is
+about and where the work stands, and each option's description gives what it does and
+its main pro or con. The planner's step 7 (*Human questions*) and the implementer's
+`QUESTIONS:` line say the same, so the questions `/peal:work` relays arrive already in
+that shape; `docs/design.md` describes the rule. `commands.test.sh` checks the new
+paragraph is identical in every asking command and that the planner carries the new
+wording (176 passed).
+
+Decided (the plan was skipped; the implementer took the defaults the Notes' open
+questions pointed to):
+- The rule covers every place that asks, not only the planner: the paragraph is one fixed
+  copy enforced identical across commands, so narrowing it would have split the rule.
+- The context sentence opens the `question` text, the pro or con goes in each option's
+  `description`; the 12-character header and the two-sentence limit stay. What several
+  questions share is still said once, in the message before asking.
+
+Left: the planner's reply has no separate field for an option's pro or con; it is prose
+convention, not enforced. The Belfry half (a place in its question tool for context or
+for pros and cons) was filed in Belfry's project before this task started; Peal works
+without it. Older tasks (e.g. 0068) still quote the old paragraph name: history, left
+as is.
+
+The review found nothing to act on beyond `docs/design.md` lagging the new rule, fixed
+on the branch.

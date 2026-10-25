@@ -29,9 +29,12 @@ the release workflow Belfry dispatches, where gh has the run's token, or where g
 logged in, and list the commands left (the step that refused and every one after it).
 What ran before it stands.
 
-**Questions are short.** Every `AskUserQuestion` has a `header` of at most 12 characters
-and a question of one or two sentences; what the questions share is said once, in your
-message right before asking, never repeated in a question.
+**Questions stand alone, briefly.** Every `AskUserQuestion` has a `header` of at most 12
+characters and a question of one or two sentences that opens with what it is about and
+where the work stands, so the human can answer it without the plan or the conversation
+(under Belfry it reaches their inbox out of context). Each option's description says
+what it does and its main pro or con. What several questions share is said once, in your
+message right before asking.
 
 ## 1. What went in
 
