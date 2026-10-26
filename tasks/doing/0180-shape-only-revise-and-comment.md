@@ -5,6 +5,7 @@ depends: []
 touches: [plugin/lib/githooks.sh, plugin/lib/githooks.test.sh, plugin/lib/merge-gate.awk, plugin/lib/tasks.sh, plugin/lib/store-files.test.sh, plugin/commands/defer.md, docs/security.md]
 milestone: m6
 priority: high
+model: opus
 ---
 
 # 0180 — Shape-only revise and comment pushes cannot drop origin: outsider, add merge or fill ## Plan; an outsider's labelled issue with ## Plan does not read as PLAN agreed
@@ -47,6 +48,41 @@ Revised 2026-10-26: split: 0250 holds the rest
   - FilledPlan: a filled Plan rewritten by a revise push is documented as an open limit.
   - BadYAML: an old or new blob whose frontmatter does not parse is refused.
   - AwkReuse: extend `merge-gate.awk` with `guard=1`; `merge-gate.sh` output unchanged.
+
+
+## Plan
+
+Agreed 2026-10-26. Model: opus. Size M (about 70 tool calls). Merge: default.
+
+Approach:
+- `plugin/lib/githooks.sh`, `_peal_pre_push_direct`: after the shape awk passes, for the `add`, `modify` and `apply` shapes, every backlog task file the diff adds (A) or modifies (M) gets a content check. The `--raw` line already gives old and new blob SHAs (`m[3]`, `m[4]`); read each with `git cat-file blob` and parse with `yaml-lib.awk` plus `merge-gate.awk -v guard=1`, which additionally prints the raw `origin` records and `filled Plan` / `filled Outcome` lines using the filled rule of `peal_text_section_filled`. `merge-gate.sh` output unchanged.
+- Refuse: frontmatter that does not parse (old or new); a `merge` key the old blob does not hold with the same raw value; `origin` removed or changed; Plan or Outcome from empty to filled. Added files: `merge` always refused, filled Plan/Outcome only with `origin: outsider`. `apply` only: `origin: outsider` may disappear from task NNNN when the commit body holds a line matching `^- [^ ]+ \(vouch NNNN\): `.
+- Update the gate's comment block (githooks.sh 151-186).
+- `plugin/lib/tasks.sh` `peal_edit_check`: refuse `origin` dropped or changed and Plan/Outcome newly filled (covers revise and defer; comment and set-milestone go through `_peal_files_build_rewrite`, which only adds `origin` and already guards `merge`).
+- `plugin/commands/defer.md`: the agent empties an agreed Plan before deferring and says so in Notes.
+- `docs/security.md`: the direct-push limit closed, with the tests; open limits: a filled Plan rewritten, a forged vouch line or subject (honest-mistake gate; branch protection is the real block).
+
+Verification:
+- `plugin/lib/githooks.test.sh` (`pre_push`, commits via `commit_ungated`), under every awk (`for_each_awk`). Refused: revise dropping `origin: outsider`; revise adding `merge: auto`; revise filling `## Plan`; `note on` dropping `origin`; defer filling Outcome; apply dropping `origin` with no vouch line; apply whose vouch line names another id; `file` of an outsider's task with filled Plan; a modified file whose new frontmatter does not parse. Allowed: the existing writes (test lines 131-149); apply with a real vouch via `peal apply`; revise adding `origin: outsider`; revise removing `merge`; a writer's `file` with a filled Plan.
+- `plugin/lib/store-files.test.sh`: `peal revise` and `peal defer` refuse a dropped `origin` and a newly filled Plan.
+- `tools/docs.test.sh`, `tools/lint.sh`.
+
+Ranges:
+- plugin/lib/githooks.sh:151-313
+- plugin/lib/githooks.test.sh:121-224
+- plugin/lib/merge-gate.awk:1-21
+- plugin/lib/merge-gate.sh:45-50
+- plugin/lib/tasks.sh:363-405
+- plugin/lib/task-check.awk:78-86
+- plugin/lib/task-text.sh:83-115
+- plugin/lib/work.sh:55-83
+- plugin/lib/store-files.sh:584-623, 680-751, 871-923, 1190-1197
+- plugin/lib/apply.sh:1106-1151
+- plugin/lib/hostile.test.sh:474-501
+- plugin/commands/defer.md:39-64
+- tasks/done/0161-gate-task-files-merge-auto.md:17-22, 46-68, 88-91
+- docs/security.md:124-162, 164-201, 203-242, 263-269, 301-340, 469-513
+- .belfry.yml:67-72
 
 ---
 
