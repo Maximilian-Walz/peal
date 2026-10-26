@@ -75,22 +75,10 @@ push`, `git fetch` or `git pull` reaches the remote, while `peal ship` runs its 
 fetches, pushes and `gh release` calls inside one process, without a key or a `gh` login.
 So under Belfry the release runs as a GitHub workflow that the action of the Releases
 tab's button dispatches, with no session and no sandbox involved. Peal releases itself
-this way, with its own `.github/workflows/release.yml` and this action in its
-`.belfry.yml`:
-
-```yaml
-actions:
-  release:
-    title: Release
-    workflow: release.yml
-    inputs:
-      version:
-        ask: true
-        pattern: 'v[0-9]+\.[0-9]+\.[0-9]+'
-    triggers: [button]
-    single: true
-    release: true
-```
+this way, with its own `.github/workflows/release.yml` and, in its `.belfry.yml`, the
+action `release` with `workflow: release.yml`, `inputs: { version: { ask: true, pattern:
+'v[0-9]+\.[0-9]+\.[0-9]+' } }`, `triggers: [button]`, `single: true` and `release:
+true`.
 
 The button asks for the version, and the version typed in is the confirmation that
 `/peal:release` would otherwise ask for. The workflow runs `peal ship propose` and
@@ -127,12 +115,7 @@ A run that fails halfway is not resumed. Read its log for the step that failed, 
 cause, then finish by hand where `gh` is logged in, from that step on. Each `peal ship`
 step does nothing, or refuses, where its work is done already: `bump` answers `already
 at`, `tag` refuses a tag that exists, `publish` brings an existing release up to date.
-After a failed `tag`, for instance:
-
-```text
-peal ship tag v1.2.0
-peal ship publish v1.2.0
-peal ship pin v1.2.0
-```
+After a failed `tag`, for instance, run `peal ship tag v1.2.0`, then `peal ship publish
+v1.2.0` and `peal ship pin v1.2.0`.
 
 A new dispatch with the same version works only while its tag does not exist yet.
