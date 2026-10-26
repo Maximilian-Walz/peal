@@ -17,6 +17,12 @@ base=${1:-} head=${2:-HEAD}
 yes() { echo harnesses=true; exit 0; }
 fetch_url=https://github\\.com/Maximilian-Walz/peal
 
+# The -/+ lines of one file's diff: everything before the first @@ is header, all after it
+# is content (a content line may itself start with `++ ` or `-- `).
+changed_lines() {
+  git diff --no-renames -U0 "$base" "$head" -- "$1" | awk '/^@@/ {h=1; next} h && /^[-+]/'
+}
+
 case $base in '' | *[!0]*) ;; *) yes ;; esac # empty, or 000…: nothing to compare with
 [ -n "$base" ] || yes
 git cat-file -e "$base^{commit}" 2>/dev/null || yes
@@ -30,7 +36,7 @@ while IFS= read -r f; do
     plugin/.claude-plugin/plugin.json)
       # Only lines setting "version" may change.
       # As strict as peal_version (plugin/bin/peal) reads it: spaces only, not empty.
-      changed=$(git diff --no-renames -U0 "$base" "$head" -- "$f" | grep -E '^[-+]' | grep -Ev '^(\+\+\+|---) ') || yes
+      changed=$(changed_lines "$f") || yes
       if printf '%s\n' "$changed" | grep -Evq '^[-+] *"version": *"[^"]+", *$'; then
         yes
       fi
@@ -38,7 +44,7 @@ while IFS= read -r f; do
     plugin/templates/*.yml)
       # One line out, one in, both Peal's fetch line, equal but for the SHA and the tag.
       # Hard-coded, not read from .peal/config.yml: a diff changing that runs everything.
-      changed=$(git diff --no-renames -U0 "$base" "$head" -- "$f" | grep -E '^[-+]' | grep -Ev '^(\+\+\+|---) ') || yes
+      changed=$(changed_lines "$f") || yes
       [ "$(printf '%s\n' "$changed" | grep -c '^-')" = 1 ] || yes
       [ "$(printf '%s\n' "$changed" | grep -c '^+')" = 1 ] || yes
       old=$(printf '%s\n' "$changed" | grep '^-')

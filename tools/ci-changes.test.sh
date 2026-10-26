@@ -142,6 +142,25 @@ tpl "$T" "$SHA2 # v0.9.0"; printf 'a: 2\n' >"$dir/.peal/config.yml"
 check "template change with .peal/config.yml: run" harnesses=true "$(verdict t-config)"
 reset
 
+tpl "$T" "$SHA2 # v0.9.0"; printf '++ injected: true\n' >>"$T"
+check "template: a valid change and an added '++ ' line: run" harnesses=true "$(verdict t-plus)"
+reset
+sedi 's/# v0.8.0/# v0.9.0/' "$T"; printf '++ injected: true\n' >>"$T"
+check "template: tag bump and an added '++ ' line: run" harnesses=true "$(verdict t-plus2)"
+reset
+tpl "$T" "$SHA1 # v0.8.0"; printf -- '-- gone\n' >>"$T"; git -C "$dir" add -A; git -C "$dir" commit -qm dash; base=$(git -C "$dir" rev-parse HEAD)
+tpl "$T" "$SHA2 # v0.9.0"
+check "template: a valid change and a removed '-- ' line: run" harnesses=true "$(verdict t-minus)"
+reset
+P=$dir/plugin/.claude-plugin/plugin.json
+sedi 's/0.1.0/0.2.0/' "$P"; printf '++ x\n' >>"$P"
+check "plugin.json: a version bump and an added '++ ' line: run" harnesses=true "$(verdict p-plus)"
+reset
+printf -- '-- x\n' >>"$P"; git -C "$dir" add -A; git -C "$dir" commit -qm pdash; base=$(git -C "$dir" rev-parse HEAD)
+sedi 's/0.1.0/0.2.0/' "$P"; sedi '/^-- x$/d' "$P"
+check "plugin.json: a version bump and a removed '-- ' line: run" harnesses=true "$(verdict p-minus)"
+reset
+
 check "no base (a new branch): run" harnesses=true "$(cd "$dir" && bash "$REPO/tools/ci-changes.sh" "" HEAD)"
 check "an all-zero base (a push that created the branch): run" harnesses=true \
   "$(cd "$dir" && bash "$REPO/tools/ci-changes.sh" 0000000000000000000000000000000000000000 HEAD)"
