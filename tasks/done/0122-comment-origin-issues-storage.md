@@ -36,4 +36,4 @@ the issues storage the way 0094 does for `create`, or carry the mark.
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Retired 2026-10-26 without being claimed: Absorbed into 0250: `peal comment --origin outsider` on the issues storage is refused there before posting.
