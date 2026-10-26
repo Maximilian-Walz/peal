@@ -1,7 +1,9 @@
 ---
 plan: required
 depends: [0232]
-touches: [plugin/lib/init.sh, plugin/templates/, docs/guides/belfry.md, docs/guides/releases.md]
+touches: [plugin/lib/init.sh, plugin/lib/init.test.sh, plugin/templates/release.yml, plugin/commands/setup.md, docs/guides/belfry.md, docs/guides/releases.md, docs/reference/cli.md, docs/security.md, .peal/config.yml, .belfry.yml]
+size: M
+model: opus
 ---
 
 # 0238 — The Belfry template offers a workflow release action and a starter release.yml
@@ -12,7 +14,15 @@ Under Belfry no session can release: `peal ship publish` refuses without gh's lo
 
 ## Scope
 
+- `plugin/lib/init.sh`'s Belfry template: the commented-out release action as a workflow action (`workflow: release.yml`), and a `--release-workflow` flag that writes the starter.
+- A starter `plugin/templates/release.yml`, its pin followed by releases.
+- `docs/guides/belfry.md`, `docs/guides/releases.md`, `docs/reference/cli.md`, `docs/security.md`, `plugin/commands/setup.md`; `.peal/config.yml` and `.belfry.yml` as the pin test and guard lists require.
+
 ## Done when
+
+- `peal init --stage belfry` writes the workflow release action (commented out) and prints the offer of the starter workflow; with `--release-workflow` it writes `.github/workflows/release.yml` from the template, refuses over a different existing file, and `--remove belfry` removes it while unchanged; asserted by `init.test.sh`.
+- `tools/pins.test.sh`, `tools/docs.test.sh`, `tools/lint.sh` and `tools/test-all.sh` pass; the propose job's shell is run by hand against a local scratch project.
+- The starter workflow, dispatched with a version, runs `peal ship` through to the release on a fresh project: proven after merge by the human on a scratch repository (Human steps in the pull request).
 
 ## Raw
 
@@ -52,6 +62,35 @@ Under Belfry no session can release: `peal ship publish` refuses without gh's lo
 - Open: how the starter workflow installs Peal's plugin on the runner, and which identity it writes main with (tag, version files) when main is protected; 0232 should answer the latter.
 - Open: the "fresh project" end-to-end check needs a real GitHub repository; how it is proven (a scratch repo, a dry run) is the planner's call.
 - Context: `docs/guides/belfry.md`, `docs/guides/releases.md`, `plugin/lib/ship.sh`, `plugin/commands/release.md`; task 0232 (Peal's own release workflow).
+- Human's answers to the plan (2026-10-26):
+  - Offer: a `--release-workflow` flag writes the starter; the plain stage prints an offer line; `/peal:setup` asks.
+  - Remove: `--remove belfry` removes the starter while it equals the template; an edited one is kept with a note.
+  - Pattern: the action's version pattern is rendered from `release.tag-prefix`; left out when the prefix is empty or holds regex characters.
+  - Secrets: keep `PEAL_RELEASE_APP_ID` / `PEAL_RELEASE_APP_KEY`.
+  - Read token: the propose job may use the run's read-only `GITHUB_TOKEN` (contents, issues, pull-requests read), step env only; `docs/security.md` says so.
+  - Main: read at run time (`peal config main`), the file stays byte-equal to the template.
+  - Scope: changing `.peal/config.yml`, `.belfry.yml`, `docs/security.md`, `docs/reference/cli.md`, `plugin/commands/setup.md` and `init.test.sh` is agreed.
+  - E2E: proven after merge by the human on a scratch repository; the session runs the propose shell locally.
+  - Pin lag: the guide gives the same `git ls-remote` instruction as the other templates; freshness is left to 0237.
+  - Duplicates: 0242 (of 0238) and 0240 (of 0237) are left and named in the Outcome.
+  - Peal's own `.github/workflows/release.yml` stays as it is.
+
+## Plan
+
+**Template `plugin/templates/release.yml`.** 0232's shape: dispatch only (`version`, `dry_run`), concurrency group `release` never cancelled, top-level `permissions: contents: read`, two jobs.
+- `propose`: no environment, no secret. A "Get Peal" step gets Peal pinned by SHA in the line form `pins.sh`/`pins.test.sh` expect (the same fetch line as `decisions.yml` and `merge-gate.yml`), `peal="$RUNNER_TEMP/peal/plugin/bin/peal"`. Read-only `github.token` reaches propose/notes through step env (`GH_TOKEN`, `GIT_CONFIG_*` credential helper); job permissions contents/issues/pull-requests read. Main read at run time with `$peal config main`; a real run refuses any ref but `refs/heads/<main>`.
+- `release`: `needs: propose`, `if: !inputs.dry_run`, `environment: release`; App token from `PEAL_RELEASE_APP_ID`/`PEAL_RELEASE_APP_KEY` with Peal's permissions plus `permission-issues: read`; the App's bot commits and tags; `bump`, `tag`, `publish`, `pin`, the `wait` loop when `release.wait-ci` is set; prints the `version:`/`url:` lines. Inputs and secrets reach the shell only through `env`, `persist-credentials: false`, every `uses:` pinned by SHA.
+- Its pin line is added to `.peal/config.yml` `release.version-files` and `release.commit-files` (required by `tools/pins.test.sh:94-105`).
+
+**`plugin/lib/init.sh`.** `_peal_init_belfry_text` (429-434): the commented `release:` action becomes `workflow: release.yml` with an asked `version` input (pattern from `release.tag-prefix`), `triggers: [button]`, `single: true`, `release: true`, a comment that the asked version is the confirmation and that `.github/workflows/release.yml` must exist. The stage prints one offer line; `--release-workflow` (belfry stage only, refused elsewhere) writes the starter through `_peal_init_put`, status 1 over a different existing file. `--remove belfry` removes it only while equal to the template, else keeps it with a note.
+
+**`plugin/commands/setup.md`** step 2 asks whether the human wants the release action; on yes it uncomments it and reruns the stage with `--release-workflow`.
+
+**Docs.** `docs/guides/belfry.md` Actions section (195-203) and its run block (14-37) if the output gains a line; `docs/guides/releases.md` "Under Belfry" rewritten for any project (adopt the starter, the App, the `release` environment restricted to main, the read token, the version pattern vs `release.tag-prefix`, the `git ls-remote` pin instruction); `docs/reference/cli.md:30-37` the flag; `docs/security.md:466-487` the starter with the templates and its read token; `.belfry.yml` adds `plugin/templates/release.yml` to the `&never` list.
+
+**Verification.** `init.test.sh`: contract text (workflow form, no `prompt: /peal:release`), offer line without flag and no file written, flag writes a file equal to the template and a second run reports `unchanged`, refusal over a different file, remove unchanged vs edited, flag refused on other stages, existing exact-output checks (92-93, 115-116) updated. `tools/pins.sh` clean, `tools/pins.test.sh` (three templates), `tools/docs.test.sh`, `tools/lint.sh`, `tools/test-all.sh`. The template parses as YAML, no `${{ inputs.* }}`/`${{ secrets.* }}` in `run:`, `actionlint` if installed. The propose shell by hand against a `peal init --stage tasks` scratch repo with a bare local origin: empty version proposes, NOTHING fails a real run / greens a dry run, malformed version refused, non-main ref refused for a real run, a non-default tag prefix gives the right tag.
+
+Ranges: `tasks/done/0232-peal-release-as-a-workflow.md:73-195`, `.github/workflows/release.yml:1-216`, `plugin/templates/merge-gate.yml:1-44`, `plugin/templates/decisions.yml:40-56`, `plugin/lib/init.sh:1-22`, `plugin/lib/init.sh:31-45`, `plugin/lib/init.sh:382-469`, `plugin/lib/init.sh:596-671`, `plugin/lib/init.test.sh:88-125`, `plugin/lib/init.test.sh:175-186`, `plugin/lib/ship.sh:669-681`, `plugin/lib/ship.sh:764-776`, `plugin/lib/ship.sh:817-833`, `plugin/lib/ship.sh:919-935`, `plugin/lib/ship.sh:991-1003`, `plugin/lib/config-defaults.yml:43-55`, `plugin/templates/launcher:17-23`, `.peal/config.yml:9-26`, `.belfry.yml:22-40`, `.belfry.yml:61-99`, `tools/pins.sh:1-59`, `tools/pins.test.sh:79-110`, `plugin/commands/setup.md:133-147`, `docs/guides/belfry.md:9-37`, `docs/guides/belfry.md:157-169`, `docs/guides/belfry.md:195-221`, `docs/guides/releases.md:1-121`, `docs/reference/cli.md:25-41`, `docs/security.md:460-489`, `docs/design.md:471-478`.
 
 ---
 
