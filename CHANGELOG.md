@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.8.0 (2026-10-26)
+
+v0.8.0: 13 features since v0.7.0.
+
+### Features
+
+- Gate a task-files-only pull request from setting `merge: auto` on another task: Built the merge gate, generic as the human chose at planning. ([0161](https://github.com/Maximilian-Walz/peal/blob/v0.8.0/tasks/done/0161-gate-task-files-merge-auto.md), #359)
+- The milestones m6, m7, m9, m4 and m8 carry their goals and acceptance criteria: The goals and acceptance criteria from the re-plan of 2026-10-22 are now in the five milestone files, so each milestone's review has real criteria to walk. ([0229](https://github.com/Maximilian-Walz/peal/blob/v0.8.0/tasks/done/0229-milestone-texts-applied.md), #361)
+- merge: auto is the human's consent: it is recorded outside the task's branch and never read back from a claim copy: **Built.** Nothing a session writes grants `merge: auto` any more. ([0177](https://github.com/Maximilian-Walz/peal/blob/v0.8.0/tasks/done/0177-merge-auto-is-the-human.md), #360)
+- Every gh call Peal makes is listed for Belfry, and the writes that need a login refuse with the reason: Built as planned, on opus. ([0203](https://github.com/Maximilian-Walz/peal/blob/v0.8.0/tasks/done/0203-belfry-gh-caller-inventory.md), #363)
+- /peal:setup's candidate issues include those of trusted Apps: `/peal:setup`'s issue sample (tasks stage, step 3 item 1 of `plugin/commands/setup.md`) now applies the issues storage's writer rule: an issue counts when its opener has write access, or is the bot login `<slug>[bot]` (case-insensitive) of an App named in an `storage.issues.apps` already set, unless it is labelled `origin: outsider`. ([0175](https://github.com/Maximilian-Walz/peal/blob/v0.8.0/tasks/done/0175-setup-lists-trusted-apps.md), #364)
+- peal create writes the `# 0204 — Title` heading when the text comes without one: Built. ([0204](https://github.com/Maximilian-Walz/peal/blob/v0.8.0/tasks/done/0204-peal-create-writes-the-nnnn.md), #379)
+- commit.test.sh covers a checks.commit refusal and a failed index restore: `plugin/lib/commit.test.sh` now covers the two `peal commit` refusal paths from task 0093 that had no test. ([0209](https://github.com/Maximilian-Walz/peal/blob/v0.8.0/tasks/done/0209-commit-test-sh-covers-a.md), #385)
+- Planner questions carry their context and each option's trade-off: Built: every question Peal asks through `AskUserQuestion` now stands alone. ([0248](https://github.com/Maximilian-Walz/peal/blob/v0.8.0/tasks/done/0248-planner-questions-carry-their-context.md), #386)
+- The peal init --stage belfry template, and Peal's own contract, set apply_kinds, max_code_jobs and never_auto_merge for .peal/**: Built: `.peal/peal init --stage belfry` now writes `apply_kinds` with the commands backend. ([0179](https://github.com/Maximilian-Walz/peal/blob/v0.8.0/tasks/done/0179-the-peal-init-stage-belfry.md), #381)
+- pre-push refuses a locally made merge onto main whose parent sits under any refs/remotes/*: The pre-push gate now refuses every merge made on this machine that would land on main's first-parent line. ([0178](https://github.com/Maximilian-Walz/peal/blob/v0.8.0/tasks/done/0178-pre-push-refuses-a-locally.md), #384)
+- The release verdict uses the shared peal_remote_ref: `peal_release_verdict` in `plugin/lib/claim.sh` now finds where a branch is on the remote by calling the shared `peal_remote_ref "$branch" "$(peal_config_get remote)"`. ([0215](https://github.com/Maximilian-Walz/peal/blob/v0.8.0/tasks/done/0215-the-release-verdict-uses-the.md), #390)
+- Allow mcp__belfry__task_create in this repository's .claude/settings.json: `.claude/settings.json` now holds `"permissions": {"allow": ["mcp__belfry__task_create"]}`, its first `permissions` block, so Belfry sessions on this repository stop asking for that tool. ([0246](https://github.com/Maximilian-Walz/peal/blob/v0.8.0/tasks/done/0246-allow-mcp-belfry-task-create.md), #389)
+- Peal's release runs as a GitHub workflow that Belfry's Release button dispatches: Built `.github/workflows/release.yml`, dispatched only. ([0232](https://github.com/Maximilian-Walz/peal/blob/v0.8.0/tasks/done/0232-peal-release-as-a-workflow.md), #393)
+
 ## v0.7.0 (2026-10-23)
 
 v0.7.0: 6 features since v0.6.0.
