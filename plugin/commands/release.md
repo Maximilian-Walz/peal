@@ -8,8 +8,8 @@ proposed version.
 
 `peal` is Peal's CLI, on the Bash tool's path. `peal ship` holds every step a script can
 take; this command holds the one question for the human. It runs anywhere in the
-repository (a Belfry action with a Release button runs it as `/peal:release
-{version}`), claims no task and writes no task file; the only commit it may make sets
+repository (under Belfry, the Release button dispatches the project's release workflow
+instead, docs/guides/releases.md), claims no task and writes no task file; the only commit it may make sets
 the version in the project's version files (`release.version-files`) and adds the
 release's entry to its changelog (`release.changelog`). The tag goes on the remote's
 main branch, whatever is checked out here.

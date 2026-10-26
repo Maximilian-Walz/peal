@@ -46,7 +46,7 @@ under `storage`.
 | `storage.issues.label` | `""` | only issues with this label are tasks; empty: the issues opened by someone with write access |
 | `storage.issues.apps` | `[]` | GitHub Apps whose issues count as a writer's: slugs or bot logins (`belfry-server` or `"belfry-server[bot]"`; quote the second in a flow list); a slug matches only the login `<slug>[bot]`, case-insensitively; not an issue labelled `origin: outsider`; read from the work tree, as `storage.issues.label` ([Security](../security.md)) |
 | `release.tag-prefix` | `v` | release tags are `<prefix>MAJOR.MINOR.PATCH` |
-| `release.wait-ci` | `false` | `/peal:release` waits for the workflow runs of the tag |
+| `release.wait-ci` | `false` | `/peal:release`, or the release workflow under Belfry, waits for the workflow runs of the tag |
 | `release.report` | `[]` | texts whose lines in those runs' logs the release reports, e.g. `"digest: sha256:"` |
 | `release.version-files` | `[]` | files the release sets to its version before the tag, each `"PATH: FIELD"`, a top-level field of a JSON, TOML or YAML file (in YAML also `KEY.KEY`, a nested field, e.g. `"values.yaml: image.tag"`), or `"PATH: \"TEXT\""`, the one line of any file that holds the literal `TEXT`, whose one `X.Y.Z` version is replaced |
 | `release.commit-files` | `[]` | files whose one marked line `"PATH: \"TEXT\""` holds a commit SHA that `peal ship pin` sets to the tag's commit, after the tag; the bare `"PATH: FIELD"` form is refused |
