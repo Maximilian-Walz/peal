@@ -409,6 +409,7 @@ revise() {
   OUTCOME="It was done." put "$work" backlog 0004 worked-task
   put "$work" "done" 0005 done-task
   put "$work" backlog 0006 claimed-task
+  put "$work" backlog 0007 outsider-task "origin: outsider"
 
   new=$(ID=0001 TITLE="A better title" text "milestone: m2" "depends: [0006]")
   out=$(peal revise 0001 --reason "narrowed" <<<"$new" 2>&1)
@@ -437,6 +438,10 @@ revise() {
     peal revise 0003 --reason x < <(ID=0003 text "milestone: m1")
   check_refused "revise: part-of changed" "part-of changed" peal revise 0002 --reason x < <(ID=0002 text "part-of: 0003")
   check_refused "revise: merge added" "revise: the text sets merge" peal revise 0001 --reason x < <(awk 'NR == 1 { print; print "merge: auto"; next } 1' <<<"$cur")
+  check_refused "revise: origin dropped" "revise: origin dropped or changed" peal revise 0007 --reason x < <(ID=0007 text)
+  check_refused "revise: origin changed" "revise: origin dropped or changed" peal revise 0007 --reason x < <(ID=0007 text "origin: writer")
+  check_refused "revise: the Plan filled" "revise: the new text fills in the Plan" \
+    peal revise 0001 --reason x < <(printf '%s\n' "$cur" | awk '$0 == "## Notes" { print "## Plan"; print ""; print "Do it this way."; print "" } 1')
   check_refused "revise: Outcome filled before" "Outcome is filled in: work happened" peal revise 0004 --reason x < <(ID=0004 TITLE=y text)
   check_refused "revise: done" "task 0005 is done" peal revise 0005 --reason x < <(ID=0005 TITLE=y text)
   check_refused "revise: no task" "no task 0042" peal revise 0042 --reason x < <(ID=0042 text)

@@ -376,10 +376,13 @@ peal_merge_added() {
 # OLD the text before and NEW the one after (files): the Raw section unchanged, and not
 # added or dropped (the human's own words, never rewritten); the Outcome heading neither
 # added nor dropped, and empty on both sides (a filled one means work happened); part-of
-# unchanged (only a split writes it); merge not added (peal_merge_added). Status 2 with
-# every problem reported.
+# unchanged (only a split writes it); merge not added (peal_merge_added); origin not
+# dropped or changed (an outsider's mark: only a vouch drops it, through peal apply); the
+# Plan not filled when it was empty (a filled Plan reads as agreed to peal work: only
+# planning writes it, on the claim). The pre-push gate checks the same on the main branch
+# (_peal_pre_push_content, lib/githooks.sh). Status 2 with every problem reported.
 peal_edit_check() {
-  local verb=$1 old=$2 new=$3 label=$4 status=0
+  local verb=$1 old=$2 new=$3 label=$4 status=0 origin
   if [ "$(peal_text_has_section Raw <"$old"; echo $?)" != "$(peal_text_has_section Raw <"$new"; echo $?)" ] \
       || [ "$(peal_text_section Raw <"$old")" != "$(peal_text_section Raw <"$new")" ]; then
     peal_err "$verb: the Raw section changed: it holds the human's own words, never rewritten"
@@ -401,5 +404,14 @@ peal_edit_check() {
     status=2
   fi
   peal_merge_added "$old" "$new" "$verb" || status=2
+  origin=$(peal_fm_get "$old" origin 2>/dev/null)
+  if [ -n "$origin" ] && [ "$origin" != "$(peal_fm_get "$new" origin 2>/dev/null)" ]; then
+    peal_err "$verb: origin dropped or changed: only a vouch (peal apply) drops origin: $origin"
+    status=2
+  fi
+  if peal_text_section_filled Plan <"$new" && ! peal_text_section_filled Plan <"$old"; then
+    peal_err "$verb: the new text fills in the Plan: a filled Plan reads as agreed; only planning writes it, on the claim"
+    status=2
+  fi
   return $status
 }
