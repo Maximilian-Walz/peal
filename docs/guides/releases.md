@@ -74,11 +74,27 @@ A Belfry session cannot release: its commands run in a sandbox, where only a pla
 push`, `git fetch` or `git pull` reaches the remote, while `peal ship` runs its own
 fetches, pushes and `gh release` calls inside one process, without a key or a `gh` login.
 So under Belfry the release runs as a GitHub workflow that the action of the Releases
-tab's button dispatches, with no session and no sandbox involved. Peal releases itself
-this way, with its own `.github/workflows/release.yml` and, in its `.belfry.yml`, the
-action `release` with `workflow: release.yml`, `inputs: { version: { ask: true, pattern:
+tab's button dispatches, with no session and no sandbox involved.
+
+Peal ships one as a starter. `peal init --stage belfry --release-workflow` (or
+`/peal:setup belfry`, which asks) writes it to `.github/workflows/release.yml`, a copy
+of `plugin/templates/release.yml` that runs `peal ship` from a Peal it fetches pinned by
+SHA, never from the project. The `.belfry.yml` the stage writes ends with the matching
+action as a comment; uncomment it (and the `actions:` line). It is the action `release`
+with `workflow: release.yml`, `inputs: { version: { ask: true, pattern:
 'v[0-9]+\.[0-9]+\.[0-9]+' } }`, `triggers: [button]`, `single: true` and `release:
 true`.
+
+The `pattern` follows `release.tag-prefix` (`v` by default, so `v1.2.0`). The stage
+leaves it out when the prefix is empty or holds a character other than letters, digits,
+`_`, `-` and `/`; the workflow checks the version itself either way. `peal init --remove
+belfry` removes the starter only while it is still Peal's copy, and keeps one you
+edited. Peal releases itself the same way, with a workflow of its own.
+
+The starter's Peal pin is the release it came with. To move it to another release, take
+that release's commit from `git ls-remote https://github.com/Maximilian-Walz/peal
+'refs/tags/vX.Y.Z^{}'` and change both the SHA and the tag in the comment of its `Get
+Peal` step, as for the other templates.
 
 The button asks for the version, and the version typed in is the confirmation that
 `/peal:release` would otherwise ask for. The workflow runs `peal ship propose` and
@@ -93,18 +109,25 @@ version=v1.2.0`):
   ship propose` proposes. A real run with no version when nothing calls for a release
   fails: name a version.
 - `dry_run`: prints the proposal and the notes and tags nothing. It needs no secret and
-  runs on any branch; a real run refuses any branch but `main`.
+  runs on any branch; a real run refuses any branch but the main branch (`peal config
+  main`, read when the run starts).
+
+The proposing job writes nothing. In the starter it reads the repository, and the
+issues and pull requests the notes of the issues storage come from, with the run's own
+`GITHUB_TOKEN`, read-only (contents, issues, pull requests) and given only to the step
+that reads, so a private repository works as a public one.
 
 Set it up once:
 
 1. Create a GitHub App owned by the repository's owner, with the repository permissions
-   Contents and Pull requests (read and write) and Actions, Checks and Commit statuses
-   (read), and install it on the repository. Do not make it a bypass actor of main's rules: where main refuses direct
+   Contents and Pull requests (read and write) and Actions, Checks, Commit statuses and
+   Issues (read), and install it on the repository. Do not make it a bypass actor of
+   main's rules: where main refuses direct
    pushes, `peal ship bump` and `pin` go through a pull request (`main-writes: auto`),
    whose checks run because the App opened it. A pull request the run's own
    `GITHUB_TOKEN` opens starts no workflow, so its auto-merge would wait forever.
-2. Create the environment `release` (Settings, Environments), restricted to the branch
-   `main`, with the secrets `PEAL_RELEASE_APP_ID` (the App's ID) and
+2. Create the environment `release` (Settings, Environments), restricted to the main
+   branch, with the secrets `PEAL_RELEASE_APP_ID` (the App's ID) and
    `PEAL_RELEASE_APP_KEY` (a private key of the App). A real run whose secrets are
    missing fails before it writes anything.
 

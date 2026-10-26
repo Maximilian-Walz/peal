@@ -465,7 +465,8 @@ nothing that needs a secret or a write.
 
 Every action runs at a pinned commit SHA, which Dependabot keeps current, and OpenSSF
 Scorecard checks the workflows weekly. The workflow templates
-(`plugin/templates/decisions.yml`, `plugin/templates/merge-gate.yml`) ship their action
+(`plugin/templates/decisions.yml`, `plugin/templates/merge-gate.yml`,
+`plugin/templates/release.yml`) ship their action
 and their Peal pinned by SHA too: Dependabot keeps the action current across `/` and
 `/plugin/templates`, the Peal pin follows each release (its tag set by the release, its
 SHA by `peal ship pin` after the tag, checked by `tools/pins.test.sh`), and
@@ -481,10 +482,19 @@ the run's `GITHUB_TOKEN` exists. The token stays out of the checkout
 its own `env`, git through a credential helper that reads it there, and inputs and
 secrets reach the shell only through `env`, never spliced into a `run:`.
 
+The starter release workflow a project gets from `peal init --stage belfry
+--release-workflow` (`plugin/templates/release.yml`) has the same shape, with two
+differences: it runs `peal ship` from the Peal it fetches pinned by SHA, never from the
+project's checkout, and its proposing job reads with the run's own `GITHUB_TOKEN`,
+read-only (contents, issues, pull requests) and given only to the step that proposes,
+so a private repository's notes can be read. That token cannot write; the writes stay
+the App's, in the `release` job.
+
 - Guard: `.github/workflows/ci.yml` (`permissions:`, the pinned `uses:`),
   `.github/workflows/release.yml` (its two jobs, `environment: release`, the App
   token), `.github/dependabot.yml`, `.github/workflows/scorecard.yml`,
-  `plugin/templates/decisions.yml`, `plugin/templates/merge-gate.yml`, `tools/pins.sh`.
+  `plugin/templates/decisions.yml`, `plugin/templates/merge-gate.yml`,
+  `plugin/templates/release.yml`, `tools/pins.sh`.
 - Harness: `tools/pins.test.sh`; Scorecard's weekly run reports an unpinned action or a
   broad permission.
 
