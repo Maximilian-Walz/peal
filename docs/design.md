@@ -54,7 +54,7 @@ following:
 | milestones | milestones as data; `peal milestone-state`; `/peal:milestone-review {milestone}` | a milestone list in the board output; `tasks.commands.apply` for its Close, Park and Un-park; actions with the `milestone` trigger |
 | a session | `/peal:work` and `/peal:close` in the claimed worktree | claim before the session; finished means a PR open and green |
 | the human | questions through `AskUserQuestion` | routes them to its inbox |
-| releases | `.github/workflows/release.yml` (Peal's starter) | an action marked `release: true`, `workflow: release.yml`, which its Releases tab's button dispatches |
+| releases | `.github/workflows/release.yml` (the starter `peal init --stage belfry --release-workflow` writes) | an action marked `release: true`, `workflow: release.yml`, which its Releases tab's button dispatches |
 
 A project's `.belfry.yml` for Peal is then:
 
