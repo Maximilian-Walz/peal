@@ -182,8 +182,24 @@ jobs:
             echo "GIT_COMMITTER_EMAIL=$id+$SLUG[bot]@users.noreply.github.com"
           } >>"$GITHUB_ENV"
           echo "committing as $SLUG[bot] ($id)"
-      - id: ship
-        name: peal ship bump, tag, publish and pin
+      - name: peal ship bump
+        env:
+          TAG: ${{ needs.propose.outputs.version }}
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          GIT_CONFIG_COUNT: 1
+          GIT_CONFIG_KEY_0: credential.https://github.com.helper
+          GIT_CONFIG_VALUE_0: '!f() { test "$1" = get && echo username=x-access-token && echo "password=$GH_TOKEN"; }; f'
+        run: '"$RUNNER_TEMP/peal/plugin/bin/peal" ship bump "$TAG"'
+      - name: peal ship tag
+        env:
+          TAG: ${{ needs.propose.outputs.version }}
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          GIT_CONFIG_COUNT: 1
+          GIT_CONFIG_KEY_0: credential.https://github.com.helper
+          GIT_CONFIG_VALUE_0: '!f() { test "$1" = get && echo username=x-access-token && echo "password=$GH_TOKEN"; }; f'
+        run: '"$RUNNER_TEMP/peal/plugin/bin/peal" ship tag "$TAG"'
+      - id: publish
+        name: peal ship publish
         env:
           TAG: ${{ needs.propose.outputs.version }}
           GH_TOKEN: ${{ steps.app.outputs.token }}
@@ -192,14 +208,18 @@ jobs:
           GIT_CONFIG_VALUE_0: '!f() { test "$1" = get && echo username=x-access-token && echo "password=$GH_TOKEN"; }; f'
         run: |
           set -euo pipefail
-          peal=$RUNNER_TEMP/peal/plugin/bin/peal
-          "$peal" ship bump "$TAG"
-          "$peal" ship tag "$TAG"
-          out=$("$peal" ship publish "$TAG")
+          out=$("$RUNNER_TEMP/peal/plugin/bin/peal" ship publish "$TAG")
           printf '%s\n' "$out"
           # "released vX.Y.Z: <url>" or "updated the release vX.Y.Z: <url>"
           echo "url=${out##*: }" >>"$GITHUB_OUTPUT"
-          "$peal" ship pin "$TAG"
+      - name: peal ship pin
+        env:
+          TAG: ${{ needs.propose.outputs.version }}
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          GIT_CONFIG_COUNT: 1
+          GIT_CONFIG_KEY_0: credential.https://github.com.helper
+          GIT_CONFIG_VALUE_0: '!f() { test "$1" = get && echo username=x-access-token && echo "password=$GH_TOKEN"; }; f'
+        run: '"$RUNNER_TEMP/peal/plugin/bin/peal" ship pin "$TAG"'
       - name: peal ship wait (release.wait-ci)
         env:
           TAG: ${{ needs.propose.outputs.version }}
@@ -223,7 +243,7 @@ jobs:
       - name: Result
         env:
           TAG: ${{ needs.propose.outputs.version }}
-          URL: ${{ steps.ship.outputs.url }}
+          URL: ${{ steps.publish.outputs.url }}
         run: |
           printf 'version: %s\nurl: %s\n' "$TAG" "$URL"
           printf 'version: %s\n\nurl: %s\n' "$TAG" "$URL" >>"$GITHUB_STEP_SUMMARY"
