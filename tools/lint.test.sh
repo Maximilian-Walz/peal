@@ -8,6 +8,8 @@
 # - it says nothing on stderr about files it cannot open;
 # - the full run fails, naming the fix, when .peal/peal differs from plugin/templates/launcher
 #   or is missing, and says nothing about it when they match;
+# - the full run fails, naming the file, when docs/security.md names a guard that .belfry.yml's
+#   lists do not cover (tools/guards.sh);
 # - outside a git repository it exits 2 (the search is broken).
 set -uo pipefail
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -55,8 +57,9 @@ cp "$dir/l/plugin/templates/launcher" "$dir/l/.peal/peal"
 mkdir -p "$dir/l/plugin/bin" "$dir/l/stub"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$dir/l/tools/pins.sh"
 cp "$dir/l/tools/pins.sh" "$dir/l/plugin/bin/peal"
+cp "$dir/l/tools/pins.sh" "$dir/l/tools/guards.sh"
 cp "$dir/l/tools/pins.sh" "$dir/l/stub/shellcheck"
-chmod +x "$dir/l/tools/pins.sh" "$dir/l/plugin/bin/peal" "$dir/l/stub/shellcheck"
+chmod +x "$dir/l/tools/pins.sh" "$dir/l/tools/guards.sh" "$dir/l/plugin/bin/peal" "$dir/l/stub/shellcheck"
 cd "$dir/l" || exit 2
 git init -q .
 out=$(PATH="$dir/l/stub:$PATH" bash tools/lint.sh 2>&1); status=$?
@@ -70,6 +73,22 @@ rm .peal/peal
 out=$(PATH="$dir/l/stub:$PATH" bash tools/lint.sh 2>&1); status=$?
 check "launcher: missing is named" "1" "$(printf '%s\n' "$out" | grep -c 'peal init --stage tasks')"
 check "launcher: missing exits non-zero" "1" "$([ "$status" -ne 0 ] && echo 1 || echo 0)"
+
+# The guards step, with the real tools/guards.sh over fixtures: restore the launcher, then
+# a guard named in docs/security.md but in no list fails lint, naming the file.
+cp "$dir/l/plugin/templates/launcher" .peal/peal
+cp "$REPO/tools/guards.sh" tools/guards.sh
+mkdir -p docs
+printf 'policy:\n  never_auto_merge: []\n  review_before_merge:\n    paths:\n      - plugin/lib/a.sh\n' >.belfry.yml
+# shellcheck disable=SC2016 # backticks are literal
+printf -- '- Guard: `plugin/lib/a.sh`\n' >docs/security.md
+out=$(PATH="$dir/l/stub:$PATH" bash tools/lint.sh 2>&1); status=$?
+check "guards: covered exits 0" "0" "$status"
+# shellcheck disable=SC2016
+printf -- '- Guard: `plugin/lib/a.sh`, `plugin/lib/gone.sh`\n' >docs/security.md
+out=$(PATH="$dir/l/stub:$PATH" bash tools/lint.sh 2>&1); status=$?
+check "guards: uncovered names the file" "1" "$(printf '%s\n' "$out" | grep -c 'plugin/lib/gone.sh')"
+check "guards: uncovered exits non-zero" "1" "$([ "$status" -ne 0 ] && echo 1 || echo 0)"
 
 chmod 600 "$dir/repo/locked" 2>/dev/null
 finish

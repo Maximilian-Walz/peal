@@ -71,6 +71,7 @@ Limits this boundary does not cover, accepted for now:
   `plugin/lib/config.test.sh` (`peal_config_load_ref`). The remaining limit: the ref is
   named by the work tree's `remote:` and `main:`, which a branch can change to point at a
   ref it controls (the gate-settings-from-main task, 0091).
+  - Guard: `plugin/lib/config.sh` (`peal_config_load_ref`), `plugin/lib/close.sh`.
 - **`checks.commit` runs the checked-out tree.** The commands the `commit-msg` gate runs
   are the project's own build and tests, and they run what the branch holds; that is
   their job. Which commands run still comes from the work tree's `.peal/config.yml`, so
@@ -127,7 +128,10 @@ The `pre-push` gate walks every commit a push would add to main's first-parent l
 refuses it unless it is one of Peal's own mechanical commits — filing, revising, deferring,
 retiring a task, a batch of those (`peal apply`), a milestone's state, the decisions index, a release's version files (or marked lines),
 changelog entry and commit SHAs — whose diff has exactly the shape its subject claims. Rewriting or
-deleting main is refused outright, and so is any merge made on this machine: a
+deleting main is refused outright, and so is its first push (the remote has no main): which
+commits it adds would be told by the local remote-tracking refs, files anyone can fake, and
+the hook makes no network call, so it refuses in one line; that push is the human's own,
+outside the gate. So is any merge made on this machine: a
 remote-tracking ref is a local file, so "a branch pushed first" proves nothing, and a
 merged pull request is made on the server, where no pre-push runs. The gate is a guard
 against honest mistakes; branch protection on main is what stops a deliberate push.
@@ -184,7 +188,7 @@ real block.
 - Guard: `plugin/lib/githooks.sh` (`_peal_pre_push`, `_peal_pre_push_content`),
   `plugin/lib/merge-gate.awk` (`guard=1`), `plugin/lib/tasks.sh` (`peal_edit_check`).
 - Harness: `plugin/lib/githooks.test.sh` (`pre_push`: revise dropping `origin:
-  outsider`, adding or changing `merge`, filling `## Plan`; note and set-milestone
+  outsider`, adding or changing `merge`, filling `## Plan`; the first push of main, honest or with a faked remote-tracking ref; note and set-milestone
   dropping or changing `origin`; defer filling the Outcome; apply without a vouch line or
   with another task's; an outsider's file with a filled Plan; a file setting `merge`;
   frontmatter that does not parse; and the writes still allowed),
@@ -507,7 +511,7 @@ documentation outside `docs/security.md`. Tasks whose `merge: auto` the human ag
 with the plan are meant to join them once Belfry acts on its own record of the answer
 (never a field a session wrote, see "`merge: auto` is the human's"); until then such
 pull requests wait for the human. Guard code (the `review_before_merge` paths: the CLI, the storage,
-claim and work libraries, the prompts under `plugin/commands/` and `plugin/agents/`,
+claim and work libraries, the task checks, close and config libraries, the prompts under `plugin/commands/` and `plugin/agents/`,
 `CLAUDE.md`) merges by itself only once a fresh `security-pr` review passed on the
 pull request's head, after an hour's grace for the human's Hold. What could loosen the
 gates or the release chain (hooks, launcher and githook, `githooks.sh`, `git-guard.sh`,
@@ -535,7 +539,12 @@ agreed. In Peal's CI the gate is a step of the `changes` job, so it fails the re
 ([the Belfry guide](guides/belfry.md)); changing that workflow or the pin needs a
 `.github/**` change, which never merges by itself.
 
-- Guard: `plugin/lib/merge-gate.sh`, `plugin/lib/merge-gate.awk`, the `peal merge-gate`
+The two lists in `.belfry.yml` (`never_auto_merge` and `review_before_merge.paths`) follow
+the `- Guard:` lines of this file, and CI checks it: `tools/lint.sh` runs `tools/guards.sh`,
+which fails naming any `plugin/`, `tools/` or `.peal/` path a Guard line names that
+neither list covers.
+
+- Guard: `tools/guards.sh`, `plugin/lib/merge-gate.sh`, `plugin/lib/merge-gate.awk`, the `peal merge-gate`
   step of `.github/workflows/ci.yml`, `plugin/templates/merge-gate.yml`.
 - Harness: `plugin/lib/merge-gate.test.sh`, `plugin/lib/hostile.test.sh`,
   `tools/pins.test.sh` (the template's pin).
