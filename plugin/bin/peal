@@ -206,9 +206,9 @@ number to come, several texts are separated by lines -----NEXT TASK-----):
   idea SLUG [--now]             queue an idea on a task branch, else (or --now) file it
   idea-fields                   (issues storage) the issue an idea text on stdin makes: title,
                                 milestone, labels and body, as `create` would open it
-  ideas [--flush | --export | --drop N|--all]
+  ideas [--flush | --export [N] | --drop N|--all]
                                 the queued ideas; --export prints them in full as
-                                Markdown, --drop takes one off the queue (by its
+                                Markdown (N: only the idea at that position), --drop takes one off the queue (by its
                                 position) or --all of them, --flush files them
   revise ID --reason R [--dry-run]
                                 rewrite an unclaimed task's text; in the worktree of
@@ -261,6 +261,7 @@ issue-N on branch issue/N, labelled "in progress", as Belfry claims one):
                                 it); notes, where the Outcome goes, the diff, Done when
   close finish --summary TEXT [--decisions TEXT] [--human-steps TEXT] [--notes TEXT]
                [--security TEXT] [--section TITLE TEXT]... [--review-file FILE] [--pr-by-tool]
+               [--ideas-by-tool]
                                 the close checks, the queued ideas filed, the task moved
                                 to done, committed, pushed, the pull request opened; the
                                 -file forms (--summary-file FILE, --decisions-file FILE,
@@ -268,7 +269,10 @@ issue-N on branch issue/N, labelled "in progress", as Belfry claims one):
                                 report, whose merge-auto: withdraw removes merge: auto;
                                 --pr-by-tool (also taken when gh has no login) stops after
                                 the push with OPEN-PR title/body file/draft=false (status
-                                5): the session opens it with pr_create
+                                5): the session opens it with pr_create;
+                                --ideas-by-tool skips the flush of the queued ideas (no
+                                push to main): they were filed through the session's idea
+                                tool, are credited in the PR body, kept in the git dir
   close opened N URL [--unchanged]  the pull request opened by pr_create, handed back
   close body --summary TEXT [--decisions TEXT] [--human-steps TEXT] [--notes TEXT]
              [--security TEXT] [--section TITLE TEXT]... [--review-file FILE]

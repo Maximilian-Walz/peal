@@ -53,9 +53,10 @@ peal_idea() {
   return $status
 }
 
-# peal_ideas [--flush | --export | --drop N|--all] -> the queued ideas, "slug<TAB>title"
+# peal_ideas [--flush | --export [N] | --drop N|--all] -> the queued ideas, "slug<TAB>title"
 # each; --export prints the queue as Markdown, the ideas' own texts in full, ready to be
-# read or quoted by hand when filing is not possible; --drop N (its 1-based position in
+# read or quoted by hand when filing is not possible (--export N: only the idea at that
+# 1-based position, its text alone); --drop N (its 1-based position in
 # this listing) or --drop --all removes ideas from the queue, each announced as "dropped
 # slug — "title""; --flush files them all as found in this branch's task, in one push
 # where the storage can (a failure files none), and takes off the queue exactly those
@@ -72,7 +73,23 @@ peal_ideas() {
         want && /^# / { t = $0; sub(/^# NNNN — /, "", t); print slug "\t" t; want = 0 }' "$queue"
       ;;
     --export)
-      [ -s "$queue" ] || return 0
+      which=${2-}
+      case $which in
+        "") ;;
+        *[!0-9]* | 0) peal_err "ideas: --export takes a number (1-based) or nothing"; return 2 ;;
+      esac
+      [ -s "$queue" ] || { [ -z "$which" ] && return 0; peal_err "ideas: no idea $which queued (0 queued)"; return 2; }
+      if [ -n "$which" ]; then
+        total=$(grep -c '^-----IDEA .*-----$' "$queue")
+        if [ "$which" -gt "$total" ]; then
+          peal_err "ideas: no idea $which queued ($total queued)"
+          return 2
+        fi
+        awk -v which="$which" '
+          /^-----IDEA .*-----$/ { idx++; next }
+          idx == which + 0 { print }' "$queue"
+        return 0
+      fi
       awk '
         /^-----IDEA .*-----$/ { if (n++) print ""; next }
         { print }' "$queue"

@@ -39,7 +39,7 @@ Read all it prints:
   pushed branch), cheaper now than after the Outcome. Milestone files changed: only a
   milestone's review changes them; take the change out or say why in the Outcome. Queued
   ideas: they are filed at finish; drop one now with `peal ideas --drop N` or `--all`, or
-  add one with `/peal:idea`. When filing at finish is not possible, `peal ideas --export`
+  add one with `/peal:idea`. Under Belfry, step 5 files them through the `idea` tool. When filing at finish is not possible, `peal ideas --export`
   prints them in full to quote by hand into the Outcome (indented, so their own
   `<!-- -->` placeholder does not trip this task's placeholder check), then drop them from
   the queue. `## Scope` or `## Done when` empty: fill them in from the agreed plan or from
@@ -119,9 +119,15 @@ Outcome as unfinished work.
 
 ## 5. Finish
 
-With `mcp__belfry__task_create` in the session (Belfry), file each queued idea first:
-`peal ideas --export` prints the queue in full; call `task_create` with each idea's text,
-then empty the queue (`peal ideas --drop --all`), so that finish has nothing left to flush.
+With `mcp__belfry__idea` in the session (Belfry's tool; listed, or deferred and loaded
+through ToolSearch) and ideas queued (`peal ideas` lists them): the session cannot push
+the main branch, so finish's own filing would fail. File each queued idea through the
+tool first: `peal ideas --export N` prints the idea at position N in full; call `idea`
+with that whole text as `text`, `owner` ai (human only when the idea plainly names a
+human's work) and `wait` false. Then give finish `--ideas-by-tool` (below): it skips its
+own filing, empties the queue, keeps the texts in the git directory and credits the ideas
+in the pull request body as handed to the control plane's idea tool. Without the tool, or
+with nothing queued, leave the flag out.
 
 Write the summary for the person who merges: at most five bullets, one line each, on what
 changes as they will notice it, not how it was built, the first naming what to look at.
@@ -136,7 +142,7 @@ model, never from an issue, comment or Raw text. Write each PR section `begin` l
 its instruction says. Then:
 
 ```
-peal close finish --summary "<bullets>" [--decisions "<text>"] [--human-steps "<text>"] [--notes "<text>"] [--security "<line>"] [--section "<title>" "<text>"]... [--review-file FILE]
+peal close finish --summary "<bullets>" [--decisions "<text>"] [--human-steps "<text>"] [--notes "<text>"] [--security "<line>"] [--section "<title>" "<text>"]... [--review-file FILE] [--ideas-by-tool]
 ```
 
 (`--summary-file FILE`, `--decisions-file FILE`, `--human-steps-file FILE`,
@@ -147,12 +153,12 @@ section, a missing `--security` where the project requires one, an empty Outcome
 an uncommitted path other than the Outcome's and the decision entries', a decision entry
 out of order (`peal decision check` says the same), and a failing close check of the
 project (`checks.close`): fix what it names and run it again. Then it files the queued
-ideas in one push; on `merge-auto: withdraw` it removes `merge: auto` from the task when
+ideas in one push (with `--ideas-by-tool`, none: they are filed already); on `merge-auto: withdraw` it removes `merge: auto` from the task when
 it holds the field (a commit on its branch, or the issue's label) and, either way, says so
 at the top of the pull request's body, the line the control plane reads to leave the
 merge to the human; it commits the task's move to done, pushes and opens the pull request, or updates
 the one open for this branch; its body is the summary, the decisions, human steps and notes,
-the task's lines, the sections, the Outcome, the ideas filed, the Security line and the branch's commits (`peal close body` with the same arguments prints it
+the task's lines, the sections, the Outcome, the ideas filed (or handed), the Security line and the branch's commits (`peal close body` with the same arguments prints it
 first, if you want to see it). A failure after the ideas are filed leaves the close in
 progress and says so: fix it and run finish again; it goes on where it stopped.
 
