@@ -67,4 +67,13 @@ Ranges relied on: tools/ci-changes.sh:1-38, tools/ci-changes.test.sh:1-87, .gith
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+A release's bump and pin pull requests no longer wait on the macOS and Linux harnesses. `tools/ci-changes.sh` gained a rule for `plugin/templates/*.yml`. It allows a file's diff only if it is exactly one line out and one line in, both Peal's fetch line (`fetch -q --depth 1 https://github.com/Maximilian-Walz/peal <40 lowercase hex> # vN.N.N`), and byte-equal once the SHA and the tag are replaced by placeholders. Anything else runs the harnesses: another byte, another file, a mode-only change, or `.peal/config.yml` or `.github/workflows/*` in the same diff. The bump and pin of v0.8.0 (53fbcc7, 44067fc), run against their parents, print `harnesses=false`. `tools/ci-changes.test.sh` covers the planned skip and run cases.
+
+The fetch line's text is hard-coded and not read from the config, as the human agreed. `tools/` is Peal's own CI and is not shipped, and `tools/pins.test.sh` cross-checks the templates against `release.version-files`/`commit-files`. If the repository is renamed, `fetch_url` in `ci-changes.sh` must follow. Until then the release pull requests run the harnesses, which is the safe way to fail.
+
+Since a bump no longer runs the harnesses, `tools/pins.test.sh` is now a step of the always-run `shellcheck` job. It is the check that a template's `# vX.Y.Z` matches plugin.json's version and that its SHA is that tag's commit. Departure from the plan: that job's checkout now uses `fetch-depth: 0` and `fetch-tags: true`. Without them pins.test.sh finds no tag and skips its SHA check, and the step would be hollow. The ci.yml comment and CONTRIBUTING.md now describe what skips. The `.belfry.yml` comment was left as agreed.
+
+The review found that the header filter (`grep -Ev '^(\+\+\+|---) '`, shared by the plugin.json rule) also dropped content lines starting with `++ ` or `-- `. A template could then carry a valid fetch-line bump plus an injected line and still skip the harnesses. Fixed: one `changed_lines` helper, used by both rules, drops only what precedes the first `@@`. Test cases for both rules were added.
+
+Backlog task 0206 (pins.test.sh checks the pin in CI) is now largely done by this branch: CI fetches the tags in the job that runs pins.test.sh. All that is left of it is its Done when, a mismatched pin shown failing CI once. A queued idea asks to retire or narrow it.
+
