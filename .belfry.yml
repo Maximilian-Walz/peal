@@ -133,6 +133,7 @@ policy:
       - plugin/lib/store-issues.test.sh
       - plugin/lib/issues-lib.awk
       - plugin/lib/issues-scan.awk
+      - plugin/lib/issues-text.awk
       - plugin/lib/frontmatter.sh
       - plugin/lib/frontmatter.test.sh
       - plugin/lib/work.sh

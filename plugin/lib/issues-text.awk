@@ -2,6 +2,7 @@
 # lines, the heading "# ID — Title", and the body without those lines.
 #
 #   awk -F '\t' -v label=<filter label> -v claimed=<claim label> -v fields=<a,b> \
+#     -v apps=<trusted Apps> -v edits=<the issue's edits row> \
 #     -f yaml-render.awk -f issues-lib.awk -f issues-text.awk ISSUE
 #
 # ISSUE holds one issue as issues-lib.awk describes it; fields names the project's own
@@ -61,6 +62,17 @@ function put(key, list,    n, it) {
   last = nb
   while (last >= first && b[last] ~ /^[ \t]*$/) last--
   if (first <= last) print ""
-  for (j = first; j <= last; j++) print b[j]
+  # A stranger's Plan and Outcome are text from outside, not an agreed plan: emptied
+  # (headings and bare rules kept) unless a non-author writer last edited the body.
+  strip = !writer($6, $9, $5, apps) && !keeps_human_sections($1, edits)
+  skip = 0
+  for (j = first; j <= last; j++) {
+    if (strip) {
+      if (b[j] == "## Plan" || b[j] == "## Outcome") skip = 1
+      else if (b[j] ~ /^## /) skip = 0
+      else if (skip && b[j] != "---") continue
+    }
+    print b[j]
+  }
   exit
 }
