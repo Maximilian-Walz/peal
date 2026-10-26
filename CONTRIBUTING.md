@@ -62,8 +62,9 @@ as `peal init` writes it), `migrate` (the `peal migrate` lines run on a pre-Peal
 it) and `decision` (an entry `peal decision check` accepts). A block with no marker is
 reported, and there is no exempt one.
 
-CI runs the lint and every harness on each pull request; a pull request that changes only
-tasks or milestones skips the harnesses. The slow harnesses are split into shards, and
+CI runs the lint and every harness on each pull request, with `tools/pins.test.sh`; a pull request that changes only
+tasks, milestones or a release's bump and pin (the version, the changelog entry, the SHA
+and tag of a template's Peal fetch line) skips the harnesses. The slow harnesses are split into shards, and
 "rest" is computed, so a new `*.test.sh` is covered the moment it exists
 (`.github/workflows/ci.yml`).
 The shards are balanced from the seconds `tools/test-all.sh` prints per harness; it prints
