@@ -158,3 +158,38 @@ docs/security.md:406-447, docs/security.md:449-465, docs/guides/releases.md:1-69
 docs/guides/belfry.md:134-168, docs/guides/belfry.md:194-199,
 docs/reference/configuration.md:48-67, docs/reference/cli.md:743-778,
 docs/milestones/m6.md:1-35
+
+---
+
+## Outcome
+
+Built `.github/workflows/release.yml`, dispatched only. It has two jobs:
+- `propose` has no environment, secret or token. It runs `peal ship propose` and `notes`, checks the version, and writes the notes to the log and the step summary. A dry run ends there with `version: vX.Y.Z (dry run)`. A real run with no version and nothing to release fails.
+- `release` runs only `if: !inputs.dry_run && github.ref == 'refs/heads/main'`, in `environment: release`. It needs `propose` and gets the version as its output.
+  - It checks the two App secrets first and mints an App token: contents and pull-requests write; actions, checks and statuses read.
+  - It sets the App's bot as author and committer.
+  - It runs `peal ship bump`, `tag`, `publish` and `pin`, then loops `wait` when `release.wait-ci` is true.
+  - It ends with `version:` and `url:` in the log and the step summary.
+
+How the run keeps the token contained:
+- Checkouts use `persist-credentials: false`. The token reaches only the step `env` of the steps that write, and git reads it through a credential helper set with `GIT_CONFIG_*` environment variables.
+- Inputs and secrets never appear inside `run:`.
+
+Two jobs instead of one, so that a dry run on any branch never enters the `release` environment, which only main may use.
+
+Other changes:
+- `.belfry.yml`'s `release` action is now a workflow action: `workflow: release.yml`, the asked `version` input with its pattern, `triggers: [button]`, `release: true`, `single: true`.
+- Docs: a new "Under Belfry" section in `docs/guides/releases.md` (setting up the App and the environment, finishing a failed run by hand), `docs/guides/belfry.md`, the configuration reference's `release.wait-ci`, `plugin/commands/release.md`, and a paragraph plus a guard-list entry in `docs/security.md`'s CI section.
+
+Checked:
+- `tools/pins.sh`, `tools/lint.sh`, `tools/docs.test.sh`, the pins, gh-callers, commands, apply and backlog harnesses, and `belfry check .` (`.belfry.yml: ok`).
+- The propose job's shell, run against a scratch repository with a bare origin: the proposed version is picked, NOTHING stops a real run, a malformed version is refused, and a dry run prints the notes.
+- Not checked: actionlint was not available. The full `tools/test-all.sh` runs serially for well over an hour here, so it is left to the pull request's CI harness jobs, which are required checks.
+- The dispatches themselves can only run after merge. The human's dry-run dispatch, the Release button and `belfry status` are the proof, as agreed.
+
+Found and left:
+- `peal init --stage belfry` still suggests `prompt: /peal:release`, which fails under Belfry the same way. Filed as the idea release-workflow-template.
+- `create-github-app-token` v3.3.0 marks `app-id` as deprecated in favour of `client-id`. Each run logs a warning; a later major version may need the secret to hold the Client ID.
+- The propose job's anonymous fetch works because the repository is public. A private repository would need a read token there.
+
+The review found one gap, now fixed: the App token lacked Checks and Commit statuses read. `peal ship bump` and `pin` read those while their pull requests wait. Both the token step and the App setup in the guide now include them.
