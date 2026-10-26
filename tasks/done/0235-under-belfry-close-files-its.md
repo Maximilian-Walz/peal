@@ -140,4 +140,33 @@ Ranges:
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Built `peal close finish --ideas-by-tool`. Under a control plane whose sandbox
+cannot push main from a script, close.md step 5 now has the session hand each queued
+idea to the control plane's `idea` tool (`mcp__belfry__idea`, listed or loaded through
+ToolSearch; its whole text, `wait` false), then run finish with the flag. Finish then
+skips its own flush after every up-front refusal: it records a `handed` line per idea,
+keeps the texts in `peal-ideas-handed` in the git directory (so a wrongly passed flag
+can be undone until the worktree goes), empties the queue and says why. The PR body's
+"## Ideas filed" lists them as `- Title (handed to the control plane's idea tool)`.
+A failed flush's refusal now names the flag. `peal ideas --export N` prints one queued
+idea by position. The `task_create` route left close.md, since that tool only works in
+the control plane's idea-filing jobs; docs/design.md says so now.
+
+`/peal:idea` was checked and keeps `task_create` first, with `idea` as its fallback.
+The control plane's idea-filing job runs `/peal:idea`, and there `task_create` is the
+right tool; putting `idea` first would loop ideas back into the idea box.
+
+Tests: `close.test.sh` `ideas_by_tool_cases` (both storage kinds, a remote refusing
+main; the case sets `main-writes: push`, because under `auto` a refused main falls back
+to a PR and plain finish would not refuse). It passed 1599, 0 failed.
+`commands.test.sh` passed 176. The live check, ideas actually arriving in the control
+plane's idea box, can only follow the next release: this close runs main's installed
+plugin, which lacks the flag.
+
+Left for later: the idea tool's text loses the idea's milestone and plan as fields
+unless the filing job reads them back (0224). Finish's own push of the task branch fails
+in the same sandbox; that is filed as an idea in the control plane's idea box, not
+queued here.
+
+The review found one small repeat: the queue marker regex was copied into close.sh. It
+is fixed (929fc20).
