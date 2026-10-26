@@ -56,4 +56,12 @@ merge: auto
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+`peal_release_verdict` in `plugin/lib/claim.sh` now finds where a branch is on the remote by calling the shared `peal_remote_ref "$branch" "$(peal_config_get remote)"`. Its stderr goes to `/dev/null` and an empty result means `up=""`. The inline two-line fallback is gone, so the "upstream, else remote-tracking ref" rule now exists only in `common.sh`. `claim.sh` holds no `@{upstream}`. `claim.test.sh` (342 passed) and `doctor.test.sh` (168 passed) pass.
+
+What was found:
+- **The old first clause was dead.** It asked for `refs/heads/$branch@{upstream}`, which git never resolves, because it reads the config of a branch literally named `refs/heads/x`. Checked by hand in a scratch repository. So the verdict always compared against `refs/remotes/<remote>/<branch>`.
+- **One small behaviour change.** A branch whose upstream sits on another remote or under another name is now judged against that real upstream. The human accepted this as what 0101's rule meant.
+- **Nothing else changes.** A missing ref still gives `ok`. `git rev-parse -q --verify x@{upstream}` on a branch with no upstream exits with status 1 and prints nothing, so the helper leaks no stderr.
+- **The remote stays `peal_config_get remote`,** not `$PEAL_REMOTE`, because the reaping and doctor callers do not set the latter.
+
+The review had no findings and kept `merge: auto`.
