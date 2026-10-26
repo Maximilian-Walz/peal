@@ -1,0 +1,249 @@
+# Peal's release as a workflow, for a project under a control plane whose sessions cannot
+# release (Belfry's release action: `workflow: release.yml`, written commented out by
+# peal init --stage belfry). Written to .github/workflows/release.yml by
+# peal init --stage belfry --release-workflow; Peal's releases guide, "Under Belfry",
+# says what to set up. Belfry's Release button dispatches it with the version the human
+# typed, and that version is the consent: no session and no sandbox take part. The
+# steps are `peal ship`'s, run from the Peal pinned below, never the project's own copy.
+#
+# Two jobs, so that a dry run, on any branch, needs neither the `release` environment
+# (restricted to the main branch) nor its secrets:
+# - propose: no environment, no secret; the run's read-only token only, in the env of
+#   the one step that reads the repository and its issues. Proposes the version (or
+#   checks the one given), prints the notes; a dry run ends here.
+# - release: only a real run on the main branch (`peal config main`), in the `release`
+#   environment. Writes with a GitHub App's token minted for this run (secrets
+#   PEAL_RELEASE_APP_ID, PEAL_RELEASE_APP_KEY). `peal ship bump` and `pin` push where
+#   the main branch takes a push, and otherwise go through a pull request
+#   (main-writes: auto), whose checks run because an App opened it. Its bot is the
+#   committer of the bump and pin commits and of the annotated tag. No fallback to the
+#   run's token.
+#
+# A token never reaches the checkout (persist-credentials: false) or $GITHUB_ENV; each
+# step that uses one gets it in its own env, git through a credential helper that reads
+# it from there. Inputs and secrets reach the shell only through env. Keep this file
+# merged by a human: the release is only as safe as it and the Peal it pins.
+#
+# A run that fails halfway is not resumed: the guide says how to finish it by hand.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "The version to release, e.g. v1.2.0; empty: the one peal ship propose proposes"
+        type: string
+        default: ""
+        required: false
+      dry_run:
+        description: "Print the proposal and the notes; tag nothing (any branch)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# One release at a time, never cancelled: a run cut off between its tag and its pin
+# leaves the main branch half released.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  propose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    outputs:
+      version: ${{ steps.propose.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # The release job runs the same step (the alias below): one pin to follow.
+      - &get-peal
+        name: Get Peal
+        # Pinned to a release's commit; Dependabot does not update it. To move to another
+        # release, take its commit from
+        #   git ls-remote https://github.com/Maximilian-Walz/peal 'refs/tags/vX.Y.Z^{}'
+        # and change both the SHA and the tag in the comment. Peal's own release sets the
+        # tag (peal ship bump) and, once the tag exists, the SHA (peal ship pin).
+        run: |
+          git init -q "$RUNNER_TEMP/peal"
+          git -C "$RUNNER_TEMP/peal" fetch -q --depth 1 https://github.com/Maximilian-Walz/peal 53fbcc7bf30e53bedc0cf3ab6eb0a0b07eac3d23 # v0.8.0
+          git -C "$RUNNER_TEMP/peal" checkout -q FETCH_HEAD
+      - id: propose
+        name: Propose the version and print the notes
+        env:
+          VERSION: ${{ inputs.version }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          REF: ${{ github.ref }}
+          GH_TOKEN: ${{ github.token }}
+          GIT_CONFIG_COUNT: 1
+          GIT_CONFIG_KEY_0: credential.https://github.com.helper
+          GIT_CONFIG_VALUE_0: '!f() { test "$1" = get && echo username=x-access-token && echo "password=$GH_TOKEN"; }; f'
+        run: |
+          set -euo pipefail
+          peal=$RUNNER_TEMP/peal/plugin/bin/peal
+          main=$("$peal" config main)
+          if [ "$DRY_RUN" != true ] && [ "$REF" != "refs/heads/$main" ]; then
+            echo "::error::a release runs only from $main, not $REF: dispatch it on $main, or as a dry run"
+            exit 1
+          fi
+          prefix=$("$peal" config release.tag-prefix)
+          if [ -n "$VERSION" ]; then
+            v=${VERSION#"$prefix"}
+            v=${v#v}
+            if ! [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+              echo "::error::'$VERSION' is no version: ${prefix}MAJOR.MINOR.PATCH, e.g. ${prefix}1.2.0"
+              exit 1
+            fi
+          fi
+          proposal=$("$peal" ship propose)
+          printf '%s\n' "$proposal"
+          if [ -z "$VERSION" ]; then
+            last=$(grep -E '^(PROPOSE|NOTHING) ' <<<"$proposal" | tail -n 1 || true)
+            case $last in
+              PROPOSE\ *) VERSION=$(awk '{ print $2 }' <<<"$last") ;;
+              *)
+                if [ "$DRY_RUN" = true ]; then
+                  echo "nothing calls for a release (${last:-no proposal}); a real run needs a version"
+                  printf 'Nothing calls for a release (%s).\n' "${last:-no proposal}" >>"$GITHUB_STEP_SUMMARY"
+                  exit 0
+                fi
+                echo "::error::nothing calls for a release (${last:-no proposal}); name a version"
+                exit 1
+                ;;
+            esac
+          fi
+          v=${VERSION#"$prefix"}
+          tag=$prefix${v#v}
+          notes=$("$peal" ship notes "$tag")
+          printf '%s\n' "$notes"
+          {
+            printf '## %s%s\n\n' "$tag" "$([ "$DRY_RUN" = true ] && echo ' (dry run)')"
+            printf '%s\n' "$notes"
+          } >>"$GITHUB_STEP_SUMMARY"
+          if [ "$DRY_RUN" = true ]; then
+            echo "version: $tag (dry run)"
+            exit 0
+          fi
+          echo "version=$tag" >>"$GITHUB_OUTPUT"
+
+  release:
+    needs: propose
+    # The propose job names a version only for a real run on the main branch.
+    if: ${{ !inputs.dry_run && needs.propose.outputs.version != '' }}
+    runs-on: ubuntu-latest
+    # ship waits up to two hours for each of the bump's and the pin's pull requests.
+    timeout-minutes: 300
+    environment: release
+    steps:
+      - name: Check the App's secrets
+        env:
+          APP_ID: ${{ secrets.PEAL_RELEASE_APP_ID }}
+          APP_KEY: ${{ secrets.PEAL_RELEASE_APP_KEY }}
+        run: |
+          if [ -z "$APP_ID" ] || [ -z "$APP_KEY" ]; then
+            echo "::error::the release environment lacks PEAL_RELEASE_APP_ID or PEAL_RELEASE_APP_KEY (Peal's releases guide, Under Belfry); nothing was written"
+            exit 1
+          fi
+      - id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.PEAL_RELEASE_APP_ID }}
+          private-key: ${{ secrets.PEAL_RELEASE_APP_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: read
+          permission-actions: read
+          permission-checks: read
+          permission-statuses: read
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - *get-peal
+      - name: The App's bot commits and tags
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          SLUG: ${{ steps.app.outputs.app-slug }}
+        run: |
+          set -euo pipefail
+          id=$(gh api "users/$SLUG[bot]" --jq .id)
+          {
+            echo "GIT_AUTHOR_NAME=$SLUG[bot]"
+            echo "GIT_AUTHOR_EMAIL=$id+$SLUG[bot]@users.noreply.github.com"
+            echo "GIT_COMMITTER_NAME=$SLUG[bot]"
+            echo "GIT_COMMITTER_EMAIL=$id+$SLUG[bot]@users.noreply.github.com"
+          } >>"$GITHUB_ENV"
+          echo "committing as $SLUG[bot] ($id)"
+      - name: peal ship bump
+        env:
+          TAG: ${{ needs.propose.outputs.version }}
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          GIT_CONFIG_COUNT: 1
+          GIT_CONFIG_KEY_0: credential.https://github.com.helper
+          GIT_CONFIG_VALUE_0: '!f() { test "$1" = get && echo username=x-access-token && echo "password=$GH_TOKEN"; }; f'
+        run: '"$RUNNER_TEMP/peal/plugin/bin/peal" ship bump "$TAG"'
+      - name: peal ship tag
+        env:
+          TAG: ${{ needs.propose.outputs.version }}
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          GIT_CONFIG_COUNT: 1
+          GIT_CONFIG_KEY_0: credential.https://github.com.helper
+          GIT_CONFIG_VALUE_0: '!f() { test "$1" = get && echo username=x-access-token && echo "password=$GH_TOKEN"; }; f'
+        run: '"$RUNNER_TEMP/peal/plugin/bin/peal" ship tag "$TAG"'
+      - id: publish
+        name: peal ship publish
+        env:
+          TAG: ${{ needs.propose.outputs.version }}
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          GIT_CONFIG_COUNT: 1
+          GIT_CONFIG_KEY_0: credential.https://github.com.helper
+          GIT_CONFIG_VALUE_0: '!f() { test "$1" = get && echo username=x-access-token && echo "password=$GH_TOKEN"; }; f'
+        run: |
+          set -euo pipefail
+          out=$("$RUNNER_TEMP/peal/plugin/bin/peal" ship publish "$TAG")
+          printf '%s\n' "$out"
+          # "released vX.Y.Z: <url>" or "updated the release vX.Y.Z: <url>"
+          echo "url=${out##*: }" >>"$GITHUB_OUTPUT"
+      - name: peal ship pin
+        env:
+          TAG: ${{ needs.propose.outputs.version }}
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          GIT_CONFIG_COUNT: 1
+          GIT_CONFIG_KEY_0: credential.https://github.com.helper
+          GIT_CONFIG_VALUE_0: '!f() { test "$1" = get && echo username=x-access-token && echo "password=$GH_TOKEN"; }; f'
+        run: '"$RUNNER_TEMP/peal/plugin/bin/peal" ship pin "$TAG"'
+      - name: peal ship wait (release.wait-ci)
+        env:
+          TAG: ${{ needs.propose.outputs.version }}
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          GIT_CONFIG_COUNT: 1
+          GIT_CONFIG_KEY_0: credential.https://github.com.helper
+          GIT_CONFIG_VALUE_0: '!f() { test "$1" = get && echo username=x-access-token && echo "password=$GH_TOKEN"; }; f'
+        run: |
+          set -uo pipefail
+          peal=$RUNNER_TEMP/peal/plugin/bin/peal
+          if [ "$("$peal" config release.wait-ci)" != true ]; then
+            echo "release.wait-ci is off: not waiting for the tag's workflow runs"
+            exit 0
+          fi
+          # WAIT (status 3) means the budget of one call is spent: call it again.
+          while :; do
+            "$peal" ship wait "$TAG"
+            status=$?
+            [ $status = 3 ] || exit $status
+          done
+      - name: Result
+        env:
+          TAG: ${{ needs.propose.outputs.version }}
+          URL: ${{ steps.publish.outputs.url }}
+        run: |
+          printf 'version: %s\nurl: %s\n' "$TAG" "$URL"
+          printf 'version: %s\n\nurl: %s\n' "$TAG" "$URL" >>"$GITHUB_STEP_SUMMARY"

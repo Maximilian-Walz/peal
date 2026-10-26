@@ -12,7 +12,8 @@
 #               plugin's hooks.json
 #   milestones  a first milestone file (files); for issues, the repository's milestones
 #   belfry      .belfry.yml: the commands backend (files) or github-issues (issues), the
-#               actions Peal provides as suggestions
+#               actions Peal provides as suggestions; with --release-workflow also
+#               .github/workflows/release.yml, the starter the release action dispatches
 #
 # peal init --survey writes nothing: it prints the facts about the repository the
 # conversation decides from.
@@ -381,7 +382,7 @@ _peal_init_milestones_remove() {
 
 # _peal_init_belfry_text -> the .belfry.yml for the storage configured.
 _peal_init_belfry_text() {
-  local label
+  local label pattern
   echo "# Belfry's contract for this project, written by peal init --stage belfry."
   if [ "$(peal_config_get storage.kind)" = issues ]; then
     label=$(peal_config_get storage.issues.label) || return 2
@@ -426,17 +427,48 @@ policy:
 #     title: Milestone review
 #     prompt: /peal:milestone-review {milestone}
 #     triggers: [milestone]
+#   # The Release button dispatches .github/workflows/release.yml, which must exist (peal
+#   # init --stage belfry --release-workflow writes Peal's starter): no session releases.
+#   # The version typed into the button is the confirmation.
 #   release:
 #     title: Release
-#     prompt: /peal:release
+#     workflow: release.yml
+#     inputs:
+#       version:
+#         ask: true
+EOF
+  pattern=$(_peal_init_version_pattern) || return 2
+  [ -z "$pattern" ] || printf '#         pattern: %s\n' "$(_peal_init_quote "$pattern")"
+  cat <<'EOF'
 #     triggers: [button]
 #     single: true
 #     release: true
 EOF
 }
 
+# _peal_init_version_pattern -> the release action's version pattern, from
+# release.tag-prefix: PREFIX[0-9]+\.[0-9]+\.[0-9]+; nothing when the prefix is empty or
+# holds anything but letters, digits, _, - and / (a regex character among them).
+_peal_init_version_pattern() {
+  local prefix
+  prefix=$(peal_config_get release.tag-prefix) || return 2
+  [[ "$prefix" =~ ^[A-Za-z0-9_/-]+$ ]] || return 0
+  printf '%s[0-9]+\\.[0-9]+\\.[0-9]+\n' "$prefix"
+}
+
+# Where --release-workflow writes the starter release workflow.
+PEAL_INIT_RELEASE_WORKFLOW=.github/workflows/release.yml
+
+# _peal_init_belfry WORKFLOW -> .belfry.yml; with WORKFLOW (1) also the starter release
+# workflow, else a line offering it. Status 1, nothing written, over a .belfry.yml or a
+# workflow that is not Peal's.
 _peal_init_belfry() {
-  local tmp status=0
+  local workflow=$1 tmp status=0 starter="$PEAL_ROOT/templates/release.yml"
+  if [ -n "$workflow" ] && [ -e "$PEAL_INIT_RELEASE_WORKFLOW" ] \
+      && ! cmp -s "$starter" "$PEAL_INIT_RELEASE_WORKFLOW"; then
+    echo "$PEAL_INIT_RELEASE_WORKFLOW exists and is not Peal's starter; compare it with $starter yourself"
+    return 1
+  fi
   tmp=$(mktemp) || return 2
   _peal_init_belfry_text >"$tmp" || { rm -f "$tmp"; return 2; }
   if [ -e .belfry.yml ] && ! cmp -s "$tmp" .belfry.yml; then
@@ -448,10 +480,16 @@ _peal_init_belfry() {
   _peal_init_put .belfry.yml "$tmp" || status=2
   rm -f "$tmp"
   [ $status -eq 0 ] || return 2
+  if [ -n "$workflow" ]; then
+    _peal_init_put "$PEAL_INIT_RELEASE_WORKFLOW" "$starter" || return 2
+  elif [ ! -e "$PEAL_INIT_RELEASE_WORKFLOW" ]; then
+    echo "offered $PEAL_INIT_RELEASE_WORKFLOW (the workflow the release action dispatches): peal init --stage belfry --release-workflow writes it"
+  fi
   echo "skipped the check: belfry check is not available yet"
   _peal_init_record add belfry
 }
 
+# The starter release workflow goes only while it is still Peal's starter.
 _peal_init_belfry_remove() {
   local tmp status=0
   if [ -e .belfry.yml ]; then
@@ -463,8 +501,16 @@ _peal_init_belfry_remove() {
     fi
     rm -f "$tmp"
     [ $status -eq 0 ] || return $status
-    _peal_init_rm .belfry.yml
   fi
+  if [ -e "$PEAL_INIT_RELEASE_WORKFLOW" ]; then
+    if cmp -s "$PEAL_ROOT/templates/release.yml" "$PEAL_INIT_RELEASE_WORKFLOW"; then
+      _peal_init_rm "$PEAL_INIT_RELEASE_WORKFLOW"
+      _peal_init_rmdir "$(dirname "$PEAL_INIT_RELEASE_WORKFLOW")"
+    else
+      _peal_init_say kept "$PEAL_INIT_RELEASE_WORKFLOW" "it is not Peal's starter"
+    fi
+  fi
+  _peal_init_rm .belfry.yml
   _peal_init_record remove belfry
 }
 
@@ -594,10 +640,10 @@ peal_init_survey() {
 }
 
 # peal_init --survey
-# peal_init --stage STAGE [--storage files|issues] [--label L] [--title T]
+# peal_init --stage STAGE [--storage files|issues] [--label L] [--title T] [--release-workflow]
 # peal_init --remove STAGE
 peal_init() {
-  local action="" stage="" storage="" label="" label_given="" title="" top
+  local action="" stage="" storage="" label="" label_given="" title="" workflow="" top
   if [ "${1-}" = --survey ]; then
     [ $# -eq 1 ] || { peal_err "init: --survey takes no arguments"; return 2; }
     top=$(peal_project_root) || return 2
@@ -631,6 +677,7 @@ peal_init() {
         title=$2
         shift
         ;;
+      --release-workflow) workflow=1 ;;
       *) peal_err "init: unknown argument $1"; return 2 ;;
     esac
     shift
@@ -651,6 +698,10 @@ peal_init() {
     peal_err "init: --title is for --stage milestones"
     return 2
   fi
+  if [ -n "$workflow" ] && [ "$action$stage" != stagebelfry ]; then
+    peal_err "init: --release-workflow is for --stage belfry"
+    return 2
+  fi
   if [[ "$label$title" == *$'\n'* ]]; then
     peal_err "init: a label or title is one line"
     return 2
@@ -665,6 +716,7 @@ peal_init() {
   case $action$stage in
     stagetasks) _peal_init_tasks "$storage" "$label" "$label_given" ;;
     stagemilestones) _peal_init_milestones "$title" ;;
+    stagebelfry) _peal_init_belfry "$workflow" ;;
     stage*) "_peal_init_$stage" ;;
     remove*) "_peal_init_${stage}_remove" ;;
   esac

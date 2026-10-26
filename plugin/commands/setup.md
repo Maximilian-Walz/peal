@@ -137,12 +137,20 @@ every other clone gets them itself, at its first `peal claim` or session start
    them. Status 1 means a `.belfry.yml` that is not Peal's: show
    the contract it printed, say the human merges it into their file by hand, and stop
    without a commit.
-2. The file ends with Peal's actions as comments. When the `milestones` stage is set up,
-   ask with `AskUserQuestion` whether Belfry should offer the milestone review when a
-   milestone is closed; on yes, uncomment the `actions:` line and the `milestone-review`
-   action (its four lines, the comment marks only). The `release` action stays a comment
-   unless the human asks for it. Tell the human that `peal init --remove belfry` refuses
-   a file changed since, so it is theirs to remove then.
+2. The file ends with Peal's actions as comments. Ask with `AskUserQuestion` whether
+   Belfry should offer the Release button, which dispatches a release workflow (no
+   session releases under Belfry), and, when the `milestones` stage is set up, whether it
+   should offer the milestone review when a milestone is closed. On yes to the release,
+   first run `peal init --stage belfry --release-workflow`, before the file is edited
+   (the stage refuses a `.belfry.yml` changed since): it writes Peal's starter
+   `.github/workflows/release.yml`. Its status 1 means the project has a release workflow
+   of its own: say so, keep it, and leave adapting it to the human. Then uncomment the
+   `actions:` line and the actions the human chose: `milestone-review` (its four lines),
+   `release` (its lines and the comment above it), the comment marks only. For the
+   release, name the human steps of `docs/guides/releases.md`, Under Belfry (the GitHub
+   App, the `release` environment and its two secrets) for the report. Tell the human
+   that `peal init --remove belfry` refuses a file changed since, so it is theirs to
+   remove then.
 3. The human steps Belfry needs, for the report: add the project in Belfry, and run
    `belfry check` on the file once Belfry has it (the stage says it skipped the check).
 

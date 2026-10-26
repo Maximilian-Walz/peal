@@ -71,6 +71,7 @@ actions:
       - plugin/templates/githook.test.sh
       - plugin/templates/decisions.yml
       - plugin/templates/merge-gate.yml
+      - plugin/templates/release.yml
       - plugin/lib/merge-gate.sh
       - plugin/lib/merge-gate.awk
       - plugin/lib/merge-gate.test.sh

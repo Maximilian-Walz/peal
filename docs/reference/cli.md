@@ -27,14 +27,20 @@ Prints Peal's version.
 Sets a stage of the project up, safe to run again. Nothing is committed: it prints what
 it created, updated, kept or removed. Each stage but `tasks` needs `tasks` first.
 
-- `peal init --stage STAGE [--storage files|issues] [--label L] [--title T]`: `tasks`
-  (config, launcher, tasks directories and template, or the issues storage with its
-  label, and the plugin's lines in `.claude/settings.json`), `guardrails` (the git gates),
-  `milestones` (a first milestone, `--title`), `belfry` (`.belfry.yml`). Recorded as
-  `stages:` in the config, in that order.
+- `peal init --stage STAGE [--storage files|issues] [--label L] [--title T]
+  [--release-workflow]`: `tasks` (config, launcher, tasks directories and template, or
+  the issues storage with its label, and the plugin's lines in `.claude/settings.json`),
+  `guardrails` (the git gates), `milestones` (a first milestone, `--title`), `belfry`
+  (`.belfry.yml`, its release action a comment that dispatches `release.yml`). Recorded
+  as `stages:` in the config, in that order.
+- `--release-workflow` (`belfry` only): also writes `.github/workflows/release.yml`,
+  Peal's starter release workflow ([Releases](../guides/releases.md#under-belfry));
+  status 1, nothing written, over a different file there. Without it the stage prints
+  the offer while the file is missing.
 - `peal init --remove STAGE`: takes the stage back and leaves the tasks alone. `tasks` is
   refused while another stage is set up. `belfry` removes the file only while it is as
-  the stage wrote it, else status 1.
+  the stage wrote it, else status 1; the starter release workflow likewise, else it is
+  kept with a note.
 - `peal init --survey`: writes nothing; prints `key value` lines: the stages set up, the
   storage, the branch, the GitHub repository with open issues and
   milestones, commits closing issues, README, TODO lists, CI files, local-looking ignored

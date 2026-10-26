@@ -54,7 +54,7 @@ following:
 | milestones | milestones as data; `peal milestone-state`; `/peal:milestone-review {milestone}` | a milestone list in the board output; `tasks.commands.apply` for its Close, Park and Un-park; actions with the `milestone` trigger |
 | a session | `/peal:work` and `/peal:close` in the claimed worktree | claim before the session; finished means a PR open and green |
 | the human | questions through `AskUserQuestion` | routes them to its inbox |
-| releases | `/peal:release {version}` | an action marked `release: true`, which its Releases tab's button runs |
+| releases | `.github/workflows/release.yml` (the starter `peal init --stage belfry --release-workflow` writes) | an action marked `release: true`, `workflow: release.yml`, which its Releases tab's button dispatches |
 
 A project's `.belfry.yml` for Peal is then:
 
@@ -475,6 +475,11 @@ lets its checks run and auto-merge take it. `templates/merge-gate.yml` runs `pea
 merge-gate` on every pull request, a check the project makes required: a task file that
 gains a `merge` key fails it, so the auto-merge of task files cannot carry the consent
 only the human gives when agreeing a plan (`docs/security.md`, "Auto-merge tiers").
+`templates/release.yml` is the release for a project whose sessions cannot release
+(Belfry's): `peal init --stage belfry --release-workflow` writes it, the control plane
+dispatches it with the version the human typed, and it runs `peal ship` from the Peal it
+pins, writing with a GitHub App's token in a `release` environment only the main branch
+enters.
 Peal's own CI runs the gate in its `changes` job, from the base's checkout.
 
 ## Git gates

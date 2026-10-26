@@ -89,8 +89,10 @@ unchanged .claude/settings.json (the peal plugin enabled for the project)" "$out
   check "milestones again: kept" "unchanged docs/milestones/ (it holds milestones)" "$out"
 
   out=$(peal init --stage belfry)
-  check "belfry: the file and the check" "created .belfry.yml
+  check "belfry: the file, the offer and the check" "created .belfry.yml
+offered .github/workflows/release.yml (the workflow the release action dispatches): peal init --stage belfry --release-workflow writes it
 skipped the check: belfry check is not available yet" "$out"
+  check "belfry: the starter only offered" "no" "$([ -e "$work/.github" ] && echo yes || echo no)"
   check "belfry: the commands backend" "  backend: commands
     list: .peal/peal list
     start: /peal:work {task}
@@ -108,11 +110,35 @@ skipped the check: belfry check is not available yet" "$out"
     "$(grep -q '^    apply_kinds: \[.*retire.*\]' "$work/.belfry.yml" && grep -q '^  max_code_jobs: ' "$work/.belfry.yml" \
       && grep -q '^  never_auto_merge: \[.peal/\*\*\]' "$work/.belfry.yml" && echo yes)"
   check "belfry: the actions are suggestions" "# actions:" "$(grep 'actions:' "$work/.belfry.yml")"
+  check "belfry: the release action dispatches the workflow, the version asked" "#   release:
+#     title: Release
+#     workflow: release.yml
+#     inputs:
+#       version:
+#         ask: true
+#         pattern: 'v[0-9]+\\.[0-9]+\\.[0-9]+'
+#     triggers: [button]
+#     single: true
+#     release: true" "$(sed -n '/^#   release:/,$p' "$work/.belfry.yml")"
+  check "belfry: no release prompt" "" "$(grep 'prompt: /peal:release' "$work/.belfry.yml")"
   check "all stages recorded, in order" "tasks
 guardrails
 milestones
 belfry" "$(peal config stages)"
   check "a stage again: nothing new" "unchanged .belfry.yml
+offered .github/workflows/release.yml (the workflow the release action dispatches): peal init --stage belfry --release-workflow writes it
+skipped the check: belfry check is not available yet" "$(peal init --stage belfry)"
+
+  # The starter release workflow: written with --release-workflow, Peal's template as is.
+  check "belfry --release-workflow: the starter written" "unchanged .belfry.yml
+created .github/workflows/release.yml
+skipped the check: belfry check is not available yet" "$(peal init --stage belfry --release-workflow)"
+  check "belfry --release-workflow: the template's copy" "same" \
+    "$(cmp -s "$PEAL_ROOT/templates/release.yml" "$work/.github/workflows/release.yml" && echo same)"
+  check "belfry --release-workflow again: unchanged" "unchanged .belfry.yml
+unchanged .github/workflows/release.yml
+skipped the check: belfry check is not available yet" "$(peal init --stage belfry --release-workflow)"
+  check "belfry with the starter there: no offer" "unchanged .belfry.yml
 skipped the check: belfry check is not available yet" "$(peal init --stage belfry)"
 
   # A task filed meanwhile: it stays through every removal.
@@ -120,7 +146,10 @@ skipped the check: belfry check is not available yet" "$(peal init --stage belfr
   check_refused "remove tasks before the others" "remove the guardrails stage first" peal init --remove tasks
 
   out=$(peal init --remove belfry)
-  check "remove belfry" "removed .belfry.yml" "$out"
+  check "remove belfry: the starter too, while it is Peal's" "removed .github/workflows/release.yml
+removed .github/workflows/
+removed .github/
+removed .belfry.yml" "$out"
   out=$(peal init --remove milestones)
   check "remove milestones" "removed docs/milestones/m1.md
 removed docs/milestones/
@@ -184,6 +213,40 @@ stages: [tasks]" "$(cat "$work/.peal/config.yml")"
   check "existing .belfry.yml: not recorded" "tasks
 guardrails" "$(peal config stages)"
   rm "$work/.belfry.yml"
+
+  # A release workflow of the project's own: not overwritten, nothing written.
+  mkdir -p "$work/.github/workflows"
+  printf 'name: Release\n' >"$work/.github/workflows/release.yml"
+  check_fails "existing release.yml: refused" 1 "" peal init --stage belfry --release-workflow
+  check "existing release.yml: why" ".github/workflows/release.yml exists and is not Peal's starter; compare it with $PEAL_ROOT/templates/release.yml yourself" \
+    "$(peal init --stage belfry --release-workflow)"
+  check "existing release.yml: kept, no .belfry.yml" "name: Release
+no" "$(cat "$work/.github/workflows/release.yml"; [ -e "$work/.belfry.yml" ] && echo yes || echo no)"
+  # An edited starter is kept by --remove belfry.
+  rm "$work/.github/workflows/release.yml"
+  peal init --stage belfry --release-workflow >/dev/null
+  echo "# edited" >>"$work/.github/workflows/release.yml"
+  check "an edited starter: kept" "kept .github/workflows/release.yml (it is not Peal's starter)
+removed .belfry.yml" "$(peal init --remove belfry)"
+  rm -r "$work/.github"
+
+  # The release action's version pattern follows release.tag-prefix; none for an empty
+  # prefix or one with a regex character.
+  cp "$work/.peal/config.yml" "$work/config.yml.orig"
+  printf 'release:\n  tag-prefix: release-\n' >>"$work/.peal/config.yml"
+  peal init --stage belfry >/dev/null
+  check "a tag prefix: in the pattern" "#         pattern: 'release-[0-9]+\\.[0-9]+\\.[0-9]+'" \
+    "$(grep 'pattern:' "$work/.belfry.yml")"
+  peal init --remove belfry >/dev/null
+  for prefix in '""' "'v.'"; do
+    cp "$work/config.yml.orig" "$work/.peal/config.yml"
+    printf 'release:\n  tag-prefix: %s\n' "$prefix" >>"$work/.peal/config.yml"
+    peal init --stage belfry >/dev/null
+    check "tag prefix $prefix: no pattern" "" "$(grep 'pattern:' "$work/.belfry.yml")"
+    check "tag prefix $prefix: the version still asked" "#         ask: true" "$(grep 'ask:' "$work/.belfry.yml")"
+    peal init --remove belfry >/dev/null
+  done
+  mv "$work/config.yml.orig" "$work/.peal/config.yml"
 
   peal init --stage milestones >/dev/null
   echo "More goals." >>"$work/docs/milestones/m1.md"
@@ -269,6 +332,8 @@ refusals() {
   check_refused "a stage before tasks" "set up the tasks stage first" peal init --stage guardrails
   check_refused "storage for another stage" "--storage and --label are for --stage tasks" peal init --stage belfry --storage issues
   check_refused "a title for another stage" "--title is for --stage milestones" peal init --stage tasks --title x
+  check_refused "the release workflow for another stage" "--release-workflow is for --stage belfry" peal init --stage tasks --release-workflow
+  check_refused "the release workflow with --remove" "--release-workflow is for --stage belfry" peal init --remove belfry --release-workflow
   check_refused "an unknown storage" "--storage files|issues" peal init --stage tasks --storage cards
   check "nothing written" "" "$(cd "$work" && git status --porcelain)"
 
