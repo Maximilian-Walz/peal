@@ -1,4 +1,5 @@
 {
   "extraKnownMarketplaces": {"peal": {"source": {"source": "github", "repo": "Maximilian-Walz/peal"}}},
-  "enabledPlugins": {"peal@peal": true}
+  "enabledPlugins": {"peal@peal": true},
+  "permissions": {"allow": ["mcp__belfry__task_create"]}
 }
