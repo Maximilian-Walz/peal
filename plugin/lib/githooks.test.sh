@@ -45,6 +45,12 @@ commit_ungated() {
   git -C "$work" commit -q --no-verify --allow-empty -m "$1"
 }
 
+# noted FILE TEXT -> TEXT added under FILE's "## Notes" (appended, it would fill the
+# Outcome, which the gate refuses).
+noted() {
+  awk -v t="$2" '{ print } $0 == "## Notes" { print ""; print t }' "$1" >"$1.n" && mv "$1.n" "$1"
+}
+
 push_main() { git -C "$work" push -q origin HEAD:main; }
 
 install() {
@@ -150,7 +156,7 @@ docs(tasks): file 0004 new-task [0004]" "$(git -C "$work" log --format=%s -6 ori
 
   # A defer's shape: one backlog file modified.
   fresh
-  printf '\nnotes back\n' >>"$work/tasks/backlog/0002-second-task.md"
+  noted "$work/tasks/backlog/0002-second-task.md" "notes back"
   git -C "$work" add -A
   commit_ungated "docs(tasks): defer 0002 second-task [0002]"
   check "allowed: defer" "0" "$(push_main 2>/dev/null; echo $?)"
@@ -257,7 +263,7 @@ docs(tasks): file 0004 new-task [0004]" "$(git -C "$work" log --format=%s -6 ori
   fresh
   printf 'more\n' >>"$work/docs/milestones/m1.md"
   printf -- '---\nstate: open\n---\n\n# New\n' >"$work/docs/milestones/m19.md"
-  printf 'more\n' >>"$work/tasks/backlog/0001-first-task.md"
+  noted "$work/tasks/backlog/0001-first-task.md" more
   git -C "$work" add -A
   commit_ungated "docs(tasks): apply 3 proposals"
   check "allowed: apply, a milestone file added and one modified" "0" "$(push_main 2>/dev/null; echo $?)"
@@ -297,6 +303,112 @@ docs(tasks): file 0004 new-task [0004]" "$(git -C "$work" log --format=%s -6 ori
   git -C "$work" add -A
   commit_ungated "docs(tasks): apply 1 proposal, and more"
   check_fails "refused: apply, a subject not exactly so" 1 "reaches main directly" push_main
+
+  # What a write adds or modifies: merge, origin and the Plan and Outcome kept (0180).
+  local out wri plan=$'\n## Plan\n\nDo it this way.\n'
+  fresh
+  out=$work/tasks/backlog/0090-outsider-task.md
+  wri=$work/tasks/backlog/0091-writer-task.md
+  ID=0090 text "origin: outsider" >"$out"
+  ID=0091 text >"$wri"
+  ID=0093 text "merge: auto" >"$work/tasks/backlog/0093-merging-task.md"
+  git -C "$work" add -A
+  commit_ungated "publish"
+  git -C "$work" push -q --no-verify origin HEAD:main
+
+  fresh
+  ID=0090 text >"$out"
+  git -C "$work" add -A
+  commit_ungated "docs(tasks): revise 0090 outsider-task [0090]"
+  check_fails "refused: revise, origin: outsider dropped" 1 "0090-outsider-task.md: drops or changes origin" push_main
+
+  fresh
+  ID=0091 text "merge: auto" >"$wri"
+  git -C "$work" add -A
+  commit_ungated "docs(tasks): revise 0091 writer-task [0091]"
+  check_fails "refused: revise, merge added" 1 "0091-writer-task.md: sets merge" push_main
+
+  fresh
+  ID=0093 text "merge: 'auto '" >"$work/tasks/backlog/0093-merging-task.md"
+  git -C "$work" add -A
+  commit_ungated "docs(tasks): revise 0093 merging-task [0093]"
+  check_fails "refused: revise, merge changed" 1 "0093-merging-task.md: sets merge" push_main
+
+  fresh
+  { ID=0091 text; printf '%s' "$plan"; } >"$wri"
+  git -C "$work" add -A
+  commit_ungated "docs(tasks): revise 0091 writer-task [0091]"
+  check_fails "refused: revise, the Plan filled" 1 "0091-writer-task.md: fills the Plan" push_main
+
+  fresh
+  ID=0090 text >"$out"
+  git -C "$work" add -A
+  commit_ungated "docs(tasks): note on 0090 [0090]"
+  check_fails "refused: note, origin dropped" 1 "drops or changes origin" push_main
+
+  fresh
+  ID=0090 text "origin: writer" >"$out"
+  git -C "$work" add -A
+  commit_ungated "docs(tasks): set milestone of 0090 to m2 [0090]"
+  check_fails "refused: set-milestone, origin changed" 1 "drops or changes origin" push_main
+
+  fresh
+  OUTCOME="Done already." ID=0091 text >"$wri"
+  git -C "$work" add -A
+  commit_ungated "docs(tasks): defer 0091 writer-task [0091]"
+  check_fails "refused: defer, the Outcome filled" 1 "0091-writer-task.md: fills the Outcome" push_main
+
+  fresh
+  ID=0090 text >"$out"
+  git -C "$work" add -A
+  commit_ungated "docs(tasks): apply 1 proposal"
+  check_fails "refused: apply, origin dropped with no vouch" 1 "drops or changes origin" push_main
+
+  fresh
+  ID=0090 text >"$out"
+  git -C "$work" add -A
+  git -C "$work" commit -q --no-verify -m "docs(tasks): apply 1 proposal" -m "Proposals applied:" -m "- v (vouch 0091): known to us"
+  check_fails "refused: apply, a vouch for another task" 1 "drops or changes origin" push_main
+
+  fresh
+  { ID=0092 text "origin: outsider"; printf '%s' "$plan"; } >"$work/tasks/backlog/0092-outsider-plan.md"
+  git -C "$work" add -A
+  commit_ungated "docs(tasks): file 0092 outsider-plan [0092]"
+  check_fails "refused: file, an outsider's with a filled Plan" 1 "an outsider's new task with a filled Plan" push_main
+
+  fresh
+  ID=0092 text "merge: auto" >"$work/tasks/backlog/0092-merging-file.md"
+  git -C "$work" add -A
+  commit_ungated "docs(tasks): file 0092 merging-file [0092]"
+  check_fails "refused: file, merge set" 1 "0092-merging-file.md: sets merge" push_main
+
+  fresh
+  printf -- '---\n\tbad: x\n---\n\n# 0091 — Bad\n\n## Notes\n' >"$wri"
+  git -C "$work" add -A
+  commit_ungated "docs(tasks): revise 0091 writer-task [0091]"
+  check_fails "refused: revise, frontmatter that does not parse" 1 "0091-writer-task.md: its frontmatter does not parse" push_main
+
+  fresh
+  ID=0093 text >"$work/tasks/backlog/0093-merging-task.md"
+  git -C "$work" add -A
+  commit_ungated "docs(tasks): revise 0093 merging-task [0093]"
+  check "allowed: revise, merge dropped" "0" "$(push_main 2>/dev/null; echo $?)"
+
+  fresh
+  ID=0091 text "origin: outsider" >"$wri"
+  git -C "$work" add -A
+  commit_ungated "docs(tasks): revise 0091 writer-task [0091]"
+  check "allowed: revise, origin: outsider added" "0" "$(push_main 2>/dev/null; echo $?)"
+
+  fresh
+  { ID=0094 text; printf '%s' "$plan"; } >"$work/tasks/backlog/0094-writer-plan.md"
+  git -C "$work" add -A
+  commit_ungated "docs(tasks): file 0094 writer-plan [0094]"
+  check "allowed: file, a writer's with a filled Plan" "0" "$(push_main 2>/dev/null; echo $?)"
+
+  fresh
+  check "allowed: apply, a vouch" "0:" "$(printf '%s' '{"proposals": [{"id": "v", "kind": "vouch", "task": "0090", "why": "known to us"}]}' \
+    | peal apply >/dev/null 2>&1; echo $?):$(git -C "$work" show origin/main:tasks/backlog/0090-outsider-task.md | grep '^origin')"
 
   # A milestone's state: its file, and the one made current; nothing else.
   fresh

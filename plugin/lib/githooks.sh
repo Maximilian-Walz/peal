@@ -178,12 +178,19 @@ peal_githook() {
 #                                              tag's commit written into its parent's;
 #                                              the tag known locally, its commit before
 #                                              this one (peal ship pin)
+# The backlog task files a file, revise, defer, set-milestone, note or apply commit adds or
+# modifies are read too (_peal_pre_push_content): their frontmatter parses, before and
+# after; merge is never added or changed; origin is never dropped or changed, but by an
+# apply commit whose body vouches for the task; the Plan and the Outcome never go from
+# empty to filled; an added file never sets merge, nor brings a filled Plan or Outcome
+# with origin: outsider. A shape-only check let "docs(tasks): revise ..." carry any text.
 # Rewriting main (not a fast-forward) and deleting it are refused, and so is a merge made
 # on this machine. Git runs no pre-push for a merge made on the server (a pull request's),
 # so this never stands in its way. A guard against honest mistakes: branch protection on
 # main is what stops a deliberate push.
-# Known limit: the main branch and the tasks and milestones directories are this
-# worktree's settings.
+# Known limits: the main branch and the tasks and milestones directories are this
+# worktree's settings; a Plan filled already may be rewritten; the subject and the vouch
+# line are only strings the caller chose.
 
 _peal_pre_push() {
   local main tasks milestones lsha rref rsha range sha parents
@@ -309,7 +316,84 @@ _peal_pre_push_direct() {
         if (shape == "retire" && substr(gone, 1, 4) != id) { print "not the file of task " id ": " gone; exit 1 }
       }'); then
     _peal_gate_refuse pre-push "$short reaches $main directly as \"$subject\", but its diff is not that shape:" "$why"
+    return
   fi
+  case $shape in
+    add | modify | apply) _peal_pre_push_content "$sha" "$main" "$short" "$subject" "$shape" "$tasks" "$diff" ;;
+  esac
+}
+
+# _peal_pre_push_guard BLOB NAME -> merge-gate.awk's guard verdict on the blob: "bad", or
+# "ok", the merge and origin records and the filled Plan and Outcome. NAME is the path,
+# made printable for yaml-lib.awk's messages.
+_peal_pre_push_guard() {
+  # shellcheck disable=SC1003 # tr reads the escaped backslash itself
+  git cat-file blob "$1" | awk -v guard=1 \
+    -v name="$(printf '%s' "$2" | LC_ALL=C tr -c '[:print:]' '?' | LC_ALL=C tr '\\' '?')" \
+    -f "$PEAL_ROOT/lib/yaml-lib.awk" -f "$PEAL_ROOT/lib/merge-gate.awk"
+}
+
+# _peal_pre_push_content SHA MAIN SHORT SUBJECT SHAPE TASKS DIFF -> refused unless every
+# backlog task file the commit adds or modifies (DIFF, its --raw lines) keeps what only
+# the human, the close or a vouch writes: the frontmatter parses before and after; merge
+# is not added or changed (the human's consent to a merge); origin is not dropped or
+# changed (an outsider's mark), but by an apply commit whose body holds the vouch line
+# "- <id> (vouch NNNN): " for that task; the Plan and the Outcome do not go from empty to
+# filled (a filled Plan reads as agreed to peal work). An added file is held to peal
+# create's checks: no merge, and no filled Plan or Outcome with origin: outsider.
+_peal_pre_push_content() {
+  local sha=$1 main=$2 short=$3 subject=$4 shape=$5 tasks=$6 diff=$7 body line meta path
+  local st osha nsha file nid old new oldk newk sec problems=()
+  body=$(git show -s --format=%b "$sha")
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    meta=${line%%$'\t'*}
+    path=${line#*$'\t'}
+    read -r _ _ osha nsha st <<<"$meta"
+    case $st in A | M) ;; *) continue ;; esac
+    case $path in "$tasks"/backlog/*) ;; *) continue ;; esac
+    file=${path##*/}
+    nid=${file:0:4}
+    new=$(_peal_pre_push_guard "$nsha" "$path") || { problems+=("$path: cannot be read"); continue; }
+    if [ "${new%%$'\n'*}" != ok ]; then
+      problems+=("$path: its frontmatter does not parse")
+      continue
+    fi
+    if [ "$st" = A ]; then
+      if grep -q '^merge'$'\t' <<<"$new"; then problems+=("$path: sets merge; only the human sets merge: auto"); fi
+      if grep -q '^filled'$'\t' <<<"$new" && grep -qx 'origin'$'\t''s'$'\t''outsider' <<<"$new"; then
+        problems+=("$path: an outsider's new task with a filled $(grep '^filled' <<<"$new" | head -n 1 | cut -f 2); only the human's agreement writes one")
+      fi
+      continue
+    fi
+    old=$(_peal_pre_push_guard "$osha" "$path") || { problems+=("$path: cannot be read"); continue; }
+    if [ "${old%%$'\n'*}" != ok ]; then
+      problems+=("$path: its frontmatter did not parse before")
+      continue
+    fi
+    newk=$(grep '^merge'$'\t' <<<"$new")
+    oldk=$(grep '^merge'$'\t' <<<"$old")
+    if [ -n "$newk" ] && [ "$newk" != "$oldk" ]; then
+      problems+=("$path: sets merge; only the human sets merge: auto")
+    fi
+    newk=$(grep '^origin'$'\t' <<<"$new")
+    oldk=$(grep '^origin'$'\t' <<<"$old")
+    if [ -n "$oldk" ] && [ "$newk" != "$oldk" ]; then
+      if [ "$shape" = apply ] && [ -z "$newk" ] && [ "$oldk" = $'origin\ts\toutsider' ] \
+          && grep -Eq "^- .+ \(vouch $nid\): " <<<"$body"; then
+        :
+      else
+        problems+=("$path: drops or changes origin; only a vouch (peal apply) drops origin: outsider")
+      fi
+    fi
+    for sec in Plan Outcome; do
+      if grep -qx "filled"$'\t'"$sec" <<<"$new" && ! grep -qx "filled"$'\t'"$sec" <<<"$old"; then
+        problems+=("$path: fills the $sec; only planning or the close fills it")
+      fi
+    done
+  done <<<"$diff"
+  [ ${#problems[@]} -eq 0 ] \
+    || _peal_gate_refuse pre-push "$short reaches $main directly as \"$subject\", but it changes what only the human writes:" "${problems[@]}"
 }
 
 # _peal_pre_push_index SHA MAIN SHORT SUBJECT -> refused unless SHA adds or changes the

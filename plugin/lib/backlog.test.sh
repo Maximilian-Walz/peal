@@ -27,7 +27,7 @@ subject() { git -C "$work" fetch -q origin; git -C "$work" log -1 --format=%s or
 files() {
   local work wt out new before other admin
   work=$(repo)
-  put "$work" backlog 0001 deferred-task "milestone: m1"
+  put "$work" backlog 0001 deferred-task "milestone: m1" "origin: outsider"
   put "$work" backlog 0002 blocking-task
   put "$work" backlog 0003 kept-task
   put "$work" backlog 0004 piece-of-deferred "part-of: 0001" "depends: [0001]"
@@ -59,7 +59,7 @@ files() {
   check "defer: raw git lists the link as untracked (the control)" "?? dev-null" \
     "$(git -C "$wt" status --porcelain | grep dev-null)"
   check "defer --dry-run: not refused for the link alone" "0" \
-    "$(in_wt defer --reason x --dry-run < <(ID=0001 text "milestone: m1") >/dev/null 2>&1; echo $?)"
+    "$(in_wt defer --reason x --dry-run < <(ID=0001 text "milestone: m1" "origin: outsider") >/dev/null 2>&1; echo $?)"
   echo scratch >"$wt/scratch.txt"
   out=$(in_wt defer --reason x < <(ID=0001 text "milestone: m1") 2>&1 >/dev/null)
   check "defer: still refused for a real file, listing it" "1" "$(printf '%s\n' "$out" | grep -c '^  scratch.txt$')"
@@ -80,16 +80,19 @@ files() {
   check_refused "defer: into a parked milestone" "milestone m3 is parked" in_wt defer --reason x < <(ID=0001 text "milestone: m3")
   check_refused "defer: unknown depends" "depends: 0099 is no task" in_wt defer --reason x < <(ID=0001 text "depends: [0099]")
   check_refused "defer: part-of" "part-of changed" in_wt defer --reason x < <(ID=0001 text "part-of: 0002")
+  check_refused "defer: origin dropped" "defer: origin dropped or changed" in_wt defer --reason x < <(ID=0001 text "milestone: m1")
+  check_refused "defer: the Plan filled" "defer: the new text fills in the Plan" \
+    in_wt defer --reason x < <(ID=0001 text "milestone: m1" "origin: outsider" | awk '$0 == "## Notes" { print "## Plan"; print ""; print "Do it this way."; print "" } 1')
   check_refused "defer: no Notes" "no '## Notes' section" in_wt defer --reason x < <(ID=0001 text "milestone: m1" | sed '/^## Notes/d')
   check_fails "defer: a depends cycle through its piece" 1 "defer: refused: depends cycle 0001 → 0004 → 0001" \
-    in_wt defer --reason x < <(ID=0001 text "milestone: m1" "depends: [0004]")
+    in_wt defer --reason x < <(ID=0001 text "milestone: m1" "depends: [0004]" "origin: outsider")
   check "defer: refusals push nothing" "$before" "$(git -C "$work" fetch -q; git -C "$work" rev-parse origin/main)"
 
   # A wip commit of the task's own file is no work; nor is an uncommitted edit of it.
   echo "learned something" >>"$wt/tasks/doing/0001-deferred-task.md"
   git -C "$wt" commit -q -am "wip: session-end autosave [0001]" >/dev/null
   echo "and more" >>"$wt/tasks/doing/0001-deferred-task.md"
-  new=$(ID=0001 text "milestone: m1" "depends: [0002]" | sed 's/^## Notes$/## Notes\n\nNeeds 0002 first./')
+  new=$(ID=0001 text "milestone: m1" "depends: [0002]" "origin: outsider" | sed 's/^## Notes$/## Notes\n\nNeeds 0002 first./')
   out=$(in_wt defer --reason "blocked on 0002" --dry-run <<<"$new" 2>&1)
   check "defer --dry-run: the note" "1" "$(grep -c "^+Deferred $today after a claim: blocked on 0002" <<<"$out")"
   check "defer --dry-run: nothing pushed" "$before" "$(git -C "$work" fetch -q; git -C "$work" rev-parse origin/main)"

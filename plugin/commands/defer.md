@@ -47,6 +47,10 @@ Compose the task's text anew from what `peal read` printed:
 - `## Scope` and `## Done when` tightened, if planning found them narrower or wider.
 - `## Raw` unchanged, `part-of` unchanged, `## Outcome` left empty: a filled Outcome
   means work happened, which is a close.
+- `## Plan` emptied when the backlog's copy has none: an agreed plan carried back would
+  read as agreed to the next claim, which plans afresh. Say under `## Notes` that the plan
+  was agreed and dropped, with what the next planning should keep of it. `origin`
+  unchanged: only a vouch drops `origin: outsider`. `peal defer` refuses either.
 - The milestone is not moved into a `parked` one: that is a milestone review's call.
   Suggest it in Notes instead.
 
