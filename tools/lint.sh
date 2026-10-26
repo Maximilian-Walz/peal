@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs shellcheck over every shell script in the repository: *.sh files and any file
-# whose first line names bash or sh; then tools/pins.sh (the workflow files' pins); then that the committed
+# whose first line names bash or sh; then tools/pins.sh (the workflow files' pins); then tools/guards.sh (every guard docs/security.md names is in .belfry.yml's reviewed paths); then that the committed
 # launcher, .peal/peal, is byte-identical to plugin/templates/launcher; then this branch's `peal check` over Peal's own tasks
 # (a duplicate task id, an empty Outcome, a depends cycle). CI runs this; so can you:
 #
@@ -34,6 +34,8 @@ status=0
 shellcheck "${scripts[@]}" || status=1
 echo 'lint: pins'
 tools/pins.sh || status=1
+echo 'lint: guards'
+tools/guards.sh || status=1
 echo 'lint: launcher'
 if ! cmp -s .peal/peal plugin/templates/launcher; then
   echo "lint: .peal/peal differs from plugin/templates/launcher (or is missing); refresh it with PEAL_ROOT=\$PWD/plugin plugin/bin/peal init --stage tasks and commit it" >&2

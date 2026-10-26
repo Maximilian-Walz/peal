@@ -95,6 +95,8 @@ actions:
       - tools/test-all.sh
       - tools/pins.sh
       - tools/pins.test.sh
+      - tools/guards.sh
+      - tools/guards.test.sh
       - docs/security.md
       - SECURITY.md
     prompt: |
@@ -137,6 +139,14 @@ policy:
       - plugin/lib/work.test.sh
       - plugin/lib/claim.sh
       - plugin/lib/claim.test.sh
+      - plugin/lib/task-text.sh
+      - plugin/lib/close.sh
+      - plugin/lib/close.test.sh
+      - plugin/lib/config.sh
+      - plugin/lib/config.test.sh
+      - plugin/lib/tasks.sh
+      - plugin/lib/tasks.test.sh
+      - plugin/lib/task-check.awk
       - plugin/lib/github.sh
       - plugin/lib/fake-gh
       - plugin/commands/commands.test.sh
