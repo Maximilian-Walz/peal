@@ -51,7 +51,8 @@ stage() {
   printf '%s\n' "$out"
 }
 
-# merge -> the setup branch pushed and merged into main as its pull request would be.
+# merge -> the setup branch pushed and merged into main as its pull request would be: on
+# the server, where no pre-push runs (the gate refuses a merge made here).
 merge() {
   local branch
   branch=$(git -C "$work" symbolic-ref --short HEAD)
@@ -59,7 +60,7 @@ merge() {
   git -C "$work" switch -q main
   git -C "$work" pull -q --no-rebase origin main 2>/dev/null
   git -C "$work" merge -q --no-ff --no-edit "$branch" >/dev/null
-  git -C "$work" push -q origin main
+  git -C "$work" push -q --no-verify origin main
 }
 
 # first_task SLUG TITLE [FRONTMATTER-LINE...] -> step 5's text filed with peal create.
