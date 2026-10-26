@@ -1159,9 +1159,9 @@ stranger_plan() {
   issue 21 "Stranger, plan auto" --label tasks --label "plan: auto" --assoc NONE --body "$body"
   wt=$(peal claim 21 --print-path 2>/dev/null | tail -n 1)
   check "stranger plan: auto is auto" "PLAN auto" "$(at "$wt" "$PEAL" work | sed -n 2p)"
-  issue 22 "Stranger, no plan label" --label tasks --assoc NONE --body "$body" --label "plan: skipped"
+  issue 22 "Stranger, no plan label" --label tasks --assoc NONE --body "$body"
   wt=$(peal claim 22 --print-path 2>/dev/null | tail -n 1)
-  check "stranger plan: skipped is not agreed" "0" "$(at "$wt" "$PEAL" work | sed -n 2p | grep -c agreed)"
+  check "stranger plan: no plan label is auto" "PLAN auto" "$(at "$wt" "$PEAL" work | sed -n 2p)"
   # Edited by the author before labelling: still stripped.
   issue 23 "Author edited" --label tasks --assoc NONE --body "$body" \
     --labelled-at 2026-02-01T00:00:00Z --edited-at 2026-01-01T00:00:00Z author
