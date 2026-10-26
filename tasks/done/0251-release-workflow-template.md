@@ -48,3 +48,19 @@ Nothing to build: close as a duplicate of 0238.
 
 From the human's answers to the plan of 0232: "plugin/lib/init.sh's `prompt:
 /peal:release` suggestion is left alone and filed as an idea".
+
+---
+
+## Outcome
+
+Nothing was built. This task duplicates 0238 (#403), which merged just before 0251 was
+claimed and delivered its whole scope. In plugin/lib/init.sh, the belfry stage now suggests
+the release action as `workflow: release.yml` (commented out), and init.test.sh asserts that
+`prompt: /peal:release` is gone. plugin/templates/release.yml is the starter workflow. It is
+pinned and bumped through `.peal/config.yml`, and tools/pins.sh passes. `peal init --stage
+belfry --release-workflow` writes it, and /peal:setup offers it. docs/guides/belfry.md and
+docs/guides/releases.md describe it. On a scratch repository, `peal init --stage belfry
+--release-workflow` from main wrote `.belfry.yml` with `workflow: release.yml` and
+`.github/workflows/release.yml`. actionlint is not installed on this worker, so the template
+was not linted here; 0238's CI linted it. The human chose to close 0251 as a duplicate of
+0238. The diff is only the task file, so the review was skipped.
