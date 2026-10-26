@@ -124,11 +124,13 @@ branch by hand, and `git lfs install --force` overwriting Peal's hooks with LFS'
 ### Nothing reaches main but a merged pull request or Peal's own narrow writes
 
 The `pre-push` gate walks every commit a push would add to main's first-parent line and
-refuses it unless it is a merge of a branch pushed first (never content made up as a
-merge parent), or one of Peal's own mechanical commits — filing, revising, deferring,
+refuses it unless it is one of Peal's own mechanical commits — filing, revising, deferring,
 retiring a task, a batch of those (`peal apply`), a milestone's state, the decisions index, a release's version files (or marked lines),
 changelog entry and commit SHAs — whose diff has exactly the shape its subject claims. Rewriting or
-deleting main is refused outright.
+deleting main is refused outright, and so is any merge made on this machine: a
+remote-tracking ref is a local file, so "a branch pushed first" proves nothing, and a
+merged pull request is made on the server, where no pre-push runs. The gate is a guard
+against honest mistakes; branch protection on main is what stops a deliberate push.
 
 Limit: a release's changelog entry is checked by its shape only. The gate refuses
 anything but one entry inserted after the title (or a new `# Changelog` holding it),

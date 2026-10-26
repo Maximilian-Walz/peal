@@ -38,4 +38,10 @@ The pre-push gate lets a merge commit on main's first-parent line through when e
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+The pre-push gate now refuses every merge made on this machine that would land on main's first-parent line. The refusal reads "<sha> is a merge made here onto main; a merge reaches main as a pull request, made on the server". There is no setting to allow one: Peal's own writes to main are all single-parent commits, and a merged pull request is made on the server, where no pre-push runs. So nothing legitimate needed the old path, and `_peal_pre_push_merge` (the check "is the parent under any refs/remotes/*") is deleted, not kept behind a flag.
+
+Tests (`plugin/lib/githooks.test.sh`, 492 passed): the old "allowed: a merge of a pushed branch" is now "refused". A new test fabricates `refs/remotes/origin/x` with `git update-ref` and is refused too. `docs/security.md` and the gate's header comment no longer say a merge of a branch pushed first is let through. They now say the gate guards against honest mistakes, and that branch protection on main is what stops a deliberate push.
+
+At review I also reworded the refusal for a direct commit, from "is no merge" (which now hinted a merge would pass) to "is none of Peal's own writes". This was a separate commit.
+
+Found and left: when the remote has no main yet, the gate's walk still uses `--not --remotes`, so it trusts local remote-tracking refs on the first push of main. This is queued as the idea "pre-push's first push of main trusts local remote-tracking refs".
