@@ -20,9 +20,11 @@ release:
     - "plugin/.claude-plugin/plugin.json: version"
     - "plugin/templates/decisions.yml: \"fetch -q --depth 1 https://github.com/Maximilian-Walz/peal\""
     - "plugin/templates/merge-gate.yml: \"fetch -q --depth 1 https://github.com/Maximilian-Walz/peal\""
+    - "plugin/templates/release.yml: \"fetch -q --depth 1 https://github.com/Maximilian-Walz/peal\""
   commit-files:
     - "plugin/templates/decisions.yml: \"fetch -q --depth 1 https://github.com/Maximilian-Walz/peal\""
     - "plugin/templates/merge-gate.yml: \"fetch -q --depth 1 https://github.com/Maximilian-Walz/peal\""
+    - "plugin/templates/release.yml: \"fetch -q --depth 1 https://github.com/Maximilian-Walz/peal\""
   changelog: CHANGELOG.md
 
 # Peal's defaults:
