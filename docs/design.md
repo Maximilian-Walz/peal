@@ -73,6 +73,13 @@ tasks:
     board: .peal/peal board
     revise: /peal:comment {task} {text}
     apply: .peal/peal apply
+    # The kinds Belfry may send apply; it offers and sends only these.
+    apply_kinds: [file, move, priority, depends, retire, milestone_create, milestone_update, milestone_state, split_milestone]
+policy:
+  max_code_jobs: 2
+  # Belfry's own never-list already covers .belfry.yml, .github/** and .claude/**; .peal/**
+  # (the launcher and the config's commands) must never merge by itself either.
+  never_auto_merge: [.peal/**]
 actions:
   milestone-review:
     title: Milestone review

@@ -403,6 +403,13 @@ _peal_doctor_stage_belfry() {
   _peal_doctor_belfry_run board "$cmd_board" _peal_doctor_shape_board
   _peal_doctor_belfry_run offer "$cmd_offer" _peal_doctor_shape_offer
 
+  # Belfry carries out nothing through apply without apply_kinds (no Close, Park, Dismiss).
+  if printf '%s\n' "$records" | awk -F '\t' '$1 == "tasks.commands.apply" { f = 1 } END { exit !f }' \
+    && ! printf '%s\n' "$records" | awk -F '\t' '$1 ~ /^tasks\.commands\.apply_kinds/ { f = 1 } END { exit !f }'; then
+    _peal_doctor_fail belfry.apply_kinds "tasks.commands.apply is set without apply_kinds: Belfry carries out nothing through it" \
+      "add apply_kinds to .belfry.yml (.peal/peal init --stage belfry shows the list)"
+  fi
+
   [ "$_peal_doctor_n" -gt "$before" ] || _peal_doctor_ok belfry "list, board and offer answer correctly"
 }
 

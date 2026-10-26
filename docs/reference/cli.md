@@ -122,7 +122,8 @@ commit, for settings of either side that do not load, and when git fails.
   unpushed work, a prunable worktree.
 - `belfry`: only with `tasks.backend: commands`. Runs its `list`, `board` and `offer`
   commands, only when they are literally `.peal/peal list`, `board` or `offer ...`, and
-  checks their output shape.
+  checks their output shape. Fails a `tasks.commands.apply` without `apply_kinds`: Belfry
+  sends nothing through `apply` without it.
 
 ## `peal config`
 
