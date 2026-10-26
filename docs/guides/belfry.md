@@ -157,7 +157,8 @@ write where gh is logged in, or leave it to Belfry's own commands, which run on 
 ### `peal ship` and `/peal:release`
 
 Under Belfry, a release runs as the GitHub workflow Belfry's release action dispatches,
-where gh has the run's token; no session releases (task 0232).
+where gh has a token; no session releases. Peal's own `.github/workflows/release.yml` is
+one, with its setup in [Releases](releases.md#under-belfry).
 
 | Function | File | Calls | Under Belfry |
 |---|---|---|---|
@@ -195,8 +196,11 @@ where gh has the run's token; no session releases (task 0232).
 
 The file ends with two commented-out actions. Uncomment `milestone-review`, and Belfry
 offers the review when a milestone's tasks are done; uncomment `release`, and the
-Releases tab's button runs [`/peal:release`](releases.md). `peal board` prints what
-Belfry draws its lanes from ([CLI](../reference/cli.md#peal-board)).
+Releases tab's button runs [`/peal:release`](releases.md). That prompt form needs `gh`'s
+login and pushes of its own, so it works only where the session runs outside a sandbox;
+under Belfry's sandbox, make `release` a workflow action instead, as Peal's own is
+([Releases](releases.md#under-belfry)). `peal board` prints what Belfry draws its lanes
+from ([CLI](../reference/cli.md#peal-board)).
 
 ## Auto-merge and `merge: auto`
 

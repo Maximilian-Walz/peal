@@ -442,8 +442,19 @@ and their Peal pinned by SHA too: Dependabot keeps the action current across `/`
 SHA by `peal ship pin` after the tag, checked by `tools/pins.test.sh`), and
 `tools/pins.sh` refuses an unpinned reference in the templates or in Peal's workflows.
 
+The release workflow (`.github/workflows/release.yml`) is the one that writes, and only
+on a dispatch by someone with write access. Its dry run is a job with no secret and no
+write. The writing job runs only for a real run on `main`, in the `release` environment
+that only `main` may enter, and writes with a GitHub App's token minted for that run:
+the App is no bypass actor, so main's rules hold for it as for anyone, and no fallback to
+the run's `GITHUB_TOKEN` exists. The token stays out of the checkout
+(`persist-credentials: false`) and out of `$GITHUB_ENV`; each writing step gets it in
+its own `env`, git through a credential helper that reads it there, and inputs and
+secrets reach the shell only through `env`, never spliced into a `run:`.
+
 - Guard: `.github/workflows/ci.yml` (`permissions:`, the pinned `uses:`),
-  `.github/dependabot.yml`, `.github/workflows/scorecard.yml`,
+  `.github/workflows/release.yml` (its two jobs, `environment: release`, the App
+  token), `.github/dependabot.yml`, `.github/workflows/scorecard.yml`,
   `plugin/templates/decisions.yml`, `plugin/templates/merge-gate.yml`, `tools/pins.sh`.
 - Harness: `tools/pins.test.sh`; Scorecard's weekly run reports an unpinned action or a
   broad permission.

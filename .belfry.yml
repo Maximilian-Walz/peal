@@ -24,11 +24,17 @@ actions:
     title: Milestone review
     prompt: /peal:milestone-review {milestone}
     triggers: [milestone]
-  # The Releases tab's button. Releasing stays the human's call: nothing else starts it,
-  # and /peal:release asks the human to confirm the version before it tags.
+  # The Releases tab's button dispatches .github/workflows/release.yml, where the release
+  # runs with an App's token: no session and no sandbox. Releasing stays the human's
+  # call: nothing else starts it, and the version typed into the button is the
+  # confirmation (docs/guides/releases.md, Under Belfry).
   release:
     title: Release
-    prompt: /peal:release
+    workflow: release.yml
+    inputs:
+      version:
+        ask: true
+        pattern: 'v[0-9]+\.[0-9]+\.[0-9]+'
     triggers: [button]
     single: true
     release: true
