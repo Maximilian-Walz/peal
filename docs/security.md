@@ -158,8 +158,37 @@ push under that subject can rewrite every backlog task's and milestone's text in
 commit, as a run of `revise` and `milestone-state` commits nearly could, visibly, in the
 task and milestone files alone.
 
-- Guard: `plugin/lib/githooks.sh` (`_peal_pre_push`).
-- Harness: `plugin/lib/githooks.test.sh`.
+The text of those writes is read too, not only their shape (`_peal_pre_push_content`):
+every backlog task file a `file`, `revise`, `defer`, `set milestone`, `note` or `apply`
+commit adds or modifies is parsed before and after (`merge-gate.awk` with `guard=1`), and
+the push is refused when either frontmatter does not parse, `merge` is added or changed,
+`origin` is dropped or changed, or the `## Plan` or `## Outcome` goes from empty to
+filled. An added file is held to `peal create`'s rules: no `merge`, and an `origin:
+outsider` text with no filled Plan or Outcome. Only an `apply` commit whose body holds the
+vouch line `- <id> (vouch NNNN): ` may drop task NNNN's `origin: outsider`, as `peal
+apply`'s `vouch` proposal writes it. So a push under a storage subject can no longer turn
+an outsider's task into a writer's, grant itself `merge: auto`, or write a Plan that
+`peal work` would read as `PLAN agreed`. The storage refuses the same before it pushes:
+`peal revise` and `peal defer` (`peal_edit_check`) refuse a dropped or changed `origin`
+and a newly filled Plan, so a deferred claim gives its agreed Plan back empty
+(`/peal:defer`), and a writer's pre-written plan goes through `peal create` or the human's
+own pull request. A record never reaches this gate: it is a commit on the claim branch,
+or an issue edit.
+
+Limits, open: a Plan already filled may be rewritten by a `revise` push (the text is
+checked for what is new, not for what changes in a section that was agreed); and the
+subject and the vouch line are strings the pusher chose, so a deliberate push can forge
+a vouch. Both are the honest-mistake gate's limits: branch protection on main is the
+real block.
+
+- Guard: `plugin/lib/githooks.sh` (`_peal_pre_push`, `_peal_pre_push_content`),
+  `plugin/lib/merge-gate.awk` (`guard=1`), `plugin/lib/tasks.sh` (`peal_edit_check`).
+- Harness: `plugin/lib/githooks.test.sh` (`pre_push`: revise dropping `origin:
+  outsider`, adding or changing `merge`, filling `## Plan`; note and set-milestone
+  dropping or changing `origin`; defer filling the Outcome; apply without a vouch line or
+  with another task's; an outsider's file with a filled Plan; a file setting `merge`;
+  frontmatter that does not parse; and the writes still allowed),
+  `plugin/lib/store-files.test.sh` (revise), `plugin/lib/backlog.test.sh` (defer).
 
 ### `peal create`'s stdin is data, filed byte for byte, never a shell word
 
@@ -493,8 +522,10 @@ agreed. In Peal's CI the gate is a step of the `changes` job, so it fails the re
 Its limits:
 
 - **The direct push.** `peal revise` and `peal comment` push onto main without a pull
-  request; a push of their shape that adds `merge` is not seen by this gate. That route
-  is task 0180's.
+  request, so this gate does not see them. Closed by 0180: the pre-push gate reads their
+  text, and refuses `merge` added or changed, `origin` dropped or changed and a newly
+  filled Plan or Outcome ("Nothing reaches main but a merged pull request or Peal's own
+  narrow writes", above).
 - **The bootstrap.** While BASE has no `plugin/lib/merge-gate.sh` (the pull request that
   adds the gate), Peal's CI runs the pull request's own gate. That pull request changes
   `.github/**` and the gate's files, so a human merges it; every later one runs BASE's.
