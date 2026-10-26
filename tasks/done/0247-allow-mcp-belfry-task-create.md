@@ -36,3 +36,7 @@ Belfry sessions on this repository keep asking for permission to call `mcp__belf
 - The close-under-Belfry task is most likely 0235 (close files its queued ideas through the belfry `idea` tool, not `task_create`). If it lands, task sessions stop calling `task_create`, and only the idea-filing jobs still use it. Check whether those jobs ask for it before you add the rule.
 - 0138 was retired, not done. Its Outcome calls the remaining edit "a one-line human edit of .claude/settings.json that a sandboxed session cannot make; not a task". The sandbox still keeps `.claude/settings.json` unwritable, and `place_config` only places skills and commands. Open question: should this be a human task instead?
 - `.claude/settings.json` has no `permissions` block today (only the marketplace and the enabled plugin), so this rule would be its first.
+
+## Outcome
+
+Retired 2026-10-26 without being claimed: Duplicate of 0246, which adds the allow rule.
