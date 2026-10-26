@@ -130,7 +130,7 @@ changelog entry and commit SHAs — whose diff has exactly the shape its subject
 deleting main is refused outright, and so is its first push (the remote has no main): which
 commits it adds would be told by the local remote-tracking refs, files anyone can fake, and
 the hook makes no network call, so it refuses in one line; that push is the human's own,
-outside the gate. Any merge made on this machine: a
+outside the gate. So is any merge made on this machine: a
 remote-tracking ref is a local file, so "a branch pushed first" proves nothing, and a
 merged pull request is made on the server, where no pre-push runs. The gate is a guard
 against honest mistakes; branch protection on main is what stops a deliberate push.
