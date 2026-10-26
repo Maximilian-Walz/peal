@@ -1,7 +1,7 @@
 ---
 milestone:
 plan: required
-size:
+size: S
 depends: []
 ---
 
@@ -30,6 +30,19 @@ merge-gate.yml, and the suggested action `workflow: release.yml` with an asked v
 
 - A fresh `peal init --stage belfry` suggests the workflow action, and the template it
   writes validates (actionlint, tools/pins.sh).
+
+## Notes
+
+- 2026-10-26: Task 0238 (#403), merged just before this claim, delivered the whole scope:
+  the `workflow: release.yml` suggestion in plugin/lib/init.sh (init.test.sh asserts that
+  `prompt: /peal:release` is gone), plugin/templates/release.yml pinned and bumped through
+  .peal/config.yml (tools/pins.sh passes), `--release-workflow` and /peal:setup offering it,
+  and docs/guides/belfry.md and releases.md. The human chose to close 0251 as a duplicate of
+  0238, with nothing built.
+
+## Plan
+
+Nothing to build: close as a duplicate of 0238.
 
 ## Raw
 
