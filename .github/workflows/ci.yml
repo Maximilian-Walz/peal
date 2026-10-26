@@ -17,7 +17,8 @@ concurrency:
 
 jobs:
   # Whether anything the harnesses test changed. Task files, milestone texts and a
-  # release's version bump do not: for those the harness jobs skip, and a skipped
+  # release's bump and pin (the version line, the changelog entry, and the SHA and tag
+  # of Peal's fetch line in plugin/templates/*.yml) do not: for those the harness jobs skip, and a skipped
   # required check counts as passed. Anything else, or any doubt (no base to compare
   # with, a failed diff), runs them all.
   changes:
@@ -235,5 +236,11 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
       - run: shellcheck --version
       - run: tools/lint.sh
+      # Always: a bump skips the harnesses, and this is what checks that a template's
+      # `# vX.Y.Z` and SHA match plugin.json's version and its tag.
+      - run: bash tools/pins.test.sh
