@@ -60,4 +60,17 @@ Ranges relied on:
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+`_peal_pre_push` (`plugin/lib/githooks.sh`) now refuses the first push of main (the remote's sha is all zeros) in one line: "the remote has no <main>; its first push is the human's own, outside Peal's gate." Before, it walked `$lsha --not --remotes`, which trusted local remote-tracking refs, and a ref faked with `git update-ref` let the push through unchecked. This was the same weakness 0178 closed for merges.
+
+Decided with the human at planning: option C. It refuses outright, makes no network call and trusts no local ref. The other options were `git ls-remote` of the pushed URL, which goes against the documented "a pre-push hook makes no network call", and walking main's whole history, which prints one refusal per commit. A deliberate first push (a new remote, a mirror, a renamed main) is now the human's own push outside the gate. The message does not name the bypass. Only `refs/heads/<main>` is covered, not tags. Pushes to an existing main and deletes are unchanged.
+
+Tests (`plugin/lib/githooks.test.sh`, `pre_push`):
+- An honest first push is refused, with exactly one line and no `--no-verify` in it.
+- A first push with a faked `refs/remotes/origin/fake` is refused. Before the fix, that push passed.
+- The `main: trunk` case expects the new message, because pushing `HEAD:trunk` to the test remote is itself a first push.
+
+`githooks.test.sh`: 552 passed. `githook.test.sh`: 25 passed. `docs/security.md` states the rule in "Nothing reaches main but a merged pull request or Peal's own narrow writes" and lists the cases under Harness.
+
+The reviewer found one thing, now fixed in its own commit: the first edit of security.md had dropped the verb of "so is any merge made on this machine", so the document no longer said that local merges are refused.
+
+For the next session: the full `githooks.test.sh` takes about two minutes.
