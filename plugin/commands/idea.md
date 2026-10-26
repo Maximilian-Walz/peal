@@ -152,8 +152,8 @@ Its other arguments depend on the storage (`peal config storage.kind`):
   itself; the milestone becomes a proposal the human decides, not a direct move.
 
 Report the id it returns, as `filed ...` above. If `task_create` refuses because this
-session is not a filing job, call the `idea` tool instead, with `text` the composed text
-and the same `owner`.
+session is not a filing job (only filing jobs accept it), call the `idea` tool instead,
+with `text` the composed text and the same `owner`.
 
 ## 4. Report
 

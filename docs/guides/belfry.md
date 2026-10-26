@@ -58,7 +58,8 @@ whose tasks are GitHub issues, the contract names the `github-issues` backend in
 - **No GitHub login in the session.** Belfry hides the worker's `gh` login from its
   sessions. `/peal:close` opens the pull request through Belfry's `pr_create` tool
   (`peal close finish --pr-by-tool`, then `peal close opened N URL`), opens no early
-  draft, files queued ideas through `task_create`, and reruns a flaky CI failure once with
+  draft, files queued ideas through the `idea` tool (`peal ideas --export N`, then
+  `peal close finish --ideas-by-tool`, since the sandbox cannot push main), and reruns a flaky CI failure once with
   an empty commit. A re-run of finish cannot update an open pull request's body (Belfry
   has no `pr_update` yet). `peal list` shows `pr:unknown` without a warning, and
   `peal close verify` answers `BLOCKED:no-gh-login`, where the session trusts `wait_ci`.
@@ -98,7 +99,7 @@ has a row here.
 
 | Function | File | Calls | Under Belfry |
 |---|---|---|---|
-| `peal_close_finish` | `close.sh` | `gh api` pulls, GraphQL | Belfry path: `--pr-by-tool`, and `pr_create` opens the pull request. A re-run cannot update an open pull request's body. |
+| `peal_close_finish` | `close.sh` | `gh api` pulls, GraphQL | Belfry path: `--pr-by-tool` and `--ideas-by-tool`, and `pr_create` opens the pull request. A re-run cannot update an open pull request's body. |
 | `_peal_close_verify` | `close.sh` | `gh api` pulls, checks | Belfry path: `peal close verify` answers `BLOCKED:no-gh-login`, and the session trusts `wait_ci`. |
 
 ### `peal list`, `peal offer`, `peal board` and the reads of the issues storage

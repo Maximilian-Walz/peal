@@ -447,7 +447,10 @@ peal_close_body() {
     # "filed ID WHERE — milestone: M, plan: P, size: S — "Title"", as the storage says it.
     awk '$1 == "filed" {
       t = $0; sub(/^.* — "/, "", t); sub(/"$/, "", t)
-      print "- " $2 ": " t " (" $3 ")" }' "$filed"
+      print "- " $2 ": " t " (" $3 ")" }
+      $1 == "handed" {
+      t = $0; sub(/^.* — "/, "", t); sub(/"$/, "", t)
+      print "- " t " (handed to the control plane'"'"'s idea tool)" }' "$filed"
   fi
   echo
   # Belfry reads the last Security: line outside code blocks: this one, after the Outcome.
@@ -523,6 +526,24 @@ _peal_close_checks() {
   done <<<"$checks"
 }
 
+# _peal_close_ideas_handed GITDIR -> the queued ideas taken as filed through the session's
+# idea tool (--ideas-by-tool): a "handed - — "Title"" line each in the filed record (for the
+# pull request), the texts kept in the git directory (peal-ideas-handed), the queue removed;
+# nothing queued, nothing done. No network.
+_peal_close_ideas_handed() {
+  local gitdir=$1 queue n
+  queue=$(peal_idea_queue)
+  if [ ! -s "$queue" ]; then
+    echo "ideas: none queued"
+    return 0
+  fi
+  n=$(grep -c '^-----IDEA .*-----$' "$queue")
+  peal_ideas | awk -F '\t' '{ printf "handed - — \"%s\"\n", $2 }' >>"$gitdir/$PEAL_IDEAS_FILED" || return 2
+  { cat "$queue"; echo; } >>"$gitdir/peal-ideas-handed" || return 2
+  rm -f "$queue"
+  echo "ideas: $n queued idea(s) taken as filed through the session's idea tool (--ideas-by-tool); nothing filed on main"
+}
+
 # peal_close_finish ARGS... -> the close begun here finished: refused, before anything
 # changes, for a missing summary or PR section, an Outcome empty or holding a placeholder,
 # more than three escalations, an uncommitted path other than the Outcome's text and the
@@ -542,10 +563,14 @@ _peal_close_checks() {
 # when its tree is one this branch holds, else refused. What fails
 # after the flush leaves the sentinel: run finish again, it goes on from where it stopped.
 peal_close_finish() {
-  local top gitdir rel decisions dirty escalations out status branch ahead remote_ref repo pr url title body draft node bytool="" a
+  local top gitdir rel decisions dirty escalations out status branch ahead remote_ref repo pr url title body draft node bytool="" ideastool="" a
   local args=()
   for a in "$@"; do
-    if [ "$a" = --pr-by-tool ]; then bytool=1; else args+=("$a"); fi
+    case $a in
+      --pr-by-tool) bytool=1 ;;
+      --ideas-by-tool) ideastool=1 ;;
+      *) args+=("$a") ;;
+    esac
   done
   top=$(peal_project_root) || return 2
   cd "$top" || return 2
@@ -585,12 +610,16 @@ peal_close_finish() {
   _peal_close_remote_check "$(git symbolic-ref -q --short HEAD)" || return 2
   _peal_close_checks || return 2
 
-  out=$(peal_ideas --flush)
-  status=$?
-  [ -z "$out" ] || printf '%s\n' "$out"
-  if [ $status != 0 ]; then
-    peal_err "close finish: the queued ideas were not all filed (above); what is still queued stays queued, nothing is moved. Fix it and finish again."
-    return 2
+  if [ -n "$ideastool" ]; then
+    _peal_close_ideas_handed "$gitdir" || return 2
+  else
+    out=$(peal_ideas --flush)
+    status=$?
+    [ -z "$out" ] || printf '%s\n' "$out"
+    if [ $status != 0 ]; then
+      peal_err "close finish: the queued ideas were not all filed (above); what is still queued stays queued, nothing is moved. Fix it and finish again. Where this session has an idea tool (no push to main from here), file each queued idea through it and finish with --ideas-by-tool."
+      return 2
+    fi
   fi
 
   if _peal_close_merge_asked && [ "$PEAL_MERGE_VERDICT" = withdraw ]; then
