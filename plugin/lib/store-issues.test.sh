@@ -1155,6 +1155,12 @@ stranger_plan() {
     "$(grep -c '^---$' <<<"${out#*---}") $(grep -c 'Intro\.' <<<"$out") $(grep -c 'Keep me' <<<"$out")"
   wt=$(peal claim 20 --print-path 2>/dev/null | tail -n 1)
   check "stranger plan: work is required" "PLAN required" "$(at "$wt" "$PEAL" work | sed -n 2p)"
+  # A rule with trailing blanks is text, not the bare rule: emptied too.
+  issue 27 "Stranger, spaced rule" --label tasks --label "plan: required" --assoc NONE \
+    --body "$(printf 'Intro.\n\n## Plan\n\n--- \n---\t\n\n## Notes\n\nKeep me.')"
+  check "stranger plan: a spaced rule goes" "0" "$(peal read 27 2>&1 | grep -c -e '^--- $' -e $'^---\t$')"
+  wt=$(peal claim 27 --print-path 2>/dev/null | tail -n 1)
+  check "stranger plan: a spaced rule is required" "PLAN required" "$(at "$wt" "$PEAL" work | sed -n 2p)"
   # The same with plan: auto, and with no plan label: never agreed.
   issue 21 "Stranger, plan auto" --label tasks --label "plan: auto" --assoc NONE --body "$body"
   wt=$(peal claim 21 --print-path 2>/dev/null | tail -n 1)

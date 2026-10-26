@@ -70,7 +70,7 @@ function put(key, list,    n, it) {
     if (strip) {
       if (b[j] == "## Plan" || b[j] == "## Outcome") skip = 1
       else if (b[j] ~ /^## /) skip = 0
-      else if (skip && b[j] !~ /^---[ \t]*$/) continue
+      else if (skip && b[j] != "---") continue
     }
     print b[j]
   }
