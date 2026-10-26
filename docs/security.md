@@ -543,7 +543,13 @@ request the `agreed tasks` rule would then merge. `peal merge-gate BASE HEAD` cl
 route: a pull request fails when a task file under `backlog/` or `doing/` that it adds or
 changes holds a `merge` key (any value, read raw, not as the board normalises it) that
 BASE did not already give a task of the same id outside `done/`, or when such a file's
-frontmatter does not parse (the board would read it differently from the gate). It reads
+frontmatter does not parse (the board would read it differently from the gate). It also
+refuses a file that changes any byte of a task while keeping the `merge` BASE gave it (a
+move or rename keeps the blob and passes; dropping `merge` with the change passes), since
+the consent was for the old text, and a new or changed file whose id another file under
+`backlog/` or `doing/` also holds when either holds `merge`, since the gate matches an
+agreed `merge` by id; each refusal names the ways out: drop `merge` with the change, or a
+human merges it. Plain duplicate ids stay with `peal check`. It reads
 git objects only, BASE's settings for BASE and HEAD's for HEAD, so a pull request that
 moves the tasks folder is judged by where its own settings put the tasks; any doubt (a
 missing or all-zero BASE, settings that do not load, git failing) fails it. A close's
@@ -583,12 +589,11 @@ Its limits:
   `.github/**`, which a human merges. The price: a fork's run can be held for a
   maintainer's approval, and until it runs the required check is missing, which holds
   the merge rather than letting it through.
-- **A changed plan under an agreed `merge`.** The gate refuses a `merge` key that arrives;
-  it lets a pull request edit the rest of a task that already holds `merge: auto` on
-  main. A task-files pull request, which merges by itself, can therefore rewrite the
-  `## Plan` or `## Scope` the human agreed `merge: auto` for, and the task's own pull
-  request then merges by itself under the agreed plan's name. Open; an idea filed by
-  0161 proposes a gate for it.
+- **A changed plan under an agreed `merge`.** Closed by 0234: the gate refuses a pull
+  request that changes any byte of a task keeping its agreed `merge` (so a rewritten
+  `## Plan` or `## Scope` cannot ride the consent given for the old one), and a second
+  file carrying an id that holds `merge`. Dropping `merge` with the change passes, and
+  the human agrees a plan again. Tests: `plugin/lib/merge-gate.test.sh`.
 
 ## What this milestone leaves open
 

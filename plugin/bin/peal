@@ -125,7 +125,9 @@ usage: peal <command> [args]
                                 backlog/ or doing/ that HEAD adds or changes has
                                 frontmatter that does not parse, or a merge key BASE did
                                 not give a task of the same id outside done/ with the
-                                same value; reads git objects only, each side's own
+                                same value, or keeps an agreed merge but changes the
+                                file, or shares its id with a file holding merge; reads
+                                git objects only, each side's own
                                 settings; status 2 for a BASE or HEAD that is empty, all
                                 zeros or no commit, and settings that do not load
   doctor [CHECK...]             what is broken in this project's Peal, one sentence and

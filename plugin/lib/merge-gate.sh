@@ -6,7 +6,9 @@
 #
 # Refused (status 1, each file named): a task file under backlog/ or doing/ that is new
 # or changed from BASE and whose frontmatter does not parse, or that holds a merge key
-# BASE did not already give a task of the same id outside done/, with the same value.
+# BASE did not already give a task of the same id outside done/, with the same value; a
+# task that keeps an agreed merge but changes any byte (a move or rename keeps the blob);
+# a file whose id another file in backlog/ or doing/ shares when any of them holds merge.
 # Status 2 for a ref that is empty, all zeros, starts with "-", or is no commit, for
 # settings that do not load, and for git failing: any doubt fails closed.
 
@@ -71,7 +73,7 @@ _peal_mg_ref() {
 
 peal_merge_gate() {
   local base head btasks htasks bkind blist hlist line rel blob id verdict value
-  local bline bverdict match refused=0 bshown hshown
+  local bline bverdict match sameblob refused=0 bshown hshown dups dline dverdict anymerge
   [ $# -eq 2 ] || { peal_err "usage: peal merge-gate BASE HEAD"; return 2; }
   base=$(_peal_mg_ref BASE "$1") || return 2
   head=$(_peal_mg_ref HEAD "$2") || return 2
@@ -108,20 +110,44 @@ peal_merge_gate() {
       refused=1
       continue
     fi
-    [ "$verdict" != ok ] || continue
-    value=${verdict#ok$'\n'}
-    # A task of the same id outside done/ at BASE with the same merge value: moved or
-    # edited, not given its merge here.
     id=${rel#*/}
     id=${id%%-*}
+    # Another file of this id in backlog/ or doing/ at HEAD, when any file of the id
+    # holds merge: the gate matches an agreed merge by id, so a second file would borrow it.
+    dups=$(printf '%s\n' "$hlist" | grep -E "^(backlog|doing)/$id-" || true)
+    if [ "$(printf '%s\n' "$dups" | grep -c .)" -gt 1 ]; then
+      anymerge=0
+      [ "$verdict" = ok ] || anymerge=1
+      while [ $anymerge = 0 ] && IFS= read -r dline; do
+        dverdict=$(_peal_mg_merge "${dline#*$'\t'}" "$hshown/${dline%%$'\t'*}") || return 2
+        [ "$dverdict" = ok ] || anymerge=1
+      done <<<"$dups"
+      if [ $anymerge = 1 ]; then
+        echo "merge-gate: refused: $hshown/$rel: another task file holds id $id, which holds merge"
+        refused=1
+        continue
+      fi
+    fi
+    [ "$verdict" != ok ] || continue
+    value=${verdict#ok$'\n'}
+    # A task of the same id outside done/ at BASE with the same merge value and the same
+    # blob: moved or renamed, not edited and not given its merge here.
+    sameblob=0
     match=0
     while IFS= read -r bline; do
       [ -n "$bline" ] || continue
       bverdict=$(_peal_mg_merge "${bline#*$'\t'}" "$bshown/${bline%%$'\t'*}") || return 2
-      if [ "$bverdict" = "ok"$'\n'"$value" ]; then match=1; break; fi
+      if [ "$bverdict" = "ok"$'\n'"$value" ]; then
+        match=1
+        [ "${bline#*$'\t'}" != "$blob" ] || sameblob=1
+        [ $sameblob = 0 ] || break
+      fi
     done <<<"$(printf '%s\n' "$blist" | grep -E "^(backlog|doing)/$id-")"
     if [ $match = 0 ]; then
       echo "merge-gate: refused: $hshown/$rel: sets merge, which only the human's agreement to a plan writes"
+      refused=1
+    elif [ $sameblob = 0 ]; then
+      echo "merge-gate: refused: $hshown/$rel: changes a task whose merge the human agreed; drop merge with the change, or a human merges it"
       refused=1
     fi
   done <<<"$hlist"
@@ -130,6 +156,6 @@ peal_merge_gate() {
     echo "merge-gate: a human merges this pull request (docs/security.md, \"Auto-merge tiers\")"
     return 1
   fi
-  echo "merge-gate: no task file gains a merge key"
+  echo "merge-gate: no task file gains a merge key or changes under one"
   return 0
 }

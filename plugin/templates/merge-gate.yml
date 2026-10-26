@@ -1,7 +1,8 @@
 # Peal's merge gate: fails a pull request in which a task file under backlog/ or doing/
-# gains a `merge` key (or a changed one stops parsing), so that `merge: auto`, which the
-# human writes only when agreeing a plan, cannot arrive through a pull request that merges
-# by itself on its paths (one touching only task files). Copy it to
+# gains a `merge` key (or a changed one stops parsing), changes while keeping an agreed
+# one, or shares its id with a file that holds one, so that `merge: auto`, which the human
+# writes only when agreeing a plan, cannot arrive or be stretched over a rewritten task
+# through a pull request that merges by itself on its paths (one touching only task files). Copy it to
 # .github/workflows/merge-gate.yml, make its job `peal merge-gate` a required check of the
 # main branch, and list it in the checks of every auto-merge rule of your control plane
 # (Belfry's `auto_merge`). Keep .github/** merged by a human: the gate is only as strong
@@ -38,7 +39,7 @@ jobs:
           git init -q "$RUNNER_TEMP/peal"
           git -C "$RUNNER_TEMP/peal" fetch -q --depth 1 https://github.com/Maximilian-Walz/peal 53fbcc7bf30e53bedc0cf3ab6eb0a0b07eac3d23 # v0.8.0
           git -C "$RUNNER_TEMP/peal" checkout -q FETCH_HEAD
-      - name: No task file gains a merge key
+      - name: No task file gains or stretches a merge key
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
         run: '"$RUNNER_TEMP/peal/plugin/bin/peal" merge-gate "$BASE" HEAD'
