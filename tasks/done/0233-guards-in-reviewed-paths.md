@@ -60,3 +60,20 @@ Found while answering that question: the review runs only for the listed paths, 
 **Verification.** `tools/guards.test.sh` on scratch fixtures: the real repository's files exit 0; a `- Guard:` naming `plugin/lib/missing.sh` exits 1 naming it; a path only on a continuation line is read; a guard covered only via the `*never` alias passes; `plugin/hooks/**` covers `plugin/hooks/x`; a `.github/...` path on a Guard line is ignored; no `review_before_merge.paths` or no Guard lines exits 2. `tools/lint.test.sh`: the launcher scratch repository gets agreeing fixtures (existing cases still exit 0), plus a case where a fixture `docs/security.md` names a guard missing from a fixture `.belfry.yml`: lint exits non-zero and names the file. `tools/test-all.sh` and `tools/lint.sh` pass.
 
 Ranges: .belfry.yml:58-150; docs/security.md:53-73, 104-109, 184-191, 265-268, 361-365, 491-531; tools/lint.sh:1-44; tools/lint.test.sh:1-75; tools/pins.sh:1-59; tools/test-all.sh:25-30; .github/workflows/ci.yml:239; CONTRIBUTING.md:48-56; tasks/backlog/0162-harness-tiers-cover-security-paths.md:1-31; plugin/bin/peal:26-59; plugin/lib/tasks.sh:83.
+
+---
+
+## Outcome
+
+Built: `.belfry.yml`'s `review_before_merge.paths` now lists every guard file `docs/security.md` names that was missing: `plugin/lib/task-text.sh`, `close.sh` (+ `close.test.sh`), `config.sh` (+ `config.test.sh`), `tasks.sh` (+ `tasks.test.sh`) and `task-check.awk`. The task named three; the planner found five, because `tasks.sh` and `task-check.awk` are on `- Guard:` lines too. A new `tools/guards.sh`, run as the `lint: guards` step of `tools/lint.sh`, reads every `- Guard:` bullet of `docs/security.md` (including continuation lines and indented sub-bullets), keeps the backticked `plugin/`, `tools/` and `.peal/` paths, and fails, naming each path and its line, when neither `never_auto_merge` (`&never`) nor `review_before_merge.paths` matches it. It exits 2 when a list or the guard set reads as empty. `tools/guards.sh` and its harness sit in `&never` next to `tools/pins.sh`, and are named on the Auto-merge tiers Guard line, so the check covers its own file. `docs/security.md` says the lists follow its Guard lines and that CI checks it. The `checks.close` limit bullet gained a `- Guard:` sub-bullet naming `plugin/lib/config.sh` (`peal_config_load_ref`) and `plugin/lib/close.sh`, so `config.sh` is enforced rather than listed by hand. CONTRIBUTING.md names the new lint step.
+
+Decided (the human answered "whatever is cleaner" on three points): config.sh gets a Guard line; `close.sh` and `config.sh` go into `review_before_merge`, not `never` (they are not release-chain code); `tools/guards.sh` goes into `never`, as a CI helper like `pins.sh`. Only `- Guard:` bullets are read: neither inline "Guard:" mentions (security.md's launcher limit) nor `- Harness:` lines. Matching uses bash `case` globs, so `*` crosses `/`, which is looser than Belfry's matching. A comment in the script notes this.
+
+Verified: `tools/guards.test.sh` (9 checks), `tools/lint.test.sh` (13, including the end-to-end case where a fixture guard is missing and lint exits non-zero, naming it), `tools/lint.sh`, `docs.test.sh` and `pins.test.sh` pass locally. `tools/test-all.sh` is too slow in the session's sandbox to run to the end (the first five harnesses, apply, backlog, claim and commands among them, passed in 25 minutes). The pull request's sharded CI run is its proof. That `security-pr` runs for the new paths follows from `.belfry.yml`'s contract and cannot be exercised in CI.
+
+Next: backlog 0162 is untouched. Its Guard-line part is done here; what remains is its Harness-line, path-existence and inverted-default parts.
+
+### Reviewer findings not acted on
+
+- The "covered only via the `*never` alias" fixture does not separate the alias from the `&never` list itself: the alias has no paths of its own to cover anything. The case checks that `guards.sh` does not break on an alias, and that is what it can check.
+- Some edited lines in `docs/security.md`, `CONTRIBUTING.md` and the `tools/lint.sh` header run longer than the surrounding wrap. Left as is: cosmetic only.
