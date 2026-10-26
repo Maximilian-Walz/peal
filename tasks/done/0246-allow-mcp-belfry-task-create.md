@@ -41,3 +41,17 @@ Belfry sessions on this repository keep asking for permission to call `mcp__belf
 - `.claude/settings.json` today holds no `permissions` block at all (only the marketplace and the enabled plugin); the rule would be its first.
 - Open question: which close-under-Belfry task the idea means ("filed in the same triage") is not named; check it before working this one, since if close stops calling `task_create` the rule may be moot.
 - 2026-10-26, the human: they make the edit in the worktree and the session commits it (the sandbox cannot write the file), and 0247, a duplicate of this task, is retired. 0235 makes the rule less needed but not moot: `/peal:idea` and Belfry's idea-filing jobs still call `task_create`.
+
+---
+
+## Outcome
+
+`.claude/settings.json` now holds `"permissions": {"allow": ["mcp__belfry__task_create"]}`, its first `permissions` block, so Belfry sessions on this repository stop asking for that tool.
+
+The sandbox keeps `.claude/settings.json` unwritable, which is why 0138 was retired. The human made the one-line edit in this worktree, and the session committed it. That route works for any future `.claude/settings.json` change: the human edits, the session commits.
+
+0247 was a duplicate of this task and is retired through its own pull request (#388). 0235 (close files its queued ideas through the belfry `idea` tool) will take `task_create` out of close, but it does not make this rule moot: `/peal:idea` and Belfry's idea-filing jobs still call `task_create`.
+
+`docs/security.md` lists `.claude/settings.json` among the paths that always wait for the human's merge, so this pull request does.
+
+The review found nothing.
