@@ -3,12 +3,13 @@
 #
 #   bash plugin/lib/merge-gate.test.sh
 #
-# - refused (status 1, the file named): merge added in backlog/ and in doing/, quoted
+# - refused (status 1, the file named): any change to a task keeping its agreed merge,
+#   a second file of an id holding merge, merge added in backlog/ and in doing/, quoted
 #   either way, a value other than auto, a new task file with it, a done task moved back,
 #   a slug renamed with it added, a changed file whose frontmatter does not parse, the
 #   tasks folder moved in HEAD's settings with merge under the new folder;
-# - passed (status 0): no change, an unrelated edit, a task with merge moved from
-#   backlog/ to doing/, merge removed, the close shape (doing/ without it to done/ with
+# - passed (status 0): no change, an unrelated edit, a task with merge moved or
+#   renamed unchanged, a change with merge dropped, merge removed, the close shape (doing/ without it to done/ with
 #   it), a new done/ file with it, an old malformed file left alone, issues storage;
 # - fails closed (status 2): BASE empty, all zeros, unknown, starting with "-"; BASE
 #   settings that do not parse; no arguments.
@@ -95,6 +96,24 @@ cases() {
   refused "a duplicate merge key" tasks/backlog/0001-one.md
   printf -- '---\nmilestone: m1\n# 0001 — one\n' >"$dir/tasks/backlog/0001-one.md"
   refused "a changed file that does not parse" tasks/backlog/0001-one.md
+  printf '\n## Plan\n\nnew plan\n' >>"$dir/tasks/backlog/0002-two.md"
+  refused "a Plan added to a task with merge" tasks/backlog/0002-two.md
+  printf 'more\n' >>"$dir/tasks/backlog/0002-two.md"
+  refused "an edit to a task with merge" tasks/backlog/0002-two.md
+  printf '\n## Scope\n\nchanged\n' >>"$dir/tasks/doing/0005-five.md"
+  refused "a Scope changed on a doing task with merge" tasks/doing/0005-five.md
+  task 0002 two backlog "merge: auto" "needs: [x]"
+  refused "a frontmatter change, merge kept" tasks/backlog/0002-two.md
+  git -C "$dir" mv tasks/backlog/0002-two.md tasks/backlog/0002-renamed.md
+  printf 'more\n' >>"$dir/tasks/backlog/0002-renamed.md"
+  refused "renamed with a body change" tasks/backlog/0002-renamed.md
+  git -C "$dir" mv tasks/backlog/0002-two.md tasks/doing/0002-two.md
+  printf 'more\n' >>"$dir/tasks/doing/0002-two.md"
+  refused "moved to doing with a body change" tasks/doing/0002-two.md
+  task 0002 other backlog "merge: auto"
+  refused "a second file of an agreed id, with merge" tasks/backlog/0002-other.md
+  task 0002 other backlog
+  refused "a second file of an agreed id, without merge" tasks/backlog/0002-other.md
   # A file BASE holds outside its tasks folder is no task of BASE's: HEAD moving the
   # folder onto it gives it its merge.
   mkdir -p "$dir/work/backlog"
@@ -113,14 +132,15 @@ cases() {
   passed "no change"
   printf 'more\n' >>"$dir/tasks/backlog/0001-one.md"
   passed "an unrelated edit, an old malformed file (0006) left alone"
-  printf 'more\n' >>"$dir/tasks/backlog/0002-two.md"
-  passed "an edit to a task with merge"
   git -C "$dir" mv tasks/backlog/0002-two.md tasks/doing/0002-two.md
   passed "a task with merge moved from backlog to doing"
   git -C "$dir" mv tasks/backlog/0002-two.md tasks/backlog/0002-renamed.md
   passed "a task with merge renamed"
   task 0002 two backlog
   passed "merge removed"
+  printf '\n## Plan\n\nnew plan\n' >>"$dir/tasks/backlog/0002-two.md"
+  sed -i '/^merge:/d' "$dir/tasks/backlog/0002-two.md"
+  passed "a Plan changed with merge dropped"
   git -C "$dir" rm -q tasks/doing/0003-three.md
   task 0003 three "done" "merge: auto"
   passed "the close shape: doing without merge, done with it"

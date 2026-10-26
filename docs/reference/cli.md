@@ -98,7 +98,12 @@ not already hold is checked:
 - it has a `merge` key, whatever its value (`auto`, `"auto"`, `yes`, empty): refused,
   unless BASE has a task of the same id under `backlog/` or `doing/` whose `merge` reads
   the same. A task moved from `backlog/` to `doing/`, renamed or edited keeps its `merge`;
-  one moved back from `done/` does not.
+  one moved back from `done/` does not;
+- it keeps a `merge` BASE agreed but is not the same blob as BASE's file (any changed
+  byte, also with a rename or move): refused; drop `merge` with the change, or a human
+  merges it;
+- another file under `backlog/` or `doing/` at HEAD has its id and either holds `merge`:
+  refused.
 
 A file closed into `done/`, a `merge` removed, and an unchanged file pass. Under HEAD's
 `storage.kind: issues` it prints `merge-gate: issues storage, nothing to check`.
