@@ -47,6 +47,8 @@ way.
 
 ## Notes
 
+Deferred 2026-10-26 after a claim: Claimed on a worker machine that went offline before any work; given back from another machine
+
 - Milestone m6 is the human's decision at filing.
 - Open: the command-text route (file via the `idea` tool, then `peal ideas --drop --all`)
   or a `close finish --ideas-by-tool` flag; the latter touches `plugin/lib/ship.sh`
