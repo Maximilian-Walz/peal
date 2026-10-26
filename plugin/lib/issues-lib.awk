@@ -127,6 +127,17 @@ function edit_row_admitted(row, trusted,    e) {
   return edit_admitted(e[2], e[3], trusted, e[4], e[5], e[6], e[7])
 }
 
+# keeps_human_sections(id, edits) -> 1 when the body of a stranger's issue (opener not a
+# writer()) may keep its "## Plan" and "## Outcome" sections: edits (one line of the
+# edits row, as edit_row_admitted() reads it) is for issue id and its last body edit was
+# by an editor other than the author (GitHub lets only a collaborator edit another's
+# issue: peal record, or a maintainer in the UI). Anything else, an empty or stale row
+# included, is 0.
+function keeps_human_sections(id, edits,    e) {
+  if (split(edits, e, "\t") < 5 || e[1] != id) return 0
+  return edit_writer(e[3], 0, e[5])
+}
+
 # add_item(list, v) -> the comma list with v appended, once.
 function add_item(list, v) {
   if (index("," list ",", "," v ",")) return list

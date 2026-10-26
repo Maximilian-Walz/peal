@@ -1140,6 +1140,76 @@ no_login() {
   rm "$FAKE_GH/no-auth"
 }
 
+# A stranger's labelled issue: its Plan and Outcome come out empty, so `peal work` never
+# reads their text as an agreed plan, unless a non-author writer edited the body last.
+stranger_plan() {
+  local work wt body out
+  body=$(printf 'Intro.\n\n## Raw\n\n> the stranger said so\n\n## Plan\n\nStranger plan line.\n\n---\n\n## Outcome\n\nStranger outcome.\n\n## Notes\n\nKeep me.')
+  issues_repo_label
+  issue 20 "Stranger with a plan" --label tasks --label "plan: required" --assoc NONE --body "$body"
+  out=$(peal read 20 2>&1)
+  check "stranger plan: the headings stay" "## Plan
+## Outcome" "$(grep -e '^## Plan' -e '^## Outcome' <<<"$out")"
+  check "stranger plan: the text goes" "0" "$(grep -c -e 'Stranger plan line' -e 'Stranger outcome' <<<"$out")"
+  check "stranger plan: the rule and other sections stay" "2 1 1" \
+    "$(grep -c '^---$' <<<"${out#*---}") $(grep -c 'Intro\.' <<<"$out") $(grep -c 'Keep me' <<<"$out")"
+  wt=$(peal claim 20 --print-path 2>/dev/null | tail -n 1)
+  check "stranger plan: work is required" "PLAN required" "$(at "$wt" "$PEAL" work | sed -n 2p)"
+  # The same with plan: auto, and with no plan label: never agreed.
+  issue 21 "Stranger, plan auto" --label tasks --label "plan: auto" --assoc NONE --body "$body"
+  wt=$(peal claim 21 --print-path 2>/dev/null | tail -n 1)
+  check "stranger plan: auto is auto" "PLAN auto" "$(at "$wt" "$PEAL" work | sed -n 2p)"
+  issue 22 "Stranger, no plan label" --label tasks --assoc NONE --body "$body" --label "plan: skipped"
+  wt=$(peal claim 22 --print-path 2>/dev/null | tail -n 1)
+  check "stranger plan: skipped is not agreed" "0" "$(at "$wt" "$PEAL" work | sed -n 2p | grep -c agreed)"
+  # Edited by the author before labelling: still stripped.
+  issue 23 "Author edited" --label tasks --assoc NONE --body "$body" \
+    --labelled-at 2026-02-01T00:00:00Z --edited-at 2026-01-01T00:00:00Z author
+  check "stranger plan: the author's edit does not keep it" "0" "$(peal read 23 2>&1 | grep -c 'Stranger plan line')"
+  # Edited by a non-author writer: kept, agreed.
+  issue 24 "Maintainer edited" --label tasks --assoc NONE --body "$body" \
+    --labelled-at 2026-02-01T00:00:00Z --edited-at 2026-03-01T00:00:00Z maintainer
+  check "stranger plan: a maintainer's edit keeps it" "1" "$(peal read 24 2>&1 | grep -c 'Stranger plan line')"
+  wt=$(peal claim 24 --print-path 2>/dev/null | tail -n 1)
+  check "stranger plan: work is agreed" "PLAN agreed" "$(at "$wt" "$PEAL" work | sed -n 2p)"
+  # An owner's issue keeps its Plan.
+  issue 25 "Owner's" --label tasks --body "$body"
+  check "stranger plan: an owner's Plan stays" "1" "$(peal read 25 2>&1 | grep -c 'Stranger plan line')"
+  wt=$(peal claim 25 --print-path 2>/dev/null | tail -n 1)
+  check "stranger plan: an owner's issue is agreed" "PLAN agreed" "$(at "$wt" "$PEAL" work | sed -n 2p)"
+  # peal record on a stranger's issue: the recorded plan is agreed.
+  issue 26 "Recorded" --label tasks --label "plan: required" --assoc NONE --body "$body" --labelled-at 2026-02-01T00:00:00Z
+  wt=$(peal claim 26 --print-path 2>/dev/null | tail -n 1)
+  at "$wt" "$PEAL" read 26 | awk '{ print } $0 == "## Plan" { print ""; print "The human agreed." }' >"$wt/.agreed"
+  at "$wt" "$PEAL" record 26 plan <"$wt/.agreed" >/dev/null 2>&1
+  rm -f "$wt/.agreed"
+  check "stranger plan: record, then work, is agreed" "PLAN agreed" "$(at "$wt" "$PEAL" work | sed -n 2p)"
+  check "stranger plan: only the recorded text" "1 0" \
+    "$(at "$wt" "$PEAL" read 26 2>&1 | grep -c 'The human agreed') $(at "$wt" "$PEAL" read 26 2>&1 | grep -c 'Stranger plan line')"
+  # A trusted App's issue marked origin: outsider is stripped.
+  ISSUES_CONFIG='    label: tasks
+    apps: [belfry-server]
+' issues_repo
+  issue 1 "Relayed" --label tasks --assoc NONE --user "belfry-server[bot]" --label "origin: outsider" --body "$body"
+  check "stranger plan: a relaying App's Plan goes" "0" "$(peal read 1 2>&1 | grep -c 'Stranger plan line')"
+  issue 2 "App's own" --label tasks --assoc NONE --user "belfry-server[bot]" --body "$body"
+  check "stranger plan: an App's own Plan stays" "1" "$(peal read 2 2>&1 | grep -c 'Stranger plan line')"
+}
+
+# comment --origin outsider: refused before posting on the issues storage.
+comment_origin() {
+  local work before
+  issues_repo
+  issue 1 "Owner's"
+  before=$(calls 'POST repos/acme/widgets/issues/1/comments')
+  check_refused "comment: --origin outsider is refused" \
+    "comment: --origin outsider is not carried by the issues storage (origin is files only); nothing noted" \
+    peal comment --origin outsider 1 "from outside"
+  check "comment: nothing posted" "$before" "$(calls 'POST repos/acme/widgets/issues/1/comments')"
+  check "comment: a plain one still posts" "task 1: noted" "$(peal comment 1 "a note" 2>&1)"
+  check "comment: posted once" "$((before + 1))" "$(calls 'POST repos/acme/widgets/issues/1/comments')"
+}
+
 cases() {
   no_login
   states
@@ -1157,6 +1227,8 @@ cases() {
   admission
   app_admission
   edit_admission
+  stranger_plan
+  comment_origin
   session
   commit_msg
   repo_of

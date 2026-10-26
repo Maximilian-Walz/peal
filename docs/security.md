@@ -412,12 +412,29 @@ re-admits an edit once they have read it. An issue only named by a task's depend
 part-of is not checked: only its state is used (below). No extra `gh` call is made
 without a filter label configured.
 
+A stranger's text does not become an agreed plan either. A label vouches for the issue,
+and the re-label check only covers edits made after it, so a `## Plan` already in the
+body when the maintainer labelled the issue would read `PLAN agreed` under `peal work`.
+The limit is closed: for an issue whose opener is not a writer (`writer()`, an App
+relaying `origin: outsider` included), `plugin/lib/issues-text.awk` empties its `## Plan`
+and `## Outcome` sections (headings and `---` rules kept, every occurrence) unless the
+body's last edit is by someone other than the author (`keeps_human_sections()`,
+`edit_writer()`: only a collaborator can edit another's issue, so `peal record` and a
+maintainer's edit in the UI qualify). The edits row comes from the call
+`_peal_issues_admitted` already makes and is used only when it names the same issue, so
+a missing or stale row strips. `peal revise` and `peal defer` of such an issue may thus
+drop the stranger's Plan and Outcome text from the body. The text does not render
+`origin: outsider` (files only). `peal comment --origin outsider` is refused on this
+storage before anything is posted (`peal_store_comment`), as `create` is. Tests: the
+`stranger_plan` and `comment_origin` cases of `plugin/lib/store-issues.test.sh`.
+
 A task depending on a stranger's issue still reads its state (open or closed) to know
 whether it is done, the one thing that crosses the boundary, never its text. No command
 reads comments.
 
 - Guard: `plugin/lib/issues-lib.awk` (`writer()`, `admitted()`, `edit_admitted()`,
-  `edit_row_admitted()`), `plugin/lib/issues-scan.awk`, `plugin/lib/store-issues.sh`
+  `edit_row_admitted()`, `keeps_human_sections()`), `plugin/lib/issues-text.awk`,
+  `plugin/lib/issues-scan.awk`, `plugin/lib/store-issues.sh`
   (`_peal_issues_admitted`, `_peal_issues_edits_batch`, `_peal_issues_scan`),
   `plugin/lib/claim.sh`, `plugin/lib/work.sh`, `plugin/lib/ship.sh`
   (`_peal_ship_issue_items`).

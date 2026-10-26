@@ -234,10 +234,12 @@ _peal_issues_fields() {
   peal_check_context | awk -F '\t' '$1 == "field" { s = s (s == "" ? "" : ",") $2 } END { print s }'
 }
 
-# _peal_issues_text ROW -> the task text of the issue in ROW (lib/issues-text.awk).
+# _peal_issues_text ROW -> the task text of the issue in ROW (lib/issues-text.awk). A
+# stranger's issue comes with its Plan and Outcome emptied unless PEAL_ADMIT_EDITS (the
+# issue's edits row, left by _peal_issues_admitted) shows a non-author writer edited the body last.
 _peal_issues_text() {
   printf '%s\n' "$1" | awk -F '\t' -v label="$PEAL_LABEL" -v claimed="$PEAL_ISSUES_CLAIMED" \
-    -v fields="$(_peal_issues_fields)" -f "$PEAL_ROOT/lib/yaml-render.awk" \
+    -v fields="$(_peal_issues_fields)" -v apps="$PEAL_APPS" -v edits="${PEAL_ADMIT_EDITS-}" -f "$PEAL_ROOT/lib/yaml-render.awk" \
     -f "$PEAL_ROOT/lib/issues-lib.awk" -f "$PEAL_ROOT/lib/issues-text.awk"
 }
 
@@ -322,11 +324,13 @@ _peal_issues_admitted() {
   local row=$1 id=${2-} edits
   PEAL_ADMIT_EDIT=0
   PEAL_ADMIT_ERR=""
+  PEAL_ADMIT_EDITS=""
   # shellcheck disable=SC2016 # awk's own $ fields, not the shell's
   printf '%s\n' "$row" | awk -F '\t' -v label="$PEAL_LABEL" -v apps="$PEAL_APPS" -f "$PEAL_ROOT/lib/issues-lib.awk" \
     -f <(printf '%s\n' '{ exit !admitted($6, $5, label, $9, apps) }') || return 1
   if [ -n "$PEAL_LABEL" ] && [ -n "$id" ]; then
     edits=$(_peal_issues_edits_batch "$id") || { PEAL_ADMIT_ERR="could not read issue $id's edits"; return 2; }
+    PEAL_ADMIT_EDITS=$(printf '%s\n' "$edits" | awk -F '\t' -v id="$id" '$1 == id { print; exit }')
     # No line for the issue: refused, as fail closed.
     # shellcheck disable=SC2016 # awk's own $ fields, not the shell's
     if ! printf '%s\n' "$edits" | awk -F '\t' -v id="$id" -v trusted="$(_peal_issues_trusted "$row")" \
@@ -870,6 +874,10 @@ peal_store_set_milestone() {
 # A comment is a comment, whoever holds the issue.
 peal_store_comment() {
   local id=$1
+  if [ "${PEAL_COMMENT_ORIGIN-}" = outsider ]; then
+    peal_err "comment: --origin outsider is not carried by the issues storage (origin is files only); nothing noted"
+    return 2
+  fi
   if [ -z "${2-}" ]; then
     peal_err "comment: no text"
     return 2

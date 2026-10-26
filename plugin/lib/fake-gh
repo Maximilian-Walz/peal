@@ -15,7 +15,8 @@
 # while $FAKE_GH/no-auto-merge exists, and the re-label check's edits query (the
 # timelineItems of each issue it names, one alias "iN: issue(number: N)" per issue, all
 # in one answer; an issue that does not exist fails the call), answered from an issue's
-# own optional fields: created_at (default
+# own optional fields (a PATCH carrying a body sets editor "peal" and last_edited_at to
+# now, as GitHub records the editor): created_at (default
 # 2000-01-01T00:00:00Z), author_login (default "author"), last_edited_at, editor,
 # labeled_events ({at, label}, one per labelling) and renamed_events ({at, by}, one per
 # rename). A pull request opens unmergeable while
@@ -406,6 +407,7 @@ case "$method $rest" in
             . + ($in | del(.milestone)) + (if $in | has("milestone") then
               {milestone: (if $in.milestone then ($ms[0][] | select(.number == $in.milestone) | {number, title}) else null end)}
               else {} end)
+            + (if $in | has("body") then {editor: "peal", last_edited_at: (now | strftime("%Y-%m-%dT%H:%M:%SZ"))} else {} end)
           else . end)' --argjson in "$body" --argjson n "$n" --slurpfile ms "$FAKE_GH/milestones.json"
         out "$(jq -c --argjson n "$n" '.[] | select(.number == $n)' "$FAKE_GH/issues.json")"
         ;;

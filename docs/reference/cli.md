@@ -357,7 +357,8 @@ that puts the task on a depends cycle it was not on before (through `milestone` 
 
 `peal comment [--origin outsider|writer] ID TEXT` adds a dated line to an unclaimed task's
 `## Notes`; an issue gets a comment, claimed or not. `--origin outsider` also sets the
-task's `origin: outsider` (files storage). A TEXT with a line that is `---` or starts with
+task's `origin: outsider` (files storage; on the issues storage it is refused with status 2
+and nothing is posted). A TEXT with a line that is `---` or starts with
 `## ` is refused (status 2). Belfry reaches it through `/peal:comment`, the
 `tasks.commands.revise` prompt.
 

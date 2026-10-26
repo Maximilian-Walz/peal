@@ -66,6 +66,9 @@ One rule, applied on every read path (`read`, `claim`, `work`, `defer`, the list
   renamer in the re-label check (and in `peal ship`'s release notes). An App's issue
   labelled `origin: outsider` gets no App trust: refused without a filter label, and with
   one, refused if edited after its labelling; the write-access rule stays for everyone.
+- A stranger's issue (opener not a writer) reads with its `## Plan` and `## Outcome`
+  emptied, headings kept, unless the body's last edit is by someone other than the
+  author (`peal record`, a maintainer): its text never reads as an agreed plan.
 - Only pull requests from the repository itself, by someone with write access or by such
   an App mark an issue awaiting merge.
 
