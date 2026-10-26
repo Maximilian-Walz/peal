@@ -98,8 +98,8 @@ version=v1.2.0`):
 Set it up once:
 
 1. Create a GitHub App owned by the repository's owner, with the repository permissions
-   Contents and Pull requests (read and write) and Actions (read), and install it on the
-   repository. Do not make it a bypass actor of main's rules: where main refuses direct
+   Contents and Pull requests (read and write) and Actions, Checks and Commit statuses
+   (read), and install it on the repository. Do not make it a bypass actor of main's rules: where main refuses direct
    pushes, `peal ship bump` and `pin` go through a pull request (`main-writes: auto`),
    whose checks run because the App opened it. A pull request the run's own
    `GITHUB_TOKEN` opens starts no workflow, so its auto-merge would wait forever.
