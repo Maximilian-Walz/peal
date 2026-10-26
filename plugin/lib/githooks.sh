@@ -184,7 +184,10 @@ peal_githook() {
 # apply commit whose body vouches for the task; the Plan and the Outcome never go from
 # empty to filled; an added file never sets merge, nor brings a filled Plan or Outcome
 # with origin: outsider. A shape-only check let "docs(tasks): revise ..." carry any text.
-# Rewriting main (not a fast-forward) and deleting it are refused, and so is a merge made
+# The first push of main (the remote has none) is refused in one line: which commits it
+# adds would be told by the local remote-tracking refs, files anyone can fake, and the
+# hook makes no network call; it is the human's own push, outside this gate. Rewriting
+# main (not a fast-forward) and deleting it are refused, and so is a merge made
 # on this machine. Git runs no pre-push for a merge made on the server (a pull request's),
 # so this never stands in its way. A guard against honest mistakes: branch protection on
 # main is what stops a deliberate push.
@@ -206,7 +209,8 @@ _peal_pre_push() {
       continue
     fi
     if [[ "$rsha" =~ ^0+$ ]]; then
-      range="$lsha --not --remotes"
+      _peal_gate_refuse pre-push "the remote has no $main; its first push is the human's own, outside Peal's gate."
+      continue
     elif ! git merge-base --is-ancestor "$rsha" "$lsha" 2>/dev/null; then
       _peal_gate_refuse pre-push "the push to $main is not a fast-forward: $main is never rewritten."
       continue
