@@ -97,4 +97,22 @@ Ranges relied on:
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+On the issues storage, a stranger's issue now renders with its `## Plan` and `## Outcome` sections emptied. A stranger is an opener that is not `writer()`; that includes a trusted App's issue labelled `origin: outsider`. The headings and the `---` rule stay in place.
+
+- **The exception.** The sections are kept when the body's last edit was made by a writer other than the author (`keeps_human_sections()` in `plugin/lib/issues-lib.awk`, which reuses `edit_writer()`). `peal record` is such an edit, so a plan the human agreed survives and reads back as `PLAN agreed`.
+- **Where the edits row comes from.** It is the one `_peal_issues_admitted` already fetches, passed on as `PEAL_ADMIT_EDITS`; there is no new GraphQL call. A missing row, or one for another issue, strips (fails closed).
+- **0122, absorbed.** `peal comment --origin outsider` on the issues storage now exits 2 before posting anything. Task 0122 was retired into this one on main.
+- **Test harness.** The fake gh now records `editor: "peal"` and `last_edited_at` on a PATCH that carries a body, so the record round trip is tested.
+- **Tests.** New cases `stranger_plan` and `comment_origin` in `plugin/lib/store-issues.test.sh`.
+- **Docs.** `docs/security.md` says the limit is closed and names the guard and its tests. `docs/reference/storage.md`, `docs/reference/cli.md` and `plugin/commands/comment.md` say the same.
+- **The milestone file.** `docs/milestones/m6.md` changes only to cite 0250 instead of the retired 0122, which the human agreed in the plan; no milestone content changes.
+
+Decided with the human:
+- A stranger's text does not render `origin: outsider`; the plan labels decide `plan`.
+- Any writer's edit vouches for the whole body.
+- A revise or defer of a stranger's issue may drop the stranger's Plan and Outcome text from the body.
+
+Left for later:
+- A stranger's `## Notes` line "merge: auto agreed ..." can still make close ask the reviewer for a merge-auto verdict. It grants nothing; filed as the idea `stranger-notes-merge-auto-line`.
+
+Review: no blocking findings. The one small fix, a test for the no-plan-label case that never actually ran without a label, was made in f1d4a8f.
