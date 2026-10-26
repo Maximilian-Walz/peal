@@ -537,7 +537,7 @@ _peal_close_ideas_handed() {
     echo "ideas: none queued"
     return 0
   fi
-  n=$(grep -c '^-----IDEA .*-----$' "$queue")
+  n=$(peal_ideas | wc -l | tr -d ' ')
   peal_ideas | awk -F '\t' '{ printf "handed - — \"%s\"\n", $2 }' >>"$gitdir/$PEAL_IDEAS_FILED" || return 2
   { cat "$queue"; echo; } >>"$gitdir/peal-ideas-handed" || return 2
   rm -f "$queue"
