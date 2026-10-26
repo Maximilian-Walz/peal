@@ -86,4 +86,17 @@ Ranges: tasks/done/0177-merge-auto-is-the-human.md:43-61,79-97; plugin/lib/merge
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+`peal merge-gate` now refuses two more shapes of a task-files pull request, closing the route by which `merge: auto` could outlive the plan it was agreed for:
+
+- **A changed task under an agreed `merge`**: a backlog/doing file that keeps the `merge` value main holds for its id must now also keep main's blob. A move or rename with no content change (a claim, a slug change) passes; any other byte change (Plan, Scope, Intent, Raw, Notes, frontmatter) is refused with "changes a task whose merge the human agreed; drop merge with the change, or a human merges it". Dropping `merge` in the same pull request passes, as before. In a gate, "refuse" and "drop `merge`" are the same thing: a gate cannot edit the pull request, so it refuses and names both ways out.
+- **A second file of an id holding `merge`**: when HEAD holds more than one backlog/doing file of an id and any of them holds `merge` (a bad frontmatter counts as holding it, so it fails closed), the file the pull request wrote is refused. A duplicate main already had stays unjudged by the same-blob skip. Plain duplicates without `merge` stay with `peal check`, as the human chose.
+
+The human chose the whole-file rule over a section-only compare: no section parser in a security gate, and Raw, Notes and frontmatter (which steer the planner and the claim) are covered too. The cost: on `main-writes: pr`, a comment, revise or milestone change on a task holding `merge` needs a human merge.
+
+0177's shape: under a control plane, consent lives in its record and a rewrite on main never reaches a claim's copy; without one, main's field is the only record, so the gate is where this belongs.
+
+Tests: `merge-gate.test.sh` (174 passed under every awk) gains the refused cases (Plan added and changed on 0002, Scope changed on 0005 in doing, a frontmatter change with merge kept, rename and move with a body change, a second 0002 file with and without merge) and passed cases (unchanged move and rename, a Plan change with merge dropped). The old "an edit to a task with merge" case moved to the refused side. `hostile.test.sh` (2723 passed) and `tools/lint.sh` green. Docs: `docs/security.md` (auto-merge tiers, the limit rewritten as closed by 0234), `docs/reference/cli.md`, the usage text in `plugin/bin/peal`, and the header and step name of `plugin/templates/merge-gate.yml` (a reviewer's finding, fixed). `docs/design.md`'s clause still reads right and was left.
+
+Left: the comment above the merge-gate step in `.github/workflows/ci.yml` still says only "no task file gains a merge key"; it is a comment in a human-merged path and was not worth widening this pull request for. Filed: the pull-request gate never checks `origin: outsider`, so a task-files pull request can drop it from a task without `merge` (the planner's finding).
+
+Next session: `hostile.test.sh` takes about 12 minutes; run it in the background.
