@@ -507,8 +507,7 @@ peal_release_verdict() {
     echo dirty
     return
   fi
-  up=$(git rev-parse -q --verify "refs/heads/$branch@{upstream}" 2>/dev/null) \
-    || up=$(git rev-parse -q --verify "refs/remotes/$(peal_config_get remote)/$branch" 2>/dev/null) || up=""
+  up=$(peal_remote_ref "$branch" "$(peal_config_get remote)" 2>/dev/null) || up=""
   if [ -n "$up" ] && [ "$(git rev-list --count "$up..refs/heads/$branch")" -gt 0 ]; then
     echo unpushed
     return
