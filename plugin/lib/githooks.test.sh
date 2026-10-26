@@ -485,6 +485,24 @@ docs(tasks): file 0004 new-task [0004]" "$(git -C "$work" log --format=%s -6 ori
   check_fails "refused: not a fast-forward" 1 "not a fast-forward" git -C "$work" push -q -f origin HEAD:main
   check_fails "refused: deleting main" 1 "deletes main" git -C "$work" push -q origin :main
 
+  # The first push of main is refused in one line, with a faked tracking ref too.
+  fresh
+  echo y >"$work/README"
+  git -C "$work" add README
+  commit_ungated "docs(tasks): file 0007 first [0007]"
+  echo z >>"$work/README"
+  git -C "$work" add README
+  commit_ungated "feat: second [0007]"
+  git init -q --bare "$work/../first.git"
+  git -C "$work" remote add first "$work/../first.git"
+  out=$(git -C "$work" push -q first HEAD:main 2>&1; echo "rc=$?")
+  check "first push: refused" "1" "$(printf '%s\n' "$out" | grep -c 'rc=1')"
+  check "first push: one line about it" "1" "$(printf '%s\n' "$out" | grep -c "the remote has no main; its first push is the human's own, outside Peal's gate")"
+  check "first push: no --no-verify named" "0" "$(printf '%s\n' "$out" | grep -c -- '--no-verify')"
+  git -C "$work" update-ref refs/remotes/origin/fake HEAD
+  check_fails "first push: a faked tracking ref" 1 "its first push is the human's own" git -C "$work" push -q first HEAD:main
+  git -C "$work" update-ref -d refs/remotes/origin/fake
+  git -C "$work" remote remove first
   # The main branch is the setting's.
   fresh
   mkdir -p "$work/.peal"
@@ -492,7 +510,7 @@ docs(tasks): file 0004 new-task [0004]" "$(git -C "$work" log --format=%s -6 ori
   echo x >"$work/README"
   git -C "$work" add README
   commit_ungated "feat: to main, not the main branch here [0001]"
-  check_fails "the setting: trunk is guarded" 1 "reaches trunk directly" git -C "$work" push -q origin HEAD:trunk
+  check_fails "the setting: trunk is guarded" 1 "the remote has no trunk; its first push is the human's own" git -C "$work" push -q origin HEAD:trunk
   check "the setting: main is then an ordinary branch" "0" "$(push_main 2>/dev/null; echo $?)"
 }
 
