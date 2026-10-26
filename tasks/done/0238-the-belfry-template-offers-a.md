@@ -96,4 +96,31 @@ Ranges: `tasks/done/0232-peal-release-as-a-workflow.md:73-195`, `.github/workflo
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Built: any Peal project under Belfry can now release through a GitHub workflow, as Peal itself does since 0232.
+
+- `plugin/templates/release.yml` (new): the starter release workflow. It has the shape of 0232's: dispatch only (`version`, `dry_run`), a `release` concurrency group, a secret-free `propose` job and a `release` job in the `release` environment with the App token (`PEAL_RELEASE_APP_ID`/`PEAL_RELEASE_APP_KEY`). It differs from Peal's own (left unchanged, as agreed) in four ways:
+  - It runs Peal from `$RUNNER_TEMP/peal`, fetched pinned by SHA (v0.8.0). The "Get Peal" step is one YAML anchor (`&get-peal`) aliased in the release job, so there is one marked pin line for `peal ship pin` and `tools/pins.sh`.
+  - `propose` has contents/issues/pull-requests read and the run's `github.token` in that step's env only, for private repositories and the issues storage.
+  - The main branch is read at run time with `peal config main`. A real run refuses any other ref, and the release job runs only when propose named a version.
+  - The App token adds `permission-issues: read`.
+- `plugin/lib/init.sh`: the belfry stage's commented release action is now the workflow form (`workflow: release.yml`, an asked `version` whose pattern follows `release.tag-prefix`, `triggers: [button]`, `single: true`, `release: true`). The pattern is left out unless the prefix matches `[A-Za-z0-9_/-]+`.
+  - While `.github/workflows/release.yml` is missing, the stage prints an offer line. `--release-workflow` writes it, byte-equal to the template, and refuses with status 1 over a different file. `--remove belfry` removes it while unchanged and keeps an edited one.
+- `plugin/commands/setup.md`: step 2 asks about the release action. It runs `--release-workflow` before the human uncomments, because the stage refuses a `.belfry.yml` edited since it wrote it.
+- Docs: the Belfry guide (Actions), the releases guide ("Under Belfry", rewritten for any project), the CLI reference (the flag), `docs/security.md` (the starter among the templates, its read token) and `docs/design.md` (the releases row, the templates paragraph).
+- `.peal/config.yml`: version-files and commit-files gain the template's pin line. `.belfry.yml`: `&never` gains the template.
+
+Verified:
+- `init.test.sh`: 345/0.
+- `pins.test.sh`, `docs.test.sh` and `lint.sh` pass, and so does `test-all.sh` (38 harnesses).
+- The propose shell was run by hand against a scratch project with a bare local origin, covering the empty version, NOTHING, a malformed version, a non-main ref, and `main: trunk` with `tag-prefix: rel-`.
+- The end-to-end dispatch on a fresh GitHub repository is left to the human after merge, as agreed (Human steps).
+
+For the next session:
+- If GitHub ever rejects the anchor/alias, the fallback is passing the SHA through a job output.
+- Backlog task 0252 (release pull requests skip the harnesses) should know that a release now also changes the pin line of `plugin/templates/release.yml`.
+- `tools/pins.test.sh:104` still says "at least decisions.yml and merge-gate.yml" (≥2). This is harmless.
+- Duplicates, left as the human chose: 0242 duplicates this task, 0240 duplicates 0237. Both are for retiring.
+
+### Reviewer findings not acted on
+
+- The action's pattern rejects pre-releases that the workflow's own check accepts: this matches the agreed plan (a release version from the button), so it is left as is.
