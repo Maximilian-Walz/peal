@@ -182,8 +182,8 @@ closemd=$(tr '\n' ' ' <"$commands/close.md" | tr -s ' ')
 nextmd=$(tr '\n' ' ' <"$commands/next.md" | tr -s ' ')
 check "close: names pr_create, --pr-by-tool and close opened" "1|1|1" \
   "$(grep -c -F 'mcp__belfry__pr_create' <<<"$closemd")|$(grep -c -F -- '--pr-by-tool' <<<"$closemd")|$(grep -c -F 'peal close opened' <<<"$closemd")"
-check "close: names task_create and BLOCKED no-gh-login" "1|1" \
-  "$(grep -c -F 'mcp__belfry__task_create' <<<"$closemd")|$(grep -c -F 'no-gh-login' <<<"$closemd")"
+check "close: names the idea tool and --ideas-by-tool, not task_create; BLOCKED no-gh-login" "1|1|0|1" \
+  "$(grep -c -F 'mcp__belfry__idea' <<<"$closemd")|$(grep -c -F -- '--ideas-by-tool' <<<"$closemd")|$(grep -c -F 'task_create' <<<"$closemd")|$(grep -c -F 'no-gh-login' <<<"$closemd")"
 check "next: names pr_create" "1" "$(grep -c -F 'mcp__belfry__pr_create' <<<"$nextmd")"
 
 # plan: auto (0164): the planner sorts its questions, /peal:work asks only the human's,

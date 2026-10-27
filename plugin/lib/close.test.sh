@@ -654,6 +654,48 @@ flush_cases() {
   check "flush: both credited" "2" "$(jq -r '.[0].body' "$FAKE_GH/pulls.json" | grep -c -e 'First idea' -e 'Bad idea')"
 }
 
+# ideas_by_tool_cases -> under a session whose sandbox cannot push main (the remote refuses
+# it; the issues storage's filing fails): plain finish refuses and names --ideas-by-tool;
+# with it finish files nothing, says why, empties the queue, credits both ideas in the pull
+# request body as handed, and a second finish changes nothing.
+ideas_by_tool_cases() {
+  local out status hook gitdir main_before body
+  new_repo "main-writes: push"
+  ready 1 first-task
+  build
+  at "$wt" "$PEAL" idea "first idea here" <<<"$(ID=NNNN TITLE="First idea" text)" >/dev/null
+  at "$wt" "$PEAL" idea "second idea here" <<<"$(ID=NNNN TITLE="Second idea" text)" >/dev/null
+  begin >/dev/null
+  outcome "Built a.txt."
+  gitdir=$(git -C "$wt" rev-parse --absolute-git-dir)
+  hook=$(dirname "$work")/remote.git/hooks/pre-receive
+  printf '#!/bin/sh\nwhile read -r old new ref; do [ "$ref" = refs/heads/main ] && { echo "no pushes to main" >&2; exit 1; }; done\nexit 0\n' >"$hook"
+  chmod +x "$hook"
+  printf 'POST repos/acme/widgets/issues' >"$FAKE_GH/fail"
+  main_before=$(git -C "$(dirname "$work")/remote.git" rev-parse main)
+  check_refused "ideas by tool: plain finish refuses" "--ideas-by-tool" close_finish
+  check "ideas by tool: both still queued after the refusal" "2" "$(at "$wt" "$PEAL" ideas | wc -l | tr -d ' ')"
+  out=$(at "$wt" "$PEAL" ideas --export 2)
+  check "ideas by tool: --export N is that idea alone" "1|0" "$(printf '%s\n' "$out" | grep -c '^# NNNN — Second idea$')|$(printf '%s\n' "$out" | grep -c 'First idea')"
+  check_refused "ideas by tool: --export past the end" "no idea 3 queued" at "$wt" "$PEAL" ideas --export 3
+  out=$(close_finish --ideas-by-tool 2>&1)
+  status=$?
+  check "ideas by tool: finish succeeds" "0|clear|1" "$status|$(sentinel)|$(prs)"
+  check "ideas by tool: the why line" "1" "$(printf '%s\n' "$out" | grep -c '^ideas: 2 queued idea(s) taken as filed through the session.s idea tool (--ideas-by-tool)')"
+  check "ideas by tool: main did not move" "$main_before" "$(git -C "$(dirname "$work")/remote.git" rev-parse main)"
+  check "ideas by tool: no task filed, queue empty" "1|0" "$(at "$work" "$PEAL" list --no-pr | wc -l | tr -d ' ')|$(at "$wt" "$PEAL" ideas | wc -l | tr -d ' ')"
+  check "ideas by tool: the texts are kept" "2" "$(grep -c '^-----IDEA ' "$gitdir/peal-ideas-handed")"
+  body=$(jq -r '.[0].body' "$FAKE_GH/pulls.json")
+  check "ideas by tool: both titles in the body as handed" "2" "$(printf '%s\n' "$body" | grep -c -e "^- First idea (handed to the control plane's idea tool)$" -e "^- Second idea (handed to the control plane's idea tool)$")"
+  rearm_sentinel
+  out=$(close_finish --ideas-by-tool 2>&1)
+  check "ideas by tool: a second finish is idempotent" "0|none queued|1|clear" \
+    "$?|$(printf '%s\n' "$out" | grep -o 'none queued')|$(prs)|$(sentinel)"
+  check "ideas by tool: the body still credits both" "2" \
+    "$(jq -r '.[0].body' "$FAKE_GH/pulls.json" | grep -c 'handed to the control plane')"
+  rm -f "$hook" "$FAKE_GH/fail"
+}
+
 # wontfix_cases -> a task closed with nothing built still opens its pull request.
 wontfix_cases() {
   local out
@@ -1157,6 +1199,7 @@ cases() {
   rerun_cases
   autosave_rewritten_cases
   flush_cases
+  ideas_by_tool_cases
   wontfix_cases
   abort_cases
   stop_cases

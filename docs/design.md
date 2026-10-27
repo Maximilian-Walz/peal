@@ -124,7 +124,8 @@ Where the pieces meet, and why:
   headless and interactive alike. It keys on `pr_create` the same way: Belfry's sessions
   hold no `gh` login, so with that tool close opens the pull request through it (finish
   stops after the push, `peal close opened` takes the number back), with no early draft,
-  the one CI rerun an empty commit, and queued ideas filed through `task_create` first.
+  the one CI rerun an empty commit, and queued ideas filed through the session's `idea` tool, then `peal close finish --ideas-by-tool`
+  (the sandbox cannot push main, so finish skips its own filing and credits them as handed).
   Without a login and without the tool, `peal close verify` answers
   `BLOCKED:no-gh-login`, and `peal list` shows `pr:unknown`, quietly. The writes no
   Belfry tool stands in for (a main-write through a pull request, `peal ship publish`,

@@ -343,8 +343,8 @@ that opens the issue itself; a text that sets `merge` is refused, as `peal creat
 
 ## `peal ideas`
 
-`peal ideas [--flush | --export | --drop N|--all]` works the queue: `--flush` files the
-ideas, `--export` prints them in full as Markdown, `--drop N` takes one off by position,
+`peal ideas [--flush | --export [N] | --drop N|--all]` works the queue: `--flush` files the
+ideas, `--export` prints them in full as Markdown (`--export N`: the idea at position N alone), `--drop N` takes one off by position,
 `--all` all of them.
 
 ## `peal revise`
@@ -556,7 +556,7 @@ Declares the close: a sentinel in the git directory arms the Stop hook.
 ### `peal close finish`
 
 `peal close finish --summary TEXT [--decisions TEXT] [--human-steps TEXT] [--notes TEXT]
-[--security TEXT] [--section TITLE TEXT]... [--review-file FILE] [--pr-by-tool]`. `--decisions`,
+[--security TEXT] [--section TITLE TEXT]... [--review-file FILE] [--pr-by-tool] [--ideas-by-tool]`. `--decisions`,
 `--human-steps` and `--notes` are optional, given once, never empty; `--human-steps` that
 is only none, n/a or `-` is refused (leave it out, or use `--notes`). `--security` is one
 line, given once: the boundary the change touches and how, or `none`; a leading
@@ -591,6 +591,14 @@ file. `FILE` is the reviewer's report.
   pull request through Belfry's `pr_create` tool with those, then runs `peal close opened`.
   A title over 256 or a body over 65536 characters (`pr_create`'s limits) is refused,
   nothing truncated.
+
+- `--ideas-by-tool` replaces the flush, after every up-front refusal: the ideas were filed
+  through the session's own idea tool (a session whose sandbox cannot push main). Each
+  queued idea is recorded as handed (the pull request's `## Ideas filed` lists it by title,
+  "handed to the control plane's idea tool"), its text is kept in the git directory
+  (`peal-ideas-handed`), the queue is emptied and the why is printed; no network, nothing
+  filed on main. A re-run finds the queue empty. Without it, a failing flush refuses and
+  names the flag.
 
 ### `peal close opened`
 
