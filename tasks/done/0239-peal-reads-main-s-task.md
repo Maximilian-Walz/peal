@@ -102,4 +102,23 @@ Before the fix, cases 1 to 6 should fail. After it, `tools/test-all.sh` runs in 
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Built: `peal_extract_tree` (`plugin/lib/common.sh`) no longer reads main through `git archive | tar`. It lists the folder with `git --literal-pathspecs ls-tree -r -z --full-tree` and writes each regular blob (mode 100644 or 100755) with `git cat-file blob`. Its readers, store-files.sh (the task scan and milestones), decisions.sh (the decisions index) and apply.sh (milestone updates), now get exactly the committed blobs that a reviewer and the merge gate saw, and none of them needed a change.
+- **Closed:** an in-tree `.gitattributes` with `export-subst` could make the board read `merge: auto` from a blob that does not hold it. One with `export-ignore` could hide tasks, milestones or decisions. Neither works any more. The milestone-state and apply write-backs no longer commit expanded text back to main.
+- **Skipped entries:** symlinks and gitlinks under these folders are skipped. A tree entry with an empty, `.` or `..` component fails the read with status 2, as the human agreed while planning.
+- **No refusal:** `.gitattributes` is not refused in `peal check` or the merge gate. The human chose blob reading only.
+- **Guard listing:** `plugin/lib/common.sh` joins `review_before_merge` in `.belfry.yml`, and `docs/security.md` names it on the Guard line. Before this, the guard function merged under no review rule. `docs/security.md` gives the route and its fix as a "Closed by 0239" limit under Auto-merge tiers.
+- **Tests:** the new `attr_cases` group in `plugin/lib/hostile.test.sh` puts `export-subst` and `export-ignore` attributes in `tasks/`, `docs/milestones/`, `docs/decisions/` and the parent `docs/`. It checks the list, board, milestones, milestone-state, apply `milestone_update` and `decision publish`, and that a symlink named like a task is not read. Against main's `common.sh`, 13 of its checks fail; with the fix, all pass. Following the review, every case also runs through `try`, so the harness's leak check applies. `store-files.test.sh`'s `extract_tar` test became `extract_blobs` (a stub `git` that fails `cat-file blob`), because the tar pipe is gone. `tools/test-all.sh` passed, run in two parts because of the background time limit.
+- **Not tested:** the `..` refusal was checked by hand only. A single-file PATH is no longer supported; no caller passes one.
+
+Timing of `peal board --no-pr` on this repository, in seconds. The human asked to see these before merging:
+
+| | runs | median |
+|---|---|---|
+| before (git archive) | 2.35 2.11 2.08 1.93 2.00 | 2.08 |
+| after | 3.07 2.45 2.40 2.82 2.45 | 2.45 |
+| reviewer, before | 1.97 1.90 1.92 | 1.92 |
+| reviewer, after | 2.56 2.61 2.63 | 2.61 |
+
+That is about 0.4 to 0.7 s more per board read (+20 to 35%), one `git cat-file` process per file. `cat-file --batch` would be faster, but the plan rejected it because a hostile blob could knock a bash reader out of step.
+
+Next: the duplicate task 0243 was retired during planning (pull request #416). The idea about checkout-time attributes (`eol`, `ident`, `working-tree-encoding`) shaping work-tree task files is filed by this close.
