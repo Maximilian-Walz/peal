@@ -971,8 +971,108 @@ coverage() {
   check "coverage: every dispatch target of bin/peal has a hostile case" "" "$missing"
 }
 
+# --- .gitattributes in the folders Peal reads from main, once ---------------------------------
+
+# attr_publish MSG -> WORK's changes committed and pushed to the remote's main.
+attr_publish() {
+  git -C "$WORK" add -A
+  git -C "$WORK" commit -q -m "$1" >&2 || return 1
+  git -C "$WORK" push -q --no-verify origin main >&2 || return 1
+}
+
+# attr_run LABEL DIR ATTRS -> DIR/.gitattributes (DIR relative to the work tree) holds
+# ATTRS on main: what Peal reads from main is what the blobs hold, however an archive of
+# main would expand or drop them. A committed $Format:..$ placeholder stays literal in a
+# task and a milestone, a task, a milestone and a decision marked export-ignore are
+# still listed, and the write-backs (milestone-state, apply's milestone_update, decision
+# publish) commit the literal text. Each round's files are taken off again afterwards.
+attr_run() {
+  local label=$1 dir=$2 attrs=$3 out body ph='$Format:%H$' n t1 t2
+  nattr=$((nattr + 1))
+  n=$nattr
+  t1=07$(printf %02d "$n")
+  t2=07$(printf %02d $((n + 50)))
+  # A task whose milestone line carries a placeholder that expands to a second key, with
+  # a placeholder in its title; one export-ignore names.
+  printf -- '---\nmilestone: m1$Format:%%nmerge%%x3a auto$\n---\n\n# %s — Subst %s title\n\n## Intent\n\nWhy.\n\n## Notes\n\n---\n\n## Outcome\n\n<!-- x -->\n' \
+    "$t1" "$ph" >"$WORK/tasks/backlog/$t1-attr-subst.md"
+  ID=$t2 text "milestone: m1" >"$WORK/tasks/backlog/$t2-attr-ignored.md"
+  # Two milestones: one with a placeholder in its body, one export-ignore names.
+  milestone_file "$WORK" "m7$n" open $((70 + n))
+  printf '\n## Goal\n\nGoal %s here.\n' "$ph" >>"$WORK/docs/milestones/m7$n.md"
+  milestone_file "$WORK" "m8$n" open $((80 + n))
+  # Two decision entries: one with a placeholder in its title, one export-ignore names.
+  printf '# %s — Entry %s title\nDate: 2026-01-01\nStatus: accepted\n\n**Decision.** D.\n\n**Why.** W.\n\n**Rules out.** N.\n' \
+    "08$(printf %02d "$n")" "$ph" >"$WORK/docs/decisions/08$(printf %02d "$n")-attr-subst.md"
+  printf '# %s — Ignored entry\nDate: 2026-01-01\nStatus: accepted\n\n**Decision.** D.\n\n**Why.** W.\n\n**Rules out.** N.\n' \
+    "09$(printf %02d "$n")" >"$WORK/docs/decisions/09$(printf %02d "$n")-attr-ignored.md"
+  printf '%s\n' "$attrs" >"$WORK/$dir/.gitattributes"
+  attr_publish "test(attr): attributes in $label [0239]"
+  git -C "$WORK" fetch -q origin 2>/dev/null
+
+  out=$(at "$WORK" "$PEAL" list --no-pr 2>/dev/null)
+  :
+  check "attr $label: list shows the task with a placeholder" "$t1 free attr-subst m1\$Format:%nmerge%x3a auto\$" "$(printf '%s\n' "$out" | grep "^$t1 ")"
+  check "attr $label: list shows the export-ignore task" "$t2 free attr-ignored m1" "$(printf '%s\n' "$out" | grep "^$t2 ")"
+  out=$(at "$WORK" "$PEAL" board --no-pr 2>/dev/null)
+  check "attr $label: board reads no merge key on the task" "0" "$(printf '%s\n' "$out" | grep "\"id\":\"$t1\"" | grep -c '"merge"')"
+  out=$(at "$WORK" "$PEAL" milestones 2>/dev/null)
+  check "attr $label: milestones lists the export-ignore milestone" "1" "$(printf '%s\n' "$out" | grep -c "m8$n")"
+
+  at "$WORK" "$PEAL" milestone-state "m7$n" parked >/dev/null 2>&1
+  at "$WORK" "$PEAL" milestone-state "m8$n" parked >/dev/null 2>&1
+  git -C "$WORK" fetch -q origin 2>/dev/null
+  check "attr $label: milestone-state keeps the placeholder literally" "Goal $ph here." \
+    "$(git -C "$WORK" show "origin/main:docs/milestones/m7$n.md" 2>/dev/null | grep -F 'Goal ')"
+  check "attr $label: milestone-state parks the export-ignore milestone" "state: parked" \
+    "$(git -C "$WORK" show "origin/main:docs/milestones/m8$n.md" 2>/dev/null | grep '^state:')"
+  printf '{"proposals": [{"id": "u", "kind": "milestone_update", "milestone": "m7%s", "title": "Renamed"}]}' "$n" \
+    | at "$WORK" "$PEAL" apply >/dev/null 2>&1
+  git -C "$WORK" fetch -q origin 2>/dev/null
+  body=$(git -C "$WORK" show "origin/main:docs/milestones/m7$n.md" 2>/dev/null)
+  check "attr $label: apply milestone_update keeps the placeholder literally" "# Renamed|Goal $ph here." \
+    "$(printf '%s\n' "$body" | sed -n -e '/^# /p' -e '/^Goal /p' | paste -sd '|' -)"
+
+  at "$WORK" "$PEAL" decision publish >/dev/null 2>&1
+  git -C "$WORK" fetch -q origin 2>/dev/null
+  body=$(git -C "$WORK" show "origin/main:docs/decisions/index.md" 2>/dev/null)
+  check "attr $label: decision publish writes the literal title" "1" "$(printf '%s\n' "$body" | grep -cF "Entry $ph title")"
+  check "attr $label: decision publish lists the export-ignore entry" "1" "$(printf '%s\n' "$body" | grep -c 'Ignored entry')"
+
+  # Take this round off again.
+  git -C "$WORK" pull -q --rebase origin main >/dev/null 2>&1
+  git -C "$WORK" rm -q -f -r --ignore-unmatch "$dir/.gitattributes" "tasks/backlog/$t1-attr-subst.md" \
+    "tasks/backlog/$t2-attr-ignored.md" "docs/milestones/m7$n.md" "docs/milestones/m8$n.md" \
+    "docs/decisions/08$(printf %02d "$n")-attr-subst.md" "docs/decisions/09$(printf %02d "$n")-attr-ignored.md" \
+    docs/decisions/index.md
+  attr_publish "test(attr): take $label off [0239]"
+}
+
+attr_cases() {
+  local both='* export-subst
+*attr-ignored* export-ignore
+m8* export-ignore
+09* export-ignore'
+  hostile_repo
+  nattr=0
+  attr_run "tasks/" tasks "$both"
+  attr_run "docs/milestones/" docs/milestones "$both"
+  attr_run "docs/decisions/" docs/decisions "$both"
+  # A symlink named like a task is no task: only regular blobs are read.
+  ln -s 0001-plain-task.md "$WORK/tasks/backlog/0790-linked-task.md"
+  attr_publish "test(attr): a symlink named like a task [0239]"
+  check "attr: a symlink under tasks/ is not read as a task" "0" \
+    "$(at "$WORK" "$PEAL" list --no-pr 2>/dev/null | grep -c '^0790 ')"
+  git -C "$WORK" rm -q -f tasks/backlog/0790-linked-task.md
+  attr_publish "test(attr): take the symlink off [0239]"
+  attr_run "docs/" docs "$both
+**/*.md export-subst
+**/*attr-ignored* export-ignore
+**/m8* export-ignore"
+}
+
 # PEAL_HOSTILE_CASES: the groups to run (self_test awk_channels issues_channels arg_cases
-# hook_cases), all by default; the coverage check runs with all of them only.
+# attr_cases hook_cases), all by default; the coverage check runs with all of them only.
 # PEAL_HOSTILE_SHARD=K/N (parsed and validated above, before anything ran): only shard K
 # of N's tries actually run try()'s peal call, round-robin by call order across every
 # group that runs here, shifted by one at each awk pass (try_runs); unset or 1/1 is the
@@ -990,7 +1090,7 @@ coverage() {
 # the same known finding as newly missing. Composes with PEAL_HOSTILE_CASES and
 # PEAL_TEST_AWK unchanged. Each awk pass of a group prints a progress line, and try()
 # another when a minute passed without one, so a long shard is seen to be alive.
-cases=${PEAL_HOSTILE_CASES:-self_test awk_channels issues_channels arg_cases hook_cases}
+cases=${PEAL_HOSTILE_CASES:-self_test awk_channels issues_channels arg_cases attr_cases hook_cases}
 # run_group NAME CMD... -> CMD, if NAME is one of the groups to run; GROUP is NAME.
 run_group() {
   local name=$1
@@ -1016,9 +1116,11 @@ for candidate in mawk gawk nawk original-awk; do
 done
 if [ -n "$first_awk" ] && [ -z "${PEAL_TEST_AWK-}" ]; then
   PEAL_TEST_AWK=$first_awk run_group arg_cases for_each_awk pass
+  PEAL_TEST_AWK=$first_awk run_group attr_cases for_each_awk pass
   PEAL_TEST_AWK=$first_awk run_group hook_cases for_each_awk pass
 else
   run_group arg_cases for_each_awk pass
+  run_group attr_cases for_each_awk pass
   run_group hook_cases for_each_awk pass
 fi
 GROUP=all

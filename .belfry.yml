@@ -130,6 +130,7 @@ policy:
       - plugin/lib/backlog.test.sh
       - plugin/lib/store-files.sh
       - plugin/lib/store-files.test.sh
+      - plugin/lib/common.sh
       - plugin/lib/store-issues.sh
       - plugin/lib/store-issues.test.sh
       - plugin/lib/issues-lib.awk

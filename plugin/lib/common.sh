@@ -130,21 +130,54 @@ peal_ssh_batch_mode() {
 }
 
 # peal_extract_tree REF PATH DEST -> REF's PATH copied under DEST; nothing if absent.
-# Status 2 and one line saying why when git or tar fails. tar's input is drained after it
-# is done: a tar that stops reading before the archive's padding (bsdtar) would otherwise
-# kill git with SIGPIPE under pipefail, silently.
+# Reads the committed blobs (git ls-tree -r -z, git cat-file blob), never git archive:
+# an archive applies the archived tree's own .gitattributes (export-subst rewrites a
+# file, export-ignore drops it), so a pull request could change what Peal reads from
+# what a reviewer and the merge gate saw. Only regular blobs (100644, 100755) are
+# copied; symlinks and gitlinks are skipped. Status 2 and one line saying why when git
+# fails or a path has an empty, "." or ".." component.
 peal_extract_tree() {
-  local err status=0 reason
-  git cat-file -e "$1:$2" 2>/dev/null || return 0
-  err=$(mktemp) || { peal_err "could not read $2 at $1: no temporary file"; return 2; }
-  { git archive "$1" -- "$2" 2>>"$err" \
-      | { tar -x -C "$3" 2>>"$err"; status=$?; cat >/dev/null; exit $status; }; } || status=$?
-  if [ $status != 0 ]; then
-    reason=$(tr '\n' ' ' <"$err" | sed 's/  */ /g; s/ *$//')
-    peal_err "could not read $2 at $1: ${reason:-exit status $status}"
+  local ref=$1 dir=$2 dest=$3 list entry meta path sha err status=0 part rest made=""
+  git cat-file -e "$ref:$dir" 2>/dev/null || return 0
+  list=$(mktemp) || { peal_err "could not read $dir at $ref: no temporary file"; return 2; }
+  err=$(mktemp) || { rm -f "$list"; peal_err "could not read $dir at $ref: no temporary file"; return 2; }
+  if ! git --literal-pathspecs ls-tree -r -z --full-tree "$ref" -- "$dir" >"$list" 2>"$err"; then
     status=2
+    peal_err "could not read $dir at $ref: $(tr '\n' ' ' <"$err" | sed 's/  */ /g; s/ *$//')"
+  else
+    while IFS= read -r -d '' entry; do
+      meta=${entry%%$'\t'*}
+      path=${entry#*$'\t'}
+      case $meta in
+        100644\ blob\ * | 100755\ blob\ *) ;;
+        *) continue ;;
+      esac
+      [ "${path#"$dir"/}" != "$path" ] || continue
+      sha=${meta##* }
+      rest=$path
+      while :; do
+        part=${rest%%/*}
+        case $part in
+          '' | . | ..)
+            peal_err "could not read $dir at $ref: bad path component in $path"
+            status=2
+            break 2 ;;
+        esac
+        [ "$part" != "$rest" ] || break
+        rest=${rest#*/}
+      done
+      if [ "${path%/*}" != "$made" ]; then
+        mkdir -p "$dest/${path%/*}" 2>"$err" || { peal_err "could not read $dir at $ref: $(tr '\n' ' ' <"$err")"; status=2; break; }
+        made=${path%/*}
+      fi
+      if ! git cat-file blob "$sha" >"$dest/$path" 2>"$err"; then
+        peal_err "could not read $dir at $ref: $(tr '\n' ' ' <"$err" | sed 's/  */ /g; s/ *$//')"
+        status=2
+        break
+      fi
+    done <"$list"
   fi
-  rm -f "$err"
+  rm -f "$list" "$err"
   return $status
 }
 

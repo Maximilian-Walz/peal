@@ -568,7 +568,8 @@ which fails naming any `plugin/`, `tools/` or `.peal/` path a Guard line names t
 neither list covers.
 
 - Guard: `tools/guards.sh`, `plugin/lib/merge-gate.sh`, `plugin/lib/merge-gate.awk`, the `peal merge-gate`
-  step of `.github/workflows/ci.yml`, `plugin/templates/merge-gate.yml`.
+  step of `.github/workflows/ci.yml`, `plugin/templates/merge-gate.yml`,
+  `plugin/lib/common.sh` (`peal_extract_tree`).
 - Harness: `plugin/lib/merge-gate.test.sh`, `plugin/lib/hostile.test.sh`,
   `tools/pins.test.sh` (the template's pin).
 
@@ -594,6 +595,19 @@ Its limits:
   `## Plan` or `## Scope` cannot ride the consent given for the old one), and a second
   file carrying an id that holds `merge`. Dropping `merge` with the change passes, and
   the human agrees a plan again. Tests: `plugin/lib/merge-gate.test.sh`.
+- **A `.gitattributes` in the folders Peal reads from main.** Closed by 0239: Peal read
+  main's tasks, milestones and decisions through `git archive`, which applies the
+  archived tree's own `.gitattributes`. A pull request under the `tasks/**` tier could
+  add `tasks/.gitattributes` with `* export-subst` and a blob line such as
+  `milestone: m1$Format:%nmerge%x3a auto$`: the blob (what a reviewer and this gate
+  see) holds no new key, yet the expanded file read as `merge: auto`; `export-ignore`
+  hid files from every reader. `peal_extract_tree` now reads the committed blobs
+  (`git ls-tree -r -z`, `git cat-file blob`), copies regular files only (symlinks and
+  gitlinks are skipped) and fails a path with an empty, `.` or `..` component with status
+  2, so no attribute, in the folder, a parent or `info/attributes`, changes what Peal
+  reads. Tests: the `attr_cases` group of `plugin/lib/hostile.test.sh`. Open: attributes
+  that apply at checkout (`eol`, `ident`, `working-tree-encoding`) still shape the work
+  tree's copies of task files.
 
 ## What this milestone leaves open
 
