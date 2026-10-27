@@ -47,4 +47,4 @@ touches: [plugin/lib/common.sh, plugin/lib/store-files.sh, plugin/lib/decisions.
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Retired 2026-10-27 without being claimed: Duplicate of 0239, which was filed with the same text and does this work.
