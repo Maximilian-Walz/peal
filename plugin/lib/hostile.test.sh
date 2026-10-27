@@ -1010,30 +1010,34 @@ attr_run() {
   attr_publish "test(attr): attributes in $label [0239]"
   git -C "$WORK" fetch -q origin 2>/dev/null
 
+  try "attr $label: list" "$WORK" list --no-pr
   out=$(at "$WORK" "$PEAL" list --no-pr 2>/dev/null)
-  :
   check "attr $label: list shows the task with a placeholder" "$t1 free attr-subst m1\$Format:%nmerge%x3a auto\$" "$(printf '%s\n' "$out" | grep "^$t1 ")"
   check "attr $label: list shows the export-ignore task" "$t2 free attr-ignored m1" "$(printf '%s\n' "$out" | grep "^$t2 ")"
+  try "attr $label: board" "$WORK" board --no-pr
   out=$(at "$WORK" "$PEAL" board --no-pr 2>/dev/null)
   check "attr $label: board reads no merge key on the task" "0" "$(printf '%s\n' "$out" | grep "\"id\":\"$t1\"" | grep -c '"merge"')"
+  try "attr $label: milestones" "$WORK" milestones
   out=$(at "$WORK" "$PEAL" milestones 2>/dev/null)
   check "attr $label: milestones lists the export-ignore milestone" "1" "$(printf '%s\n' "$out" | grep -c "m8$n")"
 
-  at "$WORK" "$PEAL" milestone-state "m7$n" parked >/dev/null 2>&1
-  at "$WORK" "$PEAL" milestone-state "m8$n" parked >/dev/null 2>&1
+  try "attr $label: milestone-state" "$WORK" milestone-state "m7$n" parked
+  try "attr $label: milestone-state, the ignored one" "$WORK" milestone-state "m8$n" parked
   git -C "$WORK" fetch -q origin 2>/dev/null
   check "attr $label: milestone-state keeps the placeholder literally" "Goal $ph here." \
     "$(git -C "$WORK" show "origin/main:docs/milestones/m7$n.md" 2>/dev/null | grep -F 'Goal ')"
   check "attr $label: milestone-state parks the export-ignore milestone" "state: parked" \
     "$(git -C "$WORK" show "origin/main:docs/milestones/m8$n.md" 2>/dev/null | grep '^state:')"
-  printf '{"proposals": [{"id": "u", "kind": "milestone_update", "milestone": "m7%s", "title": "Renamed"}]}' "$n" \
-    | at "$WORK" "$PEAL" apply >/dev/null 2>&1
+  INPUT=$BASE/input
+  printf '{"proposals": [{"id": "u", "kind": "milestone_update", "milestone": "m7%s", "title": "Renamed"}]}' "$n" >"$INPUT"
+  try "attr $label: apply milestone_update" "$WORK" apply
+  INPUT=$NOINPUT
   git -C "$WORK" fetch -q origin 2>/dev/null
   body=$(git -C "$WORK" show "origin/main:docs/milestones/m7$n.md" 2>/dev/null)
   check "attr $label: apply milestone_update keeps the placeholder literally" "# Renamed|Goal $ph here." \
     "$(printf '%s\n' "$body" | sed -n -e '/^# /p' -e '/^Goal /p' | paste -sd '|' -)"
 
-  at "$WORK" "$PEAL" decision publish >/dev/null 2>&1
+  try "attr $label: decision publish" "$WORK" decision publish
   git -C "$WORK" fetch -q origin 2>/dev/null
   body=$(git -C "$WORK" show "origin/main:docs/decisions/index.md" 2>/dev/null)
   check "attr $label: decision publish writes the literal title" "1" "$(printf '%s\n' "$body" | grep -cF "Entry $ph title")"
