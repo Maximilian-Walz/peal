@@ -25,4 +25,4 @@ Revised 2026-10-22: Re-plan 2026-10-22: the heading number now matches the id (0
 
 ## Outcome
 
-<!-- Written at close, replacing this comment. -->
+Retired 2026-10-27 without being claimed: dismissed from the Desk by max
