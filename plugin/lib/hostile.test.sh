@@ -1023,6 +1023,9 @@ attr_run() {
 
   try "attr $label: milestone-state" "$WORK" milestone-state "m7$n" parked
   try "attr $label: milestone-state, the ignored one" "$WORK" milestone-state "m8$n" parked
+  # try() runs its call in one shard only; the checks below need the writes in every one.
+  at "$WORK" "$PEAL" milestone-state "m7$n" parked >/dev/null 2>&1 || :
+  at "$WORK" "$PEAL" milestone-state "m8$n" parked >/dev/null 2>&1 || :
   git -C "$WORK" fetch -q origin 2>/dev/null
   check "attr $label: milestone-state keeps the placeholder literally" "Goal $ph here." \
     "$(git -C "$WORK" show "origin/main:docs/milestones/m7$n.md" 2>/dev/null | grep -F 'Goal ')"
@@ -1031,6 +1034,7 @@ attr_run() {
   INPUT=$BASE/input
   printf '{"proposals": [{"id": "u", "kind": "milestone_update", "milestone": "m7%s", "title": "Renamed"}]}' "$n" >"$INPUT"
   try "attr $label: apply milestone_update" "$WORK" apply
+  at "$WORK" "$PEAL" apply <"$INPUT" >/dev/null 2>&1 || :
   INPUT=$NOINPUT
   git -C "$WORK" fetch -q origin 2>/dev/null
   body=$(git -C "$WORK" show "origin/main:docs/milestones/m7$n.md" 2>/dev/null)
@@ -1038,6 +1042,7 @@ attr_run() {
     "$(printf '%s\n' "$body" | sed -n -e '/^# /p' -e '/^Goal /p' | paste -sd '|' -)"
 
   try "attr $label: decision publish" "$WORK" decision publish
+  at "$WORK" "$PEAL" decision publish >/dev/null 2>&1 || :
   git -C "$WORK" fetch -q origin 2>/dev/null
   body=$(git -C "$WORK" show "origin/main:docs/decisions/index.md" 2>/dev/null)
   check "attr $label: decision publish writes the literal title" "1" "$(printf '%s\n' "$body" | grep -cF "Entry $ph title")"
